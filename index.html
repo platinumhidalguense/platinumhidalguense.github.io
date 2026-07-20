@@ -618,12 +618,17 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-20.1';
+const APP_VERSION='2026-07-20.2';
+let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
-  if(remota && remota!==APP_VERSION) mostrarBannerActualizacion(remota);
+  // solo avisa si la versión anunciada es MÁS NUEVA que la de este archivo
+  // (el formato AAAA-MM-DD.N permite compararlas como texto). Antes se
+  // comparaba "diferente", y si config y archivo quedaban desfasados el
+  // aviso salía en bucle aunque ya tuvieras la última versión.
+  if(remota && remota>APP_VERSION && remota!==_verIgnorada) mostrarBannerActualizacion(remota);
 }
-function mostrarBannerActualizacion(){
+function mostrarBannerActualizacion(remota){
   if($('banner-update'))return;
   const b=document.createElement('div');
   b.id='banner-update';
@@ -633,7 +638,7 @@ function mostrarBannerActualizacion(){
     <button style="background:transparent;color:#cbd5e1;border:1px solid #3a4a6b;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px">Después</button>`;
   const btns=b.querySelectorAll('button');
   btns[0].onclick=()=>{location.href=location.pathname+'?v='+Date.now();};
-  btns[1].onclick=()=>b.remove();
+  btns[1].onclick=()=>{_verIgnorada=remota;b.remove();};
   document.body.prepend(b);
 }
 async function chequearVersionEnVivo(){
