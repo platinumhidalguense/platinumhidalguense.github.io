@@ -251,6 +251,7 @@ tbody tr:hover{background:#f6f8fb}
             <button onclick="toggleMenu('menu-docs');openProyContratista()">👷 Proyección por contratista (todas las obras)</button>
             <div class="sep"></div>
             <button onclick="toggleMenu('menu-docs');openIncidencias()">📉 Incidencias de la semana</button>
+            <button onclick="toggleMenu('menu-docs');openCalendarioRet()">📅 Calendario de retenciones</button>
           </div>
         </div>
         <div class="menu" id="menu-imp">
@@ -617,7 +618,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-19.1';
+const APP_VERSION='2026-07-19.2';
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
   if(remota && remota!==APP_VERSION) mostrarBannerActualizacion(remota);
@@ -1487,6 +1488,146 @@ async function saveIncidencias(){
   await loadObraData(OBRA.id);
 }
 
+/* ---------- v29: CALENDARIO DE RETENCIONES (petición de contabilidad) ----------
+   Registro semanal de TODO lo que se le retiene a cada trabajador y por qué:
+   descuentos fijos (Infonavit/Fonacot/préstamos) con su estado de esa semana
+   (NORMAL / ⏸ PAUSADO / ×2 DOBLE, que salen de las excepciones semanales ya
+   existentes) + incidencias de la semana (faltas, daños, etc.). Se alimenta de
+   las MISMAS tablas que usa la proyección — no hay doble captura ni datos
+   duplicados: lo que ves aquí es exactamente lo que va a descontar la
+   proyección de esa semana. */
+function retFilasDe(semStr){
+  const semN=parseInt(String(semStr).replace(/\D/g,''))||0;
+  const filas=[];
+  DESC.filter(d=>d.activo).forEach(d=>{
+    const w=WORKERS.find(x=>x.id===d.trabajador_id); if(!w)return;
+    if(d.recurrente){
+      // el fijo cuenta desde la semana en que se capturó (si el registro trae fecha)
+      if(d.created_at){const wc=isoWeek(new Date(d.created_at)); if(semN<wc)return;}
+      const ex=(d.excepciones||{})[semStr];
+      const estado=ex==='SUSPENDER'?'PAUSADO':ex==='DOBLE'?'DOBLE':'NORMAL';
+      const monto=ex==='SUSPENDER'?0:ex==='DOBLE'?Math.round((Number(d.monto)||0)*2*100)/100:(Number(d.monto)||0);
+      filas.push({w,d,origen:'FIJO',estado,monto});
+    }else if(d.semana===semStr){
+      filas.push({w,d,origen:'INCIDENCIA',estado:'—',monto:Number(d.monto)||0});
+    }
+  });
+  filas.sort((a,b)=>((a.w.no_trab||9e9)-(b.w.no_trab||9e9))||(a.origen>b.origen?1:-1));
+  return filas;
+}
+function openCalendarioRet(){
+  const [d1,d2]=weekBounds();
+  modal(`
+    <div class="m-head"><h2>📅 Calendario de retenciones · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);margin-bottom:12px">Registro semanal de <b>cuánto se le retiene a cada trabajador y por qué</b>. Sale de los mismos descuentos fijos e incidencias que usa la proyección: lo que ves aquí es lo que la proyección de esa semana va a descontar. Los fijos muestran su estado de la semana: <b>NORMAL</b>, <b>⏸ PAUSADO</b> (no se retiene) o <b>×2 DOBLE</b> (se compensa una semana pausada).</p>
+      <div class="grid" style="grid-template-columns:120px 1fr 1fr auto auto;align-items:end;gap:10px">
+        <div><label>Semana</label><input id="cr-sem" type="number" value="${isoWeek()}" oninput="semSincroniza('cr-sem','cr-d1','cr-d2',renderCalRet)"></div>
+        <div><label>Del día</label><input id="cr-d1" type="date" value="${d1}" disabled></div>
+        <div><label>Al día</label><input id="cr-d2" type="date" value="${d2}" disabled></div>
+        <button class="btn" onclick="crNav(-1)" title="Semana anterior">‹</button>
+        <button class="btn" onclick="crNav(1)" title="Semana siguiente">›</button>
+      </div>
+      <div id="cr-strip" style="margin-top:12px"></div>
+      <div id="cr-body" style="margin-top:12px"></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn dark" onclick="exportCalendarioRet()">⬇ Exportar registro de la semana (Excel)</button>
+    </div>`,'lg');
+  renderCalRet();
+}
+function crNav(delta){
+  $('cr-sem').value=(parseInt($('cr-sem').value)||isoWeek())+delta;
+  semSincroniza('cr-sem','cr-d1','cr-d2',renderCalRet);
+}
+function renderCalRet(){
+  const semN=parseInt($('cr-sem').value)||isoWeek(), sem='S'+semN;
+  // tira de 12 semanas: total retenido por semana, clic para saltar
+  const semanas=[];for(let i=11;i>=0;i--)semanas.push(semN-i);
+  const tot=semanas.map(n=>retFilasDe('S'+n).filter(f=>f.w.estatus==='ACTIVO').reduce((s,f)=>s+f.monto,0));
+  const maxT=Math.max(...tot,1);
+  $('cr-strip').innerHTML=`<div style="display:flex;gap:4px;align-items:flex-end;height:64px">
+    ${semanas.map((n,i)=>`<div onclick="$('cr-sem').value=${n};semSincroniza('cr-sem','cr-d1','cr-d2',renderCalRet)" title="S${n}: $${money(tot[i])}" style="flex:1;cursor:pointer;text-align:center">
+      <div style="background:${n===semN?'var(--gold)':'var(--navy)'};opacity:${n===semN?1:.55};border-radius:4px 4px 0 0;height:${Math.max(4,Math.round(tot[i]/maxT*44))}px"></div>
+      <div style="font-size:10px;color:${n===semN?'var(--navy)':'var(--mut)'};font-weight:${n===semN?800:400}">S${n}</div>
+    </div>`).join('')}
+  </div>`;
+  const filas=retFilasDe(sem);
+  if(!filas.length){$('cr-body').innerHTML=`<div style="color:var(--mut);padding:30px;text-align:center">Sin retenciones registradas para la semana ${semN}.</div>`;return;}
+  const act=filas.filter(f=>f.w.estatus==='ACTIVO');
+  const tTot=act.reduce((s,f)=>s+f.monto,0);
+  const nFij=act.filter(f=>f.origen==='FIJO').length, nPau=act.filter(f=>f.estado==='PAUSADO').length,
+        nDob=act.filter(f=>f.estado==='DOBLE').length, nInc=act.filter(f=>f.origen==='INCIDENCIA').length;
+  const tag=e=>e==='PAUSADO'?'<span style="background:var(--amber-bg);color:var(--amber);border-radius:10px;padding:1px 8px;font-size:10.5px;font-weight:700">⏸ PAUSADO</span>'
+           :e==='DOBLE'?'<span style="background:var(--red-bg);color:var(--red);border-radius:10px;padding:1px 8px;font-size:10.5px;font-weight:700">×2 DOBLE</span>'
+           :e==='NORMAL'?'<span style="background:var(--green-bg);color:var(--green);border-radius:10px;padding:1px 8px;font-size:10.5px;font-weight:700">NORMAL</span>':'—';
+  $('cr-body').innerHTML=`
+    <div class="stats" style="margin-bottom:10px">
+      <div class="stat b"><div class="n">$${money(tTot)}</div><div class="l">Total a retener S${semN}</div></div>
+      <div class="stat"><div class="n">${[...new Set(act.map(f=>f.w.id))].length}</div><div class="l">Trabajadores con retención</div></div>
+      <div class="stat g"><div class="n">${nFij-nPau-nDob}</div><div class="l">Fijos normales</div></div>
+      <div class="stat a"><div class="n">${nPau}</div><div class="l">Fijos pausados ⏸</div></div>
+      <div class="stat r"><div class="n">${nDob}</div><div class="l">Fijos dobles ×2</div></div>
+      <div class="stat"><div class="n">${nInc}</div><div class="l">Incidencias</div></div>
+    </div>
+    <div class="imp-row head" style="grid-template-columns:.5fr 2fr .9fr .8fr .8fr .7fr 2fr .6fr"><span>No.</span><span>Trabajador</span><span>Tipo</span><span>Origen</span><span>Estado</span><span>Monto</span><span>Motivo</span><span></span></div>
+    <div style="max-height:330px;overflow:auto">
+    ${filas.map(f=>`<div class="imp-row" style="grid-template-columns:.5fr 2fr .9fr .8fr .8fr .7fr 2fr .6fr;${f.w.estatus!=='ACTIVO'?'opacity:.55':''}">
+      <span>${f.w.no_trab??''}</span>
+      <span><b>${esc(fullName(f.w))}</b>${f.w.estatus!=='ACTIVO'?` <span style="color:var(--red);font-size:10.5px">(${esc(f.w.estatus)} — no entra en proyección)</span>`:''}<br><span style="color:var(--mut);font-size:11px">${esc(f.w.contratista||'')}</span></span>
+      <span>${esc(f.d.tipo)}</span>
+      <span>${f.origen==='FIJO'?'🔁 Fijo':'📉 Incidencia'}</span>
+      <span>${tag(f.estado)}</span>
+      <span style="font-weight:700;${f.monto===0?'color:var(--mut)':''}">$${money(f.monto)}</span>
+      <span style="font-size:11.5px">${esc(f.d.motivo||f.d.tipo)}</span>
+      <span>${f.origen==='FIJO'?`<button class="btn" style="padding:2px 8px;font-size:10.5px" onclick="openExcepcion('${f.d.id}')" title="Pausar o doblar esta retención en una semana">⏸/×2</button>`:''}</span>
+    </div>`).join('')}
+    </div>`;
+}
+function exportCalendarioRet(){
+  const semN=parseInt($('cr-sem').value)||isoWeek(), sem='S'+semN;
+  const filas=retFilasDe(sem);
+  if(!filas.length){toast('No hay retenciones en esa semana.','err');return;}
+  const rows=[],styles=[];
+  rows.push([`REGISTRO DE RETENCIONES — SEMANA ${semN} (${fmtD($('cr-d1').value)} – ${fmtD($('cr-d2').value)}) — ${OBRA.nombre}`]); styles.push(ST.title);
+  rows.push(['NO.','TRABAJADOR','CONTRATISTA','ESTATUS','TIPO','ORIGEN','ESTADO DE LA SEMANA','MONTO RETENIDO','MOTIVO / NO. DE CRÉDITO']); styles.push(ST.head);
+  let t=0;
+  filas.forEach(f=>{
+    if(f.w.estatus==='ACTIVO')t+=f.monto;
+    rows.push([f.w.no_trab??'',fullName(f.w),f.w.contratista||'',f.w.estatus,f.d.tipo,f.origen,
+      f.estado==='PAUSADO'?'PAUSADO (no se retiene)':f.estado==='DOBLE'?'DOBLE (compensación)':f.estado==='NORMAL'?'NORMAL':'—',
+      f.monto,f.d.motivo||f.d.tipo]);
+    styles.push([ST.cellC,ST.cell,ST.cell,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.money,ST.cell]);
+  });
+  rows.push(['TOTAL A RETENER (SOLO ACTIVOS)','','','','','','',t,'']);
+  styles.push([ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.totalMoney,ST.total]);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,buildSheet(rows,styles,[7,34,16,11,12,12,20,14,42],[{s:{r:0,c:0},e:{r:0,c:8}}],[{hpt:26},{hpt:24}]),`RETENCIONES S${semN}`);
+  dl(wb,`REGISTRO_RETENCIONES_SEMANA${semN}.xlsx`);
+  toast(`Registro de retenciones S${semN} exportado.`,'ok');
+}
+/* hoja de desglose de retenciones para anexar a las proyecciones */
+function buildRetDetalleWS(act,sem,colB){
+  const ids=new Set(act.map(w=>w.id));
+  const filas=retFilasDe(sem).filter(f=>ids.has(f.w.id));
+  if(!filas.length)return null;
+  const bVal=w=>{if(colB!=='OBRA')return w.contratista||'';const o=OBRAS.find(x=>x.id===w.obra_id);return o?o.nombre.replace(/^OBRA /,''):'';};
+  const rows=[],styles=[];
+  rows.push([`DESGLOSE DE RETENCIONES — SEMANA ${String(sem).replace('S','')} — A QUIÉN Y POR QUÉ`]); styles.push(ST.title);
+  rows.push(['NO.','TRABAJADOR',colB==='OBRA'?'OBRA':'CONTRATISTA','TIPO','ORIGEN','ESTADO DE LA SEMANA','MONTO RETENIDO','MOTIVO / NO. DE CRÉDITO']); styles.push(ST.head);
+  let t=0;
+  filas.forEach(f=>{t+=f.monto;
+    rows.push([f.w.no_trab??'',fullName(f.w),bVal(f.w),f.d.tipo,f.origen,
+      f.estado==='PAUSADO'?'PAUSADO (no se retiene)':f.estado==='DOBLE'?'DOBLE (compensación)':f.estado==='NORMAL'?'NORMAL':'—',
+      f.monto,f.d.motivo||f.d.tipo]);
+    styles.push([ST.cellC,ST.cell,ST.cell,ST.cellC,ST.cellC,ST.cellC,ST.money,ST.cell]);
+  });
+  rows.push(['TOTAL RETENCIONES','','','','','',t,'']);
+  styles.push([ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.totalMoney,ST.total]);
+  return buildSheet(rows,styles,[7,34,16,12,12,20,14,42],[{s:{r:0,c:0},e:{r:0,c:7}}],[{hpt:26},{hpt:24}]);
+}
+
 /* ---------- PROYECCIÓN DE NÓMINA (descuentos + neto + finiquitos) ---------- */
 function pyCandidatos(d1,d2,periodo){
   // v19: solo entran los activos cuya fecha de alta ya cae DENTRO de la semana
@@ -1529,13 +1670,30 @@ function pyPreview(){
   const tD=act.reduce((s,w)=>s+descuentosDe(w,sem).total,0);
   const tF=fins.reduce((s,w)=>s+(Number(w.monto_finiquito)||0),0);
   const nDesc=act.filter(w=>descuentosDe(w,sem).total>0).length;
+  // v29: desglose de a quién y por qué (petición de contabilidad)
+  const ids=new Set(act.map(w=>w.id));
+  const filasRet=retFilasDe(sem).filter(f=>ids.has(f.w.id));
+  const desglose=filasRet.length?`
+    <details style="margin-top:12px;border:1px solid var(--border);border-radius:8px;padding:8px 12px">
+      <summary style="cursor:pointer;font-weight:700;font-size:12.5px;color:var(--navy)">Ver desglose: a quién se le descuenta y por qué (${filasRet.length} retenciones)</summary>
+      <div style="max-height:220px;overflow:auto;margin-top:8px">
+      ${filasRet.map(f=>`<div style="display:grid;grid-template-columns:2fr .8fr .7fr .7fr 2fr;gap:8px;padding:3px 0;font-size:11.5px;border-bottom:1px solid var(--border)">
+        <span><b>${esc(fullName(f.w))}</b></span>
+        <span>${esc(f.d.tipo)}</span>
+        <span>${f.estado==='PAUSADO'?'⏸ pausado':f.estado==='DOBLE'?'×2 doble':f.origen==='FIJO'?'normal':'incidencia'}</span>
+        <span style="font-weight:700;${f.monto===0?'color:var(--mut)':''}">−$${money(f.monto)}</span>
+        <span style="color:var(--mut)">${esc(f.d.motivo||f.d.tipo)}</span>
+      </div>`).join('')}
+      </div>
+      <div style="font-size:11px;color:var(--mut);margin-top:6px">Este mismo desglose se incluye como hoja "RETENCIONES" en el Excel. El registro completo por semana está en 📅 Calendario de retenciones.</div>
+    </details>`:'';
   $('py-prev').innerHTML=`
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <div class="stat g" style="flex:1"><div class="n">${act.length}</div><div class="l">Activos · $${money(tS)}</div></div>
       <div class="stat a" style="flex:1"><div class="n">${nDesc}</div><div class="l">Con descuento · −$${money(tD)}</div></div>
       <div class="stat r" style="flex:1"><div class="n">${fins.length}</div><div class="l">Finiquitos (cheque) · $${money(tF)}</div></div>
       <div class="stat b" style="flex:1"><div class="n">$${money(tS-tD+tF)}</div><div class="l">Total general (neto)</div></div>
-    </div>`;
+    </div>${desglose}`;
   $('py-btn').disabled=!(act.length+fins.length);
 }
 /* ---------- v12: núcleo compartido de proyección (con fórmulas vivas) ---------- */
@@ -1632,8 +1790,10 @@ function exportProyeccion(){
     act,fins,sem,colB:'CONTRATISTA'});
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,r.ws,`SEMANA ${semN}`);
+  const det=buildRetDetalleWS(act,sem,'CONTRATISTA');
+  if(det)XLSX.utils.book_append_sheet(wb,det,'RETENCIONES');
   dl(wb,`PROYECCION_NOMINA_SEMANA${semN}${periodo==='QUINCENAL'?'_QUINCENAL':''}.xlsx`);
-  closeModal();toast(`Proyección S${semN}: ${r.nTot} trabajadores · retenciones $${money(r.tR)} · total $${money(r.total)}. Los totales llevan fórmulas: si mueves un monto a mano se recalculan solos.`,'ok');
+  closeModal();toast(`Proyección S${semN}: ${r.nTot} trabajadores · retenciones $${money(r.tR)} · total $${money(r.total)}${det?' · incluye hoja RETENCIONES con el desglose por trabajador y motivo':''}.`,'ok');
 }
 /* ---------- v12: proyección por contratista (todas las obras) ---------- */
 async function openProyContratista(){
@@ -1687,6 +1847,13 @@ async function exportProyContratista(){
         act:a,fins:f,sem,colB:'OBRA'});
       const wb=XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb,r.ws,`SEMANA ${semN}`);
+      // v29: WORKERS también se sustituye temporalmente para que el desglose
+      // encuentre a la gente de TODAS las obras de este contratista
+      const _W=WORKERS; WORKERS=all;
+      try{
+        const det=buildRetDetalleWS(a,sem,'OBRA');
+        if(det)XLSX.utils.book_append_sheet(wb,det,'RETENCIONES');
+      }finally{WORKERS=_W;}
       await dl(wb,`PROYECCION_${ct.replace(/[^A-ZÑ0-9]+/gi,'_')}_SEMANA${semN}.xlsx`);
       n++;
     }
