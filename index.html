@@ -401,7 +401,7 @@ const CONFIG_URL = "";
 const CONFIG_KEY = "";
 /* =================================================== */
 
-const DOCS = ["SOLICITUD DE EMPLEO","INE","CURP (documento)","CONSTANCIA DE SITUACION (RFC)","NSS (documento)","ACTA DE NACIMIENTO","COMPROBANTE DE DOMICILIO","CONTRATO FIRMADO"];
+const DOCS = ["SOLICITUD DE EMPLEO","INE","CONSTANCIA DE SITUACION (RFC)","NSS (documento)","ACTA DE NACIMIENTO","CURP (documento)","COMPROBANTE DE DOMICILIO"];
 const BANCOS = {"012":"BBVA","127":"AZTECA","002":"BANAMEX","014":"SANTANDER","072":"BANORTE","021":"HSBC","137":"BANCOPPEL","030":"BAJIO","036":"INBURSA","058":"BANREGIO","044":"SCOTIABANK","646":"STP","722":"MERCADO PAGO","638":"NU MEXICO","661":"KLAR","166":"BANCO DEL BIENESTAR"};
 const RX = {curp:/^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/, rfc:/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{2,3}$/, nss:/^\d{11}$/, clabe:/^\d{18}$/, cp:/^\d{5}$/, tel:/^\d{10}$/, mail:/^[^\s@]+@[^\s@]+\.[^\s@]+$/};
 
@@ -618,7 +618,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-19.2';
+const APP_VERSION='2026-07-20.1';
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
   if(remota && remota!==APP_VERSION) mostrarBannerActualizacion(remota);
