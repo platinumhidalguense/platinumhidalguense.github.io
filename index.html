@@ -618,7 +618,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-20.2';
+const APP_VERSION='2026-07-20.3';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -992,7 +992,7 @@ function openForm(id){
       ${DOCS.map(k=>`<div class="doc-row"><span class="nm">${k}</span>
         <select id="doc-${k.replace(/[^A-Z]/g,'')}">${['PENDIENTE','ENTREGADO','NO APLICA'].map(v=>`<option ${(d[k]||'PENDIENTE')===v?'selected':''}>${v}</option>`).join('')}</select></div>`).join('')}
       <div style="margin-top:12px"><label>Link carpeta Drive del trabajador</label><input id="f-drive_link" value="${esc(w?w.drive_link:'')}" placeholder="https://drive.google.com/..."></div>
-      <datalist id="dl-contr">${[...new Set(WORKERS.map(x=>x.contratista).filter(Boolean))].map(c=>`<option>${esc(c)}</option>`).join('')}</datalist>
+      <datalist id="dl-contr">${[...new Set([...WORKERS.map(x=>x.contratista).filter(Boolean),...CONTRATISTAS.map(c=>c.nombre)])].sort().map(c=>`<option>${esc(c)}</option>`).join('')}</datalist>
       <datalist id="dl-puesto">${[...new Set([...Object.keys(CFGEMP['tabulador']||{}),...WORKERS.map(x=>x.puesto).filter(Boolean)])].sort().map(c=>`<option>${esc(c)}</option>`).join('')}</datalist>
     </div>
     <div class="m-foot">
@@ -4060,11 +4060,68 @@ async function openContratistas(){
         verdad. Verifica siempre el folio en <a href="https://repse.stps.gob.mx" target="_blank">repse.stps.gob.mx</a>
         y confirma con tu contador o abogado laboral cualquier duda sobre un caso específico.
       </div>
-      <div style="margin-bottom:10px"><button class="btn" onclick="marcarAbsorbidosMasivo()">✔ Marcar como "Absorbido" a todos los que no tengan REPSE capturado</button></div>
+      <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn dark" onclick="toggleNuevoContratista()">＋ Añadir contratista</button>
+        <button class="btn" onclick="marcarAbsorbidosMasivo()">✔ Marcar como "Absorbido" a todos los que no tengan REPSE capturado</button>
+      </div>
+      <div id="ctr-nuevo" class="hide" style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px;background:var(--bg)">
+        <div class="sect" style="margin-top:0">Nuevo contratista</div>
+        <div class="grid" style="grid-template-columns:2fr 1fr 1fr">
+          <div><label>Nombre del contratista *</label><input id="cn-nombre" placeholder="EJ. ELECTRIFICACIONES DEL CENTRO"></div>
+          <div><label>RFC (opcional)</label><input id="cn-rfc"></div>
+          <div><label>Situación</label><select id="cn-tipo" onchange="$('cn-repse-campos').classList.toggle('hide',this.value!=='REPSE')">
+            <option value="ABSORBIDO">Absorbido (personal directo, no aplica REPSE)</option>
+            <option value="REPSE">Subcontratista real con REPSE</option>
+          </select></div>
+        </div>
+        <div id="cn-repse-campos" class="hide">
+          <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;margin-top:8px">
+            <div><label>Folio registro REPSE</label><input id="cn-reg"></div>
+            <div><label>Actividad registrada</label><input id="cn-act"></div>
+            <div><label>Vigencia hasta</label><input id="cn-vig" type="date"></div>
+            <div><label>Vinculado al SIROC de la obra</label><select id="cn-obra"><option value="">— sin vincular —</option>${OBRAS.map(o=>`<option value="${o.id}">${esc(o.nombre)}</option>`).join('')}</select></div>
+          </div>
+        </div>
+        <div style="margin-top:8px"><label>Notas (opcional)</label><input id="cn-notas"></div>
+        <div style="margin-top:10px;text-align:right">
+          <button class="btn" onclick="toggleNuevoContratista()">Cancelar</button>
+          <button class="btn dark" onclick="crearContratista()">💾 Guardar contratista</button>
+        </div>
+        <div class="fhint" style="margin-top:8px">Al guardarlo, el nombre queda disponible de inmediato en el campo "Contratista" de las altas de trabajadores en cualquier obra. En cuanto le captures gente, saldrá automáticamente en la proyección general y en la proyección por contratista.</div>
+      </div>
       <div id="ctr-lista"></div>
     </div>
     <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`,'lg');
   renderContratistasLista();
+}
+function toggleNuevoContratista(){
+  const d=$('ctr-nuevo'); d.classList.toggle('hide');
+  if(!d.classList.contains('hide'))$('cn-nombre').focus();
+}
+async function crearContratista(){
+  const nombre=($('cn-nombre').value||'').trim().toUpperCase();
+  if(!nombre){toast('Escribe el nombre del contratista.','err');return;}
+  if(CONTRATISTAS.some(c=>c.nombre===nombre)){toast('Ese contratista ya existe en la lista.','err');return;}
+  const esRepse=$('cn-tipo').value==='REPSE';
+  markWrite();
+  const {error}=await sb.from('contratistas').insert({
+    nombre,
+    rfc:($('cn-rfc').value||'').trim().toUpperCase(),
+    repse_no_aplica:!esRepse,
+    repse_registro:esRepse?($('cn-reg').value||'').trim().toUpperCase():'',
+    repse_actividad:esRepse?($('cn-act').value||'').trim().toUpperCase():'',
+    repse_vigencia:esRepse?($('cn-vig').value||null):null,
+    obra_id:esRepse?($('cn-obra').value||null):null,
+    notas:($('cn-notas').value||'').trim().toUpperCase(),
+    creado_por:USER.email
+  });
+  if(error){toast('Error: '+error.message,'err');return;}
+  toast(`Contratista "${nombre}" registrado${esRepse?' con REPSE':' como absorbido'} — ya puedes asignarle trabajadores en las altas.`,'ok');
+  await cargarContratistas();
+  ['cn-nombre','cn-rfc','cn-reg','cn-act','cn-vig','cn-notas'].forEach(id=>{if($(id))$(id).value='';});
+  toggleNuevoContratista();
+  renderContratistasLista();
+  updateAlertas();
 }
 function renderContratistasLista(){
   if(!$('ctr-lista'))return;
