@@ -619,7 +619,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-20.5';
+const APP_VERSION='2026-07-20.6';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -963,7 +963,10 @@ function openForm(id){
         <div><label>Estado civil</label><select id="f-estado_civil"><option value=""></option>${['SOLTERO','CASADO','UNION LIBRE','DIVORCIADO','VIUDO'].map(x=>`<option ${(w&&w.estado_civil)===x?'selected':''}>${x}</option>`).join('')}</select></div>
         <div><label>Escolaridad</label><select id="f-escolaridad"><option value=""></option>${['SIN ESTUDIOS','PRIMARIA','SECUNDARIA','PREPA','CARRERA TECNICA','LICENCIATURA','POSGRADO'].map(x=>`<option ${(w&&w.escolaridad)===x?'selected':''}>${x}</option>`).join('')}</select></div>
         ${fld('nacionalidad','Nacionalidad',w?w.nacionalidad:'MEXICANA')}
-        ${fld('edo_nacimiento','Edo. nacimiento',w?w.edo_nacimiento:'HIDALGO')}
+        <div><label>Edo. nacimiento</label>
+          <input id="f-edo_nacimiento" value="${esc(w?w.edo_nacimiento:'HIDALGO')}" ${(w&&String(w.edo_nacimiento||'').trim())?'':'data-default="1"'} oninput="this.removeAttribute('data-default')">
+          <div class="fhint" id="h-edo_nacimiento">Se llena solo con la CURP (posiciones 12-13, catálogo RENAPO).</div>
+        </div>
         <div class="c3"><label>Dirección</label>
           <div style="display:flex;gap:8px">
             <input id="f-direccion" value="${esc(w?w.direccion:'')}" style="flex:1">
@@ -1061,7 +1064,22 @@ function curpAssist(){
   // solo rellena lo que esté VACÍO — nunca pisa un dato ya capturado a mano
   if(d.fecha&&!$('f-fecha_nacimiento').value){$('f-fecha_nacimiento').value=d.fecha;puestos.push('fecha de nacimiento');}
   if(d.genero&&!$('f-genero').value){$('f-genero').value=d.genero;puestos.push('género');}
-  if(d.edo&&$('f-edo_nacimiento')&&!String($('f-edo_nacimiento').value||'').trim()){$('f-edo_nacimiento').value=d.edo;puestos.push('estado de nacimiento');}
+  // El estado de nacimiento trae "HIDALGO" precargado por defecto en las altas nuevas.
+  // Ese valor por defecto SÍ se reemplaza con lo que diga la CURP (marcado con
+  // data-default); un valor escrito a mano NO se pisa: solo se avisa la discrepancia.
+  const elEdo=$('f-edo_nacimiento');
+  if(d.edo&&elEdo){
+    const vacio=!String(elEdo.value||'').trim(), esDefault=elEdo.hasAttribute('data-default');
+    if(vacio||esDefault){
+      elEdo.value=d.edo; elEdo.removeAttribute('data-default');
+      puestos.push('estado de nacimiento');
+      $('h-edo_nacimiento').innerHTML='<span style="color:var(--green)">✔ Tomado de la CURP.</span>';
+    }else if(String(elEdo.value).trim().toUpperCase()!==d.edo){
+      $('h-edo_nacimiento').innerHTML=`<span class="bad">⚠ La CURP indica <b>${d.edo}</b>. <a href="#" onclick="event.preventDefault();$('f-edo_nacimiento').value='${d.edo}';$('h-edo_nacimiento').innerHTML='✔ Corregido con la CURP.';">Usar el de la CURP</a></span>`;
+    }else{
+      $('h-edo_nacimiento').innerHTML='<span style="color:var(--green)">✔ Coincide con la CURP.</span>';
+    }
+  }
   if(d.rfcBase&&$('f-rfc')&&!String($('f-rfc').value||'').trim()){
     $('f-rfc').value=d.rfcBase;
     $('h-rfc').innerHTML='<span style="color:var(--amber)">Se llenaron los 10 primeros del RFC desde la CURP. <b>Falta la homoclave (3 caracteres)</b> — cópiala de la Constancia de Situación Fiscal.</span>';
@@ -1169,51 +1187,79 @@ async function openAutorrellenar(){
   toast('Revisando expedientes...');
   const {data:tw,error}=await sb.from('trabajadores').select('*').eq('eliminado',false);
   if(error){toast('Error: '+error.message,'err');return;}
-  const cambios=[];
+  const vacios=[],discrep=[];
   (tw||[]).forEach(w=>{
     if(!w.curp||!RX.curp.test(String(w.curp).toUpperCase()))return;
     const d=datosDeCurp(w.curp);
-    const upd={};
+    const upd={},dif={};
     if(d.fecha&&!w.fecha_nacimiento)upd.fecha_nacimiento=d.fecha;
+    else if(d.fecha&&w.fecha_nacimiento&&String(w.fecha_nacimiento).slice(0,10)!==d.fecha)dif.fecha_nacimiento=[String(w.fecha_nacimiento).slice(0,10),d.fecha];
     if(d.genero&&!String(w.genero||'').trim())upd.genero=d.genero;
+    else if(d.genero&&String(w.genero||'').trim().toUpperCase()!==d.genero)dif.genero=[w.genero,d.genero];
     if(d.edo&&!String(w.edo_nacimiento||'').trim())upd.edo_nacimiento=d.edo;
-    if(Object.keys(upd).length)cambios.push({w,upd});
+    else if(d.edo&&String(w.edo_nacimiento||'').trim().toUpperCase()!==d.edo)dif.edo_nacimiento=[w.edo_nacimiento,d.edo];
+    if(Object.keys(upd).length)vacios.push({w,upd});
+    if(Object.keys(dif).length)discrep.push({w,dif,upd:Object.fromEntries(Object.entries(dif).map(([k,v])=>[k,v[1]]))});
   });
-  window._AUTOF=cambios;
+  window._AUTOF={vacios,discrep};
   const sinCurp=(tw||[]).filter(w=>!w.curp||!RX.curp.test(String(w.curp).toUpperCase())).length;
+  const etq={fecha_nacimiento:'Fecha nac.',genero:'Género',edo_nacimiento:'Edo. nacimiento'};
   modal(`
     <div class="m-head"><h2>🪄 Autorrellenar desde CURP · todas las obras</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:12px;font-size:12.5px">Lee la CURP de cada trabajador ya capturado y llena <b>solo los campos que estén vacíos</b>: fecha de nacimiento, género y estado de nacimiento. <b>Nunca sobrescribe</b> un dato que ya exista. La CURP es un dato oficial de RENAPO, así que esto no adivina nada.</p>
+      <p style="color:var(--mut);margin-bottom:12px;font-size:12.5px">Lee la CURP (dato oficial de RENAPO) de cada trabajador capturado. Los <b>campos vacíos</b> se llenan sin riesgo; las <b>discrepancias</b> se listan aparte porque implican <u>corregir</u> un dato ya guardado, y ahí decides tú.</p>
       ${sinCurp?`<div class="fhint" style="margin-bottom:10px">${sinCurp} trabajador(es) no tienen CURP válida capturada y no se pueden completar así.</div>`:''}
-      ${cambios.length?`
+
+      <div class="sect">1 · Campos vacíos por llenar (${vacios.length})</div>
+      ${vacios.length?`
         <div class="imp-row head" style="grid-template-columns:2fr 1fr 1fr 1.2fr"><span>Trabajador</span><span>Fecha nac.</span><span>Género</span><span>Edo. nacimiento</span></div>
-        <div style="max-height:340px;overflow:auto">
-        ${cambios.map(c=>`<div class="imp-row" style="grid-template-columns:2fr 1fr 1fr 1.2fr">
+        <div style="max-height:220px;overflow:auto">
+        ${vacios.map(c=>`<div class="imp-row" style="grid-template-columns:2fr 1fr 1fr 1.2fr">
           <span><b>${esc(fullName(c.w))}</b><br><span style="color:var(--mut);font-size:11px">${esc(c.w.curp)}</span></span>
           <span style="color:var(--green)">${c.upd.fecha_nacimiento?fmtD(c.upd.fecha_nacimiento):'—'}</span>
           <span style="color:var(--green)">${esc(c.upd.genero||'—')}</span>
           <span style="color:var(--green)">${esc(c.upd.edo_nacimiento||'—')}</span>
         </div>`).join('')}
-        </div>`:'<div class="empty">Todos los expedientes con CURP ya están completos. No hay nada que rellenar.</div>'}
+        </div>`:'<div class="empty">Nada pendiente por llenar.</div>'}
+
+      <div class="sect">2 · Discrepancias con la CURP (${discrep.length})</div>
+      ${discrep.length?`
+        <div style="background:var(--amber-bg);border-radius:8px;padding:10px 13px;margin-bottom:10px;font-size:12.5px;line-height:1.6">
+          Estos expedientes tienen un dato distinto al que dice su CURP. Ojo: hasta la versión anterior el campo
+          <b>Edo. nacimiento venía precargado con "HIDALGO"</b> en las altas nuevas, así que es normal que aparezcan
+          varios así aunque el trabajador haya nacido en otro estado. <b>Aplicar la corrección sobrescribe</b> el dato
+          guardado con el de la CURP.
+        </div>
+        <div class="imp-row head" style="grid-template-columns:2fr 1.2fr 1.6fr"><span>Trabajador</span><span>Campo</span><span>Guardado → CURP</span></div>
+        <div style="max-height:240px;overflow:auto">
+        ${discrep.map(c=>Object.entries(c.dif).map(([k,v])=>`<div class="imp-row" style="grid-template-columns:2fr 1.2fr 1.6fr">
+          <span><b>${esc(fullName(c.w))}</b><br><span style="color:var(--mut);font-size:11px">${esc(c.w.curp)}</span></span>
+          <span>${etq[k]||k}</span>
+          <span><span style="color:var(--red)">${esc(k==='fecha_nacimiento'?fmtD(v[0]):v[0])||'(vacío)'}</span> → <b style="color:var(--green)">${esc(k==='fecha_nacimiento'?fmtD(v[1]):v[1])}</b></span>
+        </div>`).join('')).join('')}
+        </div>`:'<div class="empty">Ninguna discrepancia: todo coincide con las CURP.</div>'}
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cerrar</button>
-      ${cambios.length?`<button class="btn dark" onclick="aplicarAutorrellenar()">🪄 Completar ${cambios.length} expediente(s)</button>`:''}
+      ${vacios.length?`<button class="btn dark" onclick="aplicarAutorrellenar('vacios')">🪄 Llenar ${vacios.length} vacío(s)</button>`:''}
+      ${discrep.length?`<button class="btn danger" onclick="aplicarAutorrellenar('discrep')">⚠ Corregir ${discrep.length} discrepancia(s) con la CURP</button>`:''}
     </div>`,'lg');
 }
-async function aplicarAutorrellenar(){
-  const cambios=window._AUTOF||[];
-  if(!cambios.length)return;
-  if(!confirm(`Se van a completar ${cambios.length} expediente(s) con los datos de su CURP.\n\nSolo se llenan campos vacíos; nada se sobrescribe. ¿Continuar?`))return;
+async function aplicarAutorrellenar(modo){
+  const lote=(window._AUTOF||{})[modo]||[];
+  if(!lote.length)return;
+  const msg=modo==='discrep'
+    ? `Se van a SOBRESCRIBIR datos ya guardados en ${lote.length} expediente(s) con lo que dice su CURP.\n\nEsta acción sí reemplaza información existente. ¿Continuar?`
+    : `Se van a completar ${lote.length} expediente(s) con los datos de su CURP.\n\nSolo se llenan campos vacíos; nada se sobrescribe. ¿Continuar?`;
+  if(!confirm(msg))return;
   markWrite();
   let ok=0,fail=0;
-  for(const c of cambios){
+  for(const c of lote){
     const {error}=await sb.from('trabajadores').update({...c.upd,actualizado_por:USER.email}).eq('id',c.w.id);
     if(error)fail++;else ok++;
   }
   closeModal();
-  toast(`${ok} expediente(s) completados${fail?`, ${fail} con error`:''}.`,fail?'err':'ok');
+  toast(`${ok} expediente(s) ${modo==='discrep'?'corregidos':'completados'}${fail?`, ${fail} con error`:''}.`,fail?'err':'ok');
   await loadObraData(OBRA.id);
 }
 function clabeAssist(){
