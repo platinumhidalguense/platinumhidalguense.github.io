@@ -273,6 +273,7 @@ tbody tr:hover{background:#f6f8fb}
             <button onclick="toggleMenu('menu-mas');openPlantillaFecha()">📸 Plantilla a una fecha</button>
             <button onclick="toggleMenu('menu-mas');openCostos()">🏛 Costo patronal · IMSS/ISR/ISN + simulador</button>
             <button onclick="toggleMenu('menu-mas');openVerificadorNOI()">🔢 Verificar números vs NOI</button>
+            <button onclick="toggleMenu('menu-mas');openAutorrellenar()">🪄 Autorrellenar desde CURP (expedientes ya capturados)</button>
           </div>
         </div>
       </div>
@@ -618,7 +619,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-20.4';
+const APP_VERSION='2026-07-20.5';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -954,8 +955,8 @@ function openForm(id){
         ${fld('primer_apellido','Primer apellido',w?w.primer_apellido:'')}
         ${fld('segundo_apellido','Segundo apellido',w?w.segundo_apellido:'')}
         ${fld('nombres','Nombre(s) *',w?w.nombres:'',{cls:'c2'})}
-        ${fld('curp','CURP',w?w.curp:'',{cls:'c2',hint:'18 caracteres. Llena fecha de nacimiento y género automáticamente.',extra:'maxlength="18" oninput="curpAssist()"'})}
-        ${fld('rfc','RFC',w?w.rfc:'',{hint:'13 caracteres con homoclave.',extra:'maxlength="13"'})}
+        ${fld('curp','CURP',w?w.curp:'',{cls:'c2',hint:'18 caracteres. Llena fecha de nacimiento, género y estado de nacimiento automáticamente.',extra:'maxlength="18" oninput="curpAssist()"'})}
+        ${fld('rfc','RFC',w?w.rfc:'',{hint:'13 caracteres con homoclave.',extra:'maxlength="13" oninput="rfcAssist()"'})}
         ${fld('nss','NSS',w?w.nss:'',{hint:'11 dígitos.',extra:'maxlength="11"'})}
         ${fld('fecha_nacimiento','Fecha nacimiento',w?(w.fecha_nacimiento||''):'',{type:'date'})}
         <div><label>Género</label><select id="f-genero"><option value=""></option>${['MASCULINO','FEMENINO'].map(g=>`<option ${(w&&w.genero)===g?'selected':''}>${g}</option>`).join('')}</select></div>
@@ -963,7 +964,13 @@ function openForm(id){
         <div><label>Escolaridad</label><select id="f-escolaridad"><option value=""></option>${['SIN ESTUDIOS','PRIMARIA','SECUNDARIA','PREPA','CARRERA TECNICA','LICENCIATURA','POSGRADO'].map(x=>`<option ${(w&&w.escolaridad)===x?'selected':''}>${x}</option>`).join('')}</select></div>
         ${fld('nacionalidad','Nacionalidad',w?w.nacionalidad:'MEXICANA')}
         ${fld('edo_nacimiento','Edo. nacimiento',w?w.edo_nacimiento:'HIDALGO')}
-        ${fld('direccion','Dirección',w?w.direccion:'',{cls:'c3'})}
+        <div class="c3"><label>Dirección</label>
+          <div style="display:flex;gap:8px">
+            <input id="f-direccion" value="${esc(w?w.direccion:'')}" style="flex:1">
+            <button type="button" class="btn" style="padding:8px 12px;white-space:nowrap" onclick="openDireccionAsistente()">🏠 FORMATO OFICIAL</button>
+          </div>
+          <div class="fhint" id="h-direccion">El asistente arma el domicilio en el orden oficial de Correos de México y normaliza las abreviaturas.</div>
+        </div>
         ${fld('cp','C.P.',w?w.cp:'',{extra:'maxlength="5"'})}
         ${fld('telefono','Teléfono',w?w.telefono:'',{hint:'10 dígitos.',extra:'maxlength="10"'})}
         <div class="c2"><label>Correo electrónico</label>
@@ -1018,15 +1025,196 @@ function cuentaModo(){
   if(crear){$('f-cuenta').value='';$('h-cuenta').textContent='Se marcará CUENTA: CREAR y entrará a la próxima requisición de tarjetas.';}
   else $('h-cuenta').textContent='';
 }
+/* ---------- v32: autorrelleno desde CURP / RFC ----------
+   Catálogo oficial de RENAPO: posiciones 12-13 de la CURP = entidad de
+   nacimiento. Es una tabla fija publicada por el gobierno, así que esto
+   funciona 100% sin internet y sin depender de ningún servicio externo. */
+const CURP_EDOS={AS:'AGUASCALIENTES',BC:'BAJA CALIFORNIA',BS:'BAJA CALIFORNIA SUR',CC:'CAMPECHE',
+  CL:'COAHUILA',CM:'COLIMA',CS:'CHIAPAS',CH:'CHIHUAHUA',DF:'CIUDAD DE MEXICO',DG:'DURANGO',
+  GT:'GUANAJUATO',GR:'GUERRERO',HG:'HIDALGO',JC:'JALISCO',MC:'MEXICO',MN:'MICHOACAN',
+  MS:'MORELOS',NT:'NAYARIT',NL:'NUEVO LEON',OC:'OAXACA',PL:'PUEBLA',QT:'QUERETARO',
+  QR:'QUINTANA ROO',SP:'SAN LUIS POTOSI',SL:'SINALOA',SR:'SONORA',TC:'TABASCO',
+  TS:'TAMAULIPAS',TL:'TLAXCALA',VZ:'VERACRUZ',YN:'YUCATAN',ZS:'ZACATECAS',NE:'NACIDO EN EL EXTRANJERO'};
+/* Lee todo lo que la CURP contiene de forma determinista. No adivina nada:
+   si un dato no está en la CURP, regresa vacío. */
+function datosDeCurp(c){
+  c=String(c||'').toUpperCase().replace(/\s/g,'');
+  const out={fecha:'',genero:'',edo:'',rfcBase:''};
+  if(!/^[A-Z]{4}\d{6}/.test(c))return out;
+  const yy=+c.slice(4,6),mm=c.slice(6,8),dd=c.slice(8,10);
+  // el siglo se decide por el carácter 17: dígito = 1900s, letra = 2000s (regla RENAPO)
+  const c17=c[16]||'';
+  const siglo=/[A-Z]/.test(c17)?2000:(c17?1900:(yy<=(new Date().getFullYear()%100)?2000:1900));
+  const yyyy=siglo+yy;
+  const f=`${yyyy}-${mm}-${dd}`;
+  const d=new Date(f+'T12:00');
+  if(!isNaN(d)&&d.getDate()===+dd&&d.getMonth()+1===+mm)out.fecha=f;
+  if(c.length>=11)out.genero=c[10]==='H'?'MASCULINO':(c[10]==='M'?'FEMENINO':'');
+  if(c.length>=13)out.edo=CURP_EDOS[c.slice(11,13)]||'';
+  if(c.length>=10)out.rfcBase=c.slice(0,10); // los 10 primeros de la CURP = los 10 del RFC (persona física)
+  return out;
+}
 function curpAssist(){
   const c=$('f-curp').value.toUpperCase().replace(/\s/g,'');$('f-curp').value=c;
-  if(c.length>=10&&/^[A-Z]{4}\d{6}/.test(c)){
-    const yy=+c.slice(4,6),mm=c.slice(6,8),dd=c.slice(8,10);
-    const yyyy=yy<=(new Date().getFullYear()%100)?2000+yy:1900+yy;
-    if(!$('f-fecha_nacimiento').value)$('f-fecha_nacimiento').value=`${yyyy}-${mm}-${dd}`;
-    if(c.length>=11&&!$('f-genero').value)$('f-genero').value=c[10]==='H'?'MASCULINO':(c[10]==='M'?'FEMENINO':'');
+  const d=datosDeCurp(c);
+  const puestos=[];
+  // solo rellena lo que esté VACÍO — nunca pisa un dato ya capturado a mano
+  if(d.fecha&&!$('f-fecha_nacimiento').value){$('f-fecha_nacimiento').value=d.fecha;puestos.push('fecha de nacimiento');}
+  if(d.genero&&!$('f-genero').value){$('f-genero').value=d.genero;puestos.push('género');}
+  if(d.edo&&$('f-edo_nacimiento')&&!String($('f-edo_nacimiento').value||'').trim()){$('f-edo_nacimiento').value=d.edo;puestos.push('estado de nacimiento');}
+  if(d.rfcBase&&$('f-rfc')&&!String($('f-rfc').value||'').trim()){
+    $('f-rfc').value=d.rfcBase;
+    $('h-rfc').innerHTML='<span style="color:var(--amber)">Se llenaron los 10 primeros del RFC desde la CURP. <b>Falta la homoclave (3 caracteres)</b> — cópiala de la Constancia de Situación Fiscal.</span>';
   }
+  $('h-curp').innerHTML=puestos.length
+    ?`<span style="color:var(--green)">✔ Se llenó solo: ${puestos.join(', ')}.</span>`
+    :'18 caracteres. Llena fecha de nacimiento, género y estado de nacimiento automáticamente.';
   valMark('curp',c===''||RX.curp.test(c));
+}
+/* Cruza el RFC contra la CURP: la fecha de nacimiento debe coincidir. */
+function rfcAssist(){
+  const r=$('f-rfc').value.toUpperCase().replace(/\s/g,'');$('f-rfc').value=r;
+  const c=String($('f-curp').value||'').toUpperCase();
+  let msg='13 caracteres con homoclave.';
+  const mR=r.match(/^[A-ZÑ&]{3,4}(\d{6})/);
+  if(mR){
+    const f=`${mR[1].slice(0,2)}-${mR[1].slice(2,4)}-${mR[1].slice(4,6)}`;
+    const mC=c.match(/^[A-Z]{4}(\d{6})/);
+    if(mC&&mC[1]!==mR[1])msg='<span class="bad">⚠ La fecha de nacimiento del RFC no coincide con la de la CURP. Revisa cuál está mal antes de guardar.</span>';
+    else if(r.length<12)msg=`<span style="color:var(--amber)">Falta la homoclave: un RFC de persona física lleva 13 caracteres.</span>`;
+    else msg=`<span style="color:var(--green)">✔ RFC consistente con la CURP (nac. ${f}).</span>`;
+  }
+  $('h-rfc').innerHTML=msg;
+  valMark('rfc',r===''||RX.rfc.test(r));
+}
+/* ---------- v32: asistente de dirección en formato oficial SEPOMEX ----------
+   Todo el procesamiento es local: normaliza abreviaturas y arma el domicilio
+   en el orden que pide Correos de México. NO consulta ningún servicio externo. */
+const DIR_ABREV=[[/\bC\.?\s+(?=[A-ZÑ])/g,'CALLE '],[/\bAV(?:DA|E)?\.?\s+/g,'AVENIDA '],
+  [/\bBLVD?\.?\s+/g,'BOULEVARD '],[/\bCDA\.?\s+/g,'CERRADA '],[/\bPRIV\.?\s+/g,'PRIVADA '],
+  [/\bAND\.?\s+/g,'ANDADOR '],[/\bCARR\.?\s+/g,'CARRETERA '],[/\bPROL\.?\s+/g,'PROLONGACION '],
+  [/\bFRACC\.?\s+/g,'FRACCIONAMIENTO '],[/\bMZ(?:A|NA)?\.?\s*/g,'MANZANA '],[/\bLT(?:E)?\.?\s*/g,'LOTE '],
+  [/\bNO\.?\s*(?=\d)/g,'NUM. '],[/\bNUM(?:ERO)?\.?\s*(?=\d)/g,'NUM. '],[/#\s*/g,'NUM. '],
+  [/\bS\/N\b/g,'SIN NUMERO'],[/\bINT\.?\s*/g,'INTERIOR '],[/\bEXT\.?\s*/g,'EXTERIOR ']];
+function normalizaDir(s){
+  let t=String(s||'').toUpperCase()
+    .replace(/[ÁÀÄÂ]/g,'A').replace(/[ÉÈËÊ]/g,'E').replace(/[ÍÌÏÎ]/g,'I')
+    .replace(/[ÓÒÖÔ]/g,'O').replace(/[ÚÙÜÛ]/g,'U')
+    .replace(/\s+/g,' ').trim();
+  DIR_ABREV.forEach(([rx,rep])=>{t=t.replace(rx,rep);});
+  return t.replace(/\s+/g,' ').replace(/\s+,/g,',').trim();
+}
+function openDireccionAsistente(){
+  const actual=String($('f-direccion').value||'');
+  // intento de separar lo que ya está capturado (best effort, el usuario corrige)
+  const cpM=actual.match(/\b(\d{5})\b/);
+  const colM=actual.match(/COL(?:ONIA)?\.?\s+([^,]+)/i);
+  const partes=actual.split(',').map(s=>s.trim()).filter(Boolean);
+  modal(`
+    <div class="m-head"><h2>🏠 Asistente de dirección · formato oficial</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);margin-bottom:12px;font-size:12.5px">Captura por partes y la app arma el domicilio en el <b>orden oficial de Correos de México</b> (calle y número → colonia → C.P., municipio, estado), con las abreviaturas normalizadas (AV. → AVENIDA, COL. → COLONIA, etc.). Todo se procesa en tu computadora: <b>no se consulta ningún servicio externo</b>.</p>
+      <div class="grid" style="grid-template-columns:2fr 1fr 1fr">
+        <div><label>Calle / vialidad *</label><input id="da-calle" value="${esc(partes[0]||'')}" placeholder="CALLE HIDALGO"></div>
+        <div><label>Número exterior</label><input id="da-ext" placeholder="45"></div>
+        <div><label>Número interior</label><input id="da-int" placeholder="3-B"></div>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:8px">
+        <div><label>Colonia / asentamiento *</label><input id="da-col" value="${esc(colM?colM[1]:'')}" placeholder="CENTRO"></div>
+        <div><label>Localidad (opcional)</label><input id="da-loc" placeholder="solo si es distinta al municipio"></div>
+      </div>
+      <div class="grid" style="grid-template-columns:.6fr 1fr 1fr;margin-top:8px">
+        <div><label>C.P. *</label><input id="da-cp" maxlength="5" value="${esc(cpM?cpM[1]:String($('f-cp').value||''))}"></div>
+        <div><label>Municipio / alcaldía *</label><input id="da-mun" placeholder="PACHUCA DE SOTO"></div>
+        <div><label>Estado *</label><input id="da-edo" value="${esc(($('f-edo_nacimiento')&&$('f-edo_nacimiento').value)||'HIDALGO')}"></div>
+      </div>
+      <div style="margin-top:14px"><label>Vista previa (formato oficial)</label>
+        <div id="da-prev" style="background:var(--blue-bg);border-radius:8px;padding:12px 14px;font-family:Consolas,monospace;font-size:12.5px;white-space:pre-line;min-height:44px"></div></div>
+      <div class="fhint" style="margin-top:8px">El C.P. no se puede deducir solo de la calle sin un servicio de mapas de paga; tómalo del recibo de luz/agua del trabajador o consúltalo en <a href="https://www.correosdemexico.gob.mx/SSLServicios/ConsultaCP/Descarga.aspx" target="_blank">el buscador oficial de Correos de México</a>.</div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn dark" onclick="aplicarDireccion()">💾 Usar esta dirección</button>
+    </div>`,'md');
+  ['da-calle','da-ext','da-int','da-col','da-loc','da-cp','da-mun','da-edo'].forEach(id=>{
+    if($(id))$(id).addEventListener('input',dirPreview);
+  });
+  dirPreview();
+}
+function dirTexto(){
+  const g=id=>normalizaDir(($(id)&&$(id).value)||'');
+  const calle=g('da-calle'),ext=g('da-ext'),int=g('da-int'),col=g('da-col'),
+        loc=g('da-loc'),cp=(($('da-cp')&&$('da-cp').value)||'').replace(/\D/g,''),
+        mun=g('da-mun'),edo=g('da-edo');
+  const l1=[calle,ext?'NUM. '+ext:'',int?'INTERIOR '+int:''].filter(Boolean).join(' ');
+  const l2=col?'COLONIA '+col.replace(/^COLONIA\s+/,''):'';
+  const l3=[cp?'C.P. '+cp:'',loc,mun,edo].filter(Boolean).join(', ');
+  return [l1,l2,l3].filter(Boolean).join(', ');
+}
+function dirPreview(){
+  const t=dirTexto();
+  $('da-prev').textContent=t||'(captura los datos y aquí verás el formato oficial)';
+}
+function aplicarDireccion(){
+  const t=dirTexto();
+  if(!t){toast('Captura al menos la calle.','err');return;}
+  $('f-direccion').value=t;
+  const cp=(($('da-cp')&&$('da-cp').value)||'').replace(/\D/g,'');
+  if(cp.length===5&&$('f-cp'))$('f-cp').value=cp;
+  closeModal();
+  toast('Dirección aplicada en formato oficial.','ok');
+}
+/* ---------- v32: autorrelleno masivo de los trabajadores YA capturados ---------- */
+async function openAutorrellenar(){
+  toast('Revisando expedientes...');
+  const {data:tw,error}=await sb.from('trabajadores').select('*').eq('eliminado',false);
+  if(error){toast('Error: '+error.message,'err');return;}
+  const cambios=[];
+  (tw||[]).forEach(w=>{
+    if(!w.curp||!RX.curp.test(String(w.curp).toUpperCase()))return;
+    const d=datosDeCurp(w.curp);
+    const upd={};
+    if(d.fecha&&!w.fecha_nacimiento)upd.fecha_nacimiento=d.fecha;
+    if(d.genero&&!String(w.genero||'').trim())upd.genero=d.genero;
+    if(d.edo&&!String(w.edo_nacimiento||'').trim())upd.edo_nacimiento=d.edo;
+    if(Object.keys(upd).length)cambios.push({w,upd});
+  });
+  window._AUTOF=cambios;
+  const sinCurp=(tw||[]).filter(w=>!w.curp||!RX.curp.test(String(w.curp).toUpperCase())).length;
+  modal(`
+    <div class="m-head"><h2>🪄 Autorrellenar desde CURP · todas las obras</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);margin-bottom:12px;font-size:12.5px">Lee la CURP de cada trabajador ya capturado y llena <b>solo los campos que estén vacíos</b>: fecha de nacimiento, género y estado de nacimiento. <b>Nunca sobrescribe</b> un dato que ya exista. La CURP es un dato oficial de RENAPO, así que esto no adivina nada.</p>
+      ${sinCurp?`<div class="fhint" style="margin-bottom:10px">${sinCurp} trabajador(es) no tienen CURP válida capturada y no se pueden completar así.</div>`:''}
+      ${cambios.length?`
+        <div class="imp-row head" style="grid-template-columns:2fr 1fr 1fr 1.2fr"><span>Trabajador</span><span>Fecha nac.</span><span>Género</span><span>Edo. nacimiento</span></div>
+        <div style="max-height:340px;overflow:auto">
+        ${cambios.map(c=>`<div class="imp-row" style="grid-template-columns:2fr 1fr 1fr 1.2fr">
+          <span><b>${esc(fullName(c.w))}</b><br><span style="color:var(--mut);font-size:11px">${esc(c.w.curp)}</span></span>
+          <span style="color:var(--green)">${c.upd.fecha_nacimiento?fmtD(c.upd.fecha_nacimiento):'—'}</span>
+          <span style="color:var(--green)">${esc(c.upd.genero||'—')}</span>
+          <span style="color:var(--green)">${esc(c.upd.edo_nacimiento||'—')}</span>
+        </div>`).join('')}
+        </div>`:'<div class="empty">Todos los expedientes con CURP ya están completos. No hay nada que rellenar.</div>'}
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      ${cambios.length?`<button class="btn dark" onclick="aplicarAutorrellenar()">🪄 Completar ${cambios.length} expediente(s)</button>`:''}
+    </div>`,'lg');
+}
+async function aplicarAutorrellenar(){
+  const cambios=window._AUTOF||[];
+  if(!cambios.length)return;
+  if(!confirm(`Se van a completar ${cambios.length} expediente(s) con los datos de su CURP.\n\nSolo se llenan campos vacíos; nada se sobrescribe. ¿Continuar?`))return;
+  markWrite();
+  let ok=0,fail=0;
+  for(const c of cambios){
+    const {error}=await sb.from('trabajadores').update({...c.upd,actualizado_por:USER.email}).eq('id',c.w.id);
+    if(error)fail++;else ok++;
+  }
+  closeModal();
+  toast(`${ok} expediente(s) completados${fail?`, ${fail} con error`:''}.`,fail?'err':'ok');
+  await loadObraData(OBRA.id);
 }
 function clabeAssist(){
   const c=$('f-clabe').value.replace(/\D/g,'');$('f-clabe').value=c;
