@@ -618,7 +618,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-20.3';
+const APP_VERSION='2026-07-20.4';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -800,7 +800,7 @@ function openDetail(id){
       ${(function(){
         const ac=DOCSX.filter(x=>x.trabajador_id===w.id&&x.categoria==='ACUSE_IMSS');
         const re=DOCSX.filter(x=>x.trabajador_id===w.id&&(x.categoria==='RECIBO_NOMINA'||x.categoria==='CFDI_NOMINA'));
-        const item=x=>`<div class="kv"><b>${esc(x.subtipo||'DOC')} ${esc(x.semana)}</b><span>${esc(x.nombre_archivo)} · ${fmtD(x.fecha_doc||x.created_at)} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:8px" onclick="verDoc('${x.id}')">📄 Ver</button></span></div>`;
+        const item=x=>`<div class="kv"><b>${esc(x.subtipo||'DOC')} ${esc(x.semana)}</b><span>${esc(x.nombre_archivo)} · ${fmtD(x.fecha_doc||x.created_at)} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:8px" onclick="verDoc('${x.id}')">📄 Ver</button> <button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="anularDoc('${x.id}','${w.id}')" title="Quitar del expediente (queda rastro de quién y por qué)">🗑</button></span></div>`;
         return `<div class="sect">Acuses IMSS (${ac.length})</div>${ac.length?ac.map(item).join(''):'<div class="kv"><b>—</b><span>Sin acuses archivados. Súbelos con 📎 Importar PDFs.</span></div>'}
         <div class="sect">Recibos de nómina (${re.length})</div>${re.length?re.map(item).join(''):'<div class="kv"><b>—</b><span>Sin recibos archivados.</span></div>'}`;
       })()}
@@ -1933,7 +1933,38 @@ async function parsePdfs(inp){
       }
     }catch(e){PDFIMP.push({name:file.name,error:String(e).slice(0,80),sel:false});}
   }
+  await marcarDuplicadosPdf();
   renderPdfImp();
+}
+/* ---------- v31: detección de archivos duplicados (huella SHA-256) ---------- */
+async function sha256Hex(buf){
+  const h=await crypto.subtle.digest('SHA-256',buf);
+  return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function marcarDuplicadosPdf(){
+  try{
+    const conBytes=PDFIMP.filter(x=>!x.error&&x.bytes);
+    for(const x of conBytes)x.hash=await sha256Hex(x.bytes);
+    // duplicados dentro del mismo lote (el mismo archivo seleccionado dos veces)
+    const vistos={};
+    conBytes.forEach(x=>{
+      if(vistos[x.hash]){x.dup='MISMO LOTE: '+vistos[x.hash];x.sel=false;}
+      else vistos[x.hash]=x.name;
+    });
+    // duplicados contra lo YA archivado en cualquier obra
+    const hashes=[...new Set(conBytes.filter(x=>!x.dup).map(x=>x.hash))];
+    if(!hashes.length)return;
+    const {data,error}=await sb.from('documentos').select('hash,nombre_archivo,trabajador_id,created_at').eq('anulado',false).in('hash',hashes);
+    if(error||!data)return; // si la columna hash aún no existe (Script 33 sin correr), no bloquea la importación
+    conBytes.forEach(x=>{
+      const ya=data.find(d=>d.hash===x.hash);
+      if(ya&&!x.dup){
+        const w=WORKERS.find(z=>z.id===ya.trabajador_id);
+        x.dup=`YA ARCHIVADO${w?' — '+fullName(w):''} (${fmtD(ya.created_at)})`;
+        x.sel=false;
+      }
+    });
+  }catch(e){/* la detección nunca debe impedir importar */}
 }
 function renderPdfImp(){
   if(!PDFIMP.length){$('pdf-prev').innerHTML='<div class="empty">No se pudo leer ningún PDF.</div>';return;}
@@ -1943,22 +1974,24 @@ function renderPdfImp(){
     <div class="imp-row head" style="grid-template-columns:26px 1.6fr 1.6fr .8fr"><span></span><span>Documento</span><span>Trabajador</span><span>Estado</span></div>
     ${PDFIMP.map((x,i)=>x.error
       ?`<div class="imp-row" style="grid-template-columns:26px 1.6fr 1.6fr .8fr"><span></span><span>${esc(x.name)}</span><span style="color:var(--red)">${esc(x.error)}</span><span class="imp-tag imp-SINREGISTRO">ERROR</span></div>`
-      :`<div class="imp-row" style="grid-template-columns:26px 1.6fr 1.6fr .8fr">
+      :`<div class="imp-row" style="grid-template-columns:26px 1.6fr 1.6fr .8fr${x.dup?';background:var(--amber-bg)':''}">
         <span><input type="checkbox" style="width:auto" ${x.sel?'checked':''} onchange="PDFIMP[${i}].sel=this.checked"></span>
-        <span>${esc(x.name)}<br><span style="color:var(--mut);font-size:11px">${x.pages} pág.</span></span>
+        <span>${esc(x.name)}<br><span style="color:var(--mut);font-size:11px">${x.pages} pág.</span>${x.dup?`<br><span style="color:var(--amber);font-size:11px;font-weight:700">⚠ DUPLICADO: ${esc(x.dup)}</span>`:''}</span>
         <span><select onchange="PDFIMP[${i}].ownerId=this.value||null;PDFIMP[${i}].sel=!!this.value">
           <option value="">— asignar trabajador —</option>
           ${WORKERS.map(w=>`<option value="${w.id}" ${x.ownerId===w.id?'selected':''}>${esc(fullName(w))}</option>`).join('')}
         </select></span>
-        <span class="imp-tag ${x.ownerId?'imp-ASIGNAR':'imp-SINREGISTRO'}">${x.ownerId?'IDENTIFICADO':'SIN IDENTIFICAR'}</span>
-      </div>`).join('')}`;
+        <span class="imp-tag ${x.dup?'imp-SINREGISTRO':x.ownerId?'imp-ASIGNAR':'imp-SINREGISTRO'}">${x.dup?'DUPLICADO':x.ownerId?'IDENTIFICADO':'SIN IDENTIFICAR'}</span>
+      </div>`).join('')}
+    ${PDFIMP.some(x=>x.dup)?'<div class="fhint" style="margin-top:8px">Los marcados como DUPLICADO ya existen en un expediente (misma huella digital del contenido, aunque el nombre sea distinto) y vienen desmarcados. Solo márcalos si de verdad quieres archivarlos otra vez.</div>':''}`;
   $('pdf-btn').classList.remove('hide');
 }
 async function applyPdfImport(){
   const cat=$('pdf-cat').value, sub=$('pdf-sub').value, sem=$('pdf-sem').value.trim().toUpperCase(), fd=$('pdf-fecha').value||null;
   const sel=PDFIMP.filter(x=>x.sel&&x.ownerId&&!x.error);
   if(!sel.length){toast('No hay documentos identificados y seleccionados.','err');return;}
-  if(!confirm(`¿Archivar ${sel.length} documento(s) como ${cat==='ACUSE_IMSS'?'ACUSE IMSS '+sub:'RECIBO DE NÓMINA'} en los expedientes?`))return;
+  const nDup=sel.filter(x=>x.dup).length;
+  if(!confirm(`¿Archivar ${sel.length} documento(s) como ${cat==='ACUSE_IMSS'?'ACUSE IMSS '+sub:'RECIBO DE NÓMINA'} en los expedientes?${nDup?`\n\n⚠ ATENCIÓN: ${nDup} de ellos están marcados como DUPLICADOS (ya existen en un expediente) y se archivarían POR SEGUNDA VEZ.`:''}`))return;
   $('pdf-btn').innerHTML='<span class="spin"></span> Archivando...';
   markWrite();
   let ok=0,fail=0;
@@ -1968,8 +2001,10 @@ async function applyPdfImport(){
     const path=`${x.ownerId}/${cat}/${Date.now()}_${safe}${safe.toLowerCase().endsWith('.pdf')?'':'.pdf'}`;
     const {error:e1}=await sb.storage.from('expedientes').upload(path,new Blob([x.bytes],{type:'application/pdf'}));
     if(e1){fail++;continue;}
-    const {error:e2}=await sb.from('documentos').insert({trabajador_id:x.ownerId,obra_id:w?w.obra_id:OBRA.id,categoria:cat,
-      subtipo:cat==='ACUSE_IMSS'?sub:'RECIBO',semana:sem,fecha_doc:fd,archivo:path,nombre_archivo:x.name.slice(0,120),subido_por:USER.email});
+    const fila={trabajador_id:x.ownerId,obra_id:w?w.obra_id:OBRA.id,categoria:cat,
+      subtipo:cat==='ACUSE_IMSS'?sub:'RECIBO',semana:sem,fecha_doc:fd,archivo:path,nombre_archivo:x.name.slice(0,120),subido_por:USER.email,hash:x.hash||''};
+    let {error:e2}=await sb.from('documentos').insert(fila);
+    if(e2&&/hash/i.test(e2.message||'')){delete fila.hash;({error:e2}=await sb.from('documentos').insert(fila));} // si falta el Script 33, archiva sin huella
     if(e2){fail++;continue;}
     ok++;
     if(cat==='ACUSE_IMSS'&&w){
@@ -1986,6 +2021,22 @@ async function verDoc(docId){
   const {data,error}=await sb.storage.from('expedientes').createSignedUrl(d.archivo,3600);
   if(error||!data){toast('No se pudo abrir el documento: '+(error?error.message:''),'err');return;}
   window.open(data.signedUrl,'_blank');
+}
+/* ---------- v31: anular documento del expediente (con rastro) ---------- */
+async function anularDoc(docId,wId){
+  const d=DOCSX.find(x=>x.id===docId); if(!d)return;
+  const motivo=prompt(`¿Quitar este documento del expediente?\n\n${d.nombre_archivo}\n\nNo se borra físicamente: se ANULA, deja de aparecer en fichas y respaldos, y queda registrado quién lo quitó y por qué.\n\nEscribe el motivo (ej. DUPLICADO):`);
+  if(motivo===null)return; // canceló
+  markWrite();
+  const upd={anulado:true,anulado_por:USER.email,anulado_en:new Date().toISOString(),motivo_anulacion:(motivo||'').trim().toUpperCase()||'SIN MOTIVO'};
+  let {error}=await sb.from('documentos').update(upd).eq('id',docId);
+  if(error&&/anulado_por|anulado_en|motivo_anulacion/i.test(error.message||'')){
+    ({error}=await sb.from('documentos').update({anulado:true}).eq('id',docId)); // si falta el Script 33, anula sin rastro extendido
+  }
+  if(error){toast('Error: '+error.message,'err');return;}
+  toast('Documento anulado: ya no aparecerá en la ficha ni en los respaldos.','ok');
+  await loadObraData(OBRA.id);
+  openDetail(wId);
 }
 
 /* ---------- EXPORTS CONTABLES (SUA / NOI / SIROC) ---------- */
@@ -3000,18 +3051,35 @@ async function parseCfdi(inp){
       CFDIIMP.push({name:file.name,txt,rfc:rfc.toUpperCase(),nombre,uuid,fecha,total,w,sel:!!(w&&uuid)});
     }catch(e){CFDIIMP.push({name:file.name,error:String(e).slice(0,60),sel:false});}
   }
+  // v31: duplicados — por folio fiscal (UUID) dentro del lote y contra lo ya archivado
+  try{
+    const vistos={};
+    CFDIIMP.filter(x=>!x.error&&x.uuid).forEach(x=>{
+      if(vistos[x.uuid]){x.dup='MISMO LOTE: '+vistos[x.uuid];x.sel=false;}
+      else vistos[x.uuid]=x.name;
+    });
+    const paths=CFDIIMP.filter(x=>!x.error&&!x.dup&&x.w&&x.uuid).map(x=>`${x.w.id}/CFDI_NOMINA/${x.uuid}.xml`);
+    if(paths.length){
+      const {data}=await sb.from('documentos').select('archivo,created_at').eq('anulado',false).in('archivo',paths);
+      (data||[]).forEach(d=>{
+        const x=CFDIIMP.find(z=>z.w&&z.uuid&&`${z.w.id}/CFDI_NOMINA/${z.uuid}.xml`===d.archivo);
+        if(x&&!x.dup){x.dup=`YA ARCHIVADO (${fmtD(d.created_at)})`;x.sel=false;}
+      });
+    }
+  }catch(e){/* la detección nunca bloquea la importación */}
   if(!CFDIIMP.length){$('cf-prev').innerHTML='<div class="empty">No se leyeron XML.</div>';return;}
   $('cf-prev').innerHTML=`
     <div class="imp-row head" style="grid-template-columns:26px 1.4fr 1.2fr 1fr .8fr"><span></span><span>Archivo / UUID</span><span>Receptor</span><span>Trabajador</span><span>Total</span></div>
     ${CFDIIMP.map((x,i)=>x.error
       ?`<div class="imp-row" style="grid-template-columns:26px 3fr 1fr"><span></span><span>${esc(x.name)} — <span style="color:var(--red)">${esc(x.error)}</span></span><span class="imp-tag imp-SINREGISTRO">ERROR</span></div>`
-      :`<div class="imp-row" style="grid-template-columns:26px 1.4fr 1.2fr 1fr .8fr">
+      :`<div class="imp-row" style="grid-template-columns:26px 1.4fr 1.2fr 1fr .8fr${x.dup?';background:var(--amber-bg)':''}">
         <span><input type="checkbox" style="width:auto" ${x.sel?'checked':''} onchange="CFDIIMP[${i}].sel=this.checked"></span>
-        <span>${esc(x.name)}<br><span style="color:var(--mut);font-size:10.5px">${esc(x.uuid)||'SIN UUID (¿no timbrado?)'}</span></span>
+        <span>${esc(x.name)}<br><span style="color:var(--mut);font-size:10.5px">${esc(x.uuid)||'SIN UUID (¿no timbrado?)'}</span>${x.dup?`<br><span style="color:var(--amber);font-size:11px;font-weight:700">⚠ DUPLICADO: ${esc(x.dup)}</span>`:''}</span>
         <span>${esc(x.nombre)}<br><span style="color:var(--mut);font-size:11px">${esc(x.rfc)}</span></span>
-        <span class="imp-tag ${x.w?'imp-ASIGNAR':'imp-SINREGISTRO'}">${x.w?esc([x.w.primer_apellido,x.w.nombres].join(' ')).slice(0,22):'RFC NO ENCONTRADO'}</span>
+        <span class="imp-tag ${x.dup?'imp-SINREGISTRO':x.w?'imp-ASIGNAR':'imp-SINREGISTRO'}">${x.dup?'DUPLICADO':x.w?esc([x.w.primer_apellido,x.w.nombres].join(' ')).slice(0,22):'RFC NO ENCONTRADO'}</span>
         <span>$${esc(x.total)}<br><span style="color:var(--mut);font-size:10.5px">${esc(x.fecha)}</span></span>
-      </div>`).join('')}`;
+      </div>`).join('')}
+    ${CFDIIMP.some(x=>x.dup)?'<div class="fhint" style="margin-top:8px">Los marcados como DUPLICADO tienen el mismo folio fiscal (UUID) que uno ya archivado y vienen desmarcados.</div>':''}`;
   $('cf-btn').classList.remove('hide');
 }
 async function applyCfdi(){
@@ -3026,8 +3094,11 @@ async function applyCfdi(){
     const path=`${x.w.id}/CFDI_NOMINA/${x.uuid}.xml`;
     const {error:e1}=await sb.storage.from('expedientes').upload(path,new Blob([x.txt],{type:'application/xml'}),{upsert:true});
     if(e1){fail++;continue;}
-    const {error:e2}=await sb.from('documentos').insert({trabajador_id:x.w.id,obra_id:x.w.obra_id,categoria:'CFDI_NOMINA',
-      subtipo:'CFDI TIMBRADO',semana:sem,fecha_doc:x.fecha||null,archivo:path,nombre_archivo:`${x.uuid}.xml ($${x.total})`,subido_por:USER.email});
+    const fila={trabajador_id:x.w.id,obra_id:x.w.obra_id,categoria:'CFDI_NOMINA',
+      subtipo:'CFDI TIMBRADO',semana:sem,fecha_doc:x.fecha||null,archivo:path,nombre_archivo:`${x.uuid}.xml ($${x.total})`,subido_por:USER.email,
+      hash:await sha256Hex(new TextEncoder().encode(x.txt))};
+    let {error:e2}=await sb.from('documentos').insert(fila);
+    if(e2&&/hash/i.test(e2.message||'')){delete fila.hash;({error:e2}=await sb.from('documentos').insert(fila));}
     if(e2){fail++;continue;}
     ok++;
   }
