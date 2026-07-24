@@ -252,6 +252,7 @@ tbody tr:hover{background:#f6f8fb}
             <div class="sep"></div>
             <button onclick="toggleMenu('menu-docs');openIncidencias()">📉 Incidencias de la semana</button>
             <button onclick="toggleMenu('menu-docs');openCalendarioRet()">📅 Calendario de retenciones</button>
+            <button onclick="toggleMenu('menu-docs');openReporteDocs()">📋 Reporte de documentación (Excel)</button>
           </div>
         </div>
         <div class="menu" id="menu-imp">
@@ -619,7 +620,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-20.6';
+const APP_VERSION='2026-07-21.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1865,6 +1866,84 @@ function buildRetDetalleWS(act,sem,colB){
   rows.push(['TOTAL RETENCIONES','','','','','',t,'']);
   styles.push([ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.totalMoney,ST.total]);
   return buildSheet(rows,styles,[7,34,16,12,12,20,14,42],[{s:{r:0,c:0},e:{r:0,c:7}}],[{hpt:26},{hpt:24}]);
+}
+
+/* ---------- v33: REPORTE DE DOCUMENTACIÓN (una columna por documento) ----------
+   Estado por documento del expediente: COMPLETO (verde), FALTANTE (rojo) o
+   NO APLICA (gris). Trae a los trabajadores ACTIVOS de todas las obras; se
+   puede acotar por semana de ingreso (calculada con la fecha de alta y la
+   fecha de inicio de cada obra) — por defecto salen todos. */
+async function openReporteDocs(){
+  toast('Cargando trabajadores...');
+  const {data:tw,error}=await sb.from('trabajadores').select('*').eq('eliminado',false).eq('estatus','ACTIVO');
+  if(error){toast('Error: '+error.message,'err');return;}
+  window._RDOCS=tw||[];
+  const semOf=w=>{const o=OBRAS.find(x=>x.id===w.obra_id);return w.fecha_alta?isoWeekDe(o,new Date(w.fecha_alta+'T12:00')):null;};
+  const semanas=[...new Set((tw||[]).map(semOf).filter(n=>n!=null))].sort((a,b)=>a-b);
+  window._RDOCS_SEM=semOf;
+  modal(`
+    <div class="m-head"><h2>📋 Reporte de documentación · trabajadores activos</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);margin-bottom:12px;font-size:12.5px">Genera un Excel con <b>una columna por documento</b> del expediente: <b style="color:var(--green)">COMPLETO</b> si ya está entregado, <b style="color:var(--red)">FALTANTE</b> en rojo si le falta, y NO APLICA en gris. Incluye a los <b>${(tw||[]).length} activos</b> de todas las obras. Filtra por semana de ingreso si quieres (por defecto salen todos).</p>
+      <div class="sect">Semanas de ingreso (${semanas.length}) — desmarca las que no</div>
+      <div style="margin-bottom:6px">
+        <a href="#" onclick="document.querySelectorAll('.rd-sem').forEach(c=>c.checked=true);return false">todas</a> ·
+        <a href="#" onclick="document.querySelectorAll('.rd-sem').forEach(c=>c.checked=false);return false">ninguna</a>
+      </div>
+      <div style="max-height:150px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px 10px">
+        ${semanas.map(n=>{const cnt=(tw||[]).filter(w=>semOf(w)===n).length;
+          return `<label style="display:inline-block;min-width:130px;padding:3px 6px;font-size:12.5px"><input type="checkbox" class="rd-sem" value="${n}" checked> Semana ${n} <span style="color:var(--mut)">(${cnt})</span></label>`;}).join('')||'<span style="color:var(--mut)">Sin semanas de ingreso registradas.</span>'}
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn dark" onclick="exportReporteDocs()">⬇ Generar Excel de documentación</button>
+    </div>`,'lg');
+}
+function exportReporteDocs(){
+  const tw=window._RDOCS||[], semOf=window._RDOCS_SEM;
+  const sel=new Set([...document.querySelectorAll('.rd-sem')].filter(c=>c.checked).map(c=>parseInt(c.value)));
+  let lista=tw;
+  if(document.querySelectorAll('.rd-sem').length) lista=tw.filter(w=>{const s=semOf(w);return s==null?true:sel.has(s);});
+  if(!lista.length){toast('No hay trabajadores con esas semanas.','err');return;}
+  lista=lista.slice().sort((a,b)=>{const oa=OBRAS.findIndex(o=>o.id===a.obra_id),ob=OBRAS.findIndex(o=>o.id===b.obra_id);return oa-ob||((a.no_trab||9e9)-(b.no_trab||9e9));});
+  // estilos por estado de documento
+  const stOK={font:{sz:9.5,bold:true,color:{rgb:'0F7B4D'},name:'Calibri'},fill:{fgColor:{rgb:'E6F4EE'}},border:BORD,alignment:{horizontal:'center',vertical:'center'}};
+  const stFalta={font:{sz:9.5,bold:true,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'B3261E'}},border:BORD,alignment:{horizontal:'center',vertical:'center'}};
+  const stNA={font:{sz:9.5,color:{rgb:'6B7482'},name:'Calibri'},fill:{fgColor:{rgb:'EEF1F5'}},border:BORD,alignment:{horizontal:'center',vertical:'center'}};
+  const rows=[],styles=[];
+  const nDoc=DOCS.length;
+  rows.push([`REPORTE DE DOCUMENTACIÓN — TRABAJADORES ACTIVOS — ${new Date().toLocaleDateString('es-MX')}`]); styles.push(ST.title);
+  rows.push(['NO.','NOMBRE COMPLETO','OBRA','CONTRATISTA','PUESTO','SEM. ING.',...DOCS,'ENTREGADOS','% COMPLETO']); styles.push(ST.head);
+  let tOk=0;
+  lista.forEach(w=>{
+    const o=OBRAS.find(x=>x.id===w.obra_id), d=w.docs||{}, s=semOf(w);
+    const cels=[], est=[];
+    const base=[ST.cellC,ST.cell,ST.cell,ST.cell,ST.cell,ST.cellC];
+    let ent=0;
+    DOCS.forEach(k=>{
+      const v=d[k];
+      if(v==='ENTREGADO'){cels.push('COMPLETO');est.push(stOK);ent++;}
+      else if(v==='NO APLICA'){cels.push('NO APLICA');est.push(stNA);}
+      else{cels.push('FALTANTE');est.push(stFalta);}
+    });
+    const pct=Math.round(ent/nDoc*100);
+    if(ent===nDoc)tOk++;
+    rows.push([w.no_trab??'',fullName(w),o?o.nombre:'',w.contratista||'',w.puesto||'',s!=null?('S'+s):'',...cels,`${ent}/${nDoc}`,pct/100]);
+    styles.push([...base,...est,ST.cellC,{...ST.cellC,numFmt:'0%'}]);
+  });
+  rows.push([`TOTAL: ${lista.length} activos · ${tOk} con expediente COMPLETO · ${lista.length-tOk} con documentos FALTANTES`]);
+  styles.push(ST.sub);
+  const widths=[7,32,20,15,20,9,...DOCS.map(()=>13),12,12];
+  const merges=[{s:{r:0,c:0},e:{r:0,c:7+nDoc}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:7+nDoc}}];
+  const ws=buildSheet(rows,styles,widths,merges,[{hpt:26},{hpt:38}]);
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:1,c:7+nDoc}})};
+  if(!ws['!freeze'])ws['!rows']=ws['!rows']||[];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'DOCUMENTACION');
+  dl(wb,`REPORTE_DOCUMENTACION_${today()}.xlsx`);
+  closeModal();
+  toast(`Reporte generado: ${lista.length} activos, ${tOk} con expediente completo.`,'ok');
 }
 
 /* ---------- PROYECCIÓN DE NÓMINA (descuentos + neto + finiquitos) ---------- */
@@ -4762,7 +4841,7 @@ function openPrestaciones(id){
         <div><label>¿Despido injustificado?</label><select id="pr-despido" onchange="calcPrestaciones('${id}')"><option value="NO">No (renuncia/término)</option><option value="SI">Sí (indemnización)</option></select></div>
       </div>
       <div id="pr-out" style="margin-top:16px"></div>
-      <p style="font-size:11.5px;color:var(--mut);margin-top:10px">Cálculo conforme a LFT vigente: aguinaldo 15 días (art. 87), vacaciones desde 12 días (art. 76), prima vacacional 25% (art. 80), indemnización 3 meses + 20 días/año con salario integrado (arts. 48-50) y prima de antigüedad 12 días/año con tope de 2 salarios mínimos (art. 162). Verificar con contador antes de pagar.</p>
+      <p style="font-size:11.5px;color:var(--mut);margin-top:10px">Cálculo conforme a LFT vigente: aguinaldo 15 días (art. 87), vacaciones desde 12 días (art. 76), prima vacacional 25% (art. 80), indemnización 3 meses + 20 días/año con salario integrado (arts. 48-50) y prima de antigüedad 12 días/año con tope de 2 salarios mínimos (art. 162). Si el trabajador tiene <b>crédito INFONAVIT activo</b>, se descuenta la amortización proporcional a los días trabajados sin pagar (cuota diaria = cuota semanal ÷ 7). Verificar con contador y contra la cédula del SUA antes de pagar.</p>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cerrar</button>
@@ -4813,6 +4892,21 @@ function calcPrestaciones(id){
   const isrFin=isrMensual(gravado);
   rows.push(['Retención de ISR (Anexo 8, gravado $'+money(gravado)+')',`−$${money(isrFin)}`]);
   total-=isrFin;
+  // v33: RETENCIÓN PROPORCIONAL DE INFONAVIT (si el trabajador tiene crédito activo).
+  // Ley: al darse de baja, la amortización se retiene proporcional a los días
+  // efectivamente trabajados del bimestre; aquí sobre los "días trabajados sin
+  // pagar" (los que la nómina normal aún no cubrió). Cuota diaria = cuota semanal
+  // ÷ 7 (la semanal ya trae mensual×2 + $15 seguro / días del bimestre). El
+  // contador debe validar el corte de días contra la cédula del SUA.
+  const infoDesc=(typeof DESC!=='undefined'?DESC:[]).find(d=>d.trabajador_id===w.id&&d.activo&&d.recurrente&&String(d.tipo).toUpperCase()==='INFONAVIT');
+  if(infoDesc&&diasPend>0){
+    const semanal=Number(infoDesc.monto)||0;
+    const infoProp=Math.round(semanal/7*diasPend*100)/100;
+    if(infoProp>0){
+      rows.push([`Retención INFONAVIT proporcional (${diasPend} día(s) × $${money(semanal/7)}/día)`,`−$${money(infoProp)}`]);
+      total-=infoProp;
+    }
+  }
   PR_TOTAL=Math.round(total*100)/100;
   $('pr-out').innerHTML=rows.map(r=>`<div class="kv"><b>${r[0]}</b><span>${r[1]}</span></div>`).join('')+
     `<div class="kv" style="background:#f2f6fc;font-weight:800;padding:10px 8px"><b>TOTAL</b><span>$${money(PR_TOTAL)}</span></div>`;
