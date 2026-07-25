@@ -169,6 +169,58 @@ tbody tr:hover{background:#f6f8fb}
 @keyframes sp{to{transform:rotate(360deg)}}
 .loading-row td{text-align:center;color:var(--mut);padding:40px}
 .rt-dot{width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;margin-right:5px;box-shadow:0 0 6px #3ddc84}
+/* v34: flechas de navegación entre trabajadores en la ficha */
+.ficha-nav{display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:6px}
+.ficha-nav .btn{padding:2px 12px;font-size:18px;line-height:1;font-weight:700}
+.ficha-nav .btn[disabled]{opacity:.35;cursor:not-allowed}
+.ficha-nav .pos{font-size:11px;color:var(--mut);min-width:52px;text-align:center}
+/* ============ OPTIMIZACIÓN MÓVIL ============ */
+@media(max-width:760px){
+  body{font-size:14px}
+  /* bloqueo de scroll del fondo con modal abierto — SOLO móvil, para evitar
+     el 'se ve movido todo' al cerrar una ficha; en escritorio no se toca */
+  body.modal-abierto{position:fixed;width:100%;overflow:hidden}
+  .wrap{padding:12px 12px}
+  .topbar{padding:8px 12px;gap:8px}
+  .topbar .tt{font-size:13px}
+  .topbar .brand-badge{width:26px;height:26px;font-size:12px}
+  .btn-ghost{padding:6px 10px;font-size:12px}
+  /* barra de filtros y acciones: que fluyan en varias filas y ocupen bien */
+  .filters,.toolbar,.actions{flex-wrap:wrap!important;gap:8px!important}
+  .filters select,.filters input,select,input[type=text],input[type=number],input[type=date],input[type=password],input[type=email]{font-size:16px} /* 16px evita el zoom automático de iOS */
+  .view-btn{padding:7px 13px;font-size:12.5px}
+  /* stats en 2 columnas */
+  .stats{gap:8px}
+  .stat{min-width:calc(50% - 5px);flex:1 1 calc(50% - 5px);padding:9px 12px}
+  .stat .n{font-size:18px}
+  /* formularios y detalle: una sola columna */
+  .grid{grid-template-columns:1fr!important}
+  .grid .c2,.grid .c3,.grid .c4{grid-column:span 1!important}
+  .kv{grid-template-columns:1fr;gap:1px;padding:8px 0}
+  .kv b{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.3px}
+  /* modal a casi pantalla completa */
+  .overlay{padding:0}
+  .modal,.modal.sm,.modal.md,.modal.lg,.modal.xl{width:100%;max-width:100%;border-radius:0;margin-bottom:0;min-height:100vh}
+  .m-head{border-radius:0;padding:12px 14px;flex-wrap:wrap}
+  .m-head h2{font-size:15px}
+  .m-body{padding:14px 14px}
+  .m-foot{padding:12px 14px;border-radius:0}
+  .m-foot .btn{flex:1 1 auto;min-width:44%}
+  .ficha-nav{order:3;margin-left:0}
+  /* menús desplegables ocupan casi todo el ancho */
+  .menu-list{min-width:min(88vw,320px);max-width:92vw}
+  /* tabla: sigue con scroll horizontal dentro de su tarjeta, pero más alta */
+  .tbl-card{max-height:calc(100vh - 240px)}
+  table{font-size:12.5px}
+  tbody td{padding:8px 9px}
+  /* botones táctiles más grandes */
+  .btn{padding:10px 14px}
+  .imp-row{font-size:12px;gap:5px}
+}
+@media(max-width:420px){
+  .stat{min-width:100%;flex-basis:100%}
+  .topbar .tt{font-size:12px}
+}
 </style>
 </head>
 <body>
@@ -427,6 +479,20 @@ const fullName=w=>[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolea
 const money=v=>v==null||v===''?'':Number(v).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtD=v=>{if(!v)return'';const[y,m,d]=String(v).slice(0,10).split('-');return `${d}/${m}/${y}`;};
 const today=()=>new Date().toISOString().slice(0,10);
+/* v34: fechas en formato DD/MM/AAAA (día primero) para captura y ficha */
+const isoADMY=v=>{if(!v)return'';const[y,m,d]=String(v).slice(0,10).split('-');return (y&&m&&d)?`${d}/${m}/${y}`:'';};
+const dmyAiso=v=>{const s=String(v||'').trim();const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return null;
+  const d=+m[1],mo=+m[2],y=+m[3];if(mo<1||mo>12||d<1||d>31)return null;
+  const iso=`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  const chk=new Date(iso+'T12:00');if(chk.getUTCFullYear()!==y||chk.getUTCMonth()+1!==mo||chk.getUTCDate()!==d)return null;
+  return iso;};
+/* autoformato mientras se teclea: inserta las diagonales solo */
+function fechaDMYinput(el){let v=el.value.replace(/[^\d]/g,'').slice(0,8);
+  if(v.length>4)v=v.slice(0,2)+'/'+v.slice(2,4)+'/'+v.slice(4);
+  else if(v.length>2)v=v.slice(0,2)+'/'+v.slice(2);
+  el.value=v;
+  const iso=dmyAiso(v);const h=$('h-'+el.id.replace(/^f-/,''));
+  if(h)h.innerHTML=v.length>=10?(iso?`<span style="color:var(--green)">✔ ${isoADMY(iso)}</span>`:'<span class="bad">Fecha inválida (usa DD/MM/AAAA)</span>'):'Formato: día / mes / año';}
 const bankFromClabe=c=>{c=String(c||'').trim();return RX.clabe.test(c)?(BANCOS[c.slice(0,3)]||''):'';};
 const edad=f=>{if(!f)return'';const b=new Date(f),n=new Date();let e=n.getFullYear()-b.getFullYear();if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))e--;return e;};
 const docsOk=w=>{const d=w.docs||{};return DOCS.filter(k=>d[k]==='ENTREGADO').length;};
@@ -452,8 +518,25 @@ function periodoCorto(n){
   return a.getMonth()===b.getMonth()?`${p(a.getDate())} – ${p(b.getDate())} ${M(b)}`:`${p(a.getDate())} ${M(a)} – ${p(b.getDate())} ${M(b)}`;
 }
 function rangoTexto(d1,d2){if(!d1||!d2)return'';const a=new Date(d1+'T12:00'),b=new Date(d2+'T12:00');return `DEL ${a.getDate()} DE ${MES[a.getMonth()]} AL ${b.getDate()} DE ${MES[b.getMonth()]} DEL ${b.getFullYear()}`;}
-function closeModal(){$('modals').innerHTML='';if(window._pendingRT){window._pendingRT=false;softRefresh(false);}}
-function modal(html,w=''){$('modals').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal ${w}">${html}</div></div>`;}
+/* v34: al cerrar, restaura el scroll del fondo exactamente donde estaba
+   (en celular, position:fixed mueve el scroll a 0; lo devolvemos para que
+   NO se vea "movido" todo al salir de una ficha). */
+function closeModal(){
+  $('modals').innerHTML='';
+  document.body.classList.remove('modal-abierto');
+  if(window._scrollY!=null){const y=window._scrollY;window._scrollY=null;document.body.style.top='';window.scrollTo(0,y);}
+  if(window._pendingRT){window._pendingRT=false;softRefresh(false);}
+}
+function modal(html,w=''){
+  // captura el scroll SOLO al abrir el primer modal (no en modales encadenados,
+  // donde el fondo ya está fijo y scrollY valdría 0)
+  if(!document.body.classList.contains('modal-abierto')){
+    window._scrollY=window.scrollY||window.pageYOffset||0;
+    document.body.style.top=`-${window._scrollY}px`;
+    document.body.classList.add('modal-abierto');
+  }
+  $('modals').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal ${w}">${html}</div></div>`;
+}
 function markWrite(){lastLocalWrite=Date.now();}
 
 /* ---------- arranque ---------- */
@@ -620,7 +703,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-21.1';
+const APP_VERSION='2026-07-21.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -742,6 +825,7 @@ function renderTable(){
     if(typeof a==='number'&&typeof b==='number')return SORT.asc?a-b:b-a;
     return SORT.asc?String(a).localeCompare(String(b)):String(b).localeCompare(String(a));
   });
+  window._NAVIDS=rows.map(w=>w.id); // orden actual de la tabla, para las flechas ‹ › de la ficha
   if(!rows.length){$('tbody').innerHTML='<tr><td colspan="12"><div class="empty"><div class="big">🗂</div>Sin trabajadores que coincidan.<br>Usa <b>＋ Nueva alta</b> para capturar el primero.</div></td></tr>';return;}
   $('tbody').innerHTML=rows.map(w=>`
     <tr onclick="openDetail('${w.id}')">
@@ -760,15 +844,35 @@ function renderTable(){
     </tr>`).join('');
 }
 
+/* ---------- navegación entre trabajadores (flechas de la ficha) ---------- */
+function navTrabajadores(){
+  // usa el orden actual de la tabla; si no hay, cae a todos los de la obra por no_trab
+  let ids=(window._NAVIDS||[]).filter(id=>WORKERS.some(w=>w.id===id));
+  if(!ids.length)ids=[...WORKERS].sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9)).map(w=>w.id);
+  return ids;
+}
+function abrirTrabajadorVecino(id,dir){
+  const ids=navTrabajadores(); const i=ids.indexOf(id);
+  if(i<0)return; const j=i+dir;
+  if(j<0||j>=ids.length){toast(dir<0?'Ya es el primero del listado.':'Ya es el último del listado.');return;}
+  openDetail(ids[j]);
+}
 /* ---------- detalle ---------- */
 function openDetail(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
   const d=w.docs||{};
   const kv=(l,v)=>`<div class="kv"><b>${l}</b><span>${(v??'')||'—'}</span></div>`;
   const chq=CHEQUES.filter(c=>c.trabajador_id===id||(w.curp&&c.curp===w.curp));
+  const _ids=navTrabajadores(), _pos=_ids.indexOf(id);
+  const _nav=_ids.length>1?`<div class="ficha-nav">
+      <button class="btn" ${_pos<=0?'disabled':''} onclick="abrirTrabajadorVecino('${id}',-1)" title="Trabajador anterior">‹</button>
+      <span class="pos">${_pos>=0?(_pos+1)+' / '+_ids.length:''}</span>
+      <button class="btn" ${_pos<0||_pos>=_ids.length-1?'disabled':''} onclick="abrirTrabajadorVecino('${id}',1)" title="Trabajador siguiente">›</button>
+    </div>`:'';
   modal(`
     <div class="m-head"><h2>${esc(fullName(w))}</h2><span class="badge ${w.estatus}">${w.estatus}</span>
       <span class="badge ${w.periodo_pago||'SEMANAL'}">${w.periodo_pago||'SEMANAL'}</span>
+      ${_nav}
       <button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       ${w.estatus==='PENDIENTE'?`<div style="background:var(--amber-bg);border:1px solid #ecd9a0;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px"><b style="color:var(--amber)">⏳ PENDIENTE</b> — ${(function(){if(w.pendiente_manual)return 'Pausado manualmente — <b>'+esc(w.motivo_pendiente||'SIN MOTIVO')+'</b>. No sale en proyección ni requisición y NO se reactiva solo: usa "Marcar ACTIVO" cuando se resuelva.';const f=datosFaltantes(w);return f.length?'Falta capturar: <b>'+f.join(', ')+'</b>. Al completarlo pasará a ACTIVO solo, o usa el botón "Marcar ACTIVO".':'Ya tiene todos los datos: usa el botón "Marcar ACTIVO".';})()}</div>`:''}
@@ -959,7 +1063,7 @@ function openForm(id){
         ${fld('curp','CURP',w?w.curp:'',{cls:'c2',hint:'18 caracteres. Llena fecha de nacimiento, género y estado de nacimiento automáticamente.',extra:'maxlength="18" oninput="curpAssist()"'})}
         ${fld('rfc','RFC',w?w.rfc:'',{hint:'13 caracteres con homoclave.',extra:'maxlength="13" oninput="rfcAssist()"'})}
         ${fld('nss','NSS',w?w.nss:'',{hint:'11 dígitos.',extra:'maxlength="11"'})}
-        ${fld('fecha_nacimiento','Fecha nacimiento',w?(w.fecha_nacimiento||''):'',{type:'date'})}
+        ${fld('fecha_nacimiento','Fecha nacimiento (DD/MM/AAAA)',w?isoADMY(w.fecha_nacimiento):'',{ph:'DD/MM/AAAA',hint:'Formato: día / mes / año',extra:'maxlength="10" inputmode="numeric" oninput="fechaDMYinput(this)"'})}
         <div><label>Género</label><select id="f-genero"><option value=""></option>${['MASCULINO','FEMENINO'].map(g=>`<option ${(w&&w.genero)===g?'selected':''}>${g}</option>`).join('')}</select></div>
         <div><label>Estado civil</label><select id="f-estado_civil"><option value=""></option>${['SOLTERO','CASADO','UNION LIBRE','DIVORCIADO','VIUDO'].map(x=>`<option ${(w&&w.estado_civil)===x?'selected':''}>${x}</option>`).join('')}</select></div>
         <div><label>Escolaridad</label><select id="f-escolaridad"><option value=""></option>${['SIN ESTUDIOS','PRIMARIA','SECUNDARIA','PREPA','CARRERA TECNICA','LICENCIATURA','POSGRADO'].map(x=>`<option ${(w&&w.escolaridad)===x?'selected':''}>${x}</option>`).join('')}</select></div>
@@ -1063,7 +1167,7 @@ function curpAssist(){
   const d=datosDeCurp(c);
   const puestos=[];
   // solo rellena lo que esté VACÍO — nunca pisa un dato ya capturado a mano
-  if(d.fecha&&!$('f-fecha_nacimiento').value){$('f-fecha_nacimiento').value=d.fecha;puestos.push('fecha de nacimiento');}
+  if(d.fecha&&!$('f-fecha_nacimiento').value){$('f-fecha_nacimiento').value=isoADMY(d.fecha);puestos.push('fecha de nacimiento');}
   if(d.genero&&!$('f-genero').value){$('f-genero').value=d.genero;puestos.push('género');}
   // El estado de nacimiento trae "HIDALGO" precargado por defecto en las altas nuevas.
   // Ese valor por defecto SÍ se reemplaza con lo que diga la CURP (marcado con
@@ -1291,7 +1395,7 @@ function collectForm(){
     sd:g('sd')?parseFloat(g('sd')):null, sdi:g('sdi')?parseFloat(g('sdi')):null, sal_semanal:g('sal_semanal')?parseFloat(g('sal_semanal')):null,
     primer_apellido:g('primer_apellido').toUpperCase(), segundo_apellido:g('segundo_apellido').toUpperCase(), nombres:g('nombres').toUpperCase(),
     curp:g('curp').toUpperCase(), rfc:g('rfc').toUpperCase(), nss:g('nss'),
-    fecha_nacimiento:g('fecha_nacimiento')||null, genero:$('f-genero').value,
+    fecha_nacimiento:(dmyAiso(g('fecha_nacimiento'))||(/^\d{4}-\d{2}-\d{2}/.test(g('fecha_nacimiento'))?g('fecha_nacimiento').slice(0,10):null)), genero:$('f-genero').value,
     estado_civil:$('f-estado_civil').value, escolaridad:$('f-escolaridad').value,
     nacionalidad:g('nacionalidad').toUpperCase(), edo_nacimiento:g('edo_nacimiento').toUpperCase(),
     direccion:g('direccion').toUpperCase(), cp:g('cp'), telefono:g('telefono').replace(/\D/g,''), correo:g('correo').toLowerCase(),
@@ -1665,12 +1769,14 @@ function openIncidencias(){
     <div class="m-body">
       <div class="grid" style="grid-template-columns:180px 1fr;align-items:end;margin-bottom:12px">
         <div><label>No. de semana</label><input id="inc-sem" type="number" value="${isoWeek()}" oninput="incExistentes()"></div>
-        <p style="color:var(--mut);font-size:12.5px;margin-bottom:8px">Captura faltas y el descuento se calcula <b>como lo hace NOI</b>: (1) la falta + 7º día (factor 7/6) se restan del <b>BRUTO</b> y el ISR y el subsidio al empleo se recalculan sobre esa base reducida — no sobre el neto; (2) la cuota obrera <b>IMSS</b> baja a los días cotizados (7−faltas, LSS art. 31); (3) el <b>premio</b> de puntualidad/asistencia se anula con cualquier falta. El motivo guarda el desglose. Puedes corregir el monto a mano si tu cédula difiere.</p>
+        <div><label>Buscar trabajador</label><input id="inc-q" placeholder="Escribe nombre, no. o contratista…" oninput="incFiltra()"></div>
       </div>
+      <p style="color:var(--mut);font-size:12px;margin-bottom:8px">Captura faltas y el descuento se calcula <b>como lo hace NOI</b>: la falta + 7º día se restan del bruto (ISR y subsidio se recalculan), la cuota IMSS baja a los días cotizados (LSS 31) y el premio se anula con cualquier falta. Corrige el monto a mano si tu cédula difiere.</p>
       <div id="inc-exist"></div>
       <div class="imp-row head" style="grid-template-columns:2fr .5fr .45fr .6fr .8fr 1.5fr"><span>Trabajador</span><span>SD</span><span>Faltas</span><span>Premio $</span><span>Descuento $</span><span>Motivo</span></div>
+      <div id="inc-nores" style="display:none;color:var(--mut);padding:14px;text-align:center;font-size:12.5px">Ningún trabajador coincide con la búsqueda.</div>
       <div style="max-height:380px;overflow:auto">
-      ${act.map((w,i)=>`<div class="imp-row" style="grid-template-columns:2fr .5fr .45fr .6fr .8fr 1.5fr">
+      ${act.map((w,i)=>`<div class="imp-row inc-row" data-buscar="${esc((fullName(w)+' '+(w.contratista||'')+' '+(w.no_trab||'')).toUpperCase())}" style="grid-template-columns:2fr .5fr .45fr .6fr .8fr 1.5fr">
         <span><b>${esc(fullName(w))}</b><br><span style="color:var(--mut);font-size:11px">${esc(w.contratista)}</span></span>
         <span>$${money(w.sd)}</span>
         <input id="inc-f-${i}" type="number" min="0" step="1" placeholder="0" oninput="incCalc(${i})">
@@ -1685,6 +1791,15 @@ function openIncidencias(){
       <button class="btn dark" onclick="saveIncidencias()">💾 Guardar incidencias</button>
     </div>`,'lg');
   incExistentes();
+}
+function incFiltra(){
+  const q=($('inc-q').value||'').trim().toUpperCase();
+  let visibles=0;
+  document.querySelectorAll('.inc-row').forEach(r=>{
+    const ok=!q||(r.getAttribute('data-buscar')||'').includes(q);
+    r.style.display=ok?'':'none'; if(ok)visibles++;
+  });
+  if($('inc-nores'))$('inc-nores').style.display=visibles?'none':'block';
 }
 function incCalc(i){
   const w=window._INC[i];
@@ -1868,82 +1983,112 @@ function buildRetDetalleWS(act,sem,colB){
   return buildSheet(rows,styles,[7,34,16,12,12,20,14,42],[{s:{r:0,c:0},e:{r:0,c:7}}],[{hpt:26},{hpt:24}]);
 }
 
-/* ---------- v33: REPORTE DE DOCUMENTACIÓN (una columna por documento) ----------
-   Estado por documento del expediente: COMPLETO (verde), FALTANTE (rojo) o
-   NO APLICA (gris). Trae a los trabajadores ACTIVOS de todas las obras; se
-   puede acotar por semana de ingreso (calculada con la fecha de alta y la
-   fecha de inicio de cada obra) — por defecto salen todos. */
+/* ---------- v34: REPORTE DE DOCUMENTACIÓN (por obra) ----------
+   Se elige PRIMERO la obra. Las obras de campo (Bienestar, Jardines) se
+   separan por SEMANA DE INGRESO (secciones); las de oficina (tipo OFICINA)
+   salen en una lista general sin semanas. La semana se calcula con la fecha
+   de inicio de la obra; se protege contra semanas <1 (agrupadas como
+   "S1 o anterior") para que nunca aparezcan semanas negativas. */
+function rdSemDe(o,w){
+  if(!w.fecha_alta)return null;
+  const n=isoWeekDe(o,new Date(w.fecha_alta+'T12:00'));
+  return (n==null||isNaN(n))?null:Math.max(1,n); // nunca negativa ni cero
+}
 async function openReporteDocs(){
   toast('Cargando trabajadores...');
   const {data:tw,error}=await sb.from('trabajadores').select('*').eq('eliminado',false).eq('estatus','ACTIVO');
   if(error){toast('Error: '+error.message,'err');return;}
   window._RDOCS=tw||[];
-  const semOf=w=>{const o=OBRAS.find(x=>x.id===w.obra_id);return w.fecha_alta?isoWeekDe(o,new Date(w.fecha_alta+'T12:00')):null;};
-  const semanas=[...new Set((tw||[]).map(semOf).filter(n=>n!=null))].sort((a,b)=>a-b);
-  window._RDOCS_SEM=semOf;
   modal(`
-    <div class="m-head"><h2>📋 Reporte de documentación · trabajadores activos</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-head"><h2>📋 Reporte de documentación</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:12px;font-size:12.5px">Genera un Excel con <b>una columna por documento</b> del expediente: <b style="color:var(--green)">COMPLETO</b> si ya está entregado, <b style="color:var(--red)">FALTANTE</b> en rojo si le falta, y NO APLICA en gris. Incluye a los <b>${(tw||[]).length} activos</b> de todas las obras. Filtra por semana de ingreso si quieres (por defecto salen todos).</p>
-      <div class="sect">Semanas de ingreso (${semanas.length}) — desmarca las que no</div>
-      <div style="margin-bottom:6px">
-        <a href="#" onclick="document.querySelectorAll('.rd-sem').forEach(c=>c.checked=true);return false">todas</a> ·
-        <a href="#" onclick="document.querySelectorAll('.rd-sem').forEach(c=>c.checked=false);return false">ninguna</a>
+      <p style="color:var(--mut);margin-bottom:12px;font-size:12.5px">Una <b>columna por documento</b> del expediente: <b style="color:var(--green)">COMPLETO</b> si está entregado, <b style="color:var(--red)">FALTANTE</b> en rojo si le falta, NO APLICA en gris. Elige la obra: las de campo se separan <b>por semana de ingreso</b>; oficina sale en lista general.</p>
+      <div class="grid" style="grid-template-columns:1fr;gap:10px">
+        <div><label>Obra *</label>
+          <select id="rd-obra" onchange="rdObraCambia()">
+            <option value="">— elige una obra —</option>
+            ${OBRAS.map(o=>{const n=(tw||[]).filter(w=>w.obra_id===o.id).length;return `<option value="${o.id}">${esc(o.nombre)} (${n} activos)${o.tipo==='OFICINA'?' · oficina':''}</option>`;}).join('')}
+          </select></div>
       </div>
-      <div style="max-height:150px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px 10px">
-        ${semanas.map(n=>{const cnt=(tw||[]).filter(w=>semOf(w)===n).length;
-          return `<label style="display:inline-block;min-width:130px;padding:3px 6px;font-size:12.5px"><input type="checkbox" class="rd-sem" value="${n}" checked> Semana ${n} <span style="color:var(--mut)">(${cnt})</span></label>`;}).join('')||'<span style="color:var(--mut)">Sin semanas de ingreso registradas.</span>'}
-      </div>
+      <div id="rd-semwrap" style="margin-top:12px"></div>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn dark" onclick="exportReporteDocs()">⬇ Generar Excel de documentación</button>
     </div>`,'lg');
 }
+function rdObraCambia(){
+  const oid=$('rd-obra').value, o=OBRAS.find(x=>x.id===oid), tw=window._RDOCS||[];
+  const wrap=$('rd-semwrap'); if(!o){wrap.innerHTML='';return;}
+  if(o.tipo==='OFICINA'){
+    const n=tw.filter(w=>w.obra_id===oid).length;
+    wrap.innerHTML=`<div class="fhint">Oficina: el reporte saldrá como <b>lista general</b> (sin separar por semana), con sus ${n} activos.</div>`;
+    return;
+  }
+  const gente=tw.filter(w=>w.obra_id===oid);
+  const semanas=[...new Set(gente.map(w=>rdSemDe(o,w)).filter(n=>n!=null))].sort((a,b)=>a-b);
+  wrap.innerHTML=`
+    <div class="sect">Semanas de ingreso — desmarca las que no quieras</div>
+    <div style="margin-bottom:6px">
+      <a href="#" onclick="document.querySelectorAll('.rd-sem').forEach(c=>c.checked=true);return false">todas</a> ·
+      <a href="#" onclick="document.querySelectorAll('.rd-sem').forEach(c=>c.checked=false);return false">ninguna</a>
+    </div>
+    <div style="max-height:160px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px 10px">
+      ${semanas.map(nn=>{const cnt=gente.filter(w=>rdSemDe(o,w)===nn).length;
+        return `<label style="display:inline-block;min-width:150px;padding:3px 6px;font-size:12.5px"><input type="checkbox" class="rd-sem" value="${nn}" checked> Semana ${nn} <span style="color:var(--mut)">(${cnt})</span></label>`;}).join('')||'<span style="color:var(--mut)">Sin trabajadores con semana de ingreso.</span>'}
+    </div>`;
+}
 function exportReporteDocs(){
-  const tw=window._RDOCS||[], semOf=window._RDOCS_SEM;
-  const sel=new Set([...document.querySelectorAll('.rd-sem')].filter(c=>c.checked).map(c=>parseInt(c.value)));
-  let lista=tw;
-  if(document.querySelectorAll('.rd-sem').length) lista=tw.filter(w=>{const s=semOf(w);return s==null?true:sel.has(s);});
-  if(!lista.length){toast('No hay trabajadores con esas semanas.','err');return;}
-  lista=lista.slice().sort((a,b)=>{const oa=OBRAS.findIndex(o=>o.id===a.obra_id),ob=OBRAS.findIndex(o=>o.id===b.obra_id);return oa-ob||((a.no_trab||9e9)-(b.no_trab||9e9));});
-  // estilos por estado de documento
+  const oid=$('rd-obra').value, o=OBRAS.find(x=>x.id===oid), tw=window._RDOCS||[];
+  if(!o){toast('Elige primero una obra.','err');return;}
+  const esOficina=o.tipo==='OFICINA';
+  let gente=tw.filter(w=>w.obra_id===oid);
+  if(!esOficina){
+    const sel=new Set([...document.querySelectorAll('.rd-sem')].filter(c=>c.checked).map(c=>parseInt(c.value)));
+    gente=gente.filter(w=>{const s=rdSemDe(o,w);return s==null?true:sel.has(s);});
+  }
+  if(!gente.length){toast('No hay trabajadores con ese filtro.','err');return;}
   const stOK={font:{sz:9.5,bold:true,color:{rgb:'0F7B4D'},name:'Calibri'},fill:{fgColor:{rgb:'E6F4EE'}},border:BORD,alignment:{horizontal:'center',vertical:'center'}};
   const stFalta={font:{sz:9.5,bold:true,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'B3261E'}},border:BORD,alignment:{horizontal:'center',vertical:'center'}};
   const stNA={font:{sz:9.5,color:{rgb:'6B7482'},name:'Calibri'},fill:{fgColor:{rgb:'EEF1F5'}},border:BORD,alignment:{horizontal:'center',vertical:'center'}};
-  const rows=[],styles=[];
-  const nDoc=DOCS.length;
-  rows.push([`REPORTE DE DOCUMENTACIÓN — TRABAJADORES ACTIVOS — ${new Date().toLocaleDateString('es-MX')}`]); styles.push(ST.title);
-  rows.push(['NO.','NOMBRE COMPLETO','OBRA','CONTRATISTA','PUESTO','SEM. ING.',...DOCS,'ENTREGADOS','% COMPLETO']); styles.push(ST.head);
-  let tOk=0;
-  lista.forEach(w=>{
-    const o=OBRAS.find(x=>x.id===w.obra_id), d=w.docs||{}, s=semOf(w);
-    const cels=[], est=[];
-    const base=[ST.cellC,ST.cell,ST.cell,ST.cell,ST.cell,ST.cellC];
-    let ent=0;
-    DOCS.forEach(k=>{
-      const v=d[k];
+  const rows=[],styles=[]; const nDoc=DOCS.length; const lastCol=5+nDoc+2;
+  rows.push([`REPORTE DE DOCUMENTACIÓN — ${o.nombre} — ${new Date().toLocaleDateString('es-MX')}`]); styles.push(ST.title);
+  rows.push(['NO.','NOMBRE COMPLETO','CONTRATISTA','PUESTO','SEM. ING.',...DOCS,'ENTREGADOS','% COMPLETO']); styles.push(ST.head);
+  const merges=[{s:{r:0,c:0},e:{r:0,c:lastCol}}];
+  let tOk=0,tTot=0;
+  const filaTrab=w=>{
+    const d=w.docs||{}, s=rdSemDe(o,w); const cels=[],est=[]; let ent=0;
+    DOCS.forEach(k=>{const v=d[k];
       if(v==='ENTREGADO'){cels.push('COMPLETO');est.push(stOK);ent++;}
       else if(v==='NO APLICA'){cels.push('NO APLICA');est.push(stNA);}
-      else{cels.push('FALTANTE');est.push(stFalta);}
+      else{cels.push('FALTANTE');est.push(stFalta);}});
+    if(ent===nDoc)tOk++; tTot++;
+    rows.push([w.no_trab??'',fullName(w),w.contratista||'',w.puesto||'',s!=null?('S'+s):'—',...cels,`${ent}/${nDoc}`,Math.round(ent/nDoc*100)/100]);
+    styles.push([ST.cellC,ST.cell,ST.cell,ST.cell,ST.cellC,...est,ST.cellC,{...ST.cellC,numFmt:'0%'}]);
+  };
+  const seccion=txt=>{merges.push({s:{r:rows.length,c:0},e:{r:rows.length,c:lastCol}});rows.push([txt]);styles.push(ST.sect);};
+  if(esOficina){
+    gente.sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9)).forEach(filaTrab);
+  }else{
+    // secciones por semana de ingreso
+    const porSem={};gente.forEach(w=>{const s=rdSemDe(o,w)??0;(porSem[s]=porSem[s]||[]).push(w);});
+    Object.keys(porSem).map(Number).sort((a,b)=>a-b).forEach(s=>{
+      const g=porSem[s].sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+      const okSem=g.filter(w=>DOCS.every(k=>(w.docs||{})[k]==='ENTREGADO'||(w.docs||{})[k]==='NO APLICA')).length;
+      seccion(`◆  SEMANA ${s}  —  ${g.length} trabajador(es)`);
+      g.forEach(filaTrab);
     });
-    const pct=Math.round(ent/nDoc*100);
-    if(ent===nDoc)tOk++;
-    rows.push([w.no_trab??'',fullName(w),o?o.nombre:'',w.contratista||'',w.puesto||'',s!=null?('S'+s):'',...cels,`${ent}/${nDoc}`,pct/100]);
-    styles.push([...base,...est,ST.cellC,{...ST.cellC,numFmt:'0%'}]);
-  });
-  rows.push([`TOTAL: ${lista.length} activos · ${tOk} con expediente COMPLETO · ${lista.length-tOk} con documentos FALTANTES`]);
-  styles.push(ST.sub);
-  const widths=[7,32,20,15,20,9,...DOCS.map(()=>13),12,12];
-  const merges=[{s:{r:0,c:0},e:{r:0,c:7+nDoc}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:7+nDoc}}];
-  const ws=buildSheet(rows,styles,widths,merges,[{hpt:26},{hpt:38}]);
-  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:1,c:7+nDoc}})};
-  if(!ws['!freeze'])ws['!rows']=ws['!rows']||[];
+  }
+  merges.push({s:{r:rows.length,c:0},e:{r:rows.length,c:lastCol}});
+  rows.push([`TOTAL: ${tTot} activos · ${tOk} con expediente COMPLETO · ${tTot-tOk} con documentos FALTANTES`]); styles.push(ST.sub);
+  const widths=[7,32,16,20,9,...DOCS.map(()=>13),12,12];
+  const ws=buildSheet(rows,styles,widths,merges,[{hpt:26},{hpt:34}]);
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:1,c:lastCol}})};
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'DOCUMENTACION');
-  dl(wb,`REPORTE_DOCUMENTACION_${today()}.xlsx`);
+  XLSX.utils.book_append_sheet(wb,ws,('DOC '+o.nombre).slice(0,31).replace(/[\\\/\?\*\[\]:]/g,' '));
+  dl(wb,`REPORTE_DOCUMENTACION_${o.nombre.replace(/[^A-ZÑ0-9]+/gi,'_')}_${today()}.xlsx`);
   closeModal();
-  toast(`Reporte generado: ${lista.length} activos, ${tOk} con expediente completo.`,'ok');
+  toast(`Reporte de ${o.nombre}: ${tTot} activos, ${tOk} con expediente completo.`,'ok');
 }
 
 /* ---------- PROYECCIÓN DE NÓMINA (descuentos + neto + finiquitos) ---------- */
