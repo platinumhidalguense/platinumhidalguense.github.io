@@ -359,6 +359,11 @@ tbody tr:hover{background:#f6f8fb}
         <select id="chq-f-tipo" onchange="renderCheques()">
           <option value="">Tipo: todos</option><option>CHEQUE</option><option>FINIQUITO</option>
         </select>
+        <select id="chq-f-consec" onchange="chqOrdenConsec(this.value)" title="Ordenar por número de cheque consecutivo">
+          <option value="">Consecutivo: sin orden</option>
+          <option value="asc">Consecutivo ↑ ascendente</option>
+          <option value="desc">Consecutivo ↓ descendente</option>
+        </select>
         <button class="btn gold" onclick="openChequeForm(null)">＋ Nuevo cheque</button>
         <button class="btn dark" onclick="exportCheques()">⬇ Exportar cheques</button>
       </div>
@@ -373,7 +378,7 @@ tbody tr:hover{background:#f6f8fb}
             <th onclick="setChqSort('importe')">Importe</th>
             <th onclick="setChqSort('tipo_pago')">Tipo</th>
             <th onclick="setChqSort('num_cheque')">No. cheque</th>
-            <th>Consecutivo</th>
+            <th onclick="setChqSort('consecutivo')" title="Ordena por consecutivo (clic para asc/desc)">Consecutivo ⇅</th>
             <th onclick="setChqSort('estatus')">Estatus</th>
           </tr></thead>
           <tbody id="chq-tbody"><tr class="loading-row"><td colspan="10">Cargando...</td></tr></tbody>
@@ -703,7 +708,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-21.2';
+const APP_VERSION='2026-07-21.3';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2701,7 +2706,16 @@ function renderChqStats(){
     <div class="stat r"><div class="n">${x.length}</div><div class="l">Cancelados</div></div>
     <div class="stat"><div class="n">${CHEQUES.length}</div><div class="l">Total cheques</div></div>`;
 }
-function setChqSort(k){if(CSORT.k===k)CSORT.asc=!CSORT.asc;else{CSORT.k=k;CSORT.asc=true;}renderCheques();}
+function setChqSort(k){if(CSORT.k===k)CSORT.asc=!CSORT.asc;else{CSORT.k=k;CSORT.asc=true;}
+  // sincroniza el selector de consecutivo con el ordenamiento actual
+  if($('chq-f-consec'))$('chq-f-consec').value=(k==='consecutivo')?(CSORT.asc?'asc':'desc'):'';
+  renderCheques();}
+/* v35: ordenar cheques por número consecutivo (numérico), asc o desc */
+function chqOrdenConsec(v){
+  if(!v){CSORT={k:'semana',asc:false};} // "sin orden" vuelve al orden por defecto (semana)
+  else{CSORT={k:'consecutivo',asc:v==='asc'};}
+  renderCheques();
+}
 function chqFiltered(){
   const q=$('chq-q').value.trim().toUpperCase(), fe=$('chq-f-estatus').value, ft=$('chq-f-tipo').value;
   let rows=CHEQUES.filter(c=>{
@@ -2714,6 +2728,13 @@ function chqFiltered(){
   rows.sort((a,b)=>{
     let x=a[k],y=b[k];
     if(k==='semana'){x=parseInt(String(x).replace(/\D/g,''))||0;y=parseInt(String(y).replace(/\D/g,''))||0;}
+    // consecutivo: orden NUMÉRICO (que 10 vaya después de 2, no antes) usando el
+    // número que traiga; los vacíos siempre al final sin importar asc/desc
+    if(k==='consecutivo'){
+      const nx=String(x??'').replace(/\D/g,''),ny=String(y??'').replace(/\D/g,'');
+      if(nx===''&&ny==='')return 0; if(nx==='')return 1; if(ny==='')return -1;
+      return CSORT.asc?(+nx)-(+ny):(+ny)-(+nx);
+    }
     if(x==null||x==='')return 1;if(y==null||y==='')return -1;
     if(typeof x==='number'&&typeof y==='number')return CSORT.asc?x-y:y-x;
     return CSORT.asc?String(x).localeCompare(String(y)):String(y).localeCompare(String(x));
