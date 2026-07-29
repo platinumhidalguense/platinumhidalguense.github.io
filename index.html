@@ -360,6 +360,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
             <button onclick="toggleMenu('menu-docs');openIncidencias()">📉 Incidencias de la semana</button>
             <button onclick="toggleMenu('menu-docs');openCalendarioRet()">📅 Calendario de retenciones</button>
             <button onclick="toggleMenu('menu-docs');openReporteDocs()">📋 Reporte de documentación (Excel)</button>
+            <button onclick="toggleMenu('menu-docs');openAltasSemana()">📆 Altas por semana (Excel)</button>
           </div>
         </div>
         <div class="menu" id="menu-imp">
@@ -448,7 +449,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
       <div class="stats" id="vac-stats"></div>
       <div class="toolbar">
         <div class="search"><input id="vac-q" placeholder="Buscar trabajador..." oninput="renderVacViews()"></div>
-        <span style="font-size:12px;color:var(--mut)">Clic en un trabajador para ver su saldo y registrar vacaciones, permisos o incapacidades.</span>
+        <button class="btn dark" onclick="openImportVac()">⬆ Importar vacaciones (Excel)</button>
+        <span style="font-size:12px;color:var(--mut)">Clic en un trabajador para ver su saldo y registrar vacaciones.</span>
       </div>
       <div class="tbl-card">
         <table>
@@ -769,7 +771,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-21.5';
+const APP_VERSION='2026-07-21.6';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2999,6 +3001,75 @@ function exportMovimientos(){
   dl(wb,`MOVIMIENTOS_SEMANA${n}_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}.xlsx`);
   toast('Excel de movimientos generado.','ok');
 }
+/* ---------- v36: ALTAS POR SEMANA (general, todas las semanas, por obra) ----------
+   Como el de movimientos pero completo: todas las altas agrupadas por semana de
+   ingreso (calculada con la fecha de inicio de cada obra, nunca negativa), con
+   una sección por obra. Trae a todos los no-eliminados de todas las obras. */
+async function openAltasSemana(){
+  toast('Cargando trabajadores...');
+  const {data:tw,error}=await sb.from('trabajadores').select('*').eq('eliminado',false);
+  if(error){toast('Error: '+error.message,'err');return;}
+  window._ALTASX=tw||[];
+  modal(`
+    <div class="m-head"><h2>📆 Altas por semana (Excel)</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);margin-bottom:12px;font-size:12.5px">Exporta <b>todas las altas</b> agrupadas por <b>semana de ingreso</b> (una sección por obra). La semana se calcula con la fecha de inicio de cada obra, así que nunca sale negativa.</p>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">
+        <div><label>Obra</label>
+          <select id="ax-obra">
+            <option value="">Todas las obras</option>
+            ${OBRAS.map(o=>`<option value="${o.id}">${esc(o.nombre)}</option>`).join('')}
+          </select></div>
+        <div><label>Incluir</label>
+          <select id="ax-est">
+            <option value="ACT">Solo activos</option>
+            <option value="TODOS">Activos, pendientes y bajas</option>
+          </select></div>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn dark" onclick="exportAltasSemana()">⬇ Generar Excel</button>
+    </div>`,'md');
+}
+function exportAltasSemana(){
+  const tw=window._ALTASX||[], oid=$('ax-obra').value, est=$('ax-est').value;
+  let base=tw.filter(w=>w.fecha_alta);
+  if(oid)base=base.filter(w=>w.obra_id===oid);
+  if(est==='ACT')base=base.filter(w=>w.estatus==='ACTIVO');
+  if(!base.length){toast('No hay altas con ese filtro.','err');return;}
+  const obras=oid?OBRAS.filter(o=>o.id===oid):OBRAS.filter(o=>base.some(w=>w.obra_id===o.id));
+  const rows=[],styles=[];
+  rows.push([`ALTAS POR SEMANA DE INGRESO — ${oid?(OBRAS.find(o=>o.id===oid)||{}).nombre:'TODAS LAS OBRAS'} — ${new Date().toLocaleDateString('es-MX')}`]); styles.push(ST.title);
+  rows.push(['NO.','NOMBRE COMPLETO','CONTRATISTA','PUESTO','FECHA ALTA','ESTATUS']); styles.push(ST.head);
+  const merges=[{s:{r:0,c:0},e:{r:0,c:5}}];
+  const sec=(t,st)=>{merges.push({s:{r:rows.length,c:0},e:{r:rows.length,c:5}});rows.push([t]);styles.push(st);};
+  let total=0;
+  obras.forEach(o=>{
+    const gente=base.filter(w=>w.obra_id===o.id);
+    if(!gente.length)return;
+    sec(`■  OBRA: ${o.nombre}  —  ${gente.length} alta(s)`, ST.title);
+    const porSem={};gente.forEach(w=>{const s=rdSemDe(o,w)??0;(porSem[s]=porSem[s]||[]).push(w);});
+    Object.keys(porSem).map(Number).sort((a,b)=>a-b).forEach(s=>{
+      const g=porSem[s].sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+      sec(`◆  SEMANA ${s}  —  ${g.length} alta(s)`, ST.sect);
+      g.forEach(w=>{
+        total++;
+        rows.push([w.no_trab??'',fullName(w),w.contratista||'',w.puesto||'',fmtD(w.fecha_alta),w.estatus]);
+        styles.push([ST.cellC,ST.cell,ST.cell,ST.cell,ST.cellC,ST.cellC]);
+      });
+    });
+  });
+  merges.push({s:{r:rows.length,c:0},e:{r:rows.length,c:5}});
+  rows.push([`TOTAL: ${total} alta(s)`]); styles.push(ST.total);
+  const ws=buildSheet(rows,styles,[8,34,18,22,13,12],merges,[{hpt:26},{hpt:24}]);
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:1,c:5}})};
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'ALTAS POR SEMANA');
+  dl(wb,`ALTAS_POR_SEMANA_${today()}.xlsx`);
+  closeModal();
+  toast(`Excel generado: ${total} altas por semana.`,'ok');
+}
 
 /* ---------- CORREOS CREADOS (AtomicMail) ---------- */
 function normCorreo(s){return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/ñ/g,'n').replace(/[^a-z0-9]/g,'');}
@@ -3315,6 +3386,114 @@ async function quitarVac(id,trabId){
   const {error}=await sb.from('vacaciones').update({activo:false}).eq('id',id);
   if(error){toast('Error: '+error.message,'err');return;}
   closeModal();toast('Registro desactivado.','ok');
+  await loadObraData(OBRA.id);
+}
+/* ---------- v36: IMPORTAR VACACIONES DESDE EXCEL (control de vacaciones) ----------
+   Lee el "CONTROL DE VACACIONES", empareja por RFC y registra los DÍAS GOZADOS
+   de cada periodo (todos los bloques del archivo) como registros de vacaciones,
+   para que el saldo de la base refleje lo ya gozado. Muestra vista previa y NO
+   guarda nada sin confirmar. Evita duplicados: si ya existe un registro del
+   mismo trabajador con la misma fecha de inicio importada, lo omite. */
+let VACIMP=[];
+function openImportVac(){
+  modal(`
+    <div class="m-head"><h2>⬆ Importar vacaciones (Excel)</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);margin-bottom:12px;font-size:12.5px">Sube el <b>Control de Vacaciones</b>. Empareja a cada quien por <b>RFC</b> y registra sus <b>días gozados</b> de cada periodo (todos los bloques). Verás exactamente qué se va a registrar <b>antes de guardar</b>; a quien no encuentre por RFC te lo listo aparte. Los registros que ya existían no se duplican.</p>
+      <div><input type="file" id="vi-file" accept=".xlsx,.xls" onchange="parseImportVac(this)"></div>
+      <div id="vi-prev" style="margin-top:14px;max-height:400px;overflow:auto"></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn dark hide" id="vi-btn" onclick="applyImportVac()">💾 Registrar vacaciones seleccionadas</button>
+    </div>`,'lg');
+}
+/* convierte una celda a ISO (Date de xlsx con cellDates, o texto dd/mm/aaaa) */
+function celdaAiso(v){
+  if(v instanceof Date && !isNaN(v)) return new Date(Date.UTC(v.getFullYear(),v.getMonth(),v.getDate())).toISOString().slice(0,10);
+  const s=String(v||'').trim();
+  let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m)return `${m[1]}-${m[2]}-${m[3]}`;
+  m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if(m){let y=+m[3]; if(y<100)y+=2000; return `${y}-${String(+m[2]).padStart(2,'0')}-${String(+m[1]).padStart(2,'0')}`;}
+  return null;
+}
+const numDe=v=>{const m=String(v??'').match(/-?\d+(\.\d+)?/);return m?Math.round(parseFloat(m[0])):0;};
+async function parseImportVac(inp){
+  const file=inp.files[0]; if(!file)return;
+  $('vi-prev').innerHTML='<div class="empty">Leyendo archivo...</div>';
+  let wb; try{wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});}catch(e){$('vi-prev').innerHTML='<div class="empty">No pude leer el archivo. ¿Es un Excel válido?</div>';return;}
+  // la fila de encabezados REAL es la que contiene "DÍAS GOZADOS" (así no
+  // confundimos con el "RFC: XXX" del membrete de la empresa)
+  let aoa=null, hIdx=-1;
+  for(const sn of wb.SheetNames){
+    const a=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:''});
+    const hi=a.findIndex(r=>r.some(c=>/D[IÍ]AS\s*GOZADOS/i.test(String(c))));
+    if(hi>=0){aoa=a;hIdx=hi;break;}
+  }
+  if(!aoa){$('vi-prev').innerHTML='<div class="empty">No encontré la fila de encabezados (con "DÍAS GOZADOS").</div>';return;}
+  const H=aoa[hIdx].map(c=>String(c).toUpperCase().replace(/\s+/g,' ').trim());
+  const iRfc=H.findIndex(h=>/^R\.?\s*F\.?\s*C\.?$/.test(h)||h==='RFC');
+  const iNom=H.findIndex(h=>h.includes('NOMBRE DEL TRABAJADOR'));
+  // cada bloque de vacaciones: columna DÍAS GOZADOS; su periodo (fecha) está 2 columnas antes
+  const golCols=H.map((h,i)=>/D[IÍ]AS GOZADOS/.test(h)?i:-1).filter(i=>i>=0);
+  if(iRfc<0||!golCols.length){$('vi-prev').innerHTML='<div class="empty">El archivo no trae columnas R.F.C y DIAS GOZADOS reconocibles.</div>';return;}
+  const {data:allW,error}=await sb.from('trabajadores').select('*').eq('eliminado',false);
+  if(error){toast('Error al consultar trabajadores: '+error.message,'err');return;}
+  const {data:vacAll}=await sb.from('vacaciones').select('trabajador_id,fecha_inicio,tipo').eq('activo',true);
+  const norm=r=>String(r||'').toUpperCase().replace(/[^A-ZÑ&0-9]/g,'');
+  VACIMP=[];
+  for(let i=hIdx+1;i<aoa.length;i++){
+    const r=aoa[i]; const rfc=norm(r[iRfc]); if(rfc.length<10)continue;
+    const nom=String(iNom>=0?r[iNom]||'':'').trim().toUpperCase();
+    const w=allW.find(x=>norm(x.rfc)===rfc);
+    const periodos=[];
+    golCols.forEach(gc=>{
+      const goz=numDe(r[gc]); const iso=celdaAiso(r[gc-2]);
+      if(goz>0&&iso)periodos.push({iso,goz});
+    });
+    if(!periodos.length&&w)continue; // trabajador sin gozados que registrar
+    if(!periodos.length&&!w)continue;
+    // marcar cuáles ya existen (mismo trabajador + misma fecha_inicio)
+    periodos.forEach(p=>{p.existe=w&&(vacAll||[]).some(v=>v.trabajador_id===w.id&&String(v.fecha_inicio).slice(0,10)===p.iso&&v.tipo==='VACACIONES');});
+    VACIMP.push({rfc,nom,w,periodos,sel:!!w&&periodos.some(p=>!p.existe)});
+  }
+  if(!VACIMP.length){$('vi-prev').innerHTML='<div class="empty">No encontré filas con RFC y días gozados.</div>';return;}
+  renderImportVac();
+  $('vi-btn').classList.remove('hide');
+}
+function renderImportVac(){
+  const found=VACIMP.filter(x=>x.w), miss=VACIMP.filter(x=>!x.w);
+  const nNuevos=VACIMP.reduce((s,x)=>s+(x.w?x.periodos.filter(p=>!p.existe).length:0),0);
+  $('vi-prev').innerHTML=`
+    <div style="margin-bottom:8px;font-size:12.5px"><b>${found.length}</b> emparejados por RFC · <b>${nNuevos}</b> registros nuevos por crear · <b>${miss.length}</b> sin encontrar.</div>
+    <div class="imp-row head" style="grid-template-columns:26px 2fr 2.4fr"><span></span><span>Trabajador (RFC)</span><span>Periodos a registrar (fecha · días gozados)</span></div>
+    ${VACIMP.map((x,i)=>`<div class="imp-row" style="grid-template-columns:26px 2fr 2.4fr;${x.w?'':'background:var(--amber-bg)'}">
+      <span>${x.w?`<input type="checkbox" style="width:auto" ${x.sel?'checked':''} onchange="VACIMP[${i}].sel=this.checked">`:''}</span>
+      <span><b>${esc(x.w?fullName(x.w):x.nom||'(sin nombre)')}</b><br><span style="color:var(--mut);font-size:11px">${esc(x.rfc)}${x.w?'':' · <b style="color:var(--amber)">RFC no encontrado en la base</b>'}</span></span>
+      <span style="font-size:11.5px">${x.periodos.map(p=>`${fmtD(p.iso)} · <b>${p.goz}</b> día(s)${p.existe?' <span style="color:var(--mut)">(ya existe)</span>':''}`).join('<br>')||'—'}</span>
+    </div>`).join('')}`;
+}
+async function applyImportVac(){
+  const inserts=[];
+  VACIMP.filter(x=>x.sel&&x.w).forEach(x=>{
+    x.periodos.filter(p=>!p.existe).forEach(p=>{
+      const fin=new Date(p.iso+'T12:00'); fin.setDate(fin.getDate()+Math.max(0,p.goz-1));
+      inserts.push({trabajador_id:x.w.id,obra_id:x.w.obra_id,tipo:'VACACIONES',
+        fecha_inicio:p.iso,fecha_fin:fin.toISOString().slice(0,10),dias:p.goz,
+        notas:`IMPORTADO CONTROL VACACIONES · ${p.goz} días gozados del periodo ${p.iso.slice(0,4)}`,creado_por:USER.email});
+    });
+  });
+  if(!inserts.length){toast('No hay registros nuevos seleccionados (o ya existían todos).','err');return;}
+  if(!confirm(`¿Registrar ${inserts.length} periodo(s) de vacaciones gozadas en los expedientes? No se duplican los que ya existían.`))return;
+  $('vi-btn').innerHTML='<span class="spin"></span> Registrando...';
+  markWrite();
+  let ok=0,fail=0;
+  for(let k=0;k<inserts.length;k+=100){
+    const {error}=await sb.from('vacaciones').insert(inserts.slice(k,k+100));
+    if(error)fail+=inserts.slice(k,k+100).length; else ok+=inserts.slice(k,k+100).length;
+  }
+  closeModal();
+  toast(`Vacaciones importadas: ${ok} registro(s)${fail?`, ${fail} con error`:''}.`,fail?'err':'ok');
   await loadObraData(OBRA.id);
 }
 
