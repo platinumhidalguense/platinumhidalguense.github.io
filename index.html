@@ -769,7 +769,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-21.4';
+const APP_VERSION='2026-07-21.5';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1477,7 +1477,10 @@ function collectForm(){
   return out;
 }
 function validateWorker(w,editId){
-  const errs=[];
+  // errs = BLOQUEAN el guardado (datos con formato inválido, duplicados).
+  // warns = solo ADVIERTEN; el usuario puede guardar de todos modos (casos
+  // reales y válidos, como una CURP y un RFC con inicio distinto).
+  const errs=[], warns=[];
   const chk=(id,ok,msg)=>{valMark(id,ok);if(!ok)errs.push(msg);};
   chk('nombres',!!w.nombres,'El nombre es obligatorio.');
   chk('curp',!w.curp||RX.curp.test(w.curp),'CURP inválida (deben ser 18 caracteres con formato oficial).');
@@ -1491,14 +1494,17 @@ function validateWorker(w,editId){
   if(w.clabe&&RX.clabe.test(w.clabe)){
     const b=bankFromClabe(w.clabe);
     if(b&&b!=='BBVA'&&!w.observaciones.includes(b))
-      errs.push(`La cuenta es de ${b}: anótalo en observaciones (ej. "CUENTA ${b}").`);
-    if(!b&&!w.observaciones)errs.push('Banco no identificado por la CLABE: especifica el banco en observaciones.');
+      warns.push(`La cuenta es de ${b}: conviene anotarlo en observaciones (ej. "CUENTA ${b}").`);
+    if(!b&&!w.observaciones)warns.push('Banco no identificado por la CLABE: conviene especificar el banco en observaciones.');
   }
-  if(w.curp&&w.rfc&&RX.curp.test(w.curp)&&RX.rfc.test(w.rfc)&&w.curp.slice(0,10)!==w.rfc.slice(0,10))
-    errs.push('Ojo: los primeros 10 caracteres de CURP y RFC no coinciden. Verifica ambos.');
+  // CURP y RFC con inicio distinto: NO bloquea. Es un caso real y válido
+  // (nombres compuestos, palabras que el SAT/RENAPO sustituyen, etc.); ambos
+  // pueden ser correctos en sus instituciones. Solo se avisa para revisar.
+  if(w.curp&&w.rfc&&RX.curp.test(w.curp)&&RX.rfc.test(w.rfc)&&w.curp.slice(0,4)!==w.rfc.slice(0,4))
+    warns.push('El inicio de la CURP y el RFC no coincide. Puede ser correcto (hay casos válidos así en RENAPO y SAT); solo verifica que ambos estén bien capturados.');
   const dup=WORKERS.find(x=>x.curp&&w.curp&&x.curp===w.curp&&x.id!==editId);
   if(dup&&!editId)errs.push(`Ya existe un trabajador con esa CURP en esta obra: ${fullName(dup)} (${dup.estatus}).`);
-  return errs;
+  return {errs,warns};
 }
 /* Campos que deben estar completos para que un alta quede ACTIVO */
 const CAMPOS_ALTA=[['primer_apellido','PRIMER APELLIDO'],['nombres','NOMBRE(S)'],['contratista','CONTRATISTA'],['puesto','PUESTO'],['fecha_alta','FECHA ALTA'],['sal_semanal','SALARIO'],['curp','CURP'],['rfc','RFC'],['nss','NSS'],['telefono','TELÉFONO'],['correo','CORREO']];
@@ -1522,8 +1528,10 @@ async function activarProgramados(){
 }
 async function saveWorker(id){
   const w=collectForm();
-  const errs=validateWorker(w,id);
+  const {errs,warns}=validateWorker(w,id);
   if(errs.length){toast(errs[0],'err');if(errs.length>1)setTimeout(()=>toast(errs[1],'err'),350);return;}
+  // advertencias: no bloquean, solo piden confirmar antes de guardar
+  if(warns.length&&!confirm('⚠ Advertencia'+(warns.length>1?'s':'')+':\n\n• '+warns.join('\n\n• ')+'\n\n¿Guardar de todos modos?'))return;
   $('save-btn').innerHTML='<span class="spin"></span> Guardando...';
   markWrite();
   const falt=datosFaltantes(w);
