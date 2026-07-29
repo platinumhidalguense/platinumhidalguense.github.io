@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- v35: tipografías corporativas — Montserrat (títulos) + Open Sans (texto).
+     Con preconnect para que carguen rápido; si el CDN fallara, cae solo a las
+     fuentes del sistema (fallback en cada font-family), la app no se rompe. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>PLATINUM · Base de Trabajadores</title>
 <!-- v2: periodo de pago, importación de cuentas del banco, requisición con VERIFICAR,
      Excel con formato corporativo, finiquitos en proyección, módulo de cheques, tiempo real -->
@@ -30,12 +36,22 @@
 </script>
 <style>
 :root{
-  --navy:#14213d; --navy2:#1f2f52; --gold:#c9a227; --bg:#f6f7f9; --card:#ffffff;
-  --border:#e3e6ea; --txt:#1c2430; --mut:#6b7482; --green:#0f7b4d; --green-bg:#e6f4ee;
-  --red:#b3261e; --red-bg:#fbeae9; --amber:#9a6700; --amber-bg:#fff3d6; --blue:#0b57d0; --blue-bg:#e8effc;
+  /* v35 · PALETA CORPORATIVA (usar cada color con mesura y para lo que toca):
+     azul marino = estructura/primario · verde menta = éxito/positivo ·
+     gris perla = fondos/bordes/texto tenue · blanco = tarjetas ·
+     coral cálido = ACENTO puntual (solo resaltar, nunca de fondo general). */
+  --navy:#1F3A5C; --navy2:#2B4E76; --gold:#E0785A; --accent:#E0785A;
+  --bg:#F4F6F8; --card:#ffffff;
+  --border:#E4E8ED; --txt:#1F2733; --mut:#697180;
+  --green:#2FA37A; --green-bg:#E7F6EF;
+  --red:#C43D30; --red-bg:#FBECEA; --amber:#B7791F; --amber-bg:#FCF3E3;
+  --blue:#2F6DB0; --blue-bg:#EAF1F9;
+  --radius:12px;
+  --shadow-sm:0 1px 2px rgba(20,33,61,.06);
+  --shadow:0 1px 3px rgba(20,33,61,.07), 0 10px 26px rgba(20,33,61,.05);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
+body{font-family:'Open Sans','Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--txt);font-size:14px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 button{font-family:inherit;cursor:pointer}
 input,select,textarea{font-family:inherit;font-size:13.5px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--txt);width:100%}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--navy);outline-offset:-1px}
@@ -221,6 +237,45 @@ tbody tr:hover{background:#f6f8fb}
   .stat{min-width:100%;flex-basis:100%}
   .topbar .tt{font-size:12px}
 }
+/* ============ v35 · REFINAMIENTO VISUAL (minimalista + animaciones) ============ */
+/* Títulos con Montserrat; texto con Open Sans (ya en body). */
+.tt,.brand,.m-head h2,.sect,.stat .n,.docs-pill.big,h1,h2,h3{font-family:'Montserrat','Segoe UI',sans-serif}
+.m-head h2{font-weight:700;letter-spacing:-.2px}
+.tt{font-weight:800;letter-spacing:.2px}
+.sect{font-weight:700}
+.stat .n{font-weight:800;letter-spacing:-.3px}
+/* Sombras suaves y radios homogéneos (aire minimalista) */
+.stat,.tbl-card,.menu-list,.modal,.card{box-shadow:var(--shadow)}
+.stat{border-radius:var(--radius)}
+.tbl-card{border-radius:var(--radius)}
+.modal{box-shadow:0 24px 70px rgba(20,33,61,.28)}
+.btn{transition:background .15s ease,border-color .15s ease,color .15s ease,box-shadow .15s ease,transform .06s ease}
+.btn:active{transform:translateY(1px)}
+.btn.dark,.btn-primary{box-shadow:var(--shadow-sm)}
+.view-btn{transition:all .16s ease}
+.view-btn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.badge{transition:all .15s ease}
+.docs-pill.ok{color:var(--green)}
+tbody tr{transition:background .12s ease}
+tbody tr:hover{background:#eef2f7}
+.kv{transition:background .12s ease}
+select,input,textarea{transition:border-color .15s ease,box-shadow .15s ease}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(31,58,92,.12)}
+/* Animaciones ligeras (solo opacity/transform — no consumen recursos) */
+.overlay{animation:ov-in .16s ease-out}
+.modal{animation:md-in .2s cubic-bezier(.2,.7,.3,1)}
+.toast{animation:ts-in .22s ease-out}
+@keyframes ov-in{from{opacity:0}to{opacity:1}}
+@keyframes md-in{from{opacity:0;transform:translateY(10px) scale(.995)}to{opacity:1;transform:none}}
+@keyframes ts-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* Coral SOLO como acento (CTAs, marca): los títulos de sección van con línea
+   neutra para no saturar de coral la interfaz (mesura). */
+.sect{border-bottom:1px solid var(--border);color:var(--navy)}
+.btn.gold{color:#fff;font-weight:700}
+.btn.gold:hover{filter:brightness(.96)}
+.btn.dark:hover{background:var(--navy2)}
+.brand-badge{border-radius:10px}
 </style>
 </head>
 <body>
@@ -340,10 +395,12 @@ tbody tr:hover{background:#f6f8fb}
             <th onclick="setSort('estatus')">Estatus</th>
             <th onclick="setSort('periodo_pago')">Periodo</th>
             <th onclick="setSort('fecha_alta')">Fecha alta</th>
+            <th onclick="setSort('fecha_baja')">Fecha baja</th>
+            <th onclick="setSort('fecha_reingreso')">Reingreso</th>
             <th onclick="setSort('sal_semanal')">Salario</th>
             <th>Cuenta</th><th>Banco</th><th>Teléfono</th><th>Docs</th>
           </tr></thead>
-          <tbody id="tbody"><tr class="loading-row"><td colspan="12">Cargando...</td></tr></tbody>
+          <tbody id="tbody"><tr class="loading-row"><td colspan="14">Cargando...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -501,6 +558,10 @@ function fechaDMYinput(el){let v=el.value.replace(/[^\d]/g,'').slice(0,8);
 const bankFromClabe=c=>{c=String(c||'').trim();return RX.clabe.test(c)?(BANCOS[c.slice(0,3)]||''):'';};
 const edad=f=>{if(!f)return'';const b=new Date(f),n=new Date();let e=n.getFullYear()-b.getFullYear();if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))e--;return e;};
 const docsOk=w=>{const d=w.docs||{};return DOCS.filter(k=>d[k]==='ENTREGADO').length;};
+/* v35: fecha base para ANTIGÜEDAD = reingreso si existe, si no el alta. Al
+   reingresar tras una baja, la antigüedad reinicia (misma regla de siempre),
+   pero conservamos el alta original y la baja anterior para verlas en la lista. */
+const iniAntig=w=>(w&&w.fecha_reingreso)?w.fecha_reingreso:(w?w.fecha_alta:null);
 const MES=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 function toast(msg,cls=''){const t=document.createElement('div');t.className='toast '+cls;t.textContent=msg;$('toasts').appendChild(t);setTimeout(()=>t.remove(),4200);}
 /* SEMANA 1 de la empresa = lunes 30 de marzo de 2026 (inicio de obra).
@@ -708,7 +769,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-21.3';
+const APP_VERSION='2026-07-21.4';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -831,7 +892,7 @@ function renderTable(){
     return SORT.asc?String(a).localeCompare(String(b)):String(b).localeCompare(String(a));
   });
   window._NAVIDS=rows.map(w=>w.id); // orden actual de la tabla, para las flechas ‹ › de la ficha
-  if(!rows.length){$('tbody').innerHTML='<tr><td colspan="12"><div class="empty"><div class="big">🗂</div>Sin trabajadores que coincidan.<br>Usa <b>＋ Nueva alta</b> para capturar el primero.</div></td></tr>';return;}
+  if(!rows.length){$('tbody').innerHTML='<tr><td colspan="14"><div class="empty"><div class="big">🗂</div>Sin trabajadores que coincidan.<br>Usa <b>＋ Nueva alta</b> para capturar el primero.</div></td></tr>';return;}
   $('tbody').innerHTML=rows.map(w=>`
     <tr onclick="openDetail('${w.id}')">
       <td>${w.no_trab??''}</td>
@@ -841,6 +902,8 @@ function renderTable(){
       <td><span class="badge ${w.estatus}">${w.estatus}</span>${(w.fecha_alta&&w.fecha_alta>=new Date(Date.now()-14*86400000).toISOString().slice(0,10)&&String(w.movimiento_imss||'SIN MOVIMIENTO')==='SIN MOVIMIENTO')?' <span class="badge PENDIENTE" title="Nuevo ingreso: avisar a contadoras para alta IMSS">🆕 IMSS</span>':''}</td>
       <td><span class="badge ${w.periodo_pago||'SEMANAL'}">${w.periodo_pago==='QUINCENAL'?'QUINCENAL':'SEMANAL'}</span></td>
       <td>${fmtD(w.fecha_alta)}</td>
+      <td>${w.fecha_baja?'<span style="color:var(--red)">'+fmtD(w.fecha_baja)+'</span>':'—'}</td>
+      <td>${w.fecha_reingreso?'<span style="color:var(--green)">'+fmtD(w.fecha_reingreso)+'</span>':'—'}</td>
       <td>$${money(w.sal_semanal)}</td>
       <td>${String(w.cuenta).toUpperCase()==='CREAR'?'<b style="color:var(--amber)">CREAR</b>':esc(w.cuenta)}</td>
       <td>${esc(w.banco)}</td>
@@ -882,7 +945,7 @@ function openDetail(id){
     <div class="m-body">
       ${w.estatus==='PENDIENTE'?`<div style="background:var(--amber-bg);border:1px solid #ecd9a0;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px"><b style="color:var(--amber)">⏳ PENDIENTE</b> — ${(function(){if(w.pendiente_manual)return 'Pausado manualmente — <b>'+esc(w.motivo_pendiente||'SIN MOTIVO')+'</b>. No sale en proyección ni requisición y NO se reactiva solo: usa "Marcar ACTIVO" cuando se resuelva.';const f=datosFaltantes(w);return f.length?'Falta capturar: <b>'+f.join(', ')+'</b>. Al completarlo pasará a ACTIVO solo, o usa el botón "Marcar ACTIVO".':'Ya tiene todos los datos: usa el botón "Marcar ACTIVO".';})()}</div>`:''}
       <div class="sect">Obra y puesto</div>
-      ${kv('Obra',esc(OBRA.nombre))}${kv('Contratista',esc(w.contratista))}${kv('No. trabajador',w.no_trab)}${kv('Puesto',esc(w.puesto))}${kv('Funciones',esc(w.funciones))}${kv('Turno',esc(w.turno))}${kv('Semana de ingreso',esc(w.semana_ingreso))}${kv('Fecha alta',fmtD(w.fecha_alta))}${kv('Tipo de contrato',esc(w.tipo_contrato||'OBRA DETERMINADA')+(w.fecha_fin_contrato?' · vence '+fmtD(w.fecha_fin_contrato):''))}${w.estatus==='BAJA'?kv('Fecha baja',fmtD(w.fecha_baja))+kv('Monto finiquito',w.monto_finiquito!=null?'$'+money(w.monto_finiquito):''):''}
+      ${kv('Obra',esc(OBRA.nombre))}${kv('Contratista',esc(w.contratista))}${kv('No. trabajador',w.no_trab)}${kv('Puesto',esc(w.puesto))}${kv('Funciones',esc(w.funciones))}${kv('Turno',esc(w.turno))}${kv('Semana de ingreso',esc(w.semana_ingreso))}${kv('Fecha alta',fmtD(w.fecha_alta))}${w.fecha_reingreso?kv('Fecha de reingreso',fmtD(w.fecha_reingreso)+' (la antigüedad cuenta desde aquí)'):''}${kv('Tipo de contrato',esc(w.tipo_contrato||'OBRA DETERMINADA')+(w.fecha_fin_contrato?' · vence '+fmtD(w.fecha_fin_contrato):''))}${(w.estatus==='BAJA'||w.fecha_baja)?kv('Fecha baja'+(w.estatus!=='BAJA'?' anterior':''),fmtD(w.fecha_baja))+(w.estatus==='BAJA'?kv('Monto finiquito',w.monto_finiquito!=null?'$'+money(w.monto_finiquito):''):''):''}
       <div class="sect">Salario</div>
       ${kv('Periodo de pago',w.periodo_pago||'SEMANAL')}${kv('SD','$'+money(w.sd))}${kv('SDI','$'+money(w.sdi))}${kv('Salario '+(w.periodo_pago==='QUINCENAL'?'quincenal':'semanal'),'$'+money(w.sal_semanal))}
       <div class="sect">Datos personales</div>
@@ -1508,11 +1571,17 @@ async function doActivar(id){
 
 /* ---------- baja / reactivar (con cheque de finiquito) ---------- */
 async function doReactivar(id){
-  if(!confirm('¿Reactivar a este trabajador? Volverá a estatus ACTIVO con fecha de alta de hoy.'))return;
+  if(!confirm('¿Reactivar a este trabajador? Volverá a ACTIVO con fecha de REINGRESO de hoy. Se conservan su alta original y su baja anterior para el historial; la antigüedad se cuenta desde el reingreso.'))return;
   markWrite();
-  const {error}=await sb.from('trabajadores').update({estatus:'ACTIVO',fecha_alta:today(),fecha_baja:null,monto_finiquito:null}).eq('id',id);
+  // v35: conservamos fecha_alta original y fecha_baja anterior; solo marcamos
+  // el reingreso. La antigüedad usa fecha_reingreso (ver iniAntig).
+  const upd={estatus:'ACTIVO',fecha_reingreso:today(),monto_finiquito:null,actualizado_por:USER.email};
+  let {error}=await sb.from('trabajadores').update(upd).eq('id',id);
+  if(error&&/fecha_reingreso/i.test(error.message||'')){ // por si falta el Script 39, cae al comportamiento anterior
+    ({error}=await sb.from('trabajadores').update({estatus:'ACTIVO',fecha_alta:today(),fecha_baja:null,monto_finiquito:null}).eq('id',id));
+  }
   if(error){toast('Error: '+error.message,'err');return;}
-  closeModal();toast('Trabajador reactivado.','ok');
+  closeModal();toast('Trabajador reactivado (reingreso registrado).','ok');
   await loadObraData(OBRA.id);refreshCounts();
 }
 
@@ -3142,8 +3211,8 @@ function exportDirectorio(){
 
 /* ---------- VACACIONES Y PERMISOS ---------- */
 function saldoVac(w){
-  if(!w.fecha_alta)return {anios:0,derecho:0,gozados:0,saldo:0,aniv:null};
-  const ini=new Date(w.fecha_alta+'T12:00'), hoy=new Date();
+  if(!iniAntig(w))return {anios:0,derecho:0,gozados:0,saldo:0,aniv:null};
+  const ini=new Date(iniAntig(w)+'T12:00'), hoy=new Date();
   const dias=Math.floor((hoy-ini)/86400000);
   const anios=Math.floor(dias/365.25);
   const derecho=anios<1?0:diasVacaciones(anios);
@@ -5019,8 +5088,8 @@ let PR_TOTAL=0;
 function calcPrestaciones(id){
   const w=WORKERS.find(x=>x.id===id);
   const sd=Number(w.sd)||0, sdi=Number(w.sdi)||sd;
-  const f=$('pr-fecha').value; if(!f||!w.fecha_alta){$('pr-out').innerHTML='<div class="empty">Falta la fecha de alta del trabajador.</div>';return;}
-  const ini=new Date(w.fecha_alta+'T12:00'), fin=new Date(f+'T12:00');
+  const f=$('pr-fecha').value; if(!f||!iniAntig(w)){$('pr-out').innerHTML='<div class="empty">Falta la fecha de alta del trabajador.</div>';return;}
+  const ini=new Date(iniAntig(w)+'T12:00'), fin=new Date(f+'T12:00');
   const dias=Math.max(0,Math.round((fin-ini)/86400000)+1); // días INCLUSIVOS (método contadoras: Castro 50 días ✔)
   const anios=Math.floor(dias/365.25);
   const diasAnio=Math.round(dias-anios*365.25);
@@ -5132,7 +5201,7 @@ async function renderDash(obraId){
   const edadArr=a.filter(w=>w.fecha_nacimiento);
   const edadProm=edadArr.length?Math.round(edadArr.reduce((s,w)=>s+((Date.now()-new Date(w.fecha_nacimiento))/31557600000),0)/edadArr.length):0;
   const antArr=a.filter(w=>w.fecha_alta);
-  const antProm=antArr.length?(antArr.reduce((s,w)=>s+((Date.now()-new Date(w.fecha_alta))/31557600000),0)/antArr.length):0;
+  const antProm=antArr.length?(antArr.reduce((s,w)=>s+((Date.now()-new Date(iniAntig(w)))/31557600000),0)/antArr.length):0;
   const docsOkP=a.length?Math.round(a.filter(w=>docsOk(w)===DOCS.length).length/a.length*100):0;
   const sinAcuse=a.filter(w=>!String(w.movimiento_imss||'').includes('CON ACUSE')).length;
 
@@ -5166,7 +5235,7 @@ async function renderDash(obraId){
 
   // antigüedad de la plantilla activa filtrada, por rangos
   const rangos=[{l:'< 1 año',min:0,max:1,n:0},{l:'1-3 años',min:1,max:3,n:0},{l:'3-5 años',min:3,max:5,n:0},{l:'5+ años',min:5,max:999,n:0}];
-  antArr.forEach(w=>{const yrs=(Date.now()-new Date(w.fecha_alta))/31557600000; const r=rangos.find(r=>yrs>=r.min&&yrs<r.max); if(r)r.n++;});
+  antArr.forEach(w=>{const yrs=(Date.now()-new Date(iniAntig(w)))/31557600000; const r=rangos.find(r=>yrs>=r.min&&yrs<r.max); if(r)r.n++;});
 
   // cumplimiento REPSE — bitácora de contratistas, siempre a nivel empresa (no depende del filtro de obra)
   const repseCount={VIGENTE:0,'POR VENCER':0,VENCIDO:0,'SIN CAPTURAR':0,'NO APLICA':0};
