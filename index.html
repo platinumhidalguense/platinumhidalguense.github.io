@@ -379,6 +379,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
             <button onclick="toggleMenu('menu-mas');openExports()">🧮 Exports contables · IMSS/IDSE</button>
             <div class="sep"></div>
             <button onclick="toggleMenu('menu-mas');openTransferencia()">🔁 Transferir trabajadores a otra obra</button>
+            <button onclick="toggleMenu('menu-mas');openEditContratistas()">👷 Editar contratistas (por trabajador)</button>
             <button onclick="toggleMenu('menu-mas');openPlantillaFecha()">📸 Plantilla a una fecha</button>
             <button onclick="toggleMenu('menu-mas');openCostos()">🏛 Costo patronal · IMSS/ISR/ISN + simulador</button>
             <button onclick="toggleMenu('menu-mas');openVerificadorNOI()">🔢 Verificar números vs NOI</button>
@@ -771,7 +772,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-30.1';
+const APP_VERSION='2026-07-30.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -4903,7 +4904,7 @@ function openTransferencia(preId){
     <div class="m-head"><h2>🔁 Transferir trabajadores · desde ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <div class="grid" style="grid-template-columns:1.2fr 1.6fr 160px">
-        <div><label>Obra destino</label><select id="tr-dest">${dests.map(o=>`<option value="${o.id}">${esc(o.nombre)}</option>`).join('')}</select></div>
+        <div><label>Obra destino <span style="color:var(--red)">*</span></label><select id="tr-dest" style="border-color:var(--accent)"><option value="">— Elige la obra destino —</option>${dests.map(o=>`<option value="${o.id}">${esc(o.nombre)}${o.tipo==='OFICINA'?' · oficina':''}</option>`).join('')}</select></div>
         <div><label>Modo</label><select id="tr-modo" onchange="trModoUI()">
           <option value="A">Cambio de obra — MISMA antigüedad y expediente (sin baja)</option>
           <option value="B">Baja con finiquito + reingreso — antigüedad DESDE CERO</option>
@@ -5003,6 +5004,49 @@ async function execTransferencia(){
   await loadObraData(OBRA.id);refreshCounts();
 }
 
+/* ---------- Editar contratistas por trabajador (2026-07-30) ----------
+   Cada trabajador puede tener distinto contratista; esto permite corregirlos
+   en bloque sin abrir ficha por ficha. Solo cambia trabajadores.contratista
+   (los cheques/descuentos ya emitidos conservan el contratista de su momento). */
+function openEditContratistas(){
+  const act=WORKERS.filter(w=>w.estatus==='ACTIVO').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+  if(!act.length){toast('No hay activos en esta obra.','err');return;}
+  window._EC=act.map(w=>({id:w.id,no:w.no_trab,name:fullName(w),orig:w.contratista||''}));
+  const contrs=[...new Set(WORKERS.map(w=>w.contratista).filter(Boolean))].sort();
+  modal(`
+    <div class="m-head"><h2>👷 Editar contratistas · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:8px">Cambia el contratista de cada trabajador. Solo se guardan los que modifiques. No afecta cheques ni descuentos ya emitidos (esos guardan el contratista de su momento).</p>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+        <input id="ec-q" placeholder="buscar trabajador..." style="flex:1;min-width:140px;padding:5px 9px" oninput="ecFiltra()">
+        <span style="font-size:11.5px;color:var(--mut)">Aplicar a los filtrados: <input id="ec-bulk" list="ec-dl" style="width:150px;padding:4px 8px" placeholder="contratista"> <button class="btn" style="padding:3px 10px" onclick="ecAplicaBulk()">Aplicar</button></span>
+      </div>
+      <datalist id="ec-dl">${contrs.map(c=>`<option>${esc(c)}</option>`).join('')}</datalist>
+      <div style="max-height:400px;overflow:auto">
+        ${window._EC.map((r,i)=>`<div class="ec-row" id="ec-row-${i}" style="display:grid;grid-template-columns:40px 1fr 220px;gap:8px;align-items:center;padding:3px 2px;font-size:12.5px">
+          <span style="color:var(--mut)">#${r.no??'—'}</span>
+          <span>${esc(r.name)}</span>
+          <input id="ec-${i}" list="ec-dl" value="${esc(r.orig)}" style="padding:4px 8px">
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn dark" onclick="saveEditContratistas()">💾 Guardar cambios</button>
+    </div>`,'lg');
+}
+function ecFiltra(){const q=($('ec-q').value||'').toUpperCase();window._EC.forEach((r,i)=>{$('ec-row-'+i).style.display=(!q||r.name.toUpperCase().includes(q)||String(r.no).includes(q))?'grid':'none';});}
+function ecAplicaBulk(){const v=($('ec-bulk').value||'').toUpperCase();if(!v){toast('Escribe el contratista a aplicar.','err');return;}let n=0;window._EC.forEach((r,i)=>{if($('ec-row-'+i).style.display!=='none'){$('ec-'+i).value=v;n++;}});toast(`Aplicado a ${n} visible(s). Revisa y guarda.`,'ok');}
+async function saveEditContratistas(){
+  const cambios=window._EC.map((r,i)=>({id:r.id,orig:(r.orig||'').toUpperCase(),val:($('ec-'+i).value||'').trim().toUpperCase()})).filter(x=>x.val!==x.orig);
+  if(!cambios.length){toast('No cambiaste ningún contratista.','ok');return;}
+  if(!confirm(`¿Guardar ${cambios.length} cambio(s) de contratista?`))return;
+  markWrite();let ok=0,err=0;
+  for(const c of cambios){const {error}=await sb.from('trabajadores').update({contratista:c.val}).eq('id',c.id);if(error)err++;else ok++;}
+  closeModal();
+  toast(err?`${ok} guardados, ${err} con error.`:`✔ ${ok} contratista(s) actualizados.`,err?'err':'ok');
+  await loadObraData(OBRA.id);
+}
 /* ---------- v16: aplicar a la base los cambios del reporte NOI ---------- */
 async function aplicarVN(){
   const difs=window._VN||[];
