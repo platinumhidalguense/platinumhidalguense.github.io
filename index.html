@@ -772,7 +772,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-30.2';
+const APP_VERSION='2026-07-30.3';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1106,6 +1106,7 @@ function openForm(id){
         <div><label>Turno</label><select id="f-turno">${['DIURNO','NOCTURNO','MIXTO'].map(t=>`<option ${((w&&w.turno)||'DIURNO')===t?'selected':''}>${t}</option>`).join('')}</select></div>
         ${fld('funciones','Funciones',w?w.funciones:'',{cls:'c4'})}
         ${fld('fecha_alta','Fecha alta',w?(w.fecha_alta||''):today(),{type:'date'})}
+        ${w?fld('fecha_reingreso','Fecha de reingreso',w.fecha_reingreso||'',{type:'date',hint:'Solo si volvió a entrar tras una baja. La antigüedad se cuenta desde aquí; déjala vacía para quitarla.'}):''}
         ${fld('semana_ingreso','Semana ingreso',w?w.semana_ingreso:'NOMINA '+isoWeek())}
         <div><label>Periodo de pago</label><select id="f-periodo_pago">${['SEMANAL','QUINCENAL'].map(p=>`<option ${((w&&w.periodo_pago)||'SEMANAL')===p?'selected':''}>${p}</option>`).join('')}</select></div>
         <div><label>Movimiento IMSS</label><select id="f-movimiento_imss">${['SIN MOVIMIENTO','ALTA PRESENTADA','ALTA CON ACUSE','MODIFICACION PRESENTADA','MODIFICACION CON ACUSE','BAJA PRESENTADA','BAJA CON ACUSE'].map(m2=>`<option ${((w&&w.movimiento_imss)||'SIN MOVIMIENTO')===m2?'selected':''}>${m2}</option>`).join('')}</select></div>
@@ -1477,6 +1478,8 @@ function collectForm(){
   };
   // edición de baja (solo si el formulario los muestra)
   if($('f-fecha_baja')){out.fecha_baja=g('fecha_baja')||null;out.monto_finiquito=g('monto_finiquito')?parseFloat(g('monto_finiquito')):null;out.motivo_baja=$('f-motivo_baja').value;}
+  // fecha de reingreso editable (solo al editar; vacío = quitarla)
+  if($('f-fecha_reingreso'))out.fecha_reingreso=g('fecha_reingreso')||null;
   return out;
 }
 function validateWorker(w,editId){
