@@ -741,7 +741,7 @@ async function loadObraData(id){
     sb.from('nom035').select('*').eq('obra_id',id)
   ]);
   if(e1){toast('Error al cargar trabajadores: '+e1.message,'err');return;}
-  WORKERS=tw||[];CHEQUES=(e2?[]:ch)||[];DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];
+  WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];
   await activarProgramados();
   const cs=[...new Set(WORKERS.map(w=>w.contratista).filter(Boolean))].sort();
   const cur=$('flt-contratista').value;
@@ -771,7 +771,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-21.8';
+const APP_VERSION='2026-07-30.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2861,9 +2861,10 @@ function openChequeForm(id){
         ${fld('c-obs','Observaciones',c?c.observaciones:'',{cls:'c3'})}
       </div>
       <datalist id="dl-trab">${WORKERS.map(w=>`<option data-id="${w.id}">${esc(fullName(w))}</option>`).join('')}</datalist>
-      <p style="margin-top:12px;font-size:12px;color:var(--mut)">Los cheques nunca se eliminan: si uno se anula, cámbialo a <b>CANCELADO</b>. Todo queda en el historial.</p>
+      <p style="margin-top:12px;font-size:12px;color:var(--mut)">Un cheque que sí se expidió y luego se anula se marca <b>CANCELADO</b> (queda en el historial). <b>Eliminar</b> es solo para <b>capturas por error</b> que nunca existieron: se van a la papelera y dejan de contar en todo (recuperable por el admin).</p>
     </div>
     <div class="m-foot">
+      ${c&&esAdmin()?`<button class="btn danger" style="background:#7a1414;border-color:#7a1414;margin-right:auto" onclick="eliminarChequeErroneo('${c.id}')">🗑 Eliminar (captura errónea)</button>`:''}
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn dark" id="c-save" onclick="saveCheque(${c?`'${c.id}'`:'null'})">💾 Guardar</button>
     </div>`,'md');
@@ -2901,6 +2902,51 @@ async function saveCheque(id){
   else{rec.creado_por=USER.email;({error}=await sb.from('cheques').insert(rec));}
   if(error){$('c-save').textContent='💾 Guardar';toast('Error: '+error.message,'err');return;}
   closeModal();toast('Cheque guardado.','ok');
+  await loadObraData(OBRA.id);
+}
+/* v.9: eliminar cheque = mover a la papelera (eliminado=true). Solo admin.
+   No borra físicamente (la base lo prohíbe con un trigger): deja de aparecer
+   y de contar en todo, pero es recuperable desde Supabase. Pensado para
+   capturas por error que nunca existieron. */
+async function eliminarChequeErroneo(id){
+  if(!esAdmin()){toast('Solo el administrador puede eliminar cheques.','err');return;}
+  const c=CHEQUES.find(x=>x.id===id); if(!c)return;
+  const tieneDatos=(c.num_cheque&&c.num_cheque.trim())||(Number(c.importe)>0)||c.estatus==='ENTREGADO';
+  const aviso=tieneDatos
+    ? `<div style="background:var(--amber-bg);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12.5px">⚠ Este cheque <b>tiene datos</b> (número, importe o estatus ENTREGADO). Si de verdad ya se expidió, lo correcto es marcarlo <b>CANCELADO</b>, no eliminarlo. Elimínalo solo si fue una <b>captura por error</b>.</div>`
+    : '';
+  modal(`
+    <div class="m-head"><h2>🗑 Eliminar cheque (captura errónea)</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      ${aviso}
+      <p style="font-size:13px">Vas a mandar este cheque a la <b>papelera</b>. Dejará de aparecer en la lista, en los conteos, el dashboard y las exportaciones —como si nunca se hubiera capturado—. Es recuperable por el administrador desde Supabase.</p>
+      <div class="kv"><b>Trabajador</b><span>${esc(c.nombre)||'—'}</span></div>
+      <div class="kv"><b>Consecutivo</b><span>${esc(c.consecutivo)||'—'}</span></div>
+      <div class="kv"><b>Número de cheque</b><span>${esc(c.num_cheque)||'(vacío)'}</span></div>
+      <div class="kv"><b>Importe</b><span>$${money(c.importe)}</span></div>
+      <div class="kv"><b>Estatus</b><span>${esc(c.estatus)}</span></div>
+      <label style="margin-top:12px">Motivo (queda registrado)</label>
+      <input id="del-motivo" placeholder="Ej. capturado por error, nunca se expidió">
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn danger" style="background:#7a1414;border-color:#7a1414" id="del-chq-btn" onclick="doEliminarCheque('${id}')">🗑 Sí, eliminar</button>
+    </div>`,'md');
+}
+async function doEliminarCheque(id){
+  const motivo=($('del-motivo')&&$('del-motivo').value.trim())||'';
+  $('del-chq-btn').innerHTML='<span class="spin"></span> Eliminando...';
+  markWrite();
+  const {error}=await sb.from('cheques').update({
+    eliminado:true, eliminado_por:USER.email, eliminado_en:new Date().toISOString(),
+    motivo_eliminado:motivo.toUpperCase()||null
+  }).eq('id',id);
+  if(error){
+    $('del-chq-btn').innerHTML='🗑 Sí, eliminar';
+    toast(/column .*eliminado/i.test(error.message)?'Falta correr el Script 40 (papelera de cheques) en Supabase.':'Error: '+error.message,'err');
+    return;
+  }
+  closeModal();toast('Cheque movido a la papelera.','ok');
   await loadObraData(OBRA.id);
 }
 function exportCheques(){
@@ -3161,6 +3207,7 @@ function openAsistencia(){
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn" onclick="openRevisarFirmas()">🖊️ Revisar firmas (foto)</button>
       <button class="btn" onclick="exportDirectorio()">👮 Solo directorio</button>
       <button class="btn dark" onclick="exportAsistencia()">⬇ Generar listas + directorio</button>
     </div>`,'md');
@@ -3227,7 +3274,9 @@ function asSheet(grupo,cfg,blanco){
   const widths=blanco?[20,11.5,9]:[3.4,21.5,9.5];
   while(widths.length<nc)widths.push(blanco?6.5:7.0);
   const ws=buildSheet(rows,styles,widths,merges,hs);
-  ws['!margins']={left:0.25,right:0.25,top:0.3,bottom:0.3,header:0.1,footer:0.1};
+  // Margen superior amplio: baja todo el contenido para dejar el espacio en
+  // blanco arriba (lado del encabezado) y poder perforar SIN tocar el encabezado.
+  ws['!margins']={left:0.25,right:0.25,top:0.95,bottom:0.2,header:0.2,footer:0.1};
   return ws;
 }
 function exportAsistencia(){
@@ -3286,6 +3335,132 @@ function exportDirectorio(){
   if(!win){toast('Permite ventanas emergentes para generar el directorio.','err');return;}
   win.document.write(html);win.document.close();
   toast(`Directorio generado: ${act.length} activos en orden alfabético. Guárdalo como PDF.`,'ok');
+}
+
+/* ---------- REVISAR FIRMAS DE LISTA ESCANEADA (v.10) ----------
+   La app NO lee nombres de la foto: usa la lista que ella misma generó
+   (nombres y orden por número). El usuario sube la foto de la hoja, marca
+   las 4 esquinas del bloque de firmas (10 filas × N días), y por cada celda
+   se mide la densidad de trazo: con tinta = firmó, en blanco = no firmó.
+   Las celdas de firma salen EN BLANCO en la plantilla (los horarios impresos
+   solo van en el encabezado), por eso cualquier trazo dentro = firma. */
+function openRevisarFirmas(){
+  const act=WORKERS.filter(w=>w.estatus==='ACTIVO').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+  const pags=Math.max(1,Math.ceil(act.length/10));
+  window._RF={corners:[],nRows:10,nDias:6,cut:120,thr:0.03,pag:0,actAll:act,workers:act.slice(0,10)};
+  const opts=[];for(let i=0;i<pags;i++){const a=act.slice(i*10,i*10+10);opts.push(`<option value="${i}">LISTA ${i+1} — ${a.length?('No. '+(a[0].no_trab??'?')+' a '+(a[a.length-1].no_trab??'?')):'vacía'}</option>`);}
+  modal(`
+    <div class="m-head"><h2>🖊️ Revisar firmas de lista escaneada · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Sube la <b>foto de UNA hoja</b> de la lista de asistencia. La app ya sabe qué trabajadores van en ella; solo detecta en qué celdas hay firma y en cuáles no. <b>v1:</b> ajusta la sensibilidad si hace falta; la cuadrícula azul te muestra dónde está midiendo.</p>
+      <div class="grid" style="grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">
+        <div><label>¿Qué hoja es?</label><select id="rf-pag" onchange="rfSetPag()">${opts.join('')}</select></div>
+        <div><label>Días en la hoja</label><input id="rf-dias" type="number" min="1" max="7" value="6" onchange="window._RF.nDias=Math.max(1,Math.min(7,parseInt(this.value)||6));rfRedraw()"></div>
+        <div><input type="file" id="rf-file" accept="image/*" onchange="rfFile(this)"></div>
+      </div>
+      <div id="rf-hint" style="font-size:12px;color:var(--navy);margin:8px 0">Sube la foto para empezar.</div>
+      <div style="overflow:auto;max-height:340px;border:1px solid var(--border);border-radius:8px;background:#fafafa"><canvas id="rf-cv" onclick="rfClick(event)" style="display:block;cursor:crosshair"></canvas></div>
+      <div class="grid" style="grid-template-columns:1fr 1fr auto;gap:12px;align-items:center;margin-top:10px">
+        <div><label style="font-size:11px">Sensibilidad (menos = exige más trazo): <b id="rf-thrv">0.030</b></label>
+          <input type="range" min="0.01" max="0.12" step="0.005" value="0.03" oninput="window._RF.thr=parseFloat(this.value);$('rf-thrv').textContent=this.value;" onchange="if(window._RF.corners.length===4)rfAnalizar()"></div>
+        <div><label style="font-size:11px">Umbral de oscuro: <b id="rf-cutv">120</b></label>
+          <input type="range" min="80" max="170" step="5" value="120" oninput="window._RF.cut=parseInt(this.value);$('rf-cutv').textContent=this.value;" onchange="if(window._RF.corners.length===4)rfAnalizar()"></div>
+        <div><button class="btn dark" onclick="rfAnalizar()">🔎 Analizar</button></div>
+      </div>
+      <div id="rf-out" style="margin-top:12px"></div>
+    </div>
+    <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`,'lg');
+}
+function rfSetPag(){const i=parseInt($('rf-pag').value)||0;window._RF.pag=i;window._RF.workers=window._RF.actAll.slice(i*10,i*10+10);window._RF.corners=[];if($('rf-out'))$('rf-out').innerHTML='';rfRedraw();}
+function rfFile(inp){
+  const f=inp.files[0]; if(!f)return;
+  const img=new Image();
+  img.onload=()=>{
+    const off=document.createElement('canvas');off.width=img.naturalWidth;off.height=img.naturalHeight;
+    const octx=off.getContext('2d');octx.drawImage(img,0,0);
+    let data;try{data=octx.getImageData(0,0,off.width,off.height);}catch(e){toast('No se pudo leer la imagen (¿formato raro?).','err');return;}
+    window._RF.img=img;window._RF.natW=img.naturalWidth;window._RF.natH=img.naturalHeight;window._RF.data=data;window._RF.corners=[];
+    rfRedraw();
+    $('rf-hint').innerHTML='Haz clic en las <b>4 esquinas del bloque de firmas</b>, en orden: (1) arriba-izquierda, (2) arriba-derecha, (3) abajo-derecha, (4) abajo-izquierda. Marca solo el área de las casillas de firma (sin las columnas de nombre/NSS).';
+  };
+  img.onerror=()=>toast('No se pudo abrir la imagen.','err');
+  img.src=URL.createObjectURL(f);
+}
+function rfMap(u,v){const c=window._RF.corners;
+  const tx=c[0].x+(c[1].x-c[0].x)*u, ty=c[0].y+(c[1].y-c[0].y)*u;
+  const bx=c[3].x+(c[2].x-c[3].x)*u, by=c[3].y+(c[2].y-c[3].y)*u;
+  return {x:tx+(bx-tx)*v, y:ty+(by-ty)*v};
+}
+function rfRedraw(){
+  const cv=$('rf-cv'); if(!cv||!window._RF.img)return;
+  const maxW=Math.min(600,window._RF.natW), sc=maxW/window._RF.natW; window._RF.sc=sc;
+  cv.width=Math.round(window._RF.natW*sc); cv.height=Math.round(window._RF.natH*sc);
+  const ctx=cv.getContext('2d'); ctx.drawImage(window._RF.img,0,0,cv.width,cv.height);
+  const cs=window._RF.corners;
+  ctx.font='bold 13px sans-serif';
+  cs.forEach((p,i)=>{const x=p.x*sc,y=p.y*sc;ctx.fillStyle='#e11';ctx.beginPath();ctx.arc(x,y,5,0,7);ctx.fill();ctx.fillText(String(i+1),x+7,y-7);});
+  if(cs.length===4){
+    const R=window._RF.nRows,C=window._RF.nDias*2;
+    ctx.strokeStyle='rgba(11,87,208,.6)';ctx.lineWidth=1;
+    for(let r=0;r<=R;r++){ctx.beginPath();for(let c=0;c<=C;c++){const p=rfMap(c/C,r/R);const x=p.x*sc,y=p.y*sc;c?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();}
+    for(let c=0;c<=C;c++){ctx.beginPath();for(let r=0;r<=R;r++){const p=rfMap(c/C,r/R);const x=p.x*sc,y=p.y*sc;r?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();}
+  }
+}
+function rfClick(ev){
+  if(!window._RF.img)return;
+  const cv=$('rf-cv'),rect=cv.getBoundingClientRect(),sc=window._RF.sc;
+  const x=(ev.clientX-rect.left)/sc, y=(ev.clientY-rect.top)/sc;
+  if(window._RF.corners.length>=4)window._RF.corners=[];
+  window._RF.corners.push({x,y}); rfRedraw();
+  if(window._RF.corners.length===4)$('rf-hint').innerHTML='4 esquinas marcadas. Revisa que la <b>cuadrícula azul</b> caiga sobre las casillas. Si no, haz clic para reiniciar. Luego pulsa <b>Analizar</b>.';
+}
+function rfInkCell(r,c,R,C){
+  const d=window._RF.data,W=window._RF.natW,H=window._RF.natH,cut=window._RF.cut;
+  const cen=rfMap((c+0.5)/C,(r+0.5)/R);
+  const a=rfMap(c/C,r/R),b=rfMap((c+1)/C,r/R),e=rfMap(c/C,(r+1)/R);
+  const cw=Math.hypot(b.x-a.x,b.y-a.y),ch=Math.hypot(e.x-a.x,e.y-a.y);
+  const hw=Math.max(2,cw*0.30),hh=Math.max(2,ch*0.32);
+  const stepX=Math.max(1,Math.round(hw/12)),stepY=Math.max(1,Math.round(hh/12));
+  let dark=0,tot=0;
+  for(let dy=-hh;dy<=hh;dy+=stepY)for(let dx=-hw;dx<=hw;dx+=stepX){
+    const x=Math.round(cen.x+dx),y=Math.round(cen.y+dy);
+    if(x<0||y<0||x>=W||y>=H)continue;
+    const i=(y*W+x)*4, lum=0.299*d.data[i]+0.587*d.data[i+1]+0.114*d.data[i+2];
+    tot++; if(lum<cut)dark++;
+  }
+  return tot?dark/tot:0;
+}
+function rfAnalizar(){
+  if(!window._RF.data){toast('Sube primero la foto de la hoja.','err');return;}
+  if(window._RF.corners.length!==4){toast('Marca las 4 esquinas del bloque de firmas.','err');return;}
+  const R=window._RF.nRows,nD=window._RF.nDias,C=nD*2,ws=window._RF.workers,thr=window._RF.thr;
+  const DN=['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'].slice(0,nD);
+  const faltan=DN.map(()=>[]);
+  let body='';
+  for(let r=0;r<R;r++){
+    const w=ws[r]; let cells='';
+    for(let dd=0;dd<nD;dd++){
+      const firmo=Math.max(rfInkCell(r,2*dd,R,C),rfInkCell(r,2*dd+1,R,C))>thr;
+      if(w&&!firmo)faltan[dd].push(fullName(w));
+      cells+=`<td style="text-align:center;font-weight:700;color:${firmo?'var(--green)':'var(--red)'}">${w?(firmo?'✓':'✗'):''}</td>`;
+    }
+    body+=`<tr><td style="font-size:11px;white-space:nowrap">${w?esc(fullName(w)):'<span style="color:var(--mut)">(fila '+(r+1)+')</span>'}</td>${cells}</tr>`;
+  }
+  // nuevos ingresos (para solicitar documentación): alta reciente + docs incompletos
+  const hoy=new Date(), lim=new Date(hoy.getTime()-14*86400000).toISOString().slice(0,10);
+  const nuevos=window._RF.actAll.filter(w=>w.fecha_alta&&w.fecha_alta>=lim);
+  const nuevosHtml=nuevos.length?`<div class="sect">🆕 Nuevos ingresos (últimos 14 días) — solicitar documentación</div>`+
+    nuevos.map(w=>{const ok=(typeof docsOk==='function')?docsOk(w):0,tot=(typeof DOCS!=='undefined')?DOCS.length:7;
+      return `<div class="kv"><b>${esc(fullName(w))}</b><span>alta ${fmtD(w.fecha_alta)} · <b style="color:${ok<tot?'var(--red)':'var(--green)'}">${ok}/${tot} docs</b></span></div>`;}).join(''):
+    '<div class="sect">🆕 Nuevos ingresos</div><div style="color:var(--mut);font-size:12px">Sin altas en los últimos 14 días.</div>';
+  const resumen=DN.map((dn,i)=>`<div class="kv"><b>${dn}</b><span>${faltan[i].length?('<b style="color:var(--red)">'+faltan[i].length+' sin firma</b>: '+faltan[i].map(esc).join(', ')):'<b style="color:var(--green)">todos firmaron</b>'}</span></div>`).join('');
+  $('rf-out').innerHTML=`
+    <div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr><th style="text-align:left;padding:4px 6px;border-bottom:2px solid var(--border)">TRABAJADOR</th>${DN.map(d=>`<th style="padding:4px 6px;border-bottom:2px solid var(--border)">${d}</th>`).join('')}</tr></thead>
+      <tbody>${body}</tbody></table></div>
+    <div class="sect">Resumen: quién NO firmó cada día</div>${resumen}
+    ${nuevosHtml}
+    <p style="font-size:11px;color:var(--mut);margin-top:10px">✓ = se detectó trazo en la casilla · ✗ = casilla en blanco. Si ves errores, ajusta la <b>sensibilidad</b> o el <b>umbral de oscuro</b> y vuelve a analizar. Verifica siempre contra la hoja física antes de descontar.</p>`;
 }
 
 /* ---------- VACACIONES Y PERMISOS ---------- */
@@ -3734,7 +3909,31 @@ async function checkidConsulta(id,tipo){
       li.push(`<b>NSS oficial:</b> ${esc(r.nss.nss||'')} ${w.nss?(coincide?'<b style="color:var(--green)">✔ coincide con la base</b>':`<b style="color:var(--red)">⚠ difiere (base: ${esc(w.nss)})</b>`):'<span style="color:var(--mut)">(sin NSS en la base para comparar)</span>'}`);
     }
     if(r.estado69o69B&&r.estado69o69B.exitoso)li.push(r.estado69o69B.conProblema?'<b style="color:var(--red)">⚠ APARECE EN LISTAS 69/69-B DEL SAT — revisar antes de contratar</b>':'<b style="color:var(--green)">✔ Sin problema en listas 69/69-B del SAT</b>');
-    $('ck-out').innerHTML=`<div style="background:var(--blue-bg);border-radius:8px;padding:12px 14px;line-height:2">${li.join('<br>')||'La consulta no devolvió datos.'}</div>`;
+    // v.9: comparar el NOMBRE de la base contra el oficial (RENAPO por CURP, o SAT).
+    let alerta='';
+    const norm=s=>String(s||'').toUpperCase().normalize('NFD').replace(/[^A-ZÑ ]/g,'').replace(/\s+/g,' ').trim();
+    const baseNom=norm(fullName(w)); // primer_apellido segundo_apellido nombres
+    let ofNombres='',ofAp1='',ofAp2='',fuente='';
+    if(r.curp&&r.curp.exitoso&&(r.curp.nombres||r.curp.primerApellido)){
+      ofNombres=r.curp.nombres||'';ofAp1=r.curp.primerApellido||'';ofAp2=r.curp.segundoApellido||'';fuente='RENAPO';
+    }
+    if(fuente){
+      const ofFull=norm([ofAp1,ofAp2,ofNombres].filter(Boolean).join(' '));
+      // coincide si los conjuntos de palabras son iguales (tolera distinto orden apellidos/nombres)
+      const setEq=(a,b)=>{const A=a.split(' ').filter(Boolean).sort().join(' '),B=b.split(' ').filter(Boolean).sort().join(' ');return A===B;};
+      if(baseNom&&ofFull&&!setEq(baseNom,ofFull)){
+        window._CKNOM={id:w.id,nombres:norm(ofNombres),ap1:norm(ofAp1),ap2:norm(ofAp2)};
+        alerta=`<div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;padding:11px 13px;margin-bottom:10px;line-height:1.5">
+          <b style="color:var(--amber)">⚠ El nombre en la base NO coincide con ${fuente}.</b><br>
+          <span style="font-size:12px">En la base: <b>${esc(fullName(w))}</b></span><br>
+          <span style="font-size:12px">En ${fuente}: <b>${esc([ofAp1,ofAp2,ofNombres].filter(Boolean).join(' '))}</b></span><br>
+          <button class="btn dark" style="margin-top:8px" onclick="actualizarNombreRenapo()">✔ Actualizar el nombre conforme a ${fuente}</button>
+        </div>`;
+      } else if(baseNom&&ofFull){
+        alerta=`<div style="background:var(--green-bg,#e8f5ee);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px"><b style="color:var(--green)">✔ El nombre coincide con ${fuente}.</b></div>`;
+      }
+    }
+    $('ck-out').innerHTML=alerta+`<div style="background:var(--blue-bg);border-radius:8px;padding:12px 14px;line-height:2">${li.join('<br>')||'La consulta no devolvió datos.'}</div>`;
   }catch(e){
     $('ck-out').innerHTML=`<div style="background:var(--amber-bg);border-radius:8px;padding:10px 14px"><b>No se pudo consultar CheckID.</b> ${esc(String(e.message||e)).slice(0,160)}<br><span style="color:var(--mut);font-size:11px">Si aún no despliegas la función, sigue EDGE_FUNCTION_CHECKID.md. Cada consulta gasta 1 solicitud de tu plan.</span></div>`;
   }
@@ -3746,6 +3945,24 @@ async function checkidSaldo(){
     const j=typeof data==='string'?JSON.parse(data):data;
     toast('Solicitudes CheckID restantes: '+(j&&j.resultado!=null?j.resultado:'?'),'ok');
   }catch(e){toast('No se pudo consultar el saldo: '+String(e.message||e).slice(0,80),'err');}
+}
+/* v.9: actualiza el nombre del trabajador conforme a RENAPO (tras CheckID).
+   Solo escribe apellidos/nombres; no toca CURP, RFC ni nada más. */
+async function actualizarNombreRenapo(){
+  const n=window._CKNOM; if(!n||!n.id){toast('No hay datos de RENAPO para aplicar.','err');return;}
+  const w=WORKERS.find(x=>x.id===n.id);
+  if(!confirm(`¿Actualizar el nombre a:\n\n${[n.ap1,n.ap2,n.nombres].filter(Boolean).join(' ')}\n\n(Antes: ${w?fullName(w):''})`))return;
+  markWrite();
+  const {error}=await sb.from('trabajadores').update({
+    primer_apellido:n.ap1||'', segundo_apellido:n.ap2||'', nombres:n.nombres||''
+  }).eq('id',n.id);
+  if(error){toast('Error al actualizar: '+error.message,'err');return;}
+  toast('Nombre actualizado conforme a RENAPO.','ok');
+  const {data}=await sb.from('trabajadores').select('*').eq('id',n.id).single();
+  if(data){const i=WORKERS.findIndex(x=>x.id===n.id);if(i>=0)WORKERS[i]=data;}
+  window._CKNOM=null;
+  closeModal();
+  if(typeof openDetail==='function')openDetail(n.id);
 }
 
 /* ---------- IMPORTAR CFDI TIMBRADOS (XML del PAC / NOI) ---------- */
@@ -4162,14 +4379,53 @@ function openPlantillaFecha(){
     <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`,'md');
   pfCalcular();
 }
+/* Activo EN una fecha f (ISO). Maneja reingreso: si reingresó en/antes de f,
+   está activo salvo que exista una baja posterior a esa fecha; si no hay
+   reingreso, activo = alta<=f y (sin baja o baja>f). */
+function activoEn(w,f){
+  if(!w.fecha_alta||w.fecha_alta>f)return false;              // aún no ingresaba
+  if(w.fecha_reingreso&&w.fecha_reingreso<=f)                 // ya había reingresado
+    return w.estatus!=='BAJA'||!w.fecha_baja||w.fecha_baja>f;
+  return !w.fecha_baja||w.fecha_baja>f;                       // periodo original
+}
+function pfActivos(f){
+  return WORKERS.filter(w=>activoEn(w,f))
+    .sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+}
 function pfCalcular(){
   const f=$('pf-fecha').value; if(!f)return;
-  const act=WORKERS.filter(w=>w.fecha_alta&&w.fecha_alta<=f&&(!w.fecha_baja||w.fecha_baja>f));
+  const act=pfActivos(f);
   const por=(k)=>{const m={};act.forEach(w=>{const key=w[k]||'—';m[key]=(m[key]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]);};
   $('pf-out').innerHTML=`
     <div class="stats"><div class="stat g"><div class="n">${act.length}</div><div class="l">Trabajadores activos el ${fmtD(f)}</div></div></div>
+    <div style="margin:10px 0"><button class="btn dark" onclick="exportPlantillaFecha()" ${act.length?'':'disabled'}>⬇ Exportar Excel (quién estaba activo)</button></div>
     <div class="sect">Por contratista</div>${por('contratista').map(([k,v])=>`<div class="kv"><b>${esc(k)}</b><span>${v}</span></div>`).join('')}
     <div class="sect">Por puesto</div>${por('puesto').map(([k,v])=>`<div class="kv"><b>${esc(k)}</b><span>${v}</span></div>`).join('')}`;
+}
+function exportPlantillaFecha(){
+  const f=$('pf-fecha').value; if(!f){toast('Elige una fecha.','err');return;}
+  const act=pfActivos(f);
+  if(!act.length){toast('No había trabajadores activos en esa fecha.','err');return;}
+  const rows=[],styles=[];
+  rows.push([`PLANTILLA ACTIVA AL ${fmtD(f)} — ${OBRA.nombre}`]); styles.push(ST.title);
+  rows.push([`Trabajadores activos en la fecha: ${act.length} · Generado el ${new Date().toLocaleDateString('es-MX')}`]); styles.push([ST.sub]);
+  rows.push(['NO. TRAB.','NOMBRE COMPLETO','CONTRATISTA','PUESTO','FECHA ALTA','FECHA BAJA','REINGRESO','ESTATUS HOY']); styles.push(ST.head);
+  const rs=[ST.cellC,ST.cell,ST.cell,ST.cell,ST.cellC,ST.cellC,ST.cellC,ST.cellC];
+  act.forEach(w=>{
+    rows.push([w.no_trab??'',fullName(w),w.contratista||'',w.puesto||'',
+      w.fecha_alta?fmtD(w.fecha_alta):'—',
+      w.fecha_baja?fmtD(w.fecha_baja):'—',
+      w.fecha_reingreso?fmtD(w.fecha_reingreso):'—',
+      w.estatus||'']);
+    styles.push(rs);
+  });
+  const merges=[{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}}];
+  const ws=buildSheet(rows,styles,[10,34,20,26,13,13,13,12],merges,[{hpt:26},{hpt:16}]);
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:2,c:0},e:{r:2+act.length,c:7}})};
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,('PLANTILLA '+f).slice(0,31));
+  dl(wb,`PLANTILLA_ACTIVA_${f}_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}.xlsx`);
+  toast(`Exportados ${act.length} trabajadores activos al ${fmtD(f)}.`,'ok');
 }
 /* --- NUEVA OBRA --- */
 function openNuevaObra(){
@@ -5357,7 +5613,7 @@ async function openDashboard(){
   const [{data:tw},{data:ch},{data:ds}]=await Promise.all([
     sb.from('trabajadores').select('*').eq('eliminado',false),sb.from('cheques').select('*'),sb.from('descuentos').select('*').eq('activo',true)]);
   if(!tw)return;
-  window._DASH={tw,ch:ch||[],ds:ds||[]};
+  window._DASH={tw,ch:(ch||[]).filter(c=>!c.eliminado),ds:ds||[]};
   modal(`
     <div class="m-head"><h2>📊 Dashboard ejecutivo</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
