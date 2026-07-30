@@ -771,7 +771,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-21.6';
+const APP_VERSION='2026-07-21.7';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -4205,7 +4205,7 @@ function openVerificadorNOI(){
   modal(`
     <div class="m-head"><h2>🔢 Verificar números vs reporte de nómina NOI</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px">Sube el PDF "Reporte de la nómina" de NOI. Leo cada trabajador (clave, NSS, RFC, CURP, salario) y lo cruzo contra la base: te muestro números que no coinciden, NSS diferentes y salarios distintos. Nada se modifica automáticamente.</p>
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px">Sube el PDF "Reporte de la nómina" de NOI (acepta el formato <b>clásico</b> y el <b>moderno</b>). Leo cada trabajador (clave, NSS, RFC, CURP, salario) y lo cruzo contra la base: te muestro números que no coinciden, NSS diferentes y salarios distintos. Nada se modifica automáticamente.</p>
       <input type="file" id="vn-file" accept=".pdf" onchange="verificarNOI(this)">
       <div id="vn-out" style="margin-top:14px;max-height:420px;overflow:auto"></div>
     </div>
@@ -4219,11 +4219,18 @@ async function verificarNOI(inp){
     const doc=await pdfjsLib.getDocument({data:buf}).promise;
     let txt='';
     for(let p=1;p<=doc.numPages;p++){const tc=await(await doc.getPage(p)).getTextContent();txt+=tc.items.map(i=>i.str).join(' ')+' \n';}
-    // patrón: NSS(11) RFC(12-13) CURP(18) SD ... precedido por clave
-    const rx=/(\d{1,4})\s+7\.00[\s\S]{0,220}?(\d{11})\s+([A-ZÑ&]{4}\d{6}[A-Z0-9]{2,3})\s+([A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d)\s+([\d,]+\.\d{2})/g;
-    const encontrados=[];let m;
-    while((m=rx.exec(txt))!==null)encontrados.push({clave:parseInt(m[1]),nss:m[2],rfc:m[3],curp:m[4],sd:parseFloat(m[5].replace(/,/g,''))});
-    if(!encontrados.length){$('vn-out').innerHTML='<div class="empty">No pude extraer trabajadores del PDF (¿es el "Reporte de la nómina" de NOI?).</div>';return;}
+    // Acepta AMBOS formatos del reporte NOI y se queda con lo que encuentre cada uno:
+    //  · CLÁSICO: clave 7.00 … NSS(11) RFC CURP SD (ese orden).
+    //  · MODERNO: clave NOMBRE … RFC CURP … SD(diario) NSS(11) fecha_alta.
+    // Se corren los dos y se unen por CURP (un PDF es de un solo formato, así que
+    // no chocan). El clásico queda EXACTO como estaba: solo se AGREGA el moderno.
+    const rxClasico=/(\d{1,4})\s+7\.00[\s\S]{0,220}?(\d{11})\s+([A-ZÑ&]{4}\d{6}[A-Z0-9]{2,3})\s+([A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d)\s+([\d,]+\.\d{2})/g;
+    const rxModerno=/(\d{1,5})\s+[^\d\n]{2,80}?\s+[\d.,]+\s+[\d,]+\.\d{2}\s+([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{2,3})\s+([A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d)\b[\s\S]{0,150}?([\d,]+\.\d{2})\s+(\d{10,11})\s+\d{2}\/\d{2}\/\d{4}/g;
+    const porCurp=new Map();let m;
+    while((m=rxClasico.exec(txt))!==null){const e={clave:parseInt(m[1]),nss:m[2],rfc:m[3],curp:m[4],sd:parseFloat(m[5].replace(/,/g,''))};if(!porCurp.has(e.curp))porCurp.set(e.curp,e);}
+    while((m=rxModerno.exec(txt))!==null){const e={clave:parseInt(m[1]),rfc:m[2],curp:m[3],sd:parseFloat(m[4].replace(/,/g,'')),nss:m[5]};if(!porCurp.has(e.curp))porCurp.set(e.curp,e);}
+    const encontrados=[...porCurp.values()];
+    if(!encontrados.length){$('vn-out').innerHTML='<div class="empty">No pude extraer trabajadores del PDF (¿es el "Reporte de la nómina" de NOI, clásico o moderno?).</div>';return;}
     const {data:allW}=await sb.from('trabajadores').select('id,obra_id,no_trab,nss,curp,rfc,sd,sal_semanal,primer_apellido,segundo_apellido,nombres,estatus').eq('eliminado',false);
     const difs=[];let ok=0;
     encontrados.forEach(e=>{
