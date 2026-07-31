@@ -710,7 +710,7 @@ function renderObraBar(){
   $('obra-bar').innerHTML=`<button class="obra-tab" style="color:var(--gold)" onclick="openNuevaObra()" title="Agregar obra">➕</button>`+OBRAS.map(o=>`
     <button class="obra-tab ${OBRA&&o.id===OBRA.id?'on':''}" onclick="selectObra('${o.id}')">
       ${esc(o.nombre)} <span class="cnt" id="cnt-${o.id}"></span>
-      <span class="obra-edit" title="Renombrar" onclick="event.stopPropagation();renameObra('${o.id}')">✎</span>
+      ${esAdmin()?`<span class="obra-edit" title="Editar obra (solo administrador)" onclick="event.stopPropagation();openEditObra('${o.id}')">✎</span>`:''}
     </button>`).join('');
   refreshCounts();
 }
@@ -719,20 +719,119 @@ async function refreshCounts(){
   if(!data)return;
   OBRAS.forEach(o=>{const el=$('cnt-'+o.id);if(el)el.textContent=data.filter(w=>w.obra_id===o.id&&w.estatus==='ACTIVO').length;});
 }
-async function renameObra(id){
-  const o=OBRAS.find(x=>x.id===id);
-  const n=prompt('Nuevo nombre de la obra:',o.nombre); if(!n||!n.trim())return;
-  const u=prompt('Ubicación (aparece en la requisición):',o.ubicacion||''); if(u===null)return;
-  const rp=prompt('Registro patronal IMSS (para SUA, opcional):',o.registro_patronal||''); if(rp===null)return;
-  const rs=prompt('Registro de obra SIROC (opcional):',o.registro_siroc||''); if(rs===null)return;
-  const fi=prompt('Fecha de INICIO de la obra — lunes de su SEMANA 1 (AAAA-MM-DD). Define el conteo de semanas de esta obra:',(o.fecha_inicio||'').slice(0,10)); if(fi===null)return;
-  if(fi&&!/^\d{4}-\d{2}-\d{2}$/.test(fi.trim())){toast('Fecha de inicio inválida: usa AAAA-MM-DD.','err');return;}
+/* v.3: editar / eliminar obra — SOLO administrador. Editar incluye el TIPO de
+   centro de trabajo (OBRA u OFICINA); las OFICINAS no usan SIROC. Eliminar pasa
+   por doble filtro: (1) solo admin, (2) confirma su CONTRASEÑA real, y solo si
+   la obra está VACÍA (sin trabajadores ni cheques). En la base, además, el
+   Script 43 restringe el DELETE de obras al correo del administrador (RLS). */
+function openEditObra(id){
+  if(!esAdmin()){toast('Solo el administrador puede editar obras.','err');return;}
+  const o=OBRAS.find(x=>x.id===id); if(!o)return;
+  modal(`
+    <div class="m-head"><h2>✎ Editar centro de trabajo</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div class="c2" style="grid-column:span 2"><label>Nombre *</label><input id="eo-nombre" value="${esc(o.nombre||'')}"></div>
+        <div class="c2" style="grid-column:span 2"><label>Ubicación (aparece en la requisición)</label><input id="eo-ubic" value="${esc(o.ubicacion||'')}"></div>
+        <div><label>Tipo de centro de trabajo</label><select id="eo-tipo" onchange="eoTipoUI()">
+          <option value="OBRA" ${((o.tipo||'OBRA')==='OBRA')?'selected':''}>OBRA</option>
+          <option value="OFICINA" ${o.tipo==='OFICINA'?'selected':''}>OFICINA</option></select></div>
+        <div><label>Fecha de inicio (AAAA-MM-DD)</label><input id="eo-fi" value="${esc((o.fecha_inicio||'').slice(0,10))}" placeholder="2026-03-30"></div>
+        <div><label>Registro patronal IMSS</label><input id="eo-rp" value="${esc(o.registro_patronal||'')}"></div>
+        <div><label>Prima de riesgo (%)</label><input id="eo-prima" type="number" step="0.00001" value="${o.prima_rt??''}" placeholder="7.58875"></div>
+        <div class="c2" style="grid-column:span 2" id="eo-siroc-wrap"><label>Registro SIROC</label><input id="eo-siroc" value="${esc(o.registro_siroc||'')}"><div class="fhint" id="eo-siroc-hint"></div></div>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn danger" style="background:#7a1414;border-color:#7a1414;margin-right:auto" onclick="askDeleteObra('${o.id}')">🗑 Eliminar obra</button>
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn dark" onclick="saveEditObra('${o.id}')">💾 Guardar cambios</button>
+    </div>`,'md');
+  eoTipoUI();
+}
+function eoTipoUI(){
+  const ofi=$('eo-tipo').value==='OFICINA';
+  $('eo-siroc').disabled=ofi;
+  if(ofi){$('eo-siroc').value='';}
+  $('eo-siroc-wrap').style.opacity=ofi?'.5':'1';
+  $('eo-siroc-hint').textContent=ofi?'Las oficinas no usan SIROC (se deja vacío).':'Registro de obra ante el IMSS (SIROC).';
+}
+async function saveEditObra(id){
+  if(!esAdmin()){toast('Solo el administrador puede editar obras.','err');return;}
+  const o=OBRAS.find(x=>x.id===id); if(!o)return;
+  const n=$('eo-nombre').value.trim(); if(!n){toast('Ponle nombre a la obra.','err');return;}
+  const fi=$('eo-fi').value.trim();
+  if(fi&&!/^\d{4}-\d{2}-\d{2}$/.test(fi)){toast('Fecha de inicio inválida: usa AAAA-MM-DD.','err');return;}
+  const tipo=$('eo-tipo').value;
+  const upd={
+    nombre:n.toUpperCase(), ubicacion:$('eo-ubic').value.trim().toUpperCase(),
+    tipo, fecha_inicio:fi||null,
+    registro_patronal:$('eo-rp').value.trim().toUpperCase(),
+    prima_rt:$('eo-prima').value!==''?parseFloat($('eo-prima').value):null,
+    // las oficinas no usan SIROC: se guarda vacío
+    registro_siroc:tipo==='OFICINA'?null:$('eo-siroc').value.trim().toUpperCase()
+  };
   markWrite();
-  const upd={nombre:n.trim().toUpperCase(),ubicacion:(u||'').trim().toUpperCase(),registro_patronal:(rp||'').trim().toUpperCase(),registro_siroc:(rs||'').trim().toUpperCase(),fecha_inicio:fi?fi.trim():null};
   const {error}=await sb.from('obras').update(upd).eq('id',id);
   if(error){toast('No se pudo actualizar la obra: '+error.message,'err');return;}
-  Object.assign(o,upd);
-  renderObraBar();toast('Datos de la obra actualizados.','ok');
+  Object.assign(o,upd); if(OBRA&&OBRA.id===id)Object.assign(OBRA,upd);
+  closeModal(); renderObraBar(); toast('Centro de trabajo actualizado.','ok');
+}
+async function askDeleteObra(id){
+  if(!esAdmin()){toast('Solo el administrador puede eliminar obras.','err');return;}
+  const o=OBRAS.find(x=>x.id===id); if(!o)return;
+  // filtro 1: la obra debe estar VACÍA (sin trabajadores ni cheques)
+  const [{count:nt},{count:nc}]=await Promise.all([
+    sb.from('trabajadores').select('id',{count:'exact',head:true}).eq('obra_id',id),
+    sb.from('cheques').select('id',{count:'exact',head:true}).eq('obra_id',id)
+  ]);
+  if((nt||0)>0||(nc||0)>0){
+    modal(`<div class="m-head"><h2>🗑 No se puede eliminar</h2><button class="x" onclick="closeModal()">×</button></div>
+      <div class="m-body"><div style="background:var(--amber-bg);border-radius:8px;padding:12px 14px;line-height:1.6">
+      La obra <b>${esc(o.nombre)}</b> tiene <b>${nt||0} trabajador(es)</b> y <b>${nc||0} cheque(s)</b> asociados.<br>
+      Por seguridad, solo se puede eliminar una obra <b>vacía</b>. Primero <b>transfiere</b> a su gente a otra obra (⚙ Más → Transferir) y luego intenta de nuevo.</div></div>
+      <div class="m-foot"><button class="btn" onclick="closeModal()">Entendido</button></div>`,'md');
+    return;
+  }
+  // filtro 2: confirmar con la CONTRASEÑA real del administrador
+  modal(`
+    <div class="m-head"><h2>🗑 Eliminar obra · ${esc(o.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <div style="background:var(--red-bg,#fdecec);border-radius:8px;padding:11px 13px;margin-bottom:12px;line-height:1.6">
+        Vas a <b>eliminar definitivamente</b> el centro de trabajo <b>${esc(o.nombre)}</b>. Esta acción <b>no se puede deshacer</b>. La obra está vacía, así que no afecta a ningún trabajador.
+      </div>
+      <label>Confirma tu contraseña de administrador (${esc(USER.email)})</label>
+      <input id="del-obra-pass" type="password" autocomplete="off" placeholder="contraseña" style="width:100%">
+      <div id="del-obra-msg" style="font-size:12px;color:var(--red);margin-top:6px"></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn danger" style="background:#7a1414;border-color:#7a1414" id="del-obra-btn" onclick="execDeleteObra('${id}')">🗑 Eliminar definitivamente</button>
+    </div>`,'md');
+}
+async function execDeleteObra(id){
+  const o=OBRAS.find(x=>x.id===id); if(!o)return;
+  const pass=($('del-obra-pass')&&$('del-obra-pass').value)||'';
+  if(!pass){$('del-obra-msg').textContent='Escribe tu contraseña.';return;}
+  $('del-obra-btn').innerHTML='<span class="spin"></span> Verificando...';
+  // verifica la contraseña REAL contra Supabase (mismo usuario)
+  const {error:ae}=await sb.auth.signInWithPassword({email:USER.email,password:pass});
+  if(ae){$('del-obra-btn').innerHTML='🗑 Eliminar definitivamente';$('del-obra-msg').textContent='Contraseña incorrecta. No se eliminó nada.';return;}
+  markWrite();
+  const {error}=await sb.from('obras').delete().eq('id',id);
+  if(error){
+    $('del-obra-btn').innerHTML='🗑 Eliminar definitivamente';
+    $('del-obra-msg').textContent=/permission|policy|row-level|denied/i.test(error.message)
+      ?'La base rechazó el borrado. ¿Corriste el Script 43 (permiso de eliminar obras solo para el admin)?'
+      :'No se pudo eliminar: '+error.message;
+    return;
+  }
+  closeModal();
+  const {data}=await sb.from('obras').select('*').order('orden');
+  OBRAS=data||OBRAS.filter(x=>x.id!==id);
+  if(OBRA&&OBRA.id===id)OBRA=OBRAS[0]||null;
+  renderObraBar(); if(OBRA)selectObra(OBRA.id);
+  toast(`Obra "${o.nombre}" eliminada.`,'ok');
 }
 async function selectObra(id){
   OBRA=OBRAS.find(o=>o.id===id);
@@ -780,7 +879,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-31.2';
+const APP_VERSION='2026-07-31.3';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
