@@ -566,6 +566,13 @@ const docsOk=w=>{const d=w.docs||{};return DOCS.filter(k=>d[k]==='ENTREGADO').le
    reingresar tras una baja, la antigüedad reinicia (misma regla de siempre),
    pero conservamos el alta original y la baja anterior para verlas en la lista. */
 const iniAntig=w=>(w&&w.fecha_reingreso)?w.fecha_reingreso:(w?w.fecha_alta:null);
+// Registro patronal y prima RT EFECTIVOS: usa los del PROPIO trabajador si los
+// trae (override), si no los de la obra. Para casos como los 2 de oficina JIRE
+// con registro patronal y prima distintos. NO cambia el neto del trabajador
+// (la prima RT es cuota 100% patronal); solo corrige exports IMSS/IDSE y costo.
+const rpDe=w=>String((w&&w.registro_patronal&&String(w.registro_patronal).trim())||(OBRA&&OBRA.registro_patronal)||'');
+const primaDe=(w,obraPrima)=>{const p=w&&w.prima_rt;return (p!==null&&p!==undefined&&p!=='')?Number(p):(obraPrima!=null&&obraPrima!==''?Number(obraPrima):(OBRA&&OBRA.prima_rt!=null?Number(OBRA.prima_rt):0));};
+const tieneRPpropio=w=>!!(w&&((w.registro_patronal&&String(w.registro_patronal).trim())||(w.prima_rt!==null&&w.prima_rt!==undefined&&w.prima_rt!=='')));
 const MES=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 function toast(msg,cls=''){const t=document.createElement('div');t.className='toast '+cls;t.textContent=msg;$('toasts').appendChild(t);setTimeout(()=>t.remove(),4200);}
 /* SEMANA 1 de la empresa = lunes 30 de marzo de 2026 (inicio de obra).
@@ -773,7 +780,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-31.1';
+const APP_VERSION='2026-07-31.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -957,7 +964,7 @@ function openDetail(id){
       <div class="sect">Datos bancarios</div>
       ${kv('Cuenta',esc(w.cuenta))}${kv('CLABE',esc(w.clabe))}${kv('Banco',esc(w.banco))}${kv('Forma de pago',esc(w.forma_pago))}${kv('Observaciones',esc(w.observaciones))}
       <div class="sect">IMSS</div>
-      ${kv('Movimiento IMSS',esc(w.movimiento_imss||'SIN MOVIMIENTO'))}${kv('Fecha del movimiento',fmtD(w.fecha_mov_imss))}${kv('SBC (SDI)','$'+money(w.sdi))}
+      ${kv('Movimiento IMSS',esc(w.movimiento_imss||'SIN MOVIMIENTO'))}${kv('Fecha del movimiento',fmtD(w.fecha_mov_imss))}${kv('SBC (SDI)','$'+money(w.sdi))}${kv('Registro patronal',esc(rpDe(w))+(tieneRPpropio(w)?' <b style="color:var(--accent)">(propio)</b>':' <span style="color:var(--mut)">(de la obra)</span>'))}${tieneRPpropio(w)?kv('Prima RT','<b style="color:var(--accent)">'+primaDe(w)+'% (propia)</b>'):''}
       ${(function(){
         const fijos=DESC.filter(d=>d.trabajador_id===w.id&&d.recurrente&&d.activo);
         const inc=DESC.filter(d=>d.trabajador_id===w.id&&!d.recurrente&&d.activo).sort((a,b)=>String(b.semana).localeCompare(String(a.semana))).slice(0,8);
@@ -1112,6 +1119,8 @@ function openForm(id){
         <div><label>Periodo de pago</label><select id="f-periodo_pago">${['SEMANAL','QUINCENAL'].map(p=>`<option ${((w&&w.periodo_pago)||'SEMANAL')===p?'selected':''}>${p}</option>`).join('')}</select></div>
         <div><label>Movimiento IMSS</label><select id="f-movimiento_imss">${['SIN MOVIMIENTO','ALTA PRESENTADA','ALTA CON ACUSE','MODIFICACION PRESENTADA','MODIFICACION CON ACUSE','BAJA PRESENTADA','BAJA CON ACUSE'].map(m2=>`<option ${((w&&w.movimiento_imss)||'SIN MOVIMIENTO')===m2?'selected':''}>${m2}</option>`).join('')}</select></div>
         ${fld('fecha_mov_imss','Fecha mov. IMSS',w?(w.fecha_mov_imss||''):'',{type:'date'})}
+        ${fld('rp_trab','Registro patronal PROPIO (opcional)',w?(w.registro_patronal||''):'',{hint:'Solo si este trabajador cotiza con un registro patronal distinto al de la obra. Vacío = usa el de la obra.'})}
+        ${fld('prima_trab','Prima RT PROPIA % (opcional)',w?(w.prima_rt??''):'',{type:'number',extra:'step="0.00001"',hint:'Prima de riesgo de ese registro patronal. Vacío = usa la de la obra. No cambia el neto, sí el costo patronal y los movimientos IMSS.'})}
         ${w&&w.estatus==='BAJA'?`
         <div class="c4" style="grid-column:span 4;background:var(--red-bg);border-radius:8px;padding:10px 12px">
           <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:12px">
@@ -1481,6 +1490,9 @@ function collectForm(){
   if($('f-fecha_baja')){out.fecha_baja=g('fecha_baja')||null;out.monto_finiquito=g('monto_finiquito')?parseFloat(g('monto_finiquito')):null;out.motivo_baja=$('f-motivo_baja').value;}
   // fecha de reingreso editable (solo al editar; vacío = quitarla)
   if($('f-fecha_reingreso'))out.fecha_reingreso=g('fecha_reingreso')||null;
+  // registro patronal / prima RT PROPIOS del trabajador (override; vacío = usa el de la obra)
+  if($('f-rp_trab'))out.registro_patronal=g('rp_trab').toUpperCase()||null;
+  if($('f-prima_trab'))out.prima_rt=g('prima_trab')!==''?parseFloat(g('prima_trab')):null;
   return out;
 }
 function validateWorker(w,editId){
@@ -1565,6 +1577,14 @@ async function saveWorker(id){
       :falt.length
         ?`Alta guardada como PENDIENTE — falta: ${falt.slice(0,4).join(', ')}${falt.length>4?'…':''}. Al completar sus datos pasará a ACTIVO.`
         :'Alta capturada correctamente como ACTIVO.';
+  }
+  // v.4: si faltan las columnas del Script 42 (registro patronal/prima propios),
+  // reintenta sin ellas para no bloquear el guardado y avisa que corran el script.
+  if(error&&/registro_patronal|prima_rt/i.test(error.message||'')&&/column|does not exist|schema cache|could not find/i.test(error.message||'')){
+    const w2={...w}; delete w2.registro_patronal; delete w2.prima_rt;
+    if(id)({error}=await sb.from('trabajadores').update(w2).eq('id',id));
+    else ({error}=await sb.from('trabajadores').insert(w2));
+    if(!error)toast('Guardado, pero el registro patronal/prima propios NO se aplicaron: falta correr el Script 42 en Supabase.','err');
   }
   if(error){$('save-btn').textContent='💾 Guardar';toast('Error al guardar: '+error.message,'err');return;}
   closeModal();toast(msg,'ok');
@@ -2617,7 +2637,7 @@ function exportSUA(){
   WORKERS.slice().sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9)).forEach(w=>{
     const tipo=w.estatus==='BAJA'?'BAJA (02)':(String(w.movimiento_imss||'').includes('MODIFICACION')?'MOD. SALARIO (08)':'ALTA/REINGRESO (07)');
     const fecha=w.estatus==='BAJA'?fmtD(w.fecha_baja):fmtD(w.fecha_alta);
-    rows.push([OBRA.registro_patronal||'',w.nss,w.rfc,w.curp,w.primer_apellido,w.segundo_apellido,w.nombres,tipo,fecha,Number(w.sdi)||'',Number(w.sd)||'',w.estatus,w.movimiento_imss||'SIN MOVIMIENTO']);
+    rows.push([rpDe(w),w.nss,w.rfc,w.curp,w.primer_apellido,w.segundo_apellido,w.nombres,tipo,fecha,Number(w.sdi)||'',Number(w.sd)||'',w.estatus,w.movimiento_imss||'SIN MOVIMIENTO']);
     styles.push(rs);
   });
   const ws=buildSheet(rows,styles,[14,13,15,20,16,16,18,18,14,11,10,12,22],[{s:{r:0,c:0},e:{r:0,c:12}}],[{hpt:26},{hpt:24}]);
@@ -4460,7 +4480,7 @@ async function costosCalcular(){
   const act=WORKERS.filter(w=>w.estatus==='ACTIVO');
   const calc=esc2=>act.map(w=>{
     const w2=esc2===1?w:{...w,sd:(Number(w.sd)||0)*aum,sdi:(Number(w.sdi)||0)*aum};
-    return {w:w2,c:cuotasSemana(w2,prima)};
+    return {w:w2,c:cuotasSemana(w2,primaDe(w2,prima))};
   });
   const A=calc(1), B=aum!==1?calc(2):null;
   const sum=(L,k)=>L.reduce((s,x)=>s+x.c[k],0);
@@ -4484,8 +4504,11 @@ function costosExportar(){
   const S=k=>A.reduce((s,x)=>s+x.c[k],0);
   rows.push(['','TOTALES','','','','','','','','',S('totPat'),S('totObr'),S('isr'),S('isn')]);
   styles.push([ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.totalMoney,ST.totalMoney,ST.totalMoney,ST.totalMoney]); hs.push({hpt:22});
-  rows.push(['Fundamentos: LSS arts. 25, 71, 106-107, 147, 168, 211 · CEAV 2026 (reforma 2020, 4º ajuste) · INFONAVIT 5% · ISN Hidalgo · ISR Anexo 8 RMF 2026 DOF 28/12/2025. El ISR semanal es estimación; NOI realiza ajuste mensual.']);
-  styles.push(ST.sub); hs.push({hpt:18});
+  let fund='Fundamentos: LSS arts. 25, 71, 106-107, 147, 168, 211 · CEAV 2026 (reforma 2020, 4º ajuste) · INFONAVIT 5% · ISN Hidalgo · ISR Anexo 8 RMF 2026 DOF 28/12/2025. El ISR semanal es estimación; NOI realiza ajuste mensual.';
+  const ovr=A.filter(x=>tieneRPpropio(x.w));
+  if(ovr.length)fund+='   ||   REGISTRO PATRONAL / PRIMA PROPIOS: '+ovr.map(x=>fullName(x.w)+' (RP '+(rpDe(x.w)||'—')+', prima '+primaDe(x.w)+'%)').join('; ');
+  rows.push([fund]);
+  styles.push(ST.sub); hs.push({hpt:ovr.length?28:18});
   const ws=buildSheet(rows,styles,[6,30,9,10,8,10,10,10,16,11,12,12,10,10],[{s:{r:0,c:0},e:{r:0,c:13}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:13}}],hs);
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'COSTO PATRONAL');
   dl(wb,`COSTO_PATRONAL_${OBRA.nombre.slice(0,14).replace(/\s+/g,'_')}_${today()}.xlsx`);
@@ -4858,7 +4881,7 @@ function edoCurp(curp){const c=String(curp||'').toUpperCase();return EDO_CURP[c.
 function xlDate(f){if(!f)return '';const [y,m,d]=String(f).slice(0,10).split('-').map(Number);return Math.round((Date.UTC(y,m-1,d)-Date.UTC(1899,11,30))/86400000);}
 function fechaDDMMAAAA(f){if(!f)return '';const [y,m,d]=String(f).slice(0,10).split('-');return d+m+y;}
 function suaConcat(w){
-  return (OBRA.registro_patronal||'')+String(w.nss||'')+String(w.rfc||'')+String(w.curp||'')+
+  return (rpDe(w)||'')+String(w.nss||'')+String(w.rfc||'')+String(w.curp||'')+
     String(w.primer_apellido||'')+'$'+String(w.segundo_apellido||'')+'$'+String(w.nombres||'')+
     '30'+fechaDDMMAAAA(w.fecha_alta)+'00'+String(Math.round((Number(w.sdi)||0)*100));
 }
@@ -4911,7 +4934,7 @@ async function exportAltasNOIExcel(){
     r[6]=xlDate(w.fecha_nacimiento);r[7]=xlDate(w.fecha_alta);r[8]=String(w.nss||'');r[9]=edoCurp(w.curp);
     r[10]=w.curp||'';r[11]=w.rfc||'';r[12]=w.direccion||'';r[15]=w.cp||'';r[16]=w.cp||'';
     r[18]=w.telefono||'';r[20]=w.correo||'';r[24]=w.estado_civil||'';
-    r[33]='C';r[38]=OBRA.registro_patronal||'';r[41]=w.puesto||'';r[44]='México';r[46]='F';
+    r[33]='C';r[38]=rpDe(w);r[41]=w.puesto||'';r[44]='México';r[46]='F';
     r[47]='02';r[48]='01';r[49]='HID';r[51]='02';r[54]=4;r[56]=Number(w.sdi)||0;
     rowsT.push(r);});
   const wsT=XLSX.utils.aoa_to_sheet(rowsT);
@@ -4921,7 +4944,7 @@ async function exportAltasNOIExcel(){
     const nssC=wsT['I'+(i+2)];if(nssC)nssC.t='s';});
   XLSX.utils.book_append_sheet(wb,wsT,'Trabajadores');
   const rowsS=[['REG. PATRONAL','NSS','RFC','CURP','APELLIDO PATERNO','','APELLIDO MATERNO','','NOMBRE','TIPO TRABAJADOR','FECHA ALTA','','','SALARIO',''],[],[],[]];
-  sel.forEach(w=>rowsS.push([OBRA.registro_patronal||'',String(w.nss||''),w.rfc||'',w.curp||'',w.primer_apellido||'','$',w.segundo_apellido||'','$',w.nombres||'',30,fechaDDMMAAAA(w.fecha_alta),0,0,Math.round((Number(w.sdi)||0)*100),'']));
+  sel.forEach(w=>rowsS.push([rpDe(w),String(w.nss||''),w.rfc||'',w.curp||'',w.primer_apellido||'','$',w.segundo_apellido||'','$',w.nombres||'',30,fechaDDMMAAAA(w.fecha_alta),0,0,Math.round((Number(w.sdi)||0)*100),'']));
   const wsS=XLSX.utils.aoa_to_sheet(rowsS);
   sel.forEach((w,i)=>{const r=i+5; // datos desde la fila 5, como el archivo de la contadora
     if(wsS['B'+r])wsS['B'+r].t='s';
