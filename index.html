@@ -879,7 +879,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-31.3';
+const APP_VERSION='2026-07-31.4';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1650,6 +1650,23 @@ async function saveWorker(id){
   if(errs.length){toast(errs[0],'err');if(errs.length>1)setTimeout(()=>toast(errs[1],'err'),350);return;}
   // advertencias: no bloquean, solo piden confirmar antes de guardar
   if(warns.length&&!confirm('⚠ Advertencia'+(warns.length>1?'s':'')+':\n\n• '+warns.join('\n\n• ')+'\n\n¿Guardar de todos modos?'))return;
+  // candado de datos bancarios: avisa si se está CAMBIANDO una cuenta/CLABE que
+  // ya existía (cambiar la cuenta de alguien que ya cobraba hace que rebote el pago)
+  if(id){
+    const pv=WORKERS.find(x=>x.id===id);
+    if(pv){
+      const ctaPrev=String(pv.cuenta||'').trim(), ctaNew=String(w.cuenta||'').trim();
+      const claPrev=String(pv.clabe||'').trim(), claNew=String(w.clabe||'').trim();
+      const chgCta=ctaPrev&&ctaPrev.toUpperCase()!=='CREAR'&&ctaPrev!==ctaNew;
+      const chgCla=claPrev&&claPrev!==claNew;
+      if(chgCta||chgCla){
+        const det=[];
+        if(chgCta)det.push('Cuenta:  '+ctaPrev+'  →  '+(ctaNew||'(vacío)'));
+        if(chgCla)det.push('CLABE:  '+claPrev+'  →  '+(claNew||'(vacío)'));
+        if(!confirm('⚠ ESTÁS CAMBIANDO LOS DATOS BANCARIOS de '+fullName(pv)+':\n\n'+det.join('\n')+'\n\nSi este trabajador ya cobraba con la cuenta anterior, cambiarla hará que le REBOTE el pago. El cambio queda registrado en el historial con tu usuario.\n\n¿Seguro que quieres cambiarla?'))return;
+      }
+    }
+  }
   $('save-btn').innerHTML='<span class="spin"></span> Guardando...';
   markWrite();
   const falt=datosFaltantes(w);
@@ -1722,7 +1739,7 @@ async function doReactivar(id){
 /* ---------- historial ---------- */
 const IGNORE_H=['updated_at','created_at','actualizado_por','creado_por','id'];
 async function openHistorial(trabId){
-  let q=sb.from('historial').select('*').order('fecha',{ascending:false}).limit(trabId?150:400);
+  let q=sb.from('historial').select('*').order('fecha',{ascending:false}).limit(trabId?400:1200);
   if(trabId)q=q.eq('trabajador_id',trabId);
   const {data,error}=await q;
   if(error){toast('Error al cargar historial: '+error.message,'err');return;}
@@ -1733,14 +1750,21 @@ async function openHistorial(trabId){
       <select id="hist-user" onchange="renderHist()" style="width:auto;max-width:240px;margin-left:10px">
         <option value="">Usuario: todos</option>${usuarios.map(u=>`<option>${esc(u)}</option>`).join('')}
       </select>
+      <label style="font-size:12px;margin-left:10px;white-space:nowrap"><input type="checkbox" id="hist-solo-cta" onchange="renderHist()" style="width:auto"> 💳 Solo cambios de cuenta/CLABE</label>
       <button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body" id="hist-body"></div>
     <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`);
   renderHist();
 }
+const CAMPOS_BANCO=['cuenta','clabe','banco','num_tarjeta'];
+function histCambiaBanco(h){
+  if(!h.datos_antes||!h.datos_despues)return false;
+  return CAMPOS_BANCO.some(k=>JSON.stringify(h.datos_antes[k]??'')!==JSON.stringify(h.datos_despues[k]??''));
+}
 function renderHist(){
   const fu=$('hist-user')?$('hist-user').value:'';
-  const data=(window._HIST||[]).filter(h=>!fu||h.usuario===fu);
+  const soloCta=$('hist-solo-cta')&&$('hist-solo-cta').checked;
+  const data=(window._HIST||[]).filter(h=>(!fu||h.usuario===fu)&&(!soloCta||histCambiaBanco(h)));
   const items=data.map(h=>{
     let diff='';
     if(!h.accion.includes('ALTA')&&h.datos_antes&&h.datos_despues){
@@ -1748,7 +1772,10 @@ function renderHist(){
       for(const k of Object.keys(h.datos_despues)){
         if(IGNORE_H.includes(k))continue;
         const a=JSON.stringify(h.datos_antes[k]??''),b=JSON.stringify(h.datos_despues[k]??'');
-        if(a!==b)chs.push(`<div class="fld-ch"><b>${k}:</b> <span class="old">${esc(String(h.datos_antes[k]??'—')).slice(0,80)}</span><span class="new">${esc(String(h.datos_despues[k]??'—')).slice(0,80)}</span></div>`);
+        if(a!==b){
+          const esBanco=CAMPOS_BANCO.includes(k);
+          chs.push(`<div class="fld-ch"${esBanco?' style="background:#fff6d5;border-radius:5px;padding:2px 6px"':''}><b>${esBanco?'💳 ':''}${k}:</b> <span class="old">${esc(String(h.datos_antes[k]??'—')).slice(0,80)}</span><span class="new">${esc(String(h.datos_despues[k]??'—')).slice(0,80)}</span></div>`);
+        }
       }
       diff=chs.length?`<div class="hist-diff">${chs.join('')}</div>`:'';
     }
@@ -2868,7 +2895,10 @@ async function applyImportExp(){
   let ok=0,skip=0,fail=0; const acuse=[];
   for(const x of conCta){
     const base=x.w, baseCta=String(base.cuenta||'').toUpperCase().trim();
-    const vacia=(!base.cuenta||baseCta==='CREAR'||baseCta==='')||!String(base.clabe||'').trim();
+    // SOLO se llena si la CUENTA está vacía o en CREAR. NUNCA se reemplaza una
+    // cuenta que ya existe (aunque le falte la CLABE): reemplazarla haría rebotar
+    // el pago. Si ya tiene cuenta distinta, se cuenta como "skip".
+    const vacia=(!base.cuenta||baseCta==='CREAR'||baseCta==='');
     if(vacia){
       const {error}=await sb.from('trabajadores').update({cuenta:x.cta,clabe:x.clabe,banco:bankFromClabe(x.clabe)||'BBVA'}).eq('id',base.id);
       if(error)fail++;else ok++;
