@@ -879,7 +879,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-31.4';
+const APP_VERSION='2026-07-31.5';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -3455,17 +3455,38 @@ function exportCorreos(){
 }
 
 /* ---------- LISTAS DE ASISTENCIA + DIRECTORIO ---------- */
+/* Trabajadores que van en la lista de asistencia de la semana d1..d2:
+   los ACTIVOS, MÁS los PENDIENTES cuya fecha de alta cae dentro de esa semana
+   (los "programados" que la base activará al cambio de semana — p. ej. quien se
+   registró jue/vie y entra el lunes). Así, al generar las listas el sábado para
+   la semana siguiente, esos altas programadas YA aparecen. Excluye a los que ya
+   están de baja antes de que empiece la semana. Ordena por número. */
+function asActivosSemana(d1,d2){
+  return WORKERS.filter(w=>{
+    if(w.fecha_baja&&d1&&w.fecha_baja<d1)return false;                 // ya de baja antes de la semana
+    if(w.estatus==='ACTIVO')return true;                              // activo de planta
+    // programado: pendiente cuya ALTA cae dentro de la semana que se genera
+    if(w.estatus==='PENDIENTE'&&w.fecha_alta&&d1&&d2&&w.fecha_alta>=d1&&w.fecha_alta<=d2)return true;
+    return false;
+  }).sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+}
+function asUpdateStat(){
+  const d1=$('as-d1')?$('as-d1').value:'', d2=$('as-d2')?$('as-d2').value:'';
+  const lst=asActivosSemana(d1,d2), pend=lst.filter(w=>w.estatus==='PENDIENTE').length;
+  if($('as-stat-n'))$('as-stat-n').textContent=lst.length;
+  if($('as-stat-l'))$('as-stat-l').innerHTML=`En la lista de esa semana → ${Math.max(1,Math.ceil(lst.length/10))} hojas${pend?` · incluye <b>${pend}</b> alta(s) programada(s)`:''}`;
+}
 function openAsistencia(){
   const [d1,d2]=weekBounds();
-  const act=WORKERS.filter(w=>w.estatus==='ACTIVO').length;
+  const lst=asActivosSemana(d1,d2);
   modal(`
     <div class="m-head"><h2>📝 Listas de asistencia · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:14px">Genera el Excel con hojas de 10 trabajadores (activos, por número), más las hojas de <b>NUEVO INGRESO</b> en blanco que pidas, y el <b>directorio alfabético para vigilancia</b> listo para imprimir. Encabeza con el registro patronal y SIROC de la obra${OBRA.registro_patronal?'':' — <b style="color:var(--red)">captúralos con el lápiz ✎ de la obra</b>'}.</p>
+      <p style="color:var(--mut);margin-bottom:14px">Genera el Excel con hojas de 10 trabajadores, más las hojas de <b>NUEVO INGRESO</b> en blanco que pidas, y el <b>directorio alfabético para vigilancia</b>. Incluye a los <b>activos</b> y a las <b>altas programadas</b> (pendientes que entran en la semana elegida). Encabeza con el registro patronal y SIROC de la obra${OBRA.registro_patronal?'':' — <b style="color:var(--red)">captúralos con el lápiz ✎ de la obra</b>'}.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
-        <div><label>No. de semana</label><input id="as-sem" type="number" value="${isoWeek()}" oninput="semSincroniza('as-sem','as-d1','as-d2')"></div>
-        <div><label>Del (lunes)</label><input id="as-d1" type="date" value="${d1}"></div>
-        <div><label>Al (domingo)</label><input id="as-d2" type="date" value="${d2}"></div>
+        <div><label>No. de semana</label><input id="as-sem" type="number" value="${isoWeek()}" oninput="semSincroniza('as-sem','as-d1','as-d2');asUpdateStat()"></div>
+        <div><label>Del (lunes)</label><input id="as-d1" type="date" value="${d1}" onchange="asUpdateStat()"></div>
+        <div><label>Al (domingo)</label><input id="as-d2" type="date" value="${d2}" onchange="asUpdateStat()"></div>
         <div><label>Hojas NUEVO INGRESO</label><input id="as-extra" type="number" min="0" value="3"></div>
       </div>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;margin-top:12px">
@@ -3475,7 +3496,7 @@ function openAsistencia(){
         <div><label>Salida sábado</label><input id="as-h4" value="13:00"></div>
       </div>
       <div style="display:flex;gap:10px;margin-top:16px">
-        <div class="stat g" style="flex:1"><div class="n">${act}</div><div class="l">Activos → ${Math.ceil(act/10)} hojas</div></div>
+        <div class="stat g" style="flex:1"><div class="n" id="as-stat-n">${lst.length}</div><div class="l" id="as-stat-l">En la lista de esa semana → ${Math.max(1,Math.ceil(lst.length/10))} hojas</div></div>
       </div>
     </div>
     <div class="m-foot">
@@ -3555,8 +3576,8 @@ function asSheet(grupo,cfg,blanco){
 function exportAsistencia(){
   const sem=$('as-sem').value||isoWeek(), d1=$('as-d1').value, d2=$('as-d2').value;
   const extra=Math.max(0,parseInt($('as-extra').value)||0);
-  const act=WORKERS.filter(w=>w.estatus==='ACTIVO').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
-  if(!act.length){toast('No hay trabajadores activos.','err');return;}
+  const act=asActivosSemana(d1,d2);
+  if(!act.length){toast('No hay trabajadores activos ni altas programadas para esa semana.','err');return;}
   const empKey=(OBRA.tipo==='OFICINA')?'PLATINUM':'PLATINUM';
   const emp=CFGEMP['empresa_'+empKey]||{razon:'COMERCIALIZADORA PLATINUM HIDALGUENSE'};
   const cfg={emp:emp.razon||'COMERCIALIZADORA PLATINUM HIDALGUENSE',obra:OBRA.ubicacion||OBRA.nombre,
@@ -3575,8 +3596,11 @@ function exportAsistencia(){
 }
 function exportDirectorio(){
   const sem=$('as-sem')?($('as-sem').value||isoWeek()):isoWeek();
-  const act=WORKERS.filter(w=>w.estatus==='ACTIVO')
-    .sort((a,b)=>fullName(a).localeCompare(fullName(b),'es'));
+  const d1=$('as-d1')?$('as-d1').value:'', d2=$('as-d2')?$('as-d2').value:'';
+  // mismo padrón que las listas (activos + altas programadas de la semana),
+  // pero en orden alfabético para vigilancia
+  const act=(d1&&d2?asActivosSemana(d1,d2):WORKERS.filter(w=>w.estatus==='ACTIVO'))
+    .slice().sort((a,b)=>fullName(a).localeCompare(fullName(b),'es'));
   if(!act.length){toast('No hay trabajadores activos.','err');return;}
   const empKey='PLATINUM';
   const emp=CFGEMP['empresa_'+empKey]||{razon:'Comercializadora Platinum Hidalguense'};
