@@ -880,7 +880,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-03.4';
+const APP_VERSION='2026-08-03.5';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -4870,7 +4870,7 @@ function openVerificadorNOI(){
   modal(`
     <div class="m-head"><h2>🔢 Verificar números vs reporte de nómina NOI</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px">Sube el PDF "Reporte de la nómina" de NOI (acepta el formato <b>clásico</b> y el <b>moderno</b>). Leo cada trabajador (clave, NSS, RFC, CURP, salario) y lo cruzo contra la base: te muestro números que no coinciden, NSS diferentes y salarios distintos. Nada se modifica automáticamente.</p>
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px">Sube el PDF "Reporte de la nómina" de NOI (acepta <b>clásico</b>, <b>moderno semanal</b> y <b>moderno quincenal</b> de oficina). Leo cada trabajador (clave, NSS, RFC, CURP, <b>SD, SDI</b> y el neto <b>quincenal/semanal</b>) y lo cruzo contra la base: te muestro las diferencias y eliges cuáles aplicar. Nada se modifica sin tu confirmación.</p>
       <input type="file" id="vn-file" accept=".pdf" onchange="verificarNOI(this)">
       <div id="vn-out" style="margin-top:14px;max-height:420px;overflow:auto"></div>
     </div>
@@ -4889,23 +4889,34 @@ async function verificarNOI(inp){
     //  · MODERNO: clave NOMBRE … RFC CURP … SD(diario) NSS(11) fecha_alta.
     // Se corren los dos y se unen por CURP (un PDF es de un solo formato, así que
     // no chocan). El clásico queda EXACTO como estaba: solo se AGREGA el moderno.
+    // Se corren TRES lectores y se unen por CURP (cada PDF es de un solo formato):
+    //  · CLÁSICO: clave 7.00 … NSS(11) RFC CURP SD.
+    //  · MODERNO (semanal): clave NOMBRE … RFC CURP fecha NSS SD SDI.
+    //  · MODERNO 2 (quincenal, oficina): clave días … NSS RFC CURP SD fecha …
+    //    Completa … NOMBRE SDI 8. Trae SDI y el NETO (quincenal si la quincena
+    //    está completa). pdf.js revuelve columnas: patrón deducido del texto real.
+    const nnum=s=>parseFloat(String(s).replace(/,/g,''));
     const rxClasico=/(\d{1,4})\s+7\.00[\s\S]{0,220}?(\d{11})\s+([A-ZÑ&]{4}\d{6}[A-Z0-9]{2,3})\s+([A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d)\s+([\d,]+\.\d{2})/g;
-    const rxModerno=/(\d{1,5})\s+[^\d\n]{3,60}?\s+([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})\s+([A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d)\s+\d{2}\/\d{2}\/\d{4}\s+(\d{10,11})\s+([\d,]+\.\d{2})/g;
+    const rxModerno=/(\d{1,5})\s+[^\d\n]{3,60}?\s+([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})\s+([A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d)\s+\d{2}\/\d{2}\/\d{4}\s+(\d{10,11})\s+([\d,]+\.\d{2})(?:\s+([\d,]+\.\d{2}))?/g;
+    const rxModerno2=/(\d{1,5})\s+([\d.,]+)\s+[\d.,]+\s+[\d.,]+\s+([\d.,]+)\s+(?:[\d.,]+\s+){5}(\d{10,11})\s+([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{2,3})\s+([A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d)\s+([\d,]+\.\d{2})\s+\d{2}\/\d{2}\/\d{4}[\s\S]{0,40}?Completa\s+[\d.,]+\s+[\d.,]+\s+[A-ZÑÁÉÍÓÚ][A-ZÑÁÉÍÓÚ ]+?\s+([\d,]+(?:\.\d+)?)\s+[\d,]+(?:\.\d+)?\s+8\b/g;
     const porCurp=new Map();let m;
-    while((m=rxClasico.exec(txt))!==null){const e={clave:parseInt(m[1]),nss:m[2],rfc:m[3],curp:m[4],sd:parseFloat(m[5].replace(/,/g,''))};if(!porCurp.has(e.curp))porCurp.set(e.curp,e);}
-    while((m=rxModerno.exec(txt))!==null){const e={clave:parseInt(m[1]),rfc:m[2],curp:m[3],nss:m[4],sd:parseFloat(m[5].replace(/,/g,''))};if(!porCurp.has(e.curp))porCurp.set(e.curp,e);}
+    while((m=rxClasico.exec(txt))!==null){const e={clave:parseInt(m[1]),nss:m[2],rfc:m[3],curp:m[4],sd:nnum(m[5]),sdi:null,quincenal:null};if(!porCurp.has(e.curp))porCurp.set(e.curp,e);}
+    while((m=rxModerno.exec(txt))!==null){const e={clave:parseInt(m[1]),rfc:m[2],curp:m[3],nss:m[4],sd:nnum(m[5]),sdi:m[6]?nnum(m[6]):null,quincenal:null};if(!porCurp.has(e.curp))porCurp.set(e.curp,e);}
+    while((m=rxModerno2.exec(txt))!==null){const dias=nnum(m[2]),neto=nnum(m[3]);const e={clave:parseInt(m[1]),nss:m[4],rfc:m[5],curp:m[6],sd:nnum(m[7]),sdi:nnum(m[8]),quincenal:(dias>=15?neto:null)};if(!porCurp.has(e.curp))porCurp.set(e.curp,e);}
     const encontrados=[...porCurp.values()];
     if(!encontrados.length){$('vn-out').innerHTML='<div class="empty">No pude extraer trabajadores del PDF (¿es el "Reporte de la nómina" de NOI, clásico o moderno?).</div>';return;}
-    const {data:allW}=await sb.from('trabajadores').select('id,obra_id,no_trab,nss,curp,rfc,sd,sal_semanal,primer_apellido,segundo_apellido,nombres,estatus').eq('eliminado',false);
+    const {data:allW}=await sb.from('trabajadores').select('id,obra_id,no_trab,nss,curp,rfc,sd,sdi,sal_semanal,periodo_pago,primer_apellido,segundo_apellido,nombres,estatus').eq('eliminado',false);
     const difs=[];let ok=0;
     encontrados.forEach(e=>{
       const w=(allW||[]).find(x=>x.curp===e.curp)||(allW||[]).find(x=>x.nss===e.nss);
       if(!w){difs.push({e,tipo:'NO ESTÁ EN LA BASE',det:''});return;}
-      const d=[];let numDif=false,sdDif=false;
+      const d=[];let numDif=false,sdDif=false,sdiDif=false,quinDif=false;
       if((w.no_trab??null)!==e.clave){d.push(`número: base #${w.no_trab??'—'} vs NOI #${e.clave}`);numDif=true;}
       if(w.nss!==e.nss)d.push(`NSS: base ${w.nss||'—'} vs NOI ${e.nss}`);
       if(Math.abs((Number(w.sd)||0)-e.sd)>0.01){d.push(`SD: base $${money(w.sd)} vs NOI $${money(e.sd)}`);sdDif=true;}
-      if(d.length)difs.push({e,w,tipo:'DIFERENCIA',det:d.join(' · '),numDif,sdDif}); else ok++;
+      if(e.sdi!=null&&Math.abs((Number(w.sdi)||0)-e.sdi)>0.01){d.push(`SDI: base $${money(w.sdi)} vs NOI $${money(e.sdi)}`);sdiDif=true;}
+      if(e.quincenal!=null&&Math.abs((Number(w.sal_semanal)||0)-e.quincenal)>0.01){d.push(`${(w.periodo_pago==='QUINCENAL'?'quincenal':'sueldo')}: base $${money(w.sal_semanal)} vs NOI $${money(e.quincenal)}`);quinDif=true;}
+      if(d.length)difs.push({e,w,tipo:'DIFERENCIA',det:d.join(' · '),numDif,sdDif,sdiDif,quinDif}); else ok++;
     });
     // números NOI no usados y duplicados en base
     $('vn-out').innerHTML=`
@@ -4917,11 +4928,13 @@ async function verificarNOI(inp){
       ${difs.map((d,i)=>`<div class="hist-item"><div class="hist-top"><span class="badge ${d.tipo==='DIFERENCIA'?'PENDIENTE':'BAJA'}">${d.tipo}</span>
         <span class="who">${esc(d.w?fullName(d.w):('CURP '+d.e.curp))} · NOI #${d.e.clave}</span></div>
         <div style="font-size:12.5px;color:var(--txt)">${esc(d.det)||'Alta en NOI pero sin registro en la base'}</div>
-        ${d.w?`<div style="margin-top:5px;font-size:12px">
-          ${d.numDif?`<label style="margin-right:14px"><input type="checkbox" id="vn-n-${i}" checked> ✔ usar número NOI <b>#${d.e.clave}</b></label>`:''}
-          ${d.sdDif?`<label><input type="checkbox" id="vn-s-${i}" checked> ✔ usar SD NOI <b>$${money(d.e.sd)}</b></label>`:''}
+        ${d.w?`<div style="margin-top:5px;font-size:12px;display:flex;flex-wrap:wrap;gap:6px 14px">
+          ${d.numDif?`<label><input type="checkbox" id="vn-n-${i}" checked> ✔ número NOI <b>#${d.e.clave}</b></label>`:''}
+          ${d.sdDif?`<label><input type="checkbox" id="vn-s-${i}" checked> ✔ SD NOI <b>$${money(d.e.sd)}</b></label>`:''}
+          ${d.sdiDif?`<label><input type="checkbox" id="vn-sdi-${i}" checked> ✔ SDI NOI <b>$${money(d.e.sdi)}</b></label>`:''}
+          ${d.quinDif?`<label><input type="checkbox" id="vn-q-${i}" checked> ✔ ${d.w.periodo_pago==='QUINCENAL'?'quincenal':'sueldo'} NOI <b>$${money(d.e.quincenal)}</b></label>`:''}
         </div>`:''}</div>`).join('')||'<div class="empty">✔ Todo cuadra con NOI.</div>'}
-      ${difs.some(d=>d.w&&(d.numDif||d.sdDif))?`<div style="margin-top:12px">
+      ${difs.some(d=>d.w&&(d.numDif||d.sdDif||d.sdiDif||d.quinDif))?`<div style="margin-top:12px">
         <button class="btn dark" onclick="aplicarVN()">💾 Aplicar a la base los cambios marcados</button>
         <div class="fhint" style="margin-top:6px">Los números se cambian en dos fases (se liberan y se reasignan) respetando el candado anti-duplicados; si un número lo tiene alguien que no está en la lista, se omite y se te avisa. El NSS nunca se cambia automático. Todo queda en el historial.</div>
       </div>`:''}`;
@@ -5498,21 +5511,23 @@ async function saveEditContratistas(){
 /* ---------- v16: aplicar a la base los cambios del reporte NOI ---------- */
 async function aplicarVN(){
   const difs=window._VN||[];
-  const selN=[],selS=[];
+  const selN=[],selS=[],selSDI=[],selQ=[];
   difs.forEach((d,i)=>{
     if(!d.w)return;
     if(d.numDif&&$('vn-n-'+i)&&$('vn-n-'+i).checked)selN.push({id:d.w.id,obra_id:d.w.obra_id,num:d.e.clave,nombre:fullName(d.w)});
     if(d.sdDif&&$('vn-s-'+i)&&$('vn-s-'+i).checked)selS.push({id:d.w.id,sd:d.e.sd,oldSd:Number(d.w.sd)||0,oldSem:Number(d.w.sal_semanal)||0,nombre:fullName(d.w)});
+    if(d.sdiDif&&$('vn-sdi-'+i)&&$('vn-sdi-'+i).checked)selSDI.push({id:d.w.id,sdi:d.e.sdi});
+    if(d.quinDif&&$('vn-q-'+i)&&$('vn-q-'+i).checked)selQ.push({id:d.w.id,q:d.e.quincenal});
   });
-  if(!selN.length&&!selS.length){toast('No hay cambios marcados.','err');return;}
+  if(!selN.length&&!selS.length&&!selSDI.length&&!selQ.length){toast('No hay cambios marcados.','err');return;}
   // conflictos: el número destino lo tiene alguien FUERA de la selección (misma obra)
   const {data:occ}=await sb.from('trabajadores').select('id,no_trab,obra_id').eq('eliminado',false);
   const selIds=new Set(selN.map(x=>x.id));
   const conflictos=selN.filter(x=>(occ||[]).some(o=>o.obra_id===x.obra_id&&o.no_trab===x.num&&!selIds.has(o.id)));
   const aplicar=selN.filter(x=>!conflictos.includes(x));
   if(conflictos.length)toast(`⚠ ${conflictos.length} número(s) ocupados por trabajadores fuera de la lista — omitidos: ${conflictos.map(c=>'#'+c.num+' ('+c.nombre.split(' ')[0]+')').join(', ')}`,'err');
-  if(!aplicar.length&&!selS.length)return;
-  if(!confirm(`¿Aplicar ${aplicar.length} número(s) y ${selS.length} salario(s) diarios tomados del NOI?\n\nTodo queda registrado en el historial.`))return;
+  if(!aplicar.length&&!selS.length&&!selSDI.length&&!selQ.length)return;
+  if(!confirm(`¿Aplicar del NOI: ${aplicar.length} número(s), ${selS.length} SD, ${selSDI.length} SDI y ${selQ.length} sueldo(s) quincenal/semanal?\n\nTodo queda registrado en el historial.`))return;
   markWrite();
   let ok=0,err=0;
   // FASE 1: liberar números
@@ -5525,6 +5540,10 @@ async function aplicarVN(){
     if(Math.abs(x.oldSem-x.oldSd*7)<0.02)upd.sal_semanal=Math.round(x.sd*7*100)/100;
     const {error}=await sb.from('trabajadores').update(upd).eq('id',x.id);error?err++:ok++;
   }
+  // SDI exacto del NOI
+  for(const x of selSDI){const {error}=await sb.from('trabajadores').update({sdi:x.sdi}).eq('id',x.id);error?err++:ok++;}
+  // sueldo quincenal/semanal = NETO del NOI (solo cuando la quincena venía completa)
+  for(const x of selQ){const {error}=await sb.from('trabajadores').update({sal_semanal:x.q}).eq('id',x.id);error?err++:ok++;}
   toast(err?`Aplicado con ${err} error(es) — revisa el historial.`:`✔ ${ok} cambio(s) del NOI aplicados a la base.`,err?'err':'ok');
   closeModal();await loadObraData(OBRA.id);refreshCounts();
 }
