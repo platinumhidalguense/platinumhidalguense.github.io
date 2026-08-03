@@ -382,6 +382,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
             <button onclick="toggleMenu('menu-mas');openTransferencia()">🔁 Transferir trabajadores a otra obra</button>
             <button onclick="toggleMenu('menu-mas');openEditContratistas()">👷 Editar contratistas (por trabajador)</button>
             <button onclick="toggleMenu('menu-mas');openPlantillaFecha()">📸 Plantilla a una fecha</button>
+            <button onclick="toggleMenu('menu-mas');openControlSalarios()">📈 Control de cambios de salario</button>
             <button onclick="toggleMenu('menu-mas');openCostos()">🏛 Costo patronal · IMSS/ISR/ISN + simulador</button>
             <button onclick="toggleMenu('menu-mas');openVerificadorNOI()">🔢 Verificar números vs NOI</button>
             <button onclick="toggleMenu('menu-mas');openAutorrellenar()">🪄 Autorrellenar desde CURP (expedientes ya capturados)</button>
@@ -879,7 +880,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-07-31.5';
+const APP_VERSION='2026-08-03.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1056,7 +1057,7 @@ function openDetail(id){
       ${w.estatus==='PENDIENTE'?`<div style="background:var(--amber-bg);border:1px solid #ecd9a0;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px"><b style="color:var(--amber)">⏳ PENDIENTE</b> — ${(function(){if(w.pendiente_manual)return 'Pausado manualmente — <b>'+esc(w.motivo_pendiente||'SIN MOTIVO')+'</b>. No sale en proyección ni requisición y NO se reactiva solo: usa "Marcar ACTIVO" cuando se resuelva.';const f=datosFaltantes(w);return f.length?'Falta capturar: <b>'+f.join(', ')+'</b>. Al completarlo pasará a ACTIVO solo, o usa el botón "Marcar ACTIVO".':'Ya tiene todos los datos: usa el botón "Marcar ACTIVO".';})()}</div>`:''}
       <div class="sect">Obra y puesto</div>
       ${kv('Obra',esc(OBRA.nombre))}${kv('Contratista',esc(w.contratista))}${kv('No. trabajador',w.no_trab)}${kv('Puesto',esc(w.puesto))}${kv('Funciones',esc(w.funciones))}${kv('Turno',esc(w.turno))}${kv('Semana de ingreso',esc(w.semana_ingreso))}${kv('Fecha alta',fmtD(w.fecha_alta))}${w.fecha_reingreso?kv('Fecha de reingreso',fmtD(w.fecha_reingreso)+' (la antigüedad cuenta desde aquí)'):''}${kv('Tipo de contrato',esc(w.tipo_contrato||'OBRA DETERMINADA')+(w.fecha_fin_contrato?' · vence '+fmtD(w.fecha_fin_contrato):''))}${(w.estatus==='BAJA'||w.fecha_baja)?kv('Fecha baja'+(w.estatus!=='BAJA'?' anterior':''),fmtD(w.fecha_baja))+(w.estatus==='BAJA'?kv('Monto finiquito',w.monto_finiquito!=null?'$'+money(w.monto_finiquito):''):''):''}
-      <div class="sect">Salario</div>
+      <div class="sect">Salario <button class="btn" style="padding:2px 10px;font-size:11.5px;float:right" onclick="openHistSalario('${w.id}')">📈 Historial de salario</button></div>
       ${kv('Periodo de pago',w.periodo_pago||'SEMANAL')}${kv('SD','$'+money(w.sd))}${kv('SDI','$'+money(w.sdi))}${kv('Salario '+(w.periodo_pago==='QUINCENAL'?'quincenal':'semanal'),'$'+money(w.sal_semanal))}
       <div class="sect">Datos personales</div>
       ${kv('CURP',esc(w.curp))}${kv('RFC',esc(w.rfc))}${kv('NSS',esc(w.nss))}${kv('Fecha de nacimiento',fmtD(w.fecha_nacimiento)+(w.fecha_nacimiento?' ('+edad(w.fecha_nacimiento)+' años)':''))}${kv('Género',esc(w.genero))}${kv('Estado civil',esc(w.estado_civil))}${kv('Escolaridad',esc(w.escolaridad))}${kv('Nacionalidad',esc(w.nacionalidad))}${kv('Edo. nacimiento',esc(w.edo_nacimiento))}${kv('Dirección',esc(w.direccion))}${kv('C.P.',esc(w.cp))}${kv('Teléfono',esc(w.telefono))}${kv('Correo',esc(w.correo))}${kv('Beneficiario',esc(w.beneficiario))}
@@ -1803,6 +1804,110 @@ async function restoreVersion(histId,esCheque){
   if(error){toast('Error al restaurar: '+error.message,'err');return;}
   closeModal();toast('Información restaurada. La restauración también quedó en el historial.','ok');
   await loadObraData(OBRA.id);refreshCounts();
+}
+
+/* ---------- CONTROL DE CAMBIOS DE SALARIO (2026-08-01) ----------
+   Usa el historial (datos_antes/datos_despues) para ver los cambios de SD, SDI
+   y salario semanal: por trabajador (desde su ficha) y global (panel + Excel),
+   para controlar las modificaciones que se van haciendo gradualmente. */
+const CAMPOS_SAL=['sd','sdi','sal_semanal'];
+function histCambiaSalario(h){
+  if(h.accion!=='MODIFICACION'||!h.datos_antes||!h.datos_despues)return false;
+  return CAMPOS_SAL.some(k=>JSON.stringify(h.datos_antes[k]??'')!==JSON.stringify(h.datos_despues[k]??''));
+}
+async function fetchCambiosSalario(trabId){
+  let q=sb.from('historial').select('*').eq('accion','MODIFICACION').order('fecha',{ascending:false}).limit(trabId?300:2000);
+  if(trabId)q=q.eq('trabajador_id',trabId);
+  const {data,error}=await q;
+  if(error){toast('Error al leer historial: '+error.message,'err');return null;}
+  return (data||[]).filter(histCambiaSalario);
+}
+const _n=v=>{const x=Number(v);return isNaN(x)?null:x;};
+const _sal=(a,b,k)=>{const x=_n(a&&a[k]),y=_n(b&&b[k]);return {x,y,chg:JSON.stringify(a?.[k]??'')!==JSON.stringify(b?.[k]??'')};};
+function celdaCambio(c){
+  if(c.x===null&&c.y===null)return '—';
+  if(!c.chg)return '$'+money(c.y??c.x);
+  return `<span class="old">$${money(c.x??0)}</span><span class="new">$${money(c.y??0)}</span>`;
+}
+async function openHistSalario(id){
+  const w=WORKERS.find(x=>x.id===id);
+  modal(`<div class="m-head"><h2>📈 Historial de salario · ${esc(w?fullName(w):'')}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body" id="hs-body"><div class="empty">Cargando...</div></div>
+    <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`,'md');
+  const rows=await fetchCambiosSalario(id); if(rows===null)return;
+  const actual=w?`<div class="kv"><b>AHORA</b><span>SD $${money(w.sd)} · SDI $${money(w.sdi)} · semanal $${money(w.sal_semanal)}</span></div>`:'';
+  if(!rows.length){$('hs-body').innerHTML=actual+'<div class="empty">Sin cambios de salario registrados: su sueldo no se ha modificado desde que se capturó.</div>';return;}
+  const body=rows.map(h=>{
+    const a=h.datos_antes,b=h.datos_despues;
+    const sd=_sal(a,b,'sd'),sdi=_sal(a,b,'sdi'),sem=_sal(a,b,'sal_semanal');
+    return `<tr>
+      <td style="white-space:nowrap">${new Date(h.fecha).toLocaleDateString('es-MX')}</td>
+      <td style="text-align:right">${celdaCambio(sd)}</td>
+      <td style="text-align:right">${celdaCambio(sdi)}</td>
+      <td style="text-align:right">${celdaCambio(sem)}</td>
+      <td style="font-size:11px">${esc(b.movimiento_imss||'')}</td>
+      <td style="font-size:11px;color:var(--mut)">${esc(h.usuario||'sistema')}</td></tr>`;
+  }).join('');
+  $('hs-body').innerHTML=actual+`
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px">
+      <thead><tr style="text-align:left"><th>Fecha</th><th style="text-align:right">SD</th><th style="text-align:right">SDI</th><th style="text-align:right">Semanal</th><th>Mov. IMSS</th><th>Quién</th></tr></thead>
+      <tbody>${body}</tbody></table>
+    <p style="font-size:11px;color:var(--mut);margin-top:8px">Cada renglón es un cambio: <span class="old">valor anterior</span> → <span class="new">valor nuevo</span>. Fuente: historial automático de la base.</p>`;
+}
+async function openControlSalarios(){
+  toast('Leyendo cambios de salario...');
+  const rows=await fetchCambiosSalario(null); if(rows===null)return;
+  const {data:allW}=await sb.from('trabajadores').select('*').eq('eliminado',false);
+  const wById={}; (allW||[]).forEach(w=>wById[w.id]=w);
+  const obraN=id=>{const o=OBRAS.find(x=>x.id===id);return o?o.nombre:'';};
+  // el más reciente por trabajador para el resumen
+  const ultimo={}; rows.forEach(h=>{if(!ultimo[h.trabajador_id])ultimo[h.trabajador_id]=h;});
+  window._CTRLSAL={rows,wById,obraN};
+  const filas=Object.values(ultimo).map(h=>{
+    const w=wById[h.trabajador_id]||{}, b=h.datos_despues,a=h.datos_antes;
+    const sd=_sal(a,b,'sd'),sdi=_sal(a,b,'sdi'),sem=_sal(a,b,'sal_semanal');
+    const conAcuse=String(w.movimiento_imss||'').includes('MODIFICACION')&&String(w.movimiento_imss||'').includes('ACUSE');
+    return `<div class="imp-row" style="grid-template-columns:1.6fr 1fr 1fr 1fr 1.1fr">
+      <span><b>${esc(h.trabajador_nombre)}</b><br><span style="color:var(--mut);font-size:11px">${esc(obraN(w.obra_id))} · ${new Date(h.fecha).toLocaleDateString('es-MX')}</span></span>
+      <span style="text-align:right">${celdaCambio(sd)}</span>
+      <span style="text-align:right">${celdaCambio(sdi)}</span>
+      <span style="text-align:right">${celdaCambio(sem)}</span>
+      <span style="font-size:11px">${conAcuse?'<b style="color:var(--green)">✔ acuse IMSS</b>':'<b style="color:var(--amber)">⚠ falta acuse mod.</b>'}<br><span style="color:var(--mut)">${esc(w.movimiento_imss||'')}</span></span>
+    </div>`;
+  });
+  const faltan=Object.values(ultimo).filter(h=>{const w=wById[h.trabajador_id]||{};return !(String(w.movimiento_imss||'').includes('MODIFICACION')&&String(w.movimiento_imss||'').includes('ACUSE'));}).length;
+  modal(`<div class="m-head"><h2>📈 Control de cambios de salario</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <span class="imp-tag imp-COINCIDE">${Object.keys(ultimo).length} trabajador(es) con cambio</span>
+        <span class="imp-tag imp-CONFLICTO">${faltan} sin acuse de modificación IMSS</span>
+      </div>
+      <div class="imp-row head" style="grid-template-columns:1.6fr 1fr 1fr 1fr 1.1fr"><span>Trabajador · obra · último cambio</span><span style="text-align:right">SD</span><span style="text-align:right">SDI</span><span style="text-align:right">Semanal</span><span>IMSS</span></div>
+      ${filas.join('')||'<div class="empty">Aún no hay cambios de salario registrados.</div>'}
+      <p style="font-size:11px;color:var(--mut);margin-top:8px">Muestra el <b>último</b> cambio de cada trabajador. El Excel trae <b>todos</b> los cambios con fecha y quién. "⚠ falta acuse" = su movimiento IMSS aún no está como MODIFICACIÓN CON ACUSE (archívalo en 📥 Importar → Acuses IMSS → MODIFICACIÓN DE SALARIO).</p>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn dark" onclick="exportControlSalarios()">⬇ Exportar Excel (todos los cambios)</button>
+    </div>`,'lg');
+}
+function exportControlSalarios(){
+  const {rows,wById,obraN}=window._CTRLSAL||{}; if(!rows||!rows.length){toast('No hay cambios que exportar.','err');return;}
+  const R=[],S=[];
+  R.push(['CONTROL DE CAMBIOS DE SALARIO — '+new Date().toLocaleDateString('es-MX')]);S.push(ST.title);
+  R.push(['FECHA','TRABAJADOR','OBRA','SD ANTES','SD DESPUÉS','SDI ANTES','SDI DESPUÉS','SEMANAL ANTES','SEMANAL DESPUÉS','MOV. IMSS ACTUAL','¿ACUSE MOD.?','QUIÉN']);S.push(ST.head);
+  const rs=[ST.cellC,ST.cell,ST.cell,ST.money,ST.money,ST.money,ST.money,ST.money,ST.money,ST.cellC,ST.cellC,ST.cell];
+  rows.forEach(h=>{const w=wById[h.trabajador_id]||{},a=h.datos_antes,b=h.datos_despues;
+    const conAcuse=String(w.movimiento_imss||'').includes('MODIFICACION')&&String(w.movimiento_imss||'').includes('ACUSE');
+    R.push([new Date(h.fecha).toLocaleDateString('es-MX'),h.trabajador_nombre,obraN(w.obra_id),
+      _n(a?.sd)??'',_n(b?.sd)??'',_n(a?.sdi)??'',_n(b?.sdi)??'',_n(a?.sal_semanal)??'',_n(b?.sal_semanal)??'',
+      w.movimiento_imss||'',conAcuse?'SÍ':'NO',h.usuario||'sistema']);
+    S.push(rs);});
+  const ws=buildSheet(R,S,[12,30,22,11,11,11,11,12,12,22,11,24],[{s:{r:0,c:0},e:{r:0,c:11}}],[{hpt:24},{hpt:26}]);
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:1+rows.length,c:11}})};
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'CAMBIOS DE SALARIO');
+  dl(wb,`CONTROL_CAMBIOS_SALARIO_${today()}.xlsx`);
+  toast('Excel de control de salarios generado.','ok');
 }
 
 /* ---------- helpers de Excel con estilo corporativo ---------- */
@@ -2568,7 +2673,7 @@ function openPdfImport(){
       <p style="color:var(--mut);margin-bottom:14px">Sube uno o varios PDFs (individuales o combinados). La app <b>lee cada página</b>, encuentra el NSS o CURP y lo liga al trabajador. Los PDFs combinados se separan solos por trabajador. Nada se guarda hasta que confirmes.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
         <div><label>Categoría</label><select id="pdf-cat" onchange="pdfCatChange()"><option value="ACUSE_IMSS">ACUSE IMSS</option><option value="RECIBO_NOMINA">RECIBO DE NÓMINA</option></select></div>
-        <div><label>Tipo de movimiento</label><select id="pdf-sub"><option>ALTA</option><option>BAJA</option><option>MODIFICACION SALARIAL</option></select></div>
+        <div><label>Tipo de movimiento</label><select id="pdf-sub"><option>ALTA</option><option>BAJA</option><option>MODIFICACION SALARIAL</option></select><div class="fhint">"MODIFICACION SALARIAL" = acuse IMSS de modificación de salario (mov. 08). Al archivarlo, deja el movimiento IMSS en "MODIFICACIÓN CON ACUSE".</div></div>
         <div><label>Semana (opcional)</label><input id="pdf-sem" placeholder="S15"></div>
         <div><label>Fecha del documento</label><input id="pdf-fecha" type="date" value="${today()}"></div>
       </div>
