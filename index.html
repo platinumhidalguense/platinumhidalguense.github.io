@@ -880,7 +880,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-03.1';
+const APP_VERSION='2026-08-03.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -5995,14 +5995,19 @@ function calcPrestaciones(id){
   const diasEsteAnio=Math.max(0,Math.round((fin-Math.max(ini,inicioAnio))/86400000))+1;
   const diasPend=parseInt($('f-pr-dias')?$('f-pr-dias').value:0)||0;
   const salarioPend=diasPend*sd;
-  const aguinaldo=sd*15*(diasEsteAnio/365);
+  // NOI (actualización de la contadora): el AGUINALDO proporcional se calcula
+  // con un día MENOS — se resta el día de baja (días del año − 1). Las VACACIONES
+  // y la prima vacacional siguen con los días inclusivos. Ej.: antigüedad 106 →
+  // vacaciones 106 días, aguinaldo 105 días. Verificado contra NOI y la contadora.
+  const diasAgAnio=Math.max(0,diasEsteAnio-1);
+  const aguinaldo=sd*15*(diasAgAnio/365);
   const diasVacAct=diasVacaciones(anios+1);
   const vacProp=sd*diasVacAct*(diasAnio/365);
   const primaVac=vacProp*0.25;
   let rows=[
     ['Antigüedad',`${anios} año(s) y ${diasAnio} día(s)`],
     ['Salarios pendientes',`$${money(salarioPend)} (${diasPend} días × $${money(sd)})`],
-    ['Aguinaldo proporcional',`$${money(aguinaldo)} (15 días × ${diasEsteAnio}/365)`],
+    ['Aguinaldo proporcional',`$${money(aguinaldo)} (15 días × ${diasAgAnio}/365 · sin el día de baja)`],
     ['Vacaciones proporcionales',`$${money(vacProp)} (${diasVacAct} días del año en curso, proporcional)`],
     ['Prima vacacional 25%',`$${money(primaVac)}`]
   ];
