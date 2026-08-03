@@ -880,7 +880,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-03.3';
+const APP_VERSION='2026-08-03.4';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1106,7 +1106,8 @@ function openDetail(id){
       ${w.estatus==='ACTIVO'?`<button class="btn" style="color:#8a6d1a;border-color:#ecd9a0" onclick="openPendiente('${w.id}')">⏸ Pasar a PENDIENTE</button>
       <button class="btn" onclick="openTransferencia('${w.id}')">🔁 Transferir de obra</button>`:''}
       ${w.estatus!=='BAJA'
-        ?`<button class="btn danger" onclick="openBaja('${w.id}')">Dar de BAJA</button>`
+        ?`<button class="btn" onclick="openSeparacionDoc('${w.id}')">📄 Documento de separación</button>
+           <button class="btn danger" onclick="openBaja('${w.id}')">Dar de BAJA</button>`
         :`<button class="btn" onclick="openRenuncia('${w.id}')">📄 Renuncia y finiquito</button>
            <button class="btn" onclick="doReactivar('${w.id}')">Reactivar (nueva alta)</button>`}
       <button class="btn dark" onclick="openForm('${w.id}')">✎ Modificar</button>
@@ -4995,6 +4996,46 @@ function generarBajaDoc(id){
   if(cat==='ABANDONO DE TRABAJO')return openActaForm ? openActaAbandono(id) : null;
   if(cat==='DEFUNCION')return openDefuncion(id);
   return openConvenio(id); // TERMINO DE CONTRATO U OBRA, MUTUO ACUERDO, OTRO
+}
+/* v.4: generar el DOCUMENTO de separación aunque el trabajador siga ACTIVO
+   (renuncia + recibo, convenio, aviso de rescisión, acta de abandono, defunción)
+   SIN darlo de baja ni tocar la base. Útil para imprimirlo y recabar firma antes
+   de procesar la baja. Parchea los datos en memoria solo para armar el documento
+   y los restaura enseguida. Si además se quiere registrar la baja, se usa "Dar de
+   BAJA". */
+function openSeparacionDoc(id){
+  const w=WORKERS.find(x=>x.id===id); if(!w)return;
+  modal(`
+    <div class="m-head"><h2>📄 Documento de separación · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);margin-bottom:12px">Genera el documento (renuncia + recibo de finiquito, convenio, aviso de rescisión, acta de abandono o pago a beneficiarios) <b>sin dar de baja</b> al trabajador — queda ACTIVO. Ideal para imprimirlo y recabar la firma antes de procesar la baja. Cuando ya vayas a formalizarla, usa <b>“Dar de BAJA”</b>.</p>
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div><label>Fecha de separación *</label><input id="sd-fecha" type="date" value="${today()}"></div>
+        <div><label>Motivo (define el documento) *</label><select id="sd-motivo">${MOTIVOS_BAJA.map(m=>`<option ${m===(w.motivo_baja||'')?'selected':''}>${m}</option>`).join('')}</select></div>
+        <div><label>Monto finiquito ($)</label><input id="sd-fin" type="number" step="0.01" value="${w.monto_finiquito??''}" placeholder="usa 🧮 Prestaciones para calcularlo"></div>
+        <div><label>Detalle / observación</label><input id="sd-det" placeholder="opcional"></div>
+      </div>
+      <p style="margin-top:10px;font-size:11.5px;color:var(--mut)">Renuncia → carta de renuncia + recibo · Término de contrato/obra o mutuo acuerdo → convenio de terminación (art. 53 LFT) + recibo · Despido justificado → aviso de rescisión (art. 47) · Abandono → acta de hechos · Defunción → pago a beneficiarios (art. 115). <b>No cambia el estatus del trabajador.</b></p>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn dark" onclick="generarSeparacionDoc('${id}')">📄 Generar documento</button>
+    </div>`,'md');
+}
+function generarSeparacionDoc(id){
+  const w=WORKERS.find(x=>x.id===id); if(!w)return;
+  const f=$('sd-fecha').value||today();
+  const cat=$('sd-motivo').value;
+  const fin=$('sd-fin').value?parseFloat($('sd-fin').value):null;
+  const det=$('sd-det').value.trim().toUpperCase();
+  // parche EN MEMORIA (no se guarda; no cambia el estatus). Se restaura enseguida.
+  const bak={fecha_baja:w.fecha_baja,monto_finiquito:w.monto_finiquito,motivo_baja:w.motivo_baja,observaciones:w.observaciones};
+  w.fecha_baja=f; w.monto_finiquito=fin; w.motivo_baja=cat;
+  if(det)w.observaciones=(w.observaciones?w.observaciones+' | ':'')+'SEPARACION (borrador): '+cat+' — '+det;
+  closeModal();
+  try{ generarBajaDoc(id); }         // los generadores leen w.* de forma síncrona
+  finally{ Object.assign(w,bak); }   // restaura los valores originales de inmediato
+  toast('Documento generado (borrador, sin baja). El trabajador sigue ACTIVO.','ok');
 }
 function bajaDocBase(w){
   const cc=cartaCfg();
