@@ -880,7 +880,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-03.2';
+const APP_VERSION='2026-08-03.3';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -4671,17 +4671,20 @@ function catalogoPuestos(){
 }
 /* --- ISR 2026 (Anexo 8 RMF, DOF 28/12/2025) --- */
 const ISR_M=[[0.01,844.59,0,1.92],[844.60,7168.51,16.22,6.40],[7168.52,12598.02,420.95,10.88],[12598.03,14644.64,1011.68,16.00],[14644.65,17533.64,1339.14,17.92],[17533.65,35362.83,1856.84,21.36],[35362.84,55736.68,5665.16,23.52],[55736.69,106410.50,10457.09,30.00],[106410.51,141880.66,25659.23,32.00],[141880.67,425641.99,37009.69,34.00],[425642.00,1e12,133488.54,35.00]];
-function isrTarifa(base,factor){ // factor 1=mensual, 7*12/365=semanal
+function isrTarifa(base,factor,raw){ // factor 1=mensual, 7*12/365=semanal
+  // raw=true devuelve el ISR SIN redondear (para que el NETO del finiquito se
+  // redondee una sola vez al final, como NOI). Por defecto (nómina semanal)
+  // redondea a 2 decimales, EXACTAMENTE como antes — no afecta el motor.
   if(base<=0)return 0;
   for(const [li,ls,cf,pc] of ISR_M){
     const LI=li*factor,LS=ls*factor,CF=cf*factor;
-    if(base>=LI&&base<=LS)return Math.round((CF+(base-LI)*pc/100)*100)/100;
+    if(base>=LI&&base<=LS){const v=CF+(base-LI)*pc/100;return raw?v:Math.round(v*100)/100;}
   }
   return 0;
 }
 const F_SEM=7*12/365;
 function isrSemanal(b){return isrTarifa(b,F_SEM);}
-function isrMensual(b){return isrTarifa(b,1);}
+function isrMensual(b,raw){return isrTarifa(b,1,raw);}
 /* --- INFONAVIT con seguro de daños ($15/bimestre, portal INFONAVIT) --- */
 function diasBimestreActual(d=new Date()){
   const m=d.getMonth(); const b0=m-(m%2);
@@ -6027,9 +6030,10 @@ function calcPrestaciones(id){
   const f26=FISC();
   const exAg=Math.min(aguinaldo,30*f26.uma), exPV=Math.min(primaVac,15*f26.uma);
   const gravado=Math.max(0,(aguinaldo-exAg)+(primaVac-exPV)+vacProp);
-  const isrFin=isrMensual(gravado);
+  const isrFin=isrMensual(gravado);          // redondeado, SOLO para mostrar
+  const isrFinRaw=isrMensual(gravado,true);  // sin redondear, para el NETO (como NOI)
   rows.push(['Retención de ISR (Anexo 8, gravado $'+money(gravado)+')',`−$${money(isrFin)}`]);
-  total-=isrFin;
+  total-=isrFinRaw;
   // v33: RETENCIÓN PROPORCIONAL DE INFONAVIT (si el trabajador tiene crédito activo).
   // Ley: al darse de baja, la amortización se retiene proporcional a los días
   // efectivamente trabajados del bimestre; aquí sobre los "días trabajados sin
@@ -6039,15 +6043,17 @@ function calcPrestaciones(id){
   const infoDesc=(typeof DESC!=='undefined'?DESC:[]).find(d=>d.trabajador_id===w.id&&d.activo&&d.recurrente&&String(d.tipo).toUpperCase()==='INFONAVIT');
   if(infoDesc&&diasPend>0){
     const semanal=Number(infoDesc.monto)||0;
-    const infoProp=Math.round(semanal/7*diasPend*100)/100;
+    const infoPropRaw=semanal/7*diasPend;
+    const infoProp=Math.round(infoPropRaw*100)/100;
     if(infoProp>0){
       rows.push([`Retención INFONAVIT proporcional (${diasPend} día(s) × $${money(semanal/7)}/día)`,`−$${money(infoProp)}`]);
-      total-=infoProp;
+      total-=infoPropRaw;
     }
   }
   PR_TOTAL=Math.round(total*100)/100;
   $('pr-out').innerHTML=rows.map(r=>`<div class="kv"><b>${r[0]}</b><span>${r[1]}</span></div>`).join('')+
-    `<div class="kv" style="background:#f2f6fc;font-weight:800;padding:10px 8px"><b>TOTAL</b><span>$${money(PR_TOTAL)}</span></div>`;
+    `<div class="kv" style="background:#f2f6fc;font-weight:800;padding:10px 8px"><b>TOTAL</b><span>$${money(PR_TOTAL)}</span></div>`+
+    `<div style="font-size:11px;color:var(--mut);margin-top:4px">Neto calculado con precisión completa y redondeado una sola vez al centavo, igual que NOI (es la cantidad que se factura). Por eso los conceptos redondeados de arriba pueden verse con ±1¢ contra el total.</div>`;
 }
 function usarEnBaja(id){
   const t=PR_TOTAL;
