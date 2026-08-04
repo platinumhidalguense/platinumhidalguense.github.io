@@ -895,7 +895,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-03.7';
+const APP_VERSION='2026-08-03.8';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -6112,10 +6112,9 @@ function calcPrestaciones(id){
   const f26=FISC();
   const exAg=Math.min(aguinaldo,30*f26.uma), exPV=Math.min(primaVac,15*f26.uma);
   const gravado=Math.max(0,(aguinaldo-exAg)+(primaVac-exPV)+vacProp);
-  const isrFin=isrMensual(gravado);          // redondeado, SOLO para mostrar
-  const isrFinRaw=isrMensual(gravado,true);  // sin redondear, para el NETO (como NOI)
+  const isrFin=isrMensual(gravado);
   rows.push(['Retención de ISR (Anexo 8, gravado $'+money(gravado)+')',`−$${money(isrFin)}`]);
-  total-=isrFinRaw;
+  total-=isrFin;
   // v33: RETENCIÓN PROPORCIONAL DE INFONAVIT (si el trabajador tiene crédito activo).
   // Ley: al darse de baja, la amortización se retiene proporcional a los días
   // efectivamente trabajados del bimestre; aquí sobre los "días trabajados sin
@@ -6129,10 +6128,14 @@ function calcPrestaciones(id){
     const infoProp=Math.round(infoPropRaw*100)/100;
     if(infoProp>0){
       rows.push([`Retención INFONAVIT proporcional (${diasPend} día(s) × $${money(semanal/7)}/día)`,`−$${money(infoProp)}`]);
-      total-=infoPropRaw;
+      total-=infoProp;
     }
   }
-  const modeloTotal=Math.round(total*100)/100;
+  // El total se muestra TAL CUAL sale, TRUNCADO a 2 decimales (NO redondea hacia
+  // arriba): 499.9978 → 499.99. El +1e-6 solo absorbe el error de punto flotante
+  // para que un .XX exacto no pierda el último centavo. (Config previa al ajuste
+  // del 03/ago; para cuadrar con NOI usa el campo "Finiquito según NOI".)
+  const modeloTotal=Math.floor(total*100+1e-6)/100;
   // "Finiquito según NOI" (opcional): si se captura, MANDA sobre el modelo, y el
   // cheque saldrá con ese monto exacto (lo que factura NOI). El modelo se sigue
   // mostrando para comparar el centavo.
@@ -6143,7 +6146,7 @@ function calcPrestaciones(id){
   $('pr-out').innerHTML=rows.map(r=>`<div class="kv"><b>${r[0]}</b><span>${r[1]}</span></div>`).join('')+
     `<div class="kv" style="background:#f2f6fc;font-weight:800;padding:10px 8px"><b>TOTAL ${noiV!=null?'(modelo)':''}</b><span>$${money(modeloTotal)}</span></div>`+
     (noiV!=null?`<div class="kv" style="background:var(--green-bg);font-weight:800;padding:10px 8px"><b>✔ FINIQUITO NOI (este va al cheque)</b><span>$${money(noiV)}${dif?` · dif ${dif>0?'+':''}$${money(Math.abs(dif))} vs modelo`:' · idéntico al modelo'}</span></div>`:'')+
-    `<div style="font-size:11px;color:var(--mut);margin-top:4px">${noiV!=null?'El cheque de finiquito saldrá con el <b>monto de NOI</b> capturado arriba (es lo que se factura).':'Neto con precisión completa, redondeado una sola vez al centavo, como NOI. Si NOI te arroja un centavo distinto, captúralo en “Finiquito según NOI” y el cheque saldrá con ese monto.'}</div>`;
+    `<div style="font-size:11px;color:var(--mut);margin-top:4px">${noiV!=null?'El cheque de finiquito saldrá con el <b>monto de NOI</b> capturado arriba (es lo que se factura).':'El total se muestra <b>tal cual sale</b>, a 2 decimales <b>sin redondear hacia arriba</b> (ej. 499.9978 → 499.99). Si NOI te arroja otro centavo, captúralo en “Finiquito según NOI” y el cheque saldrá con ese monto.'}</div>`;
 }
 function usarEnBaja(id){
   const t=PR_TOTAL;
