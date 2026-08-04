@@ -615,6 +615,21 @@ function modal(html,w=''){
   }
   $('modals').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal ${w}">${html}</div></div>`;
 }
+/* modal ANIDADO: se apila SOBRE el modal actual sin destruirlo (para asistentes
+   que necesitan leer/escribir campos del formulario de atrás, p. ej. la dirección). */
+function modal2(html,w=''){
+  const d=document.createElement('div');
+  d.className='overlay';
+  d.style.zIndex='120';
+  d.innerHTML=`<div class="modal ${w}">${html}</div>`;
+  d.addEventListener('click',e=>{if(e.target===d)closeModal2();});
+  $('modals').appendChild(d);
+}
+function closeModal2(){
+  const ov=$('modals').querySelectorAll('.overlay');
+  if(ov.length>1)ov[ov.length-1].remove();   // quita solo el modal de encima, deja el formulario
+  else closeModal();
+}
 function markWrite(){lastLocalWrite=Date.now();}
 
 /* ---------- arranque ---------- */
@@ -880,7 +895,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-03.5';
+const APP_VERSION='2026-08-03.6';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1216,6 +1231,7 @@ function openForm(id){
         ${fld('funciones','Funciones',w?w.funciones:'',{cls:'c4'})}
         ${fld('fecha_alta','Fecha alta',w?(w.fecha_alta||''):today(),{type:'date'})}
         ${w?fld('fecha_reingreso','Fecha de reingreso',w.fecha_reingreso||'',{type:'date',hint:'Solo si volvió a entrar tras una baja. La antigüedad se cuenta desde aquí; déjala vacía para quitarla.'}):''}
+        ${(w&&w.estatus!=='BAJA'&&w.fecha_baja)?fld('fecha_baja','Fecha de baja anterior',w.fecha_baja||'',{type:'date',hint:'De una baja previa (fue reactivado). Déjala vacía para eliminarla.'}):''}
         ${fld('semana_ingreso','Semana ingreso',w?w.semana_ingreso:'NOMINA '+isoWeek())}
         <div><label>Periodo de pago</label><select id="f-periodo_pago">${['SEMANAL','QUINCENAL'].map(p=>`<option ${((w&&w.periodo_pago)||'SEMANAL')===p?'selected':''}>${p}</option>`).join('')}</select></div>
         <div><label>Movimiento IMSS</label><select id="f-movimiento_imss">${['SIN MOVIMIENTO','ALTA PRESENTADA','ALTA CON ACUSE','MODIFICACION PRESENTADA','MODIFICACION CON ACUSE','BAJA PRESENTADA','BAJA CON ACUSE'].map(m2=>`<option ${((w&&w.movimiento_imss)||'SIN MOVIMIENTO')===m2?'selected':''}>${m2}</option>`).join('')}</select></div>
@@ -1416,8 +1432,8 @@ function openDireccionAsistente(){
   const cpM=actual.match(/\b(\d{5})\b/);
   const colM=actual.match(/COL(?:ONIA)?\.?\s+([^,]+)/i);
   const partes=actual.split(',').map(s=>s.trim()).filter(Boolean);
-  modal(`
-    <div class="m-head"><h2>🏠 Asistente de dirección · formato oficial</h2><button class="x" onclick="closeModal()">×</button></div>
+  modal2(`
+    <div class="m-head"><h2>🏠 Asistente de dirección · formato oficial</h2><button class="x" onclick="closeModal2()">×</button></div>
     <div class="m-body">
       <p style="color:var(--mut);margin-bottom:12px;font-size:12.5px">Captura por partes y la app arma el domicilio en el <b>orden oficial de Correos de México</b> (calle y número → colonia → C.P., municipio, estado), con las abreviaturas normalizadas (AV. → AVENIDA, COL. → COLONIA, etc.). Todo se procesa en tu computadora: <b>no se consulta ningún servicio externo</b>.</p>
       <div class="grid" style="grid-template-columns:2fr 1fr 1fr">
@@ -1439,7 +1455,7 @@ function openDireccionAsistente(){
       <div class="fhint" style="margin-top:8px">El C.P. no se puede deducir solo de la calle sin un servicio de mapas de paga; tómalo del recibo de luz/agua del trabajador o consúltalo en <a href="https://www.correosdemexico.gob.mx/SSLServicios/ConsultaCP/Descarga.aspx" target="_blank">el buscador oficial de Correos de México</a>.</div>
     </div>
     <div class="m-foot">
-      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn" onclick="closeModal2()">Cancelar</button>
       <button class="btn dark" onclick="aplicarDireccion()">💾 Usar esta dirección</button>
     </div>`,'md');
   ['da-calle','da-ext','da-int','da-col','da-loc','da-cp','da-mun','da-edo'].forEach(id=>{
@@ -1464,10 +1480,10 @@ function dirPreview(){
 function aplicarDireccion(){
   const t=dirTexto();
   if(!t){toast('Captura al menos la calle.','err');return;}
-  $('f-direccion').value=t;
+  if($('f-direccion'))$('f-direccion').value=t;
   const cp=(($('da-cp')&&$('da-cp').value)||'').replace(/\D/g,'');
   if(cp.length===5&&$('f-cp'))$('f-cp').value=cp;
-  closeModal();
+  closeModal2();
   toast('Dirección aplicada en formato oficial.','ok');
 }
 /* ---------- v32: autorrelleno masivo de los trabajadores YA capturados ---------- */
@@ -1588,7 +1604,9 @@ function collectForm(){
     docs, drive_link:g('drive_link')
   };
   // edición de baja (solo si el formulario los muestra)
-  if($('f-fecha_baja')){out.fecha_baja=g('fecha_baja')||null;out.monto_finiquito=g('monto_finiquito')?parseFloat(g('monto_finiquito')):null;out.motivo_baja=$('f-motivo_baja').value;}
+  if($('f-fecha_baja'))out.fecha_baja=g('fecha_baja')||null;
+  if($('f-monto_finiquito'))out.monto_finiquito=g('monto_finiquito')?parseFloat(g('monto_finiquito')):null;
+  if($('f-motivo_baja'))out.motivo_baja=$('f-motivo_baja').value;
   // fecha de reingreso editable (solo al editar; vacío = quitarla)
   if($('f-fecha_reingreso'))out.fecha_reingreso=g('fecha_reingreso')||null;
   // registro patronal / prima RT PROPIOS del trabajador (override; vacío = usa el de la obra)
