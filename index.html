@@ -355,6 +355,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
             <button onclick="toggleMenu('menu-docs');openRequisicion()">🪪 Requisición de tarjetas</button>
             <button onclick="toggleMenu('menu-docs');openRecepcionTarjetas()">✍ Recepción de tarjetas (acuse p/ firmas)</button>
             <button onclick="toggleMenu('menu-docs');openLegajos()">🗂 Legajos para entrega de cheques</button>
+            <button onclick="toggleMenu('menu-docs');openFaltanRecibos()">📋 Faltan recibos de nómina (por semana)</button>
             <button onclick="toggleMenu('menu-docs');openProyeccion()">💰 Proyección de nómina</button>
             <button onclick="toggleMenu('menu-docs');openProyContratista()">👷 Proyección por contratista (todas las obras)</button>
             <div class="sep"></div>
@@ -896,7 +897,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-03.9';
+const APP_VERSION='2026-08-04.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2685,6 +2686,18 @@ async function exportProyContratista(){
   toast(n?`${n} proyección(es) generadas — un Excel por contratista, con fórmulas en los totales.`:'Ningún contratista con personal en ese filtro.',n?'ok':'err');
 }
 /* ---------- IMPORTAR PDFs (acuses IMSS y recibos de nómina) ---------- */
+/* Detecta la SEMANA de un recibo NOI desde su periodo ("Del DD/Mmm/AA al ...").
+   Así, aunque subas un lote de varias semanas, cada recibo se archiva en su
+   semana correcta (antes se usaba una sola semana escrita a mano para todo). */
+const _MABREV={ENE:0,FEB:1,MAR:2,ABR:3,MAY:4,JUN:5,JUL:6,AGO:7,SEP:8,OCT:9,NOV:10,DIC:11};
+function detectaSemanaRecibo(txt){
+  const m=String(txt||'').match(/Del\s+(\d{1,2})\/([A-Za-zÁÉÍÓÚ]{3})[A-Za-z]*\/(\d{2,4})/i);
+  if(!m)return null;
+  const mo=_MABREV[m[2].toUpperCase().slice(0,3)]; if(mo==null)return null;
+  const yy=+m[3], y=yy<100?2000+yy:yy;
+  const d=new Date(y,mo,+m[1],12,0,0); if(isNaN(d.getTime()))return null;
+  const wk=isoWeekDe(OBRA,d); return wk>0?('S'+wk):null;
+}
 let PDFIMP=[];
 function openPdfImport(){
   modal(`
@@ -2725,10 +2738,12 @@ async function parsePdfs(inp){
     try{
       const buf=await file.arrayBuffer();
       const doc=await pdfjsLib.getDocument({data:buf.slice(0)}).promise;
-      const owners=[];
+      const owners=[],texts=[];
       for(let p=1;p<=doc.numPages;p++){
         const tc=await (await doc.getPage(p)).getTextContent();
-        owners.push(matchWorkerInText(tc.items.map(it=>it.str).join(' ').toUpperCase()));
+        const t=tc.items.map(it=>it.str).join(' ');
+        texts.push(t);
+        owners.push(matchWorkerInText(t.toUpperCase()));
       }
       const groups=[];let cur=null;
       owners.forEach((w,idx)=>{
@@ -2738,7 +2753,7 @@ async function parsePdfs(inp){
       });
       if(groups.length<=1){
         const w=groups.length?groups[0].w:null;
-        PDFIMP.push({name:file.name,bytes:buf,ownerId:w?w.id:null,pages:doc.numPages,sel:!!w});
+        PDFIMP.push({name:file.name,bytes:buf,ownerId:w?w.id:null,pages:doc.numPages,sel:!!w,sem:detectaSemanaRecibo(texts[0]||'')});
       }else{
         const src=await PDFLib.PDFDocument.load(buf,{ignoreEncryption:true});
         for(const g of groups){
@@ -2746,7 +2761,7 @@ async function parsePdfs(inp){
           const idxs=[];for(let k=g.from;k<=g.to;k++)idxs.push(k);
           const cp=await nd.copyPages(src,idxs);cp.forEach(pg=>nd.addPage(pg));
           const bytes=await nd.save();
-          PDFIMP.push({name:file.name.replace(/\.pdf$/i,'')+`_p${g.from+1}-${g.to+1}.pdf`,bytes,ownerId:g.w?g.w.id:null,pages:idxs.length,sel:!!g.w});
+          PDFIMP.push({name:file.name.replace(/\.pdf$/i,'')+`_p${g.from+1}-${g.to+1}.pdf`,bytes,ownerId:g.w?g.w.id:null,pages:idxs.length,sel:!!g.w,sem:detectaSemanaRecibo(texts[g.from]||'')});
         }
       }
     }catch(e){PDFIMP.push({name:file.name,error:String(e).slice(0,80),sel:false});}
@@ -2794,7 +2809,7 @@ function renderPdfImp(){
       ?`<div class="imp-row" style="grid-template-columns:26px 1.6fr 1.6fr .8fr"><span></span><span>${esc(x.name)}</span><span style="color:var(--red)">${esc(x.error)}</span><span class="imp-tag imp-SINREGISTRO">ERROR</span></div>`
       :`<div class="imp-row" style="grid-template-columns:26px 1.6fr 1.6fr .8fr${x.dup?';background:var(--amber-bg)':''}">
         <span><input type="checkbox" style="width:auto" ${x.sel?'checked':''} onchange="PDFIMP[${i}].sel=this.checked"></span>
-        <span>${esc(x.name)}<br><span style="color:var(--mut);font-size:11px">${x.pages} pág.</span>${x.dup?`<br><span style="color:var(--amber);font-size:11px;font-weight:700">⚠ DUPLICADO: ${esc(x.dup)}</span>`:''}</span>
+        <span>${esc(x.name)}<br><span style="color:var(--mut);font-size:11px">${x.pages} pág.${x.sem?' · semana <b style="color:var(--green)">'+esc(x.sem)+'</b> (auto)':''}</span>${x.dup?`<br><span style="color:var(--amber);font-size:11px;font-weight:700">⚠ DUPLICADO: ${esc(x.dup)}</span>`:''}</span>
         <span><select onchange="PDFIMP[${i}].ownerId=this.value||null;PDFIMP[${i}].sel=!!this.value">
           <option value="">— asignar trabajador —</option>
           ${WORKERS.map(w=>`<option value="${w.id}" ${x.ownerId===w.id?'selected':''}>${esc(fullName(w))}</option>`).join('')}
@@ -2820,7 +2835,7 @@ async function applyPdfImport(){
     const {error:e1}=await sb.storage.from('expedientes').upload(path,new Blob([x.bytes],{type:'application/pdf'}));
     if(e1){fail++;continue;}
     const fila={trabajador_id:x.ownerId,obra_id:w?w.obra_id:OBRA.id,categoria:cat,
-      subtipo:cat==='ACUSE_IMSS'?sub:'RECIBO',semana:sem,fecha_doc:fd,archivo:path,nombre_archivo:x.name.slice(0,120),subido_por:USER.email,hash:x.hash||''};
+      subtipo:cat==='ACUSE_IMSS'?sub:'RECIBO',semana:((cat==='RECIBO_NOMINA'&&x.sem)||sem),fecha_doc:fd,archivo:path,nombre_archivo:x.name.slice(0,120),subido_por:USER.email,hash:x.hash||''};
     let {error:e2}=await sb.from('documentos').insert(fila);
     if(e2&&/hash/i.test(e2.message||'')){delete fila.hash;({error:e2}=await sb.from('documentos').insert(fila));} // si falta el Script 33, archiva sin huella
     if(e2){fail++;continue;}
@@ -6099,6 +6114,61 @@ ${RENUNCIA_CSS}`;
   if(!win){toast('Permite ventanas emergentes para abrir el documento.','err');return;}
   toast(`Documento armado: ${cand.length} trabajador(es)${faltan.length?` · ${faltan.length} sin recibo (revísalos)`:''}. Imprime o guarda como PDF.`,faltan.length?'err':'ok');
   if(faltan.length)setTimeout(()=>alert('Estos NO traen recibo de nómina archivado (revísalos e impórtalos si aplica):\n\n• '+faltan.join('\n• ')),600);
+}
+/* ---------- AVISO: recibos de nómina faltantes por trabajador (2026-08-03) ----
+   Desde la fecha de alta de cada trabajador y hasta la semana pasada, detecta qué
+   semanas NO tienen recibo de nómina archivado (RECIBO_NOMINA). Usa activoEn para
+   respetar reingresos/bajas. La semana en curso no cuenta. Quincenales aparte. */
+function openFaltanRecibos(){
+  const hoyW=isoWeekDe(OBRA,new Date());
+  const base=new Date((OBRA.fecha_inicio?String(OBRA.fecha_inicio).slice(0,10):SEMANA1)+'T12:00');
+  const monISO=W=>{const d=new Date(base);d.setDate(base.getDate()+(W-1)*7);return d.toISOString().slice(0,10);};
+  const filas=[];
+  WORKERS.filter(w=>w.fecha_alta&&String(w.periodo_pago||'SEMANAL')!=='QUINCENAL').forEach(w=>{
+    const sW=Math.max(1,isoWeekDe(OBRA,new Date(w.fecha_alta+'T12:00')));
+    const eW=(w.estatus==='BAJA'&&w.fecha_baja)?isoWeekDe(OBRA,new Date(w.fecha_baja+'T12:00')):(hoyW-1);
+    const falt=[];
+    for(let W=sW;W<=eW;W++){
+      if(!activoEn(w,monISO(W)))continue;
+      const tiene=(DOCSX||[]).some(d=>!d.anulado&&d.categoria==='RECIBO_NOMINA'&&d.trabajador_id===w.id&&normSem(d.semana)===String(W));
+      if(!tiene)falt.push(W);
+    }
+    if(falt.length)filas.push({w,falt});
+  });
+  filas.sort((a,b)=>b.falt.length-a.falt.length||((a.w.no_trab)||9e9)-((b.w.no_trab)||9e9));
+  window._FALTREC=filas;
+  const totalFalt=filas.reduce((s,x)=>s+x.falt.length,0);
+  modal(`
+    <div class="m-head"><h2>📋 Faltan recibos de nómina · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Desde la <b>fecha de alta</b> de cada trabajador (y hasta la semana pasada), detecta qué semanas <b>no tienen recibo de nómina archivado</b> (categoría RECIBO DE NÓMINA). Respeta reingresos y bajas. La semana en curso no se cuenta (aún no se paga). Los <b>quincenales</b> (oficina) se revisan aparte.</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <span class="imp-tag imp-CONFLICTO">${filas.length} trabajador(es) con faltantes</span>
+        <span class="imp-tag imp-SINREGISTRO">${totalFalt} recibo(s) faltantes</span>
+      </div>
+      ${filas.length?`<div class="imp-row head" style="grid-template-columns:1.5fr 2.5fr"><span>Trabajador</span><span>Semanas sin recibo</span></div>
+      ${filas.map(x=>`<div class="imp-row" style="grid-template-columns:1.5fr 2.5fr">
+        <span><b>${esc(fullName(x.w))}</b> ${x.w.estatus==='BAJA'?'<span class="badge BAJA" style="font-size:9.5px">BAJA</span>':''}<br><span style="color:var(--mut);font-size:11px">#${x.w.no_trab??'—'} · alta ${fmtD(x.w.fecha_alta)}</span></span>
+        <span style="font-size:12px">${x.falt.map(W=>'<span class="badge PENDIENTE" style="font-size:10px;margin:1px">S'+W+'</span>').join(' ')}</span>
+      </div>`).join('')}`:'<div class="empty">✔ Todos tienen sus recibos de nómina archivados (semanas cerradas).</div>'}
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      ${filas.length?`<button class="btn dark" onclick="exportFaltanRecibos()">⬇ Exportar Excel</button>`:''}
+    </div>`,'lg');
+}
+function exportFaltanRecibos(){
+  const filas=window._FALTREC||[]; if(!filas.length)return;
+  const rows=[],styles=[];
+  rows.push([`RECIBOS DE NÓMINA FALTANTES — ${OBRA.nombre} — ${new Date().toLocaleDateString('es-MX')}`]);styles.push(ST.title);
+  rows.push(['NO.','TRABAJADOR','ESTATUS','FECHA ALTA','SEMANAS SIN RECIBO','CUÁNTAS']);styles.push(ST.head);
+  const rs=[ST.cellC,ST.cell,ST.cellC,ST.cellC,ST.cell,ST.cellC];
+  filas.forEach(x=>{rows.push([x.w.no_trab??'',fullName(x.w),x.w.estatus,fmtD(x.w.fecha_alta),x.falt.map(W=>'S'+W).join(', '),x.falt.length]);styles.push(rs);});
+  const ws=buildSheet(rows,styles,[8,30,12,13,52,9],[{s:{r:0,c:0},e:{r:0,c:5}}],[{hpt:24},{hpt:26}]);
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:1+filas.length,c:5}})};
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'FALTAN RECIBOS');
+  dl(wb,`RECIBOS_FALTANTES_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}_${today()}.xlsx`);
+  toast('Excel de recibos faltantes generado.','ok');
 }
 function openRenuncia(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
