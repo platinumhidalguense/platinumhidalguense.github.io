@@ -895,7 +895,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-03.6';
+const APP_VERSION='2026-08-03.7';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -6054,6 +6054,10 @@ function openPrestaciones(id){
         ${fld('pr-dias','Días trabajados sin pagar',0,{type:'number',extra:`oninput="calcPrestaciones('${id}')" min="0"`})}
         <div><label>¿Despido injustificado?</label><select id="pr-despido" onchange="calcPrestaciones('${id}')"><option value="NO">No (renuncia/término)</option><option value="SI">Sí (indemnización)</option></select></div>
       </div>
+      <div class="grid" style="grid-template-columns:1fr 2fr;margin-top:8px;align-items:end">
+        <div><label>Finiquito según NOI ($) — opcional</label><input id="pr-noi" type="number" step="0.01" placeholder="para cuadrar al centavo" oninput="calcPrestaciones('${id}')"></div>
+        <div style="font-size:11.5px;color:var(--mut);padding-bottom:8px">Si lo capturas, el <b>cheque</b> de finiquito usará EXACTAMENTE ese monto (lo que factura NOI) y te muestro la diferencia contra el cálculo del modelo. Déjalo vacío para usar el del modelo.</div>
+      </div>
       <div id="pr-out" style="margin-top:16px"></div>
       <p style="font-size:11.5px;color:var(--mut);margin-top:10px">Cálculo conforme a LFT vigente: aguinaldo 15 días (art. 87), vacaciones desde 12 días (art. 76), prima vacacional 25% (art. 80), indemnización 3 meses + 20 días/año con salario integrado (arts. 48-50) y prima de antigüedad 12 días/año con tope de 2 salarios mínimos (art. 162). Si el trabajador tiene <b>crédito INFONAVIT activo</b>, se descuenta la amortización proporcional a los días trabajados sin pagar (cuota diaria = cuota semanal ÷ 7). Verificar con contador y contra la cédula del SUA antes de pagar.</p>
     </div>
@@ -6128,10 +6132,18 @@ function calcPrestaciones(id){
       total-=infoPropRaw;
     }
   }
-  PR_TOTAL=Math.round(total*100)/100;
+  const modeloTotal=Math.round(total*100)/100;
+  // "Finiquito según NOI" (opcional): si se captura, MANDA sobre el modelo, y el
+  // cheque saldrá con ese monto exacto (lo que factura NOI). El modelo se sigue
+  // mostrando para comparar el centavo.
+  const noiRaw=$('pr-noi')?$('pr-noi').value:'';
+  const noiV=(noiRaw!==''&&!isNaN(parseFloat(noiRaw)))?Math.round(parseFloat(noiRaw)*100)/100:null;
+  PR_TOTAL=(noiV!=null)?noiV:modeloTotal;
+  const dif=(noiV!=null)?Math.round((noiV-modeloTotal)*100)/100:0;
   $('pr-out').innerHTML=rows.map(r=>`<div class="kv"><b>${r[0]}</b><span>${r[1]}</span></div>`).join('')+
-    `<div class="kv" style="background:#f2f6fc;font-weight:800;padding:10px 8px"><b>TOTAL</b><span>$${money(PR_TOTAL)}</span></div>`+
-    `<div style="font-size:11px;color:var(--mut);margin-top:4px">Neto calculado con precisión completa y redondeado una sola vez al centavo, igual que NOI (es la cantidad que se factura). Por eso los conceptos redondeados de arriba pueden verse con ±1¢ contra el total.</div>`;
+    `<div class="kv" style="background:#f2f6fc;font-weight:800;padding:10px 8px"><b>TOTAL ${noiV!=null?'(modelo)':''}</b><span>$${money(modeloTotal)}</span></div>`+
+    (noiV!=null?`<div class="kv" style="background:var(--green-bg);font-weight:800;padding:10px 8px"><b>✔ FINIQUITO NOI (este va al cheque)</b><span>$${money(noiV)}${dif?` · dif ${dif>0?'+':''}$${money(Math.abs(dif))} vs modelo`:' · idéntico al modelo'}</span></div>`:'')+
+    `<div style="font-size:11px;color:var(--mut);margin-top:4px">${noiV!=null?'El cheque de finiquito saldrá con el <b>monto de NOI</b> capturado arriba (es lo que se factura).':'Neto con precisión completa, redondeado una sola vez al centavo, como NOI. Si NOI te arroja un centavo distinto, captúralo en “Finiquito según NOI” y el cheque saldrá con ese monto.'}</div>`;
 }
 function usarEnBaja(id){
   const t=PR_TOTAL;
