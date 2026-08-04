@@ -897,7 +897,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-04.1';
+const APP_VERSION='2026-08-04.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1058,7 +1058,8 @@ function openDetail(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
   const d=w.docs||{};
   const kv=(l,v)=>`<div class="kv"><b>${l}</b><span>${(v??'')||'—'}</span></div>`;
-  const chq=CHEQUES.filter(c=>c.trabajador_id===id||(w.curp&&c.curp===w.curp));
+  const chq=CHEQUES.filter(c=>c.trabajador_id===id||(w.curp&&c.curp===w.curp))
+    .sort((a,b)=>(parseInt(String(a.semana||'').replace(/\D/g,''))||0)-(parseInt(String(b.semana||'').replace(/\D/g,''))||0));
   const _ids=navTrabajadores(), _pos=_ids.indexOf(id);
   const _nav=_ids.length>1?`<div class="ficha-nav">
       <button class="btn" ${_pos<=0?'disabled':''} onclick="abrirTrabajadorVecino('${id}',-1)" title="Trabajador anterior">‹</button>
@@ -6008,10 +6009,20 @@ function renunciaPagesHTML(w,o){
     <div class="firma"><br><br><div class="linea"><b>${nom}</b><br>FIRMA Y HUELLA</div></div>
   </div>`;
 }
-function renunciaOpts(w,monto){
+function renunciaOpts(w,monto,fecha){
   const cc=cartaCfg();
   const e=CFGEMP['empresa_'+((w.contratista==='JIRE')?'JIRE':'PLATINUM')]||{razon:'COMERCIALIZADORA PLATINUM HIDALGUENSE'};
-  return {razon:(e.razon||'').toUpperCase(),sufijo:cc.sufijo,dest:cc.dest,f1:w.fecha_baja||today(),f2:w.fecha_baja||today(),monto,lugar:cc.lugar};
+  const f=fecha||w.fecha_baja||today();   // MISMA fecha en carta y recibo (sin fechas distintas)
+  return {razon:(e.razon||'').toUpperCase(),sufijo:cc.sufijo,dest:cc.dest,f1:f,f2:f,monto,lugar:cc.lugar};
+}
+/* Último día (domingo) de la semana de un cheque, según la fecha de inicio de la
+   obra. Es la fecha con la que se llena el cheque y que DEBE salir igual en la
+   carta de renuncia y el recibo de finiquito del legajo. */
+function domingoDeSemana(sem){
+  const W=parseInt(normSem(sem))||0; if(!W)return null;
+  const base=new Date((OBRA.fecha_inicio?String(OBRA.fecha_inicio).slice(0,10):SEMANA1)+'T12:00');
+  const d=new Date(base); d.setDate(base.getDate()+(W-1)*7+6);
+  return d.toISOString().slice(0,10);
 }
 /* ---------- LEGAJOS PARA ENTREGA DE CHEQUES (2026-08-03) ----------
    Un solo documento para imprimir de golpe: por cada trabajador con cheque de la
@@ -6054,14 +6065,14 @@ function openLegajos(){
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cerrar</button>
-      <button class="btn dark hide" id="lg-btn" onclick="generarLegajos()">🖨 Generar documento para imprimir</button>
+      <button class="btn dark hide" id="lgj-btn" onclick="generarLegajos()">🖨 Generar documento para imprimir</button>
     </div>`,'lg');
 }
 function lgVer(){
   const sems=($('lg-sem').value||'').split(',').map(s=>s.trim()).filter(Boolean);
   const cand=legajoCandidatos(sems);
   window._LEG=cand;
-  if(!cand.length){$('lg-out').innerHTML='<div class="empty">No hay cheques en esa(s) semana(s) en esta obra.</div>';$('lg-btn').classList.add('hide');return;}
+  if(!cand.length){$('lg-out').innerHTML='<div class="empty">No hay cheques en esa(s) semana(s) en esta obra.</div>';$('lgj-btn').classList.add('hide');return;}
   const conRec=cand.filter(x=>x.recs.length).length, sinRec=cand.length-conRec, bajas=cand.filter(x=>x.esBaja).length;
   $('lg-out').innerHTML=`
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
@@ -6077,15 +6088,15 @@ function lgVer(){
       <span style="font-size:11.5px">${x.recs.length?`<b style="color:var(--green)">✔ recibo</b>`:`<b style="color:var(--amber)">⚠ sin recibo</b>`}</span>
       <span style="font-size:11.5px;color:var(--mut)">${x.esBaja?'+ carta + finiquito':'solo recibo'}</span>
     </div>`).join('')}`;
-  $('lg-btn').classList.remove('hide');
+  $('lgj-btn').classList.remove('hide');
 }
 async function generarLegajos(){
   const cand=(window._LEG||[]).filter((x,i)=>$('lg-'+i)&&$('lg-'+i).checked);
   if(!cand.length){toast('Marca al menos un trabajador.','err');return;}
-  $('lg-btn').innerHTML='<span class="spin"></span> Armando... (0/'+cand.length+')';
+  $('lgj-btn').innerHTML='<span class="spin"></span> Armando... (0/'+cand.length+')';
   let body='', faltan=[], n=0;
   for(const x of cand){
-    n++; $('lg-btn').innerHTML=`<span class="spin"></span> Armando... (${n}/${cand.length})`;
+    n++; $('lgj-btn').innerHTML=`<span class="spin"></span> Armando... (${n}/${cand.length})`;
     const nombre=x.w?fullName(x.w):x.c.nombre;
     // recibo(s) de nómina archivados → imagen
     if(!x.recs.length)faltan.push(nombre+' (sin recibo archivado)');
@@ -6100,10 +6111,10 @@ async function generarLegajos(){
     // baja/finiquito → carta + recibo de finiquito
     if(x.esBaja&&x.w){
       const monto=Number(x.c.importe)||Number(x.w.monto_finiquito)||0;
-      body+=renunciaPagesHTML(x.w,renunciaOpts(x.w,monto));
+      body+=renunciaPagesHTML(x.w,renunciaOpts(x.w,monto,domingoDeSemana(x.c.semana)));
     }
   }
-  $('lg-btn').innerHTML='🖨 Generar documento para imprimir';
+  $('lgj-btn').innerHTML='🖨 Generar documento para imprimir';
   if(!body){toast('No se armó nada (¿ningún recibo archivado y ninguna baja?).','err');return;}
   const css=`.pg-img{page-break-after:always;text-align:center;margin:0}
 .pg-img img{width:100%;max-width:800px;display:block;margin:0 auto}
