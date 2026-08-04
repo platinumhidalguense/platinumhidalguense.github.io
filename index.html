@@ -354,6 +354,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
             <button onclick="toggleMenu('menu-docs');openAsistencia()">📝 Listas de asistencia + directorio</button>
             <button onclick="toggleMenu('menu-docs');openRequisicion()">🪪 Requisición de tarjetas</button>
             <button onclick="toggleMenu('menu-docs');openRecepcionTarjetas()">✍ Recepción de tarjetas (acuse p/ firmas)</button>
+            <button onclick="toggleMenu('menu-docs');openLegajos()">🗂 Legajos para entrega de cheques</button>
             <button onclick="toggleMenu('menu-docs');openProyeccion()">💰 Proyección de nómina</button>
             <button onclick="toggleMenu('menu-docs');openProyContratista()">👷 Proyección por contratista (todas las obras)</button>
             <div class="sep"></div>
@@ -895,7 +896,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-03.8';
+const APP_VERSION='2026-08-03.9';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -5957,6 +5958,148 @@ function cartaCfg(){
   const c=CFGEMP['carta_finiquito']||{};
   return {dest:c.dest||'Licenciado Miguel Ángel Jiménez Alvarado', sufijo:c.sufijo||'Sociedad Anónima de Capital Variable', lugar:c.lugar||'Pachuca de Soto, Hidalgo'};
 }
+/* ---------- Texto oficial de renuncia + recibo de finiquito (fuente ÚNICA) ---- */
+const RENUNCIA_CSS=`body{font-family:'Times New Roman',serif;font-size:13.5px;line-height:1.7;color:#111;margin:0}
+.pg{max-width:700px;margin:0 auto;padding:60px 40px 40px;min-height:88vh;text-align:justify}
+h1{font-size:15px;text-align:center;letter-spacing:1px;margin-bottom:26px}
+.fecha{text-align:right;margin-bottom:26px}
+.firma{margin-top:80px;text-align:center}
+.firma .linea{border-top:1px solid #111;width:330px;margin:0 auto;padding-top:6px}
+.testigos{display:flex;justify-content:space-between;gap:40px;margin-top:70px;text-align:center}
+.testigos div{flex:1}
+.testigos .linea{border-top:1px solid #111;padding-top:6px;font-size:12px}
+@media print{.pg{page-break-after:always;min-height:auto}}`;
+function renunciaPagesHTML(w,o){
+  const fmtL=d=>{const x=new Date((d||today())+'T12:00');return `${x.getDate()} de ${MES[x.getMonth()].toLowerCase()} del ${x.getFullYear()}`;};
+  const EMP=`&ldquo;<b>${esc(o.razon)}</b>&rdquo; ${esc(o.sufijo||'')}`;
+  const nom=esc(fullName(w)), puesto=esc(w.puesto||'TRABAJADOR'), monto=Number(o.monto)||0;
+  return `<div class="pg">
+    <h1>CARTA DE RENUNCIA</h1>
+    <div class="fecha">${esc(o.lugar)} a ${fmtL(o.f1)}</div>
+    <p><b>${esc(o.dest)}</b><br>P R E S E N T E</p>
+    <p>Por medio de este conducto presento mi renuncia con carácter de irrevocable a partir del día ${fmtL(o.f1)}, fecha en que dejo de prestar mis servicios como <b>${puesto}</b>, que venía desempeñando en la empresa ${EMP}, dando así por terminada de manera voluntaria la relación de trabajo que tenía celebrada con la presente empresa por convenir así a mis intereses.</p>
+    <p>Asimismo, dejo asentado que no se me adeuda cantidad alguna, ya que mi sueldo y demás prestaciones me han sido totalmente liquidados, lo que hago plasmando mi firma, así como mi huella dactilar en el presente, ante 2 testigos.</p>
+    <p>Agradezco a usted sus atenciones, sin más por el momento, quedo de usted.</p>
+    <div class="firma"><b>ATENTAMENTE</b><br><br><br><br><div class="linea"><b>${nom}</b><br>FIRMA Y HUELLA</div></div>
+    <div class="testigos"><div><br><br><div class="linea">TESTIGO</div></div><div><br><br><div class="linea">TESTIGO</div></div></div>
+  </div>
+  <div class="pg">
+    <h1>RECIBO FINIQUITO</h1>
+    <div class="fecha">${esc(o.lugar)} a ${fmtL(o.f2)}</div>
+    <p>Recibí de la empresa ${EMP}, la cantidad de: <b>$${money(monto)} (${numLetras(monto)})</b> por motivo de renuncia voluntaria con la misma.</p>
+    <p>Este recibo causa finiquito y hago constar que ${EMP}, me ha concedido todas y cada una de las prestaciones a las cuales tengo derecho; de igual manera confirmo que no se me adeuda cantidad alguna en dinero, especie o de ningún otro tipo por concepto derivado de la relación laboral conforme a la Ley Federal del Trabajo. Hago constar que en el tiempo que estuve prestando mis servicios en la empresa mencionada anteriormente no sufrí accidentes de trabajo ni enfermedad alguna.</p>
+    <p>Deslindo a la empresa ${EMP} de cualquier responsabilidad o adeudo hacia mi persona, quedando totalmente de acuerdo con lo que se menciona en este recibo de finiquito.</p>
+    <p><b>${nom}</b>, declaro que recibí esta cantidad como pago que cubre el más amplio finiquito al término de mi contrato como <b>${puesto}</b> de ${EMP}, y manifiesto expresamente que no se me adeuda cantidad alguna por ningún concepto en virtud de haber sido pagadas todas y cada una de las prestaciones contractuales a las que tengo derecho, como salarios devengados, vacaciones y prima vacacional, aguinaldo, días de descanso obligatorios, etc., así como gratificaciones especiales por algún concepto que involuntariamente se hubiese omitido pagarme. En el desempeño de mis labores, no fui objeto de maltrato por parte de mi jefe inmediato, compañeros y/o representante legal. Expreso que no me reservo acción ni derecho alguno en contra de quien sus intereses representa por ningún concepto, por lo que se me otorga la más amplia liquidación.</p>
+    <div class="firma"><br><br><div class="linea"><b>${nom}</b><br>FIRMA Y HUELLA</div></div>
+  </div>`;
+}
+function renunciaOpts(w,monto){
+  const cc=cartaCfg();
+  const e=CFGEMP['empresa_'+((w.contratista==='JIRE')?'JIRE':'PLATINUM')]||{razon:'COMERCIALIZADORA PLATINUM HIDALGUENSE'};
+  return {razon:(e.razon||'').toUpperCase(),sufijo:cc.sufijo,dest:cc.dest,f1:w.fecha_baja||today(),f2:w.fecha_baja||today(),monto,lugar:cc.lugar};
+}
+/* ---------- LEGAJOS PARA ENTREGA DE CHEQUES (2026-08-03) ----------
+   Un solo documento para imprimir de golpe: por cada trabajador con cheque de la
+   semana elegida, su RECIBO DE NÓMINA (PDF archivado en el expediente, renderizado
+   a imagen con pdf.js) y, si es BAJA/finiquito, su CARTA DE RENUNCIA + RECIBO DE
+   FINIQUITO (mismo texto oficial que el generador individual). */
+const normSem=s=>String(s||'').replace(/\D/g,'');
+async function pdfBytesToImgs(bytes,scale){
+  const doc=await pdfjsLib.getDocument({data:bytes}).promise; const out=[];
+  for(let p=1;p<=doc.numPages;p++){
+    const page=await doc.getPage(p), vp=page.getViewport({scale:scale||1.6});
+    const cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
+    await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+    out.push(cv.toDataURL('image/jpeg',0.82));
+  }
+  return out;
+}
+function legajoCandidatos(sems){
+  const set=new Set((sems||[]).map(normSem).filter(Boolean));
+  const byW=new Map();
+  (CHEQUES||[]).filter(c=>!c.eliminado&&set.has(normSem(c.semana))).forEach(c=>{
+    const k=c.trabajador_id||('N:'+c.nombre); if(byW.has(k))return;
+    const w=WORKERS.find(x=>x.id===c.trabajador_id)||null;
+    const recs=(DOCSX||[]).filter(d=>!d.anulado&&d.categoria==='RECIBO_NOMINA'&&w&&d.trabajador_id===w.id&&set.has(normSem(d.semana)));
+    const esBaja=!!(w&&(w.estatus==='BAJA'||String(c.tipo_pago).toUpperCase()==='FINIQUITO'));
+    byW.set(k,{c,w,recs,esBaja});
+  });
+  return [...byW.values()].sort((a,b)=>((a.w&&a.w.no_trab)||9e9)-((b.w&&b.w.no_trab)||9e9));
+}
+function openLegajos(){
+  modal(`
+    <div class="m-head"><h2>🗂 Legajos para entrega de cheques · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Arma <b>un solo documento</b> para imprimir de golpe: por cada trabajador con cheque de la(s) semana(s) que elijas, su <b>recibo de nómina</b> (el PDF que importaste a su ficha) y —si es <b>baja</b>— su <b>carta de renuncia + recibo de finiquito</b>. El recibo de nómina debe estar archivado en la ficha (📥 Importar → Acuses IMSS y recibos, categoría RECIBO DE NÓMINA).</p>
+      <div class="grid" style="grid-template-columns:1fr auto;align-items:end;gap:10px">
+        <div><label>Semana(s) de pago — separa con coma (ej. S15, S16)</label><input id="lg-sem" value="S${isoWeek()}" placeholder="S15, S16"></div>
+        <div><button class="btn dark" onclick="lgVer()">Ver trabajadores</button></div>
+      </div>
+      <div id="lg-out" style="margin-top:12px;max-height:360px;overflow:auto"></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn dark hide" id="lg-btn" onclick="generarLegajos()">🖨 Generar documento para imprimir</button>
+    </div>`,'lg');
+}
+function lgVer(){
+  const sems=($('lg-sem').value||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const cand=legajoCandidatos(sems);
+  window._LEG=cand;
+  if(!cand.length){$('lg-out').innerHTML='<div class="empty">No hay cheques en esa(s) semana(s) en esta obra.</div>';$('lg-btn').classList.add('hide');return;}
+  const conRec=cand.filter(x=>x.recs.length).length, sinRec=cand.length-conRec, bajas=cand.filter(x=>x.esBaja).length;
+  $('lg-out').innerHTML=`
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <span class="imp-tag imp-COINCIDE">${cand.length} trabajador(es)</span>
+      <span class="imp-tag imp-ASIGNAR">${conRec} con recibo</span>
+      <span class="imp-tag imp-CONFLICTO">${sinRec} SIN recibo archivado</span>
+      <span class="imp-tag imp-SINREGISTRO">${bajas} baja(s) → carta + finiquito</span>
+      <span style="margin-left:auto;font-size:11.5px"><a href="#" onclick="window._LEG.forEach((x,i)=>$('lg-'+i).checked=true);return false">todos</a> · <a href="#" onclick="window._LEG.forEach((x,i)=>$('lg-'+i).checked=false);return false">ninguno</a></span>
+    </div>
+    ${cand.map((x,i)=>`<div class="imp-row" style="grid-template-columns:26px 1.6fr 1fr 1.2fr">
+      <span><input type="checkbox" id="lg-${i}" checked></span>
+      <span><b>${esc(x.w?fullName(x.w):x.c.nombre)}</b> ${x.esBaja?'<span class="badge BAJA" style="font-size:9.5px">BAJA</span>':''}<br><span style="color:var(--mut);font-size:11px">#${(x.w&&x.w.no_trab)??'—'} · ${esc(x.c.semana)} · $${money(x.c.importe)}</span></span>
+      <span style="font-size:11.5px">${x.recs.length?`<b style="color:var(--green)">✔ recibo</b>`:`<b style="color:var(--amber)">⚠ sin recibo</b>`}</span>
+      <span style="font-size:11.5px;color:var(--mut)">${x.esBaja?'+ carta + finiquito':'solo recibo'}</span>
+    </div>`).join('')}`;
+  $('lg-btn').classList.remove('hide');
+}
+async function generarLegajos(){
+  const cand=(window._LEG||[]).filter((x,i)=>$('lg-'+i)&&$('lg-'+i).checked);
+  if(!cand.length){toast('Marca al menos un trabajador.','err');return;}
+  $('lg-btn').innerHTML='<span class="spin"></span> Armando... (0/'+cand.length+')';
+  let body='', faltan=[], n=0;
+  for(const x of cand){
+    n++; $('lg-btn').innerHTML=`<span class="spin"></span> Armando... (${n}/${cand.length})`;
+    const nombre=x.w?fullName(x.w):x.c.nombre;
+    // recibo(s) de nómina archivados → imagen
+    if(!x.recs.length)faltan.push(nombre+' (sin recibo archivado)');
+    for(const d of x.recs){
+      try{
+        const {data:blob,error}=await sb.storage.from('expedientes').download(d.archivo);
+        if(error||!blob){faltan.push(nombre+' (no se pudo descargar el recibo)');continue;}
+        const imgs=await pdfBytesToImgs(new Uint8Array(await blob.arrayBuffer()),1.6);
+        body+=imgs.map(src=>`<div class="pg-img"><img src="${src}"></div>`).join('');
+      }catch(e){faltan.push(nombre+' (recibo ilegible)');}
+    }
+    // baja/finiquito → carta + recibo de finiquito
+    if(x.esBaja&&x.w){
+      const monto=Number(x.c.importe)||Number(x.w.monto_finiquito)||0;
+      body+=renunciaPagesHTML(x.w,renunciaOpts(x.w,monto));
+    }
+  }
+  $('lg-btn').innerHTML='🖨 Generar documento para imprimir';
+  if(!body){toast('No se armó nada (¿ningún recibo archivado y ninguna baja?).','err');return;}
+  const css=`.pg-img{page-break-after:always;text-align:center;margin:0}
+.pg-img img{width:100%;max-width:800px;display:block;margin:0 auto}
+${RENUNCIA_CSS}`;
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Legajos ${esc(OBRA.nombre)}</title><style>${css}</style></head><body>${body}<script>window.onload=()=>setTimeout(()=>window.print(),400)<\/script></body></html>`;
+  const url=URL.createObjectURL(new Blob([html],{type:'text/html'}));
+  const win=window.open(url,'_blank');
+  if(!win){toast('Permite ventanas emergentes para abrir el documento.','err');return;}
+  toast(`Documento armado: ${cand.length} trabajador(es)${faltan.length?` · ${faltan.length} sin recibo (revísalos)`:''}. Imprime o guarda como PDF.`,faltan.length?'err':'ok');
+  if(faltan.length)setTimeout(()=>alert('Estos NO traen recibo de nómina archivado (revísalos e impórtalos si aplica):\n\n• '+faltan.join('\n• ')),600);
+}
 function openRenuncia(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
   const cc=cartaCfg();
@@ -6012,28 +6155,7 @@ async function generarRenunciaDoc(id){
   .testigos .linea{border-top:1px solid #111;padding-top:6px;font-size:12px}
   @media print{.pg{page-break-after:always;min-height:auto}}
   </style></head><body>
-  <div class="pg">
-    <h1>CARTA DE RENUNCIA</h1>
-    <div class="fecha">${esc(cc.lugar)} a ${fmtL(f1)}</div>
-    <p><b>${esc(dest)}</b><br>P R E S E N T E</p>
-    <p>Por medio de este conducto presento mi renuncia con carácter de irrevocable a partir del día ${fmtL(f1)}, fecha en que dejo de prestar mis servicios como <b>${puesto}</b>, que venía desempeñando en la empresa ${EMP}, dando así por terminada de manera voluntaria la relación de trabajo que tenía celebrada con la presente empresa por convenir así a mis intereses.</p>
-    <p>Asimismo, dejo asentado que no se me adeuda cantidad alguna, ya que mi sueldo y demás prestaciones me han sido totalmente liquidados, lo que hago plasmando mi firma, así como mi huella dactilar en el presente, ante 2 testigos.</p>
-    <p>Agradezco a usted sus atenciones, sin más por el momento, quedo de usted.</p>
-    <div class="firma"><b>ATENTAMENTE</b><br><br><br><br><div class="linea"><b>${nom}</b><br>FIRMA Y HUELLA</div></div>
-    <div class="testigos">
-      <div><br><br><div class="linea">TESTIGO</div></div>
-      <div><br><br><div class="linea">TESTIGO</div></div>
-    </div>
-  </div>
-  <div class="pg">
-    <h1>RECIBO FINIQUITO</h1>
-    <div class="fecha">${esc(cc.lugar)} a ${fmtL(f2)}</div>
-    <p>Recibí de la empresa ${EMP}, la cantidad de: <b>$${money(monto)} (${numLetras(monto)})</b> por motivo de renuncia voluntaria con la misma.</p>
-    <p>Este recibo causa finiquito y hago constar que ${EMP}, me ha concedido todas y cada una de las prestaciones a las cuales tengo derecho; de igual manera confirmo que no se me adeuda cantidad alguna en dinero, especie o de ningún otro tipo por concepto derivado de la relación laboral conforme a la Ley Federal del Trabajo. Hago constar que en el tiempo que estuve prestando mis servicios en la empresa mencionada anteriormente no sufrí accidentes de trabajo ni enfermedad alguna.</p>
-    <p>Deslindo a la empresa ${EMP} de cualquier responsabilidad o adeudo hacia mi persona, quedando totalmente de acuerdo con lo que se menciona en este recibo de finiquito.</p>
-    <p><b>${nom}</b>, declaro que recibí esta cantidad como pago que cubre el más amplio finiquito al término de mi contrato como <b>${puesto}</b> de ${EMP}, y manifiesto expresamente que no se me adeuda cantidad alguna por ningún concepto en virtud de haber sido pagadas todas y cada una de las prestaciones contractuales a las que tengo derecho, como salarios devengados, vacaciones y prima vacacional, aguinaldo, días de descanso obligatorios, etc., así como gratificaciones especiales por algún concepto que involuntariamente se hubiese omitido pagarme. En el desempeño de mis labores, no fui objeto de maltrato por parte de mi jefe inmediato, compañeros y/o representante legal. Expreso que no me reservo acción ni derecho alguno en contra de quien sus intereses representa por ningún concepto, por lo que se me otorga la más amplia liquidación.</p>
-    <div class="firma"><br><br><div class="linea"><b>${nom}</b><br>FIRMA Y HUELLA</div></div>
-  </div>
+  ${renunciaPagesHTML(w,{razon,sufijo,dest,f1,f2,monto,lugar:cc.lugar})}
   <script>window.onload=()=>window.print()<\/script></body></html>`;
   const win=window.open('','_blank');
   if(!win){toast('Permite ventanas emergentes para generar el documento.','err');return;}
