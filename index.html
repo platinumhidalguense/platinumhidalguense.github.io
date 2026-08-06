@@ -370,6 +370,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
           <div class="menu-list">
             <button onclick="toggleMenu('menu-imp');openImportExp()">🏦 Respuesta del banco (.exp) → Excel + acuse</button>
             <button onclick="toggleMenu('menu-imp');openImport()">🏦 Cuentas del banco (Excel)</button>
+            <button onclick="toggleMenu('menu-imp');openImportPago()">💸 Pago global BBVA (transferencias)</button>
             <button onclick="toggleMenu('menu-imp');openPdfImport()">📎 Acuses IMSS y recibos (PDF)</button>
             <button onclick="toggleMenu('menu-imp');openCfdiImport()">🧾 CFDI timbrados (XML)</button>
           </div>
@@ -429,6 +430,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
         </select>
         <button class="btn gold" onclick="openChequeForm(null)">＋ Nuevo cheque</button>
         <button class="btn dark" onclick="openChequesDesdeRecibos()">🧾 Verificar/generar desde recibos</button>
+        <button class="btn dark" onclick="openControlPagos()">🔁 Control de pagos (cheque + transferencia)</button>
         <button class="btn dark" onclick="exportCheques()">⬇ Exportar cheques</button>
       </div>
       <div class="tbl-card">
@@ -529,7 +531,21 @@ const DOCS = ["SOLICITUD DE EMPLEO","INE","CONSTANCIA DE SITUACION (RFC)","NSS (
 const BANCOS = {"012":"BBVA","127":"AZTECA","002":"BANAMEX","014":"SANTANDER","072":"BANORTE","021":"HSBC","137":"BANCOPPEL","030":"BAJIO","036":"INBURSA","058":"BANREGIO","044":"SCOTIABANK","646":"STP","722":"MERCADO PAGO","638":"NU MEXICO","661":"KLAR","166":"BANCO DEL BIENESTAR"};
 const RX = {curp:/^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/, rfc:/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{2,3}$/, nss:/^\d{11}$/, clabe:/^\d{18}$/, cp:/^\d{5}$/, tel:/^\d{10}$/, mail:/^[^\s@]+@[^\s@]+\.[^\s@]+$/};
 
-let sb=null, USER=null, OBRAS=[], OBRA=null, WORKERS=[], CHEQUES=[], DESC=[], DOCSX=[], VAC=[], ACTAS=[], NOM=[], VIEW='trab';
+let sb=null, USER=null, OBRAS=[], OBRA=null, WORKERS=[], CHEQUES=[], DESC=[], DOCSX=[], VAC=[], ACTAS=[], NOM=[], PAGOS=[], VIEW='trab';
+/* Supabase corta cada consulta a 1000 filas. Con cientos de trabajadores y miles
+   de recibos/cheques eso deja fuera muchos registros (por eso "solo salían los
+   últimos recibos"). fetchAllRows pagina con .range() hasta traerlos TODOS. */
+async function fetchAllRows(makeQuery){
+  const CH=1000; let from=0, all=[];
+  for(;;){
+    const {data,error}=await makeQuery().range(from,from+CH-1);
+    if(error)return {data:all,error};
+    all=all.concat(data||[]);
+    if(!data||data.length<CH)break;
+    from+=CH;
+  }
+  return {data:all,error:null};
+}
 let CONTRATISTAS=[]; // v21: control REPSE por contratista — bitácora 100% interna, sin conexión a STPS/SAT/IMSS
 let _DASHCHARTS=[]; // v24: instancias de Chart.js del dashboard ejecutivo, para destruir al refiltrar/cerrar
 /* v20: PAPELERA — solo el administrador puede eliminar/restaurar trabajadores.
@@ -858,17 +874,18 @@ async function selectObra(id){
   await loadObraData(id);
 }
 async function loadObraData(id){
-  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm}]=await Promise.all([
-    sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false),
-    sb.from('cheques').select('*').eq('obra_id',id),
-    sb.from('descuentos').select('*').eq('obra_id',id),
-    sb.from('documentos').select('*').eq('obra_id',id).eq('anulado',false),
-    sb.from('vacaciones').select('*').eq('obra_id',id),
-    sb.from('actas').select('*').eq('obra_id',id),
-    sb.from('nom035').select('*').eq('obra_id',id)
+  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg}]=await Promise.all([
+    fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
+    fetchAllRows(()=>sb.from('cheques').select('*').eq('obra_id',id)),
+    fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id)),
+    fetchAllRows(()=>sb.from('documentos').select('*').eq('obra_id',id).eq('anulado',false)),
+    fetchAllRows(()=>sb.from('vacaciones').select('*').eq('obra_id',id)),
+    fetchAllRows(()=>sb.from('actas').select('*').eq('obra_id',id)),
+    fetchAllRows(()=>sb.from('nom035').select('*').eq('obra_id',id)),
+    fetchAllRows(()=>sb.from('pagos').select('*').eq('obra_id',id))
   ]);
   if(e1){toast('Error al cargar trabajadores: '+e1.message,'err');return;}
-  WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];
+  WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];PAGOS=pg||[];
   await activarProgramados();
   const cs=[...new Set(WORKERS.map(w=>w.contratista).filter(Boolean))].sort();
   const cur=$('flt-contratista').value;
@@ -898,7 +915,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-06.1';
+const APP_VERSION='2026-08-06.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1102,11 +1119,18 @@ function openDetail(id){
         <div class="kv"><b>NOM-035</b><span>${nomU?`${esc(nomU.guia)} · ${fmtD(nomU.fecha)} · <b>${esc(nomU.resultado)}</b>${nomU.requiere_atencion?' ⚠️':''}`:'Sin evaluación registrada'}</span></div>`;
       })()}
       ${(function(){
+        const byW=x=>parseInt(String(x.semana||'').replace(/\D/g,''))||0;
         const ac=DOCSX.filter(x=>x.trabajador_id===w.id&&x.categoria==='ACUSE_IMSS');
-        const re=DOCSX.filter(x=>x.trabajador_id===w.id&&(x.categoria==='RECIBO_NOMINA'||x.categoria==='CFDI_NOMINA'));
+        const re=DOCSX.filter(x=>x.trabajador_id===w.id&&(x.categoria==='RECIBO_NOMINA'||x.categoria==='CFDI_NOMINA')).sort((a,b)=>byW(a)-byW(b)||String(a.categoria).localeCompare(String(b.categoria)));
         const item=x=>`<div class="kv"><b>${esc(x.subtipo||'DOC')} ${esc(x.semana)}</b><span>${esc(x.nombre_archivo)} · ${fmtD(x.fecha_doc||x.created_at)} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:8px" onclick="verDoc('${x.id}')">📄 Ver</button> <button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="anularDoc('${x.id}','${w.id}')" title="Quitar del expediente (queda rastro de quién y por qué)">🗑</button></span></div>`;
+        const falt=faltantesReciboDe(w);
+        const faltHtml=falt.length
+          ?`<div class="kv" style="background:var(--amber-bg)"><b style="color:var(--amber)">⚠ Faltan ${falt.length}</b><span>${falt.map(W=>'<span class="badge PENDIENTE" style="font-size:10px;margin:1px">S'+W+'</span>').join(' ')} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:6px" onclick="openPdfImport()">📎 Importar recibos</button></span></div>`
+          :(re.length?`<div class="kv"><b style="color:var(--green)">✔ Completos</b><span>No falta ningún recibo de nómina (semanas cerradas).</span></div>`:'');
+        const reList=re.length?re.map(item).join(''):'<div class="kv"><b>—</b><span>Sin recibos archivados.</span></div>';
+        const reWrap=re.length>8?`<div style="max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:4px">${reList}</div>`:reList;
         return `<div class="sect">Acuses IMSS (${ac.length})</div>${ac.length?ac.map(item).join(''):'<div class="kv"><b>—</b><span>Sin acuses archivados. Súbelos con 📎 Importar PDFs.</span></div>'}
-        <div class="sect">Recibos de nómina (${re.length})</div>${re.length?re.map(item).join(''):'<div class="kv"><b>—</b><span>Sin recibos archivados.</span></div>'}`;
+        <div class="sect">Recibos de nómina (${re.length})</div>${faltHtml}${reWrap}`;
       })()}
       <div class="sect">Documentación (${docsOk(w)}/${DOCS.length} entregados)</div>
       ${DOCS.map(k=>`<div class="kv"><b>${k}</b><span>${d[k]==='ENTREGADO'?'✅ ENTREGADO':(d[k]==='NO APLICA'?'➖ NO APLICA':'⬜ PENDIENTE')}</span></div>`).join('')}
@@ -2868,6 +2892,257 @@ async function applyPdfImport(){
   closeModal();
   toast(`Expedientes actualizados: ${ok} documento(s) archivados${fail?`, ${fail} con error`:''}.`,fail?'err':'ok');
   await loadObraData(OBRA.id);
+}
+
+/* ============================================================
+   PAGOS POR TRANSFERENCIA — importar el "pago global" de BBVA (Script 44)
+   Lee el "Resumen general de Nómina en Tiempo Real" (PDF de la dispersión),
+   empareja cada renglón con un trabajador (por nombre + últimos 4 de cuenta),
+   CRUZA contra los cheques de la misma semana para evitar pagos DUPLICADOS
+   (transferencia + cheque), y guarda cada pago en la tabla `pagos`.
+   ============================================================ */
+/* Lee el PDF (texto de pdf.js): registros + encabezado (descripción/folio/fecha). */
+function parsePagoGlobal(t){
+  t=String(t||''); const records=[];
+  const rx=/(\d{1,2})\s+([A-Za-zÁÉÍÓÚáéíóú]{3,4})\.?\s+(\d{4})\s+\*(\d{2,6})\s+(.+?)\s+(Exitoso|Rechazado)\s+([\d,]+\.\d{2})\s*MXN/gi;
+  let m;
+  while((m=rx.exec(t))){
+    const mes=_MABREV[m[2].toUpperCase().slice(0,3)]; if(mes==null)continue;
+    records.push({day:+m[1],mes,year:+m[3],mask:m[4],titular:m[5].replace(/\s+/g,' ').trim(),
+      estado:/rech/i.test(m[6])?'RECHAZADO':'EXITOSO',importe:parseFloat(m[7].replace(/,/g,''))});
+  }
+  const d=t.match(/\bNOMINA[A-Z0-9]{2,}\b/i);
+  const f=t.match(/\b([0-9A-F]{32})\b/);
+  const fc=t.match(/(\d{1,2})\s+de\s+([A-Za-zÁÉÍÓÚáéíóú]+)\s+de\s+(\d{4})/i);
+  let fecha=null; if(fc){const mo=_MABREV[fc[2].toUpperCase().slice(0,3)]; if(mo!=null)fecha={y:+fc[3],m:mo,d:+fc[1]};}
+  return {records,descripcion:d?d[0]:'',folio:f?f[1]:'',fecha};
+}
+const _pgNorm=s=>String(s||'').toUpperCase().normalize('NFD').replace(/[^A-ZÑ ]/g,'').replace(/\s+/g,' ').trim();
+function _pgNameEq(a,b){const A=_pgNorm(a).split(' ').filter(Boolean).sort().join(' '),B=_pgNorm(b).split(' ').filter(Boolean).sort().join(' ');return !!A&&A===B;}
+function _pgOverlap(a,b){const A=new Set(_pgNorm(a).split(' ').filter(Boolean)),B=_pgNorm(b).split(' ').filter(Boolean);if(!B.length||!A.size)return 0;let c=0;B.forEach(w=>{if(A.has(w))c++;});return c/Math.max(A.size,B.length);}
+const _pgLast=(s,n)=>String(s||'').replace(/\D/g,'').slice(-n);
+function pagoAcctMatch(w,mask){const m=String(mask||'').replace(/\D/g,'');if(m.length<3)return false;return _pgLast(w.cuenta,m.length)===m||_pgLast(w.clabe,m.length)===m;}
+/* Empareja un renglón del reporte con un trabajador de la OBRA actual. */
+function matchPagoWorker(titular,mask){
+  const pool=WORKERS||[];
+  const exact=pool.filter(w=>_pgNameEq(fullName(w),titular));
+  if(exact.length===1)return exact[0];
+  const acct=pool.filter(w=>pagoAcctMatch(w,mask));
+  if(exact.length>1){const inter=exact.filter(w=>acct.includes(w));if(inter.length===1)return inter[0];return null;}
+  // sin coincidencia exacta de nombre
+  if(acct.length===1)return acct[0];
+  // por traslape alto de palabras + cuenta
+  if(acct.length>1){const best=acct.map(w=>({w,s:_pgOverlap(fullName(w),titular)})).sort((a,b)=>b.s-a.s);if(best[0]&&best[0].s>=0.6&&(!best[1]||best[1].s<best[0].s))return best[0].w;}
+  const ov=pool.map(w=>({w,s:_pgOverlap(fullName(w),titular)})).filter(x=>x.s>=0.8).sort((a,b)=>b.s-a.s);
+  if(ov.length===1)return ov[0].w;
+  return null;
+}
+/* Cheques NO cancelados del mismo trabajador en una semana (para detectar doble pago). */
+function chequeMismaSemana(w,ns){
+  if(!w||!ns)return [];
+  return (CHEQUES||[]).filter(c=>!c.eliminado&&c.trabajador_id===w.id&&normSem(c.semana)===ns&&String(c.estatus||'').toUpperCase()!=='CANCELADO'&&(c.importe!=null&&c.importe!==''));
+}
+let PAGOIMP=null;
+function openImportPago(){
+  modal(`
+    <div class="m-head"><h2>💸 Importar pago global BBVA · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px">Sube el PDF del <b>"Resumen general de Nómina en Tiempo Real"</b> que genera BBVA al dispersar. La app lee cada transferencia, la <b>empareja con el trabajador</b> (por nombre + últimos 4 de la cuenta) y la <b>cruza con los cheques</b> de esa semana para avisar posibles pagos <b>duplicados</b>. Empareja con los trabajadores de la <b>obra actual</b>.</p>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;align-items:end">
+        <div><label>Semana de la nómina pagada</label><input id="pg-sem" placeholder="S18" oninput="if(PAGOIMP)pgRender()"></div>
+        <div><input type="file" id="pg-file" accept=".pdf" onchange="pgParse(this)"></div>
+      </div>
+      <div id="pg-head" style="margin-top:10px"></div>
+      <div id="pg-out" style="margin-top:10px;max-height:400px;overflow:auto"></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn dark hide" id="pg-btn" onclick="applyPagoImport()">💾 Registrar pagos seleccionados</button>
+    </div>`,'lg');
+}
+async function pgParse(inp){
+  const file=inp.files&&inp.files[0]; if(!file)return;
+  if(!window.pdfjsLib){toast('La librería de PDF no cargó. Revisa tu internet y reabre la app.','err');return;}
+  $('pg-out').innerHTML='<div class="empty">Leyendo el PDF...</div>';
+  const buf=await file.arrayBuffer();
+  const hash=await sha256Hex(buf.slice(0));
+  let txt=''; try{txt=await pdfBytesToText(new Uint8Array(buf.slice(0)));}catch(e){$('pg-out').innerHTML='<div class="empty">No se pudo leer el PDF.</div>';return;}
+  const parsed=parsePagoGlobal(txt);
+  if(!parsed.records.length){$('pg-out').innerHTML='<div class="empty">No encontré transferencias en el PDF. ¿Es el "Resumen general de Nómina en Tiempo Real" de BBVA?</div>';$('pg-btn').classList.add('hide');return;}
+  // sugerir semana desde la fecha de pago
+  if(parsed.fecha&&$('pg-sem')&&!$('pg-sem').value.trim()){
+    const wk=isoWeekDe(OBRA,new Date(parsed.fecha.y,parsed.fecha.m,parsed.fecha.d,12,0,0));
+    if(wk>0)$('pg-sem').value='S'+wk;
+  }
+  // ¿este mismo reporte ya se importó?
+  let yaImport=false; try{const {data}=await sb.from('pagos').select('id').eq('hash',hash).limit(1);yaImport=!!(data&&data.length);}catch(e){}
+  const rows=parsed.records.map(r=>{
+    const w=matchPagoWorker(r.titular,r.mask);
+    return {mask:r.mask,titular:r.titular,estado:r.estado,importe:r.importe,
+      fecha:`${r.year}-${String(r.mes+1).padStart(2,'0')}-${String(r.day).padStart(2,'0')}`,
+      wId:w?w.id:null, sel:(!!w&&r.estado==='EXITOSO'), already:false};
+  });
+  PAGOIMP={hash,file:file.name,descripcion:parsed.descripcion,folio:parsed.folio,fechaPago:parsed.fecha,yaImport,rows};
+  pgRender();
+}
+function pgRender(){
+  if(!PAGOIMP)return;
+  const ns=normSem($('pg-sem')?$('pg-sem').value:'');
+  const matched=PAGOIMP.rows.filter(r=>r.wId).length, sinM=PAGOIMP.rows.length-matched;
+  const suma=PAGOIMP.rows.reduce((s,r)=>s+(r.importe||0),0);
+  const nRech=PAGOIMP.rows.filter(r=>r.estado==='RECHAZADO').length;
+  $('pg-head').innerHTML=`<div style="background:var(--blue-bg,#eef3fb);border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.7">
+    <b>${esc(PAGOIMP.descripcion||'Reporte BBVA')}</b> · ${PAGOIMP.rows.length} transferencia(s) · total $${money(suma)}${PAGOIMP.folio?` · folio ${esc(PAGOIMP.folio.slice(0,12))}…`:''}${PAGOIMP.fechaPago?` · pago ${PAGOIMP.fechaPago.d}/${PAGOIMP.fechaPago.m+1}/${PAGOIMP.fechaPago.y}`:''}
+    ${PAGOIMP.yaImport?'<br><b style="color:var(--amber)">⚠ Este reporte YA se importó antes (misma huella). Se desmarcaron todos para no duplicar.</b>':''}</div>`;
+  let nDup=0;
+  const body=PAGOIMP.rows.map((r,i)=>{
+    const w=r.wId?WORKERS.find(x=>x.id===r.wId):null;
+    let alert='';
+    if(w&&ns){
+      const chs=chequeMismaSemana(w,ns);
+      if(chs.length){nDup++;const c=chs[0];const exacto=Math.abs((Number(c.importe)||0)-r.importe)<0.5;
+        alert+=`<div style="color:var(--red);font-weight:700;font-size:11px;margin-top:3px">⚠ ${exacto?'POSIBLE PAGO DOBLE':'MISMA SEMANA'}: cheque${c.num_cheque?' #'+esc(c.num_cheque):''} $${money(c.importe)} (${esc(c.estatus)}) <button class="btn danger" style="padding:1px 8px;font-size:10px" onclick="pagoCancelarCheque('${c.id}')">Cancelar cheque</button></div>`;}
+    }
+    if(r.estado==='RECHAZADO')alert+=`<div style="color:var(--red);font-weight:700;font-size:11px;margin-top:3px">✗ RECHAZADO — NO se le pagó por transferencia (requiere cheque)</div>`;
+    // ¿ya importado este pago (mismo trab+semana+folio)?
+    const ya=w&&ns&&(PAGOS||[]).some(p=>p.trabajador_id===w.id&&normSem(p.semana)===ns&&(p.folio_lote===PAGOIMP.folio||p.hash===PAGOIMP.hash));
+    r.already=!!ya; if(ya||PAGOIMP.yaImport)r.sel=false;
+    const tag=ya?'<span class="imp-tag imp-SINREGISTRO">YA IMPORTADO</span>':w?(r.estado==='RECHAZADO'?'<span class="imp-tag imp-CONFLICTO">RECHAZADO</span>':'<span class="imp-tag imp-COINCIDE">OK</span>'):'<span class="imp-tag imp-SINREGISTRO">SIN EMPAREJAR</span>';
+    return `<div class="imp-row" style="grid-template-columns:24px 1.7fr 1.4fr .8fr .8fr${(alert&&/PAGO DOBLE|MISMA SEMANA/.test(alert))?';background:var(--amber-bg)':''}">
+      <span><input type="checkbox" style="width:auto" ${r.sel?'checked':''} ${ya?'disabled':''} onchange="PAGOIMP.rows[${i}].sel=this.checked"></span>
+      <span><b>${esc(r.titular)}</b><br><span style="color:var(--mut);font-size:11px">*${esc(r.mask)} · $${money(r.importe)} · ${esc(r.fecha)}</span>${alert}</span>
+      <span><select onchange="PAGOIMP.rows[${i}].wId=this.value||null;PAGOIMP.rows[${i}].sel=!!this.value&&PAGOIMP.rows[${i}].estado==='EXITOSO';pgRender()">
+        <option value="">— emparejar trabajador —</option>
+        ${WORKERS.slice().sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9)).map(x=>`<option value="${x.id}" ${r.wId===x.id?'selected':''}>#${x.no_trab??'—'} ${esc(fullName(x))}</option>`).join('')}
+      </select></span>
+      <span style="font-size:11px">${esc(r.estado)}</span>
+      <span>${tag}</span>
+    </div>`;
+  }).join('');
+  $('pg-out').innerHTML=`
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <span class="imp-tag imp-COINCIDE">${matched} emparejado(s)</span>
+      ${sinM?`<span class="imp-tag imp-SINREGISTRO">${sinM} sin emparejar</span>`:''}
+      ${nRech?`<span class="imp-tag imp-CONFLICTO">${nRech} rechazado(s)</span>`:''}
+      ${nDup?`<span class="imp-tag imp-CONFLICTO" style="background:var(--red);color:#fff">⚠ ${nDup} con cheque en la misma semana</span>`:''}
+    </div>
+    <div class="imp-row head" style="grid-template-columns:24px 1.7fr 1.4fr .8fr .8fr"><span></span><span>Transferencia</span><span>Trabajador (obra actual)</span><span>Estado</span><span></span></div>
+    ${body}
+    <p style="font-size:11px;color:var(--mut);margin-top:8px">Escribe la <b>semana</b> arriba para que detecte duplicados contra los cheques. Los <b>rechazados</b> se guardan como tal (no pagados) y quedan resaltados. Un pago con cheque en la misma semana se marca en rojo con opción de <b>cancelar el cheque</b>.</p>`;
+  $('pg-btn').classList.remove('hide');
+}
+async function applyPagoImport(){
+  if(!PAGOIMP)return;
+  const raw=($('pg-sem')?$('pg-sem').value:'').trim().toUpperCase();
+  const ns=raw.replace(/\D/g,'');
+  if(!ns){toast('Escribe la semana de la nómina pagada (ej. S18).','err');return;}
+  const sem='S'+ns;
+  const sel=PAGOIMP.rows.filter(r=>r.sel&&r.wId&&!r.already);
+  if(!sel.length){toast('No hay pagos seleccionados con trabajador emparejado.','err');return;}
+  const nRech=sel.filter(r=>r.estado==='RECHAZADO').length;
+  if(!confirm(`¿Registrar ${sel.length} pago(s) por transferencia de la semana ${sem}?${nRech?`\n\n(${nRech} vienen como RECHAZADO — se guardan como NO pagados.)`:''}`))return;
+  $('pg-btn').innerHTML='<span class="spin"></span> Guardando...';
+  markWrite();
+  let ok=0,fail=0,faltaTabla=false;
+  for(const r of sel){
+    const fila={obra_id:OBRA.id,trabajador_id:r.wId,semana:sem,medio:'TRANSFERENCIA',banco:'BBVA',
+      cuenta_mask:'*'+r.mask,titular:r.titular,importe:r.importe,estado:r.estado,fecha_pago:r.fecha,
+      folio_lote:PAGOIMP.folio||null,descripcion:PAGOIMP.descripcion||null,
+      nombre_archivo:(PAGOIMP.file||'').slice(0,120),hash:PAGOIMP.hash||null,creado_por:USER.email};
+    const {error}=await sb.from('pagos').insert(fila);
+    if(error){if(/pagos.*does not exist|relation .*pagos/i.test(error.message||'')){faltaTabla=true;break;}fail++;continue;}
+    ok++;
+  }
+  $('pg-btn').innerHTML='💾 Registrar pagos seleccionados';
+  if(faltaTabla){toast('Falta correr el Script 44 (tabla pagos) en Supabase.','err');return;}
+  closeModal();
+  toast(`Pagos registrados: ${ok}${fail?`, ${fail} con error`:''}.`,fail?'err':'ok');
+  await loadObraData(OBRA.id);
+}
+/* Cancela (no borra) un cheque porque ya se pagó por transferencia. */
+async function pagoCancelarCheque(id){
+  const c=(CHEQUES||[]).find(x=>x.id===id); if(!c){toast('Cheque no encontrado.','err');return;}
+  if(!confirm(`¿CANCELAR el cheque${c.num_cheque?' #'+c.num_cheque:''} de ${c.nombre||''} (semana ${c.semana}, $${money(c.importe)})?\n\nQueda marcado como CANCELADO (no se borra) porque a este trabajador ya se le pagó por transferencia esa semana.`))return;
+  markWrite();
+  const obs=(c.observaciones?c.observaciones+' · ':'')+'CANCELADO: ya pagado por transferencia (control de pagos '+today()+')';
+  const {error}=await sb.from('cheques').update({estatus:'CANCELADO',observaciones:obs}).eq('id',id);
+  if(error){toast('Error al cancelar el cheque: '+error.message,'err');return;}
+  toast('Cheque marcado como CANCELADO.','ok');
+  await loadObraData(OBRA.id);
+  if($('pg-out')&&PAGOIMP)pgRender();
+  else if($('cp-out'))cpBuild();
+}
+/* ---------- Control de pagos: cheque + transferencia unificados ---------- */
+function cpBuild(){
+  const map=new Map();
+  const key=(tid,nom,ns)=>(tid||('N:'+_pgNorm(nom)))+'|'+ns;
+  (CHEQUES||[]).filter(c=>!c.eliminado).forEach(c=>{const ns=normSem(c.semana);const k=key(c.trabajador_id,c.nombre,ns);const o=map.get(k)||{tid:c.trabajador_id,nombre:c.nombre,sem:ns,chq:[],pag:[]};o.chq.push(c);if(!o.nombre)o.nombre=c.nombre;map.set(k,o);});
+  (PAGOS||[]).forEach(p=>{const ns=normSem(p.semana);const w=WORKERS.find(x=>x.id===p.trabajador_id);const k=key(p.trabajador_id,w?fullName(w):p.titular,ns);const o=map.get(k)||{tid:p.trabajador_id,nombre:(w?fullName(w):p.titular),sem:ns,chq:[],pag:[]};o.pag.push(p);map.set(k,o);});
+  const rows=[...map.values()];
+  rows.forEach(o=>{
+    const w=o.tid?WORKERS.find(x=>x.id===o.tid):null; if(w)o.nombre=fullName(w); o.no=w?w.no_trab:null;
+    const chqAct=o.chq.filter(c=>String(c.estatus||'').toUpperCase()!=='CANCELADO'&&c.importe!=null&&c.importe!=='');
+    const pagOk=o.pag.filter(p=>String(p.estado||'').toUpperCase()==='EXITOSO');
+    o.dup=chqAct.length>0&&pagOk.length>0;
+    o.rech=o.pag.some(p=>String(p.estado||'').toUpperCase()==='RECHAZADO')&&!pagOk.length;
+    o.chqAct=chqAct; o.pagOk=pagOk;
+  });
+  rows.sort((a,b)=>(b.dup-a.dup)||((parseInt(b.sem)||0)-(parseInt(a.sem)||0))||((a.no||9e9)-(b.no||9e9)));
+  window._CP=rows;
+  cpRender();
+}
+function cpRender(){
+  const rows=window._CP||[];
+  const fs=normSem($('cp-sem')?$('cp-sem').value:'');
+  const soloDup=$('cp-dup')&&$('cp-dup').checked;
+  const filt=rows.filter(o=>(!fs||o.sem===fs)&&(!soloDup||o.dup));
+  const nDup=rows.filter(o=>o.dup).length, nRech=rows.filter(o=>o.rech).length;
+  const money2=v=>v==null||v===''?'—':'$'+money(v);
+  const body=filt.map(o=>`<div class="imp-row" style="grid-template-columns:1.6fr .5fr 1.3fr 1.3fr 1fr${o.dup?';background:var(--amber-bg)':''}">
+    <span><b>${esc(o.nombre||'—')}</b>${o.no!=null?`<br><span style="color:var(--mut);font-size:11px">#${o.no}</span>`:''}</span>
+    <span style="font-size:12px">S${esc(o.sem)}</span>
+    <span style="font-size:11.5px">${o.chq.length?o.chq.map(c=>`${c.tipo_pago==='FINIQUITO'?'🏁':'🧾'} ${money2(c.importe)} <span style="color:var(--mut)">${esc(c.estatus||'')}</span>`).join('<br>'):'<span style="color:var(--mut)">—</span>'}</span>
+    <span style="font-size:11.5px">${o.pag.length?o.pag.map(p=>`💸 ${money2(p.importe)} <span style="color:${String(p.estado).toUpperCase()==='RECHAZADO'?'var(--red)':'var(--mut)'}">${esc(p.estado||'')}</span>`).join('<br>'):'<span style="color:var(--mut)">—</span>'}</span>
+    <span style="font-size:11px">${o.dup?`<b style="color:var(--red)">⚠ POSIBLE DOBLE</b>${o.chqAct[0]?` <button class="btn danger" style="padding:1px 7px;font-size:10px" onclick="pagoCancelarCheque('${o.chqAct[0].id}')">Cancelar cheque</button>`:''}`:(o.rech?'<b style="color:var(--red)">✗ rechazado</b>':'<span style="color:var(--green)">✔</span>')}</span>
+  </div>`).join('');
+  $('cp-out').innerHTML=`
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      ${nDup?`<span class="imp-tag imp-CONFLICTO" style="background:var(--red);color:#fff">⚠ ${nDup} posible(s) pago(s) doble(s)</span>`:'<span class="imp-tag imp-COINCIDE">Sin pagos dobles</span>'}
+      ${nRech?`<span class="imp-tag imp-CONFLICTO">${nRech} rechazado(s)</span>`:''}
+      <span style="margin-left:auto;font-size:12px">Semana <input id="cp-sem" style="width:70px;padding:4px 6px" placeholder="todas" value="${$('cp-sem')?esc($('cp-sem').value):''}" oninput="cpRender()"> · <label style="font-size:12px"><input type="checkbox" id="cp-dup" style="width:auto" ${soloDup?'checked':''} onchange="cpRender()"> solo dobles</label></span>
+    </div>
+    <div class="imp-row head" style="grid-template-columns:1.6fr .5fr 1.3fr 1.3fr 1fr"><span>Trabajador</span><span>Sem</span><span>Cheque</span><span>Transferencia</span><span>Estado</span></div>
+    ${body||'<div class="empty">Sin registros para ese filtro.</div>'}`;
+}
+function openControlPagos(){
+  modal(`
+    <div class="m-head"><h2>🔁 Control de pagos · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Une <b>cheques</b> y <b>transferencias</b> por trabajador y semana. Resalta en rojo a quien tenga <b>cheque Y transferencia en la misma semana</b> (posible pago doble) — puedes cancelar el cheque desde aquí. Los importados por transferencia salen de 📥 Importar → 💸 Pago global BBVA.</p>
+      <div id="cp-out"></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn dark" onclick="exportControlPagos()">⬇ Exportar Excel</button>
+    </div>`,'lg');
+  cpBuild();
+}
+function exportControlPagos(){
+  const rows=window._CP||[]; if(!rows.length){toast('No hay datos para exportar.','err');return;}
+  const aoa=[],styles=[];
+  aoa.push([`CONTROL DE PAGOS — ${OBRA.nombre} — ${new Date().toLocaleDateString('es-MX')}`]);styles.push(ST.title);
+  aoa.push(['NO.','TRABAJADOR','SEMANA','CHEQUE(S)','TRANSFERENCIA(S)','ALERTA']);styles.push(ST.head);
+  const rs=[ST.cellC,ST.cell,ST.cellC,ST.cell,ST.cell,ST.cell];
+  rows.forEach(o=>{
+    const chq=o.chq.map(c=>`${c.tipo_pago==='FINIQUITO'?'FINIQUITO':'CHEQUE'} ${c.importe!=null?'$'+money(c.importe):''} (${c.estatus||''})`).join(' | ');
+    const pag=o.pag.map(p=>`TRANSF ${p.importe!=null?'$'+money(p.importe):''} (${p.estado||''})`).join(' | ');
+    aoa.push([o.no??'',o.nombre||'','S'+o.sem,chq,pag,o.dup?'POSIBLE PAGO DOBLE':(o.rech?'RECHAZADO':'')]);styles.push(rs);
+  });
+  const ws=buildSheet(aoa,styles,[7,30,9,34,34,20],[{s:{r:0,c:0},e:{r:0,c:5}}],[{hpt:24},{hpt:26}]);
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:1+rows.length,c:5}})};
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'CONTROL PAGOS');
+  dl(wb,`CONTROL_PAGOS_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}_${today()}.xlsx`);
+  toast('Excel de control de pagos generado.','ok');
 }
 async function verDoc(docId){
   const d=DOCSX.find(x=>x.id===docId); if(!d)return;
@@ -6180,8 +6455,13 @@ function openLegajos(){
     <div class="m-head"><h2>🗂 Legajos para entrega de cheques · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Arma <b>un solo documento</b> para imprimir de golpe: por cada trabajador con cheque de la(s) semana(s) que elijas, su <b>recibo de nómina</b> (el PDF que importaste a su ficha) y —si es <b>baja</b>— su <b>carta de renuncia + recibo de finiquito</b>. El recibo de nómina debe estar archivado en la ficha (📥 Importar → Acuses IMSS y recibos, categoría RECIBO DE NÓMINA).</p>
-      <div class="grid" style="grid-template-columns:1fr auto;align-items:end;gap:10px">
+      <div class="grid" style="grid-template-columns:1fr 1.2fr auto;align-items:end;gap:10px">
         <div><label>Semana(s) de pago — separa con coma (ej. S15, S16)</label><input id="lg-sem" value="S${isoWeek()}" placeholder="S15, S16"></div>
+        <div><label>¿Qué imprimir?</label><select id="lg-modo" onchange="if(window._LEG)lgVer()">
+          <option value="ambos">Recibo + renuncia y finiquito (todo)</option>
+          <option value="recibo">Solo recibo de nómina</option>
+          <option value="renuncia">Solo renuncia + finiquito (bajas)</option>
+        </select></div>
         <div><button class="btn dark" onclick="lgVer()">Ver trabajadores</button></div>
       </div>
       <div id="lg-out" style="margin-top:12px;max-height:360px;overflow:auto"></div>
@@ -6209,30 +6489,34 @@ function lgVer(){
       <span><input type="checkbox" id="lg-${i}" checked></span>
       <span><b>${esc(x.w?fullName(x.w):x.c.nombre)}</b> ${x.esBaja?'<span class="badge BAJA" style="font-size:9.5px">BAJA</span>':''}<br><span style="color:var(--mut);font-size:11px">#${(x.w&&x.w.no_trab)??'—'} · ${esc(x.c.semana)} · $${money(x.c.importe)}</span></span>
       <span style="font-size:11.5px">${x.recs.length?`<b style="color:var(--green)">✔ recibo</b>`:`<b style="color:var(--amber)">⚠ sin recibo</b>`}</span>
-      <span style="font-size:11.5px;color:var(--mut)">${x.esBaja?'+ carta + finiquito':'solo recibo'}</span>
+      <span style="font-size:11.5px;color:var(--mut)">${(function(){const m=($('lg-modo')&&$('lg-modo').value)||'ambos';if(m==='recibo')return 'solo recibo';if(m==='renuncia')return x.esBaja?'solo carta + finiquito':'— (no es baja)';return x.esBaja?'recibo + carta + finiquito':'solo recibo';})()}</span>
     </div>`).join('')}`;
   $('lgj-btn').classList.remove('hide');
 }
 async function generarLegajos(){
   const cand=(window._LEG||[]).filter((x,i)=>$('lg-'+i)&&$('lg-'+i).checked);
   if(!cand.length){toast('Marca al menos un trabajador.','err');return;}
+  const modo=($('lg-modo')&&$('lg-modo').value)||'ambos';
+  const incRecibo=(modo==='ambos'||modo==='recibo'), incRenuncia=(modo==='ambos'||modo==='renuncia');
   $('lgj-btn').innerHTML='<span class="spin"></span> Armando... (0/'+cand.length+')';
   let body='', faltan=[], n=0;
   for(const x of cand){
     n++; $('lgj-btn').innerHTML=`<span class="spin"></span> Armando... (${n}/${cand.length})`;
     const nombre=x.w?fullName(x.w):x.c.nombre;
     // recibo(s) de nómina archivados → imagen
-    if(!x.recs.length)faltan.push(nombre+' (sin recibo archivado)');
-    for(const d of x.recs){
-      try{
-        const {data:blob,error}=await sb.storage.from('expedientes').download(d.archivo);
-        if(error||!blob){faltan.push(nombre+' (no se pudo descargar el recibo)');continue;}
-        const imgs=await pdfBytesToImgs(new Uint8Array(await blob.arrayBuffer()),1.6);
-        body+=imgs.map(src=>`<div class="pg-img"><img src="${src}"></div>`).join('');
-      }catch(e){faltan.push(nombre+' (recibo ilegible)');}
+    if(incRecibo){
+      if(!x.recs.length)faltan.push(nombre+' (sin recibo archivado)');
+      for(const d of x.recs){
+        try{
+          const {data:blob,error}=await sb.storage.from('expedientes').download(d.archivo);
+          if(error||!blob){faltan.push(nombre+' (no se pudo descargar el recibo)');continue;}
+          const imgs=await pdfBytesToImgs(new Uint8Array(await blob.arrayBuffer()),1.6);
+          body+=imgs.map(src=>`<div class="pg-img"><img src="${src}"></div>`).join('');
+        }catch(e){faltan.push(nombre+' (recibo ilegible)');}
+      }
     }
     // baja/finiquito → carta + recibo de finiquito
-    if(x.esBaja&&x.w){
+    if(incRenuncia&&x.esBaja&&x.w){
       const monto=Number(x.c.importe)||Number(x.w.monto_finiquito)||0;
       body+=renunciaPagesHTML(x.w,renunciaOpts(x.w,monto,domingoDeSemana(x.c.semana)));
     }
@@ -6253,20 +6537,28 @@ ${RENUNCIA_CSS}`;
    Desde la fecha de alta de cada trabajador y hasta la semana pasada, detecta qué
    semanas NO tienen recibo de nómina archivado (RECIBO_NOMINA). Usa activoEn para
    respetar reingresos/bajas. La semana en curso no cuenta. Quincenales aparte. */
-function openFaltanRecibos(){
+/* Semanas SIN recibo de nómina archivado de UN trabajador (desde su alta hasta la
+   semana pasada; respeta reingresos/bajas; quincenales quedan fuera). Fuente única
+   usada por el reporte "Faltan recibos" Y por la ficha del trabajador. */
+function faltantesReciboDe(w){
+  if(!w||!w.fecha_alta||String(w.periodo_pago||'SEMANAL')==='QUINCENAL')return [];
   const hoyW=isoWeekDe(OBRA,new Date());
   const base=new Date((OBRA.fecha_inicio?String(OBRA.fecha_inicio).slice(0,10):SEMANA1)+'T12:00');
   const monISO=W=>{const d=new Date(base);d.setDate(base.getDate()+(W-1)*7);return d.toISOString().slice(0,10);};
+  const sW=Math.max(1,isoWeekDe(OBRA,new Date(w.fecha_alta+'T12:00')));
+  const eW=(w.estatus==='BAJA'&&w.fecha_baja)?isoWeekDe(OBRA,new Date(w.fecha_baja+'T12:00')):(hoyW-1);
+  const falt=[];
+  for(let W=sW;W<=eW;W++){
+    if(!activoEn(w,monISO(W)))continue;
+    const tiene=(DOCSX||[]).some(d=>!d.anulado&&d.categoria==='RECIBO_NOMINA'&&d.trabajador_id===w.id&&normSem(d.semana)===String(W));
+    if(!tiene)falt.push(W);
+  }
+  return falt;
+}
+function openFaltanRecibos(){
   const filas=[];
   WORKERS.filter(w=>w.fecha_alta&&String(w.periodo_pago||'SEMANAL')!=='QUINCENAL').forEach(w=>{
-    const sW=Math.max(1,isoWeekDe(OBRA,new Date(w.fecha_alta+'T12:00')));
-    const eW=(w.estatus==='BAJA'&&w.fecha_baja)?isoWeekDe(OBRA,new Date(w.fecha_baja+'T12:00')):(hoyW-1);
-    const falt=[];
-    for(let W=sW;W<=eW;W++){
-      if(!activoEn(w,monISO(W)))continue;
-      const tiene=(DOCSX||[]).some(d=>!d.anulado&&d.categoria==='RECIBO_NOMINA'&&d.trabajador_id===w.id&&normSem(d.semana)===String(W));
-      if(!tiene)falt.push(W);
-    }
+    const falt=faltantesReciboDe(w);
     if(falt.length)filas.push({w,falt});
   });
   filas.sort((a,b)=>b.falt.length-a.falt.length||((a.w.no_trab)||9e9)-((b.w.no_trab)||9e9));
@@ -6489,7 +6781,7 @@ function _paletaObras(n){
 async function openDashboard(){
   toast('Calculando indicadores...');
   const [{data:tw},{data:ch},{data:ds}]=await Promise.all([
-    sb.from('trabajadores').select('*').eq('eliminado',false),sb.from('cheques').select('*'),sb.from('descuentos').select('*').eq('activo',true)]);
+    fetchAllRows(()=>sb.from('trabajadores').select('*').eq('eliminado',false)),fetchAllRows(()=>sb.from('cheques').select('*')),fetchAllRows(()=>sb.from('descuentos').select('*').eq('activo',true))]);
   if(!tw)return;
   window._DASH={tw,ch:(ch||[]).filter(c=>!c.eliminado),ds:ds||[]};
   modal(`
@@ -6900,8 +7192,8 @@ const BK_COLS=[['contratista','CONTRATISTA'],['estatus','ESTATUS'],['no_trab','N
 async function exportRespaldo(porCorreo){
   toast('Generando respaldo completo...');
   const [{data,error},{data:chqAll}]=await Promise.all([
-    sb.from('trabajadores').select('*').eq('eliminado',false),
-    sb.from('cheques').select('*')
+    fetchAllRows(()=>sb.from('trabajadores').select('*').eq('eliminado',false)),
+    fetchAllRows(()=>sb.from('cheques').select('*'))
   ]);
   if(error){toast('Error: '+error.message,'err');return;}
   const wb=XLSX.utils.book_new();
@@ -6920,7 +7212,7 @@ async function exportRespaldo(porCorreo){
     cr[0].forEach((_,c)=>{const a=XLSX.utils.encode_cell({r:0,c});if(wsC[a])wsC[a].s=ST.head;});
     XLSX.utils.book_append_sheet(wb,wsC,'CHEQUES');
   }
-  const {data:dsAll}=await sb.from('descuentos').select('*').eq('activo',true);
+  const {data:dsAll}=await fetchAllRows(()=>sb.from('descuentos').select('*').eq('activo',true));
   if(dsAll&&dsAll.length){
     const dr=[['TRABAJADOR','TIPO','MONTO','MOTIVO','FIJO/SEMANA','CAPTURADO POR']];
     dsAll.forEach(d=>{const w=data.find(x=>x.id===d.trabajador_id);dr.push([w?[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolean).join(' '):'',d.tipo,d.monto??'',d.motivo,d.recurrente?'FIJO':d.semana,d.creado_por]);});
@@ -6928,7 +7220,7 @@ async function exportRespaldo(porCorreo){
     dr[0].forEach((_,c)=>{const a=XLSX.utils.encode_cell({r:0,c});if(wsD[a])wsD[a].s=ST.head;});
     XLSX.utils.book_append_sheet(wb,wsD,'DESCUENTOS');
   }
-  const {data:docAll}=await sb.from('documentos').select('*').eq('anulado',false);
+  const {data:docAll}=await fetchAllRows(()=>sb.from('documentos').select('*').eq('anulado',false));
   if(docAll&&docAll.length){
     const dc=[['TRABAJADOR','CATEGORIA','TIPO','SEMANA','FECHA DOC','ARCHIVO','SUBIDO POR']];
     docAll.forEach(d=>{const w=data.find(x=>x.id===d.trabajador_id);dc.push([w?[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolean).join(' '):'',d.categoria,d.subtipo,d.semana,d.fecha_doc||'',d.nombre_archivo,d.subido_por]);});
