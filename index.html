@@ -428,6 +428,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
           <option value="desc">Consecutivo ↓ descendente</option>
         </select>
         <button class="btn gold" onclick="openChequeForm(null)">＋ Nuevo cheque</button>
+        <button class="btn dark" onclick="openChequesDesdeRecibos()">🧾 Verificar/generar desde recibos</button>
         <button class="btn dark" onclick="exportCheques()">⬇ Exportar cheques</button>
       </div>
       <div class="tbl-card">
@@ -897,7 +898,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-04.2';
+const APP_VERSION='2026-08-06.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2692,12 +2693,30 @@ async function exportProyContratista(){
    semana correcta (antes se usaba una sola semana escrita a mano para todo). */
 const _MABREV={ENE:0,FEB:1,MAR:2,ABR:3,MAY:4,JUN:5,JUL:6,AGO:7,SEP:8,OCT:9,NOV:10,DIC:11};
 function detectaSemanaRecibo(txt){
-  const m=String(txt||'').match(/Del\s+(\d{1,2})\/([A-Za-zÁÉÍÓÚ]{3})[A-Za-z]*\/(\d{2,4})/i);
+  const t=String(txt||'');
+  // recibo individual NOI: "Número de Nómina: 17" (pdf.js mete espacios en las palabras)
+  const mn=t.match(/N[uú]m\s*ero\s+de\s+N[oó]m\s*ina[:\s]+(\d{1,3})/i);
+  if(mn)return 'S'+mn[1];
+  // reporte/otros: periodo "DD/mmm./YYYY al ..." o "Del DD/Mmm/AA"
+  const m=t.match(/(\d{1,2})\/([A-Za-zÁÉÍÓÚ]{3})[a-z]*\.?\/(\d{2,4})\s+al\b/i);
   if(!m)return null;
   const mo=_MABREV[m[2].toUpperCase().slice(0,3)]; if(mo==null)return null;
   const yy=+m[3], y=yy<100?2000+yy:yy;
   const d=new Date(y,mo,+m[1],12,0,0); if(isNaN(d.getTime()))return null;
   const wk=isoWeekDe(OBRA,d); return wk>0?('S'+wk):null;
+}
+/* Lee un recibo de nómina NOI (texto pdf.js): neto pagado, tipo (SUELDO normal
+   vs FINIQUITO si trae AGUINALDO/PRIMA VACACIONAL) y la semana. */
+function parseReciboText(txt){
+  const t=String(txt||'');
+  let neto=null; const m=t.match(/Neto pagado:\s*([\d,]+\.\d{2})/i); if(m)neto=parseFloat(m[1].replace(/,/g,''));
+  const tipo=(/AGUINALDO/i.test(t)||/PRIMA\s+VACACIONAL/i.test(t))?'FINIQUITO':'SUELDO';
+  return {neto,tipo,sem:detectaSemanaRecibo(t)};
+}
+async function pdfBytesToText(bytes){
+  const doc=await pdfjsLib.getDocument({data:bytes}).promise; let t='';
+  for(let p=1;p<=doc.numPages;p++){const tc=await(await doc.getPage(p)).getTextContent();t+=tc.items.map(i=>i.str).join(' ')+' ';}
+  return t;
 }
 let PDFIMP=[];
 function openPdfImport(){
@@ -3234,6 +3253,109 @@ function chqFiltered(){
   });
   return rows;
 }
+/* ---------- CHEQUES vs RECIBOS DE NÓMINA (2026-08-06) ----------
+   Lee los recibos de nómina archivados de una semana (neto + tipo sueldo/finiquito),
+   los cruza con los cheques y: crea los cheques PENDIENTES que falten (con el neto
+   del recibo), avisa los que NO coinciden en monto y los que faltan de sueldo o de
+   finiquito. El monto se lee del PDF ("Neto pagado"). */
+let _RECCACHE={};
+function openChequesDesdeRecibos(){
+  modal(`
+    <div class="m-head"><h2>🧾 Cheques vs recibos de nómina · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Elige la semana. La app lee los <b>recibos de nómina archivados</b> de esa semana (su <b>neto pagado</b> y si es <b>sueldo normal</b> o <b>finiquito</b>) y los compara contra los cheques: te marca cuáles <b>coinciden</b>, cuáles <b>no coinciden en monto</b> y a quién le <b>falta el cheque</b> (de sueldo o de finiquito). Puede <b>crear los cheques PENDIENTES faltantes</b> con el monto del recibo. Los recibos se importan en 📥 Importar (categoría RECIBO DE NÓMINA).</p>
+      <div class="grid" style="grid-template-columns:1fr auto;align-items:end;gap:10px">
+        <div><label>Semana</label><input id="cr-sem" value="S${isoWeek()}" placeholder="S17"></div>
+        <div><button class="btn dark" onclick="crAnalizar()">Analizar recibos</button></div>
+      </div>
+      <div id="cr-out" style="margin-top:12px;max-height:360px;overflow:auto"></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn dark hide" id="cr-btn" onclick="crCrearFaltantes()">＋ Crear cheques faltantes (PENDIENTE)</button>
+    </div>`,'lg');
+}
+async function crAnalizar(){
+  const sem=($('cr-sem').value||'').trim(); const ns=normSem(sem);
+  if(!ns){toast('Escribe la semana (ej. S17).','err');return;}
+  const recs=(DOCSX||[]).filter(d=>!d.anulado&&d.categoria==='RECIBO_NOMINA'&&normSem(d.semana)===ns);
+  if(!recs.length){$('cr-out').innerHTML='<div class="empty">No hay recibos de nómina archivados en la semana S'+ns+' en esta obra. Impórtalos en 📥 Importar → Acuses IMSS y recibos (categoría RECIBO DE NÓMINA).</div>';$('cr-btn').classList.add('hide');return;}
+  $('cr-out').innerHTML='<div class="empty">Leyendo '+recs.length+' recibo(s)...</div>';
+  const rows=[];
+  for(const d of recs){
+    let info=_RECCACHE[d.archivo];
+    if(!info){
+      try{const {data:blob,error}=await sb.storage.from('expedientes').download(d.archivo);
+        if(error||!blob)throw 0;
+        info=parseReciboText(await pdfBytesToText(new Uint8Array(await blob.arrayBuffer())));
+      }catch(e){info={neto:null,tipo:'?',err:true};}
+      _RECCACHE[d.archivo]=info;
+    }
+    const w=WORKERS.find(x=>x.id===d.trabajador_id)||null;
+    const tp=info.tipo==='FINIQUITO'?'FINIQUITO':'CHEQUE';
+    const chk=(CHEQUES||[]).find(c=>!c.eliminado&&c.trabajador_id===d.trabajador_id&&normSem(c.semana)===ns&&String(c.tipo_pago||'').toUpperCase()===tp);
+    let estado='OK';
+    if(info.err||info.neto==null)estado='ILEGIBLE';
+    else if(!chk)estado='FALTA';
+    else if(Math.abs((Number(chk.importe)||0)-info.neto)>0.01)estado='NOCOINCIDE';
+    rows.push({d,w,info,tp,chk,estado});
+  }
+  window._CR={rows,ns,sem:'S'+ns};
+  const c=e=>rows.filter(x=>x.estado===e).length;
+  const badge={OK:'imp-COINCIDE',FALTA:'imp-CONFLICTO',NOCOINCIDE:'imp-SINREGISTRO',ILEGIBLE:'imp-SINREGISTRO'};
+  const lbl={OK:'✔ coincide',FALTA:'＋ falta cheque',NOCOINCIDE:'⚠ no coincide',ILEGIBLE:'⚠ ilegible'};
+  $('cr-out').innerHTML=`
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <span class="imp-tag imp-COINCIDE">${c('OK')} coinciden</span>
+      <span class="imp-tag imp-SINREGISTRO">${c('NOCOINCIDE')} no coinciden</span>
+      <span class="imp-tag imp-CONFLICTO">${c('FALTA')} sin cheque</span>
+      ${c('ILEGIBLE')?`<span class="imp-tag imp-SINREGISTRO">${c('ILEGIBLE')} ilegibles</span>`:''}
+    </div>
+    <div class="imp-row head" style="grid-template-columns:1.5fr .8fr 1fr 1fr 1fr"><span>Trabajador</span><span>Tipo</span><span>Neto recibo</span><span>Cheque</span><span>Estado</span></div>
+    ${rows.map(x=>`<div class="imp-row" style="grid-template-columns:1.5fr .8fr 1fr 1fr 1fr">
+      <span><b>${esc(x.w?fullName(x.w):(x.d.nombre_archivo||'—'))}</b><br><span style="color:var(--mut);font-size:11px">#${(x.w&&x.w.no_trab)??'—'}</span></span>
+      <span style="font-size:11.5px">${x.info.tipo==='FINIQUITO'?'<b style="color:var(--accent)">FINIQUITO</b>':'sueldo'}</span>
+      <span>${x.info.neto!=null?'$'+money(x.info.neto):'<span style="color:var(--amber)">?</span>'}</span>
+      <span>${x.chk?'$'+money(x.chk.importe):'—'}</span>
+      <span class="imp-tag ${badge[x.estado]}">${lbl[x.estado]}</span>
+    </div>`).join('')}
+    <p style="font-size:11px;color:var(--mut);margin-top:8px">"No coincide" = el cheque existe pero su importe difiere del neto del recibo (revisa/corrige el cheque). "Falta cheque" = hay recibo pero no hay cheque de ese tipo esa semana.</p>`;
+  $('cr-btn').classList.toggle('hide',!rows.some(x=>x.estado==='FALTA'&&x.w&&x.info.neto!=null));
+}
+async function crCrearFaltantes(){
+  const st=window._CR||{}; const falt=(st.rows||[]).filter(x=>x.estado==='FALTA'&&x.w&&x.info.neto!=null);
+  if(!falt.length){toast('No hay cheques faltantes con monto legible.','err');return;}
+  const nf=falt.filter(x=>x.tp==='FINIQUITO').length, ns=falt.length-nf;
+  if(!confirm(`¿Crear ${falt.length} cheque(s) PENDIENTE(S) de la semana ${st.sem}?\n\n${ns} de sueldo + ${nf} de finiquito, con el neto de cada recibo.\nTodo queda en el historial y se puede editar o eliminar después.`))return;
+  markWrite();let ok=0,err=0;
+  const W=parseInt(st.ns)||0;
+  for(const x of falt){
+    const {error}=await sb.from('cheques').insert({obra_id:x.w.obra_id,trabajador_id:x.w.id,no_trab:x.w.no_trab,contratista:x.w.contratista,
+      nombre:fullName(x.w),puesto:x.w.puesto,curp:x.w.curp,semana:st.sem,periodo:periodoCorto(W),importe:x.info.neto,
+      tipo_pago:x.tp,estatus:'PENDIENTE',observaciones:'GENERADO DESDE RECIBO DE NÓMINA ('+x.info.tipo+')',creado_por:USER.email});
+    error?err++:ok++;
+  }
+  closeModal();
+  toast(err?`Creados ${ok}, ${err} con error.`:`✔ ${ok} cheque(s) PENDIENTE(S) creados desde los recibos.`,err?'err':'ok');
+  await loadObraData(OBRA.id);
+}
+/* Al capturar un cheque: trae el neto del recibo de esa semana y avisa si difiere */
+async function chqTraerRecibo(){
+  const nom=($('c-nombre')&&$('c-nombre').value||'').trim().toUpperCase();
+  const sem=($('f-c-semana')&&$('f-c-semana').value||'').trim();
+  const w=WORKERS.find(x=>fullName(x).toUpperCase()===nom);
+  if(!w){toast('Elige primero al trabajador.','err');return;}
+  if(!normSem(sem)){toast('Indica la semana (ej. S17).','err');return;}
+  const d=(DOCSX||[]).filter(z=>!z.anulado&&z.categoria==='RECIBO_NOMINA'&&z.trabajador_id===w.id&&normSem(z.semana)===normSem(sem));
+  if(!d.length){toast('No hay recibo de nómina archivado de '+fullName(w)+' en la semana S'+normSem(sem)+'.','err');return;}
+  toast('Leyendo recibo...');
+  let info=_RECCACHE[d[0].archivo];
+  if(!info){try{const {data:blob}=await sb.storage.from('expedientes').download(d[0].archivo);info=parseReciboText(await pdfBytesToText(new Uint8Array(await blob.arrayBuffer())));_RECCACHE[d[0].archivo]=info;}catch(e){toast('No se pudo leer el recibo.','err');return;}}
+  if(info.neto==null){toast('No pude leer el neto del recibo.','err');return;}
+  if($('f-c-importe'))$('f-c-importe').value=info.neto;
+  if($('c-tipo'))$('c-tipo').value=(info.tipo==='FINIQUITO'?'FINIQUITO':'CHEQUE');
+  toast(`Del recibo: neto $${money(info.neto)} (${info.tipo}).`,'ok');
+}
 function renderCheques(){
   const rows=chqFiltered();
   if(!rows.length){$('chq-tbody').innerHTML='<tr><td colspan="10"><div class="empty"><div class="big">🧾</div>Sin cheques que coincidan.<br>Usa <b>＋ Nuevo cheque</b> o registra una baja con finiquito.</div></td></tr>';return;}
@@ -3268,6 +3390,7 @@ function openChequeForm(id){
         ${fld('c-semana','Semana (ej. S15)',c?c.semana:'S'+isoWeek())}
         ${fld('c-periodo','Periodo (se llena solo al cambiar la semana)',c?c.periodo:periodoCorto(isoWeek()))}
         ${fld('c-importe','Importe ($)',c?(c.importe??''):'',{type:'number',extra:'step="0.01"'})}
+        <div style="display:flex;align-items:end"><button type="button" class="btn" style="width:100%;padding:8px;font-size:12px" onclick="chqTraerRecibo()" title="Llena el importe con el neto del recibo de nómina de esa semana">🧾 Traer del recibo</button></div>
         <div><label>Tipo de pago</label><select id="c-tipo">${['CHEQUE','FINIQUITO'].map(t=>`<option ${(c&&c.tipo_pago)===t?'selected':''}>${t}</option>`).join('')}</select></div>
         ${fld('c-num','Número de cheque',c?c.num_cheque:'',{hint:'Al capturarlo, el estatus pasa a EXPEDIDO automáticamente.'})}
         ${fld('c-consec','No. consecutivo',c?c.consecutivo:'')}
