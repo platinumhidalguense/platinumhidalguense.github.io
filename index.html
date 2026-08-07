@@ -598,6 +598,7 @@ function toast(msg,cls=''){const t=document.createElement('div');t.className='to
 /* SEMANA 1 de la empresa = lunes 30 de marzo de 2026 (inicio de obra).
    Si algún día cambia el conteo, solo edita esta fecha. */
 const SEMANA1='2026-03-30';
+const LOGO_JIRE="data:image/png;base64,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";
 /* v15: cada obra cuenta sus semanas desde SU fecha de inicio (lunes de su SEMANA 1).
    Se llena sola con el primer trabajador registrado; editable con el lápiz ✎ de la obra. */
 function semBase(){return (typeof OBRA!=='undefined'&&OBRA&&OBRA.fecha_inicio)?String(OBRA.fecha_inicio).slice(0,10):SEMANA1;}
@@ -607,6 +608,10 @@ function isoWeek(d=new Date()){
   x.setDate(x.getDate()-((x.getDay()+6)%7)); // lunes de esa semana
   return Math.round((x-a)/604800000)+1;
 }
+/* Semana de la OBRA abierta (cada obra tiene su propia fecha de inicio). Para
+   Bienestar coincide con isoWeek(); para Jardines u otras da su semana real.
+   Se usa como default en listas de asistencia y proyección de nómina. */
+function semObra(){try{const w=isoWeekDe(OBRA,new Date());return w>0?w:isoWeek();}catch(e){return isoWeek();}}
 function weekBounds(){const n=new Date(),dow=(n.getDay()+6)%7,mon=new Date(n);mon.setDate(n.getDate()-dow);const sun=new Date(mon);sun.setDate(mon.getDate()+6);return[mon.toISOString().slice(0,10),sun.toISOString().slice(0,10)];}
 function periodoCorto(n){
   const [d1,d2]=semRange(n);
@@ -915,7 +920,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-06.2';
+const APP_VERSION='2026-08-06.4';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2000,8 +2005,11 @@ async function dl(wb,name){
     const files=Object.keys(zip.files).filter(f=>/^xl\/worksheets\/sheet\d+\.xml$/.test(f));
     for(const f of files){
       let xml=await zip.file(f).async('string');
-      if(!/<sheetPr[ >\/]/.test(xml))xml=xml.replace(/(<worksheet[^>]*>)/,'$1<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>');
-      const ps='<pageSetup paperSize="1" orientation="landscape" fitToWidth="1" fitToHeight="0"/>';
+      // Escala EDITABLE: quitamos fitToPage (bloqueaba "Ajustar al %" en Excel) y
+      // usamos modo "Ajustar a N% del tamaño normal" (scale). Así el usuario puede
+      // cambiar la escala de impresión. Orientación horizontal por default.
+      xml=xml.replace(/<pageSetUpPr[^>]*\/>/g,'');
+      const ps='<pageSetup paperSize="1" orientation="landscape" scale="100"/>';
       if(/<pageSetup[ \/>]/.test(xml))xml=xml.replace(/<pageSetup[^>]*\/>/,ps);
       else if(/<pageMargins[^>]*\/>/.test(xml))xml=xml.replace(/(<pageMargins[^>]*\/>)/,'$1'+ps);
       else{
@@ -2497,7 +2505,7 @@ function openProyeccion(){
     <div class="m-body">
       <p style="color:var(--mut);margin-bottom:14px">Obra: <b>${esc(OBRA.nombre)}</b>. Incluye a todos los <b>activos</b> del periodo elegido y a las <b>bajas de la semana</b> con su finiquito (en rojo, pago con CHEQUE). Quien no tenga <b>ni cuenta ni CLABE</b> sale en la sección PENDIENTE con pago por <b>CHEQUE</b>. Los totales llevan <b>fórmulas</b>: puedes mover montos a mano en Excel y se recalculan.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
-        <div><label>No. de semana</label><input id="py-sem" type="number" value="${isoWeek()}" oninput="semSincroniza('py-sem','py-d1','py-d2',pyPreview)"></div>
+        <div><label>No. de semana</label><input id="py-sem" type="number" value="${semObra()}" oninput="semSincroniza('py-sem','py-d1','py-d2',pyPreview)"></div>
         <div><label>Del día</label><input id="py-d1" type="date" value="${d1}" oninput="pyPreview()"></div>
         <div><label>Al día</label><input id="py-d2" type="date" value="${d2}" oninput="pyPreview()"></div>
         <div><label>Periodo</label><select id="py-periodo" onchange="pyPreview()">
@@ -2514,7 +2522,7 @@ function openProyeccion(){
   pyPreview();
 }
 function pyPreview(){
-  const sem='S'+($('py-sem').value||isoWeek());
+  const sem='S'+($('py-sem').value||semObra());
   const {act,fins}=pyCandidatos($('py-d1').value,$('py-d2').value,$('py-periodo').value);
   const tS=act.reduce((s,w)=>s+(Number(w.sal_semanal)||0),0);
   const tD=act.reduce((s,w)=>s+descuentosDe(w,sem).total,0);
@@ -2629,7 +2637,7 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
   return {ws,tT,tC,tP,tR,total,nTot};
 }
 function exportProyeccion(){
-  const semN=$('py-sem').value||isoWeek(), sem='S'+semN, d1=$('py-d1').value, d2=$('py-d2').value, periodo=$('py-periodo').value;
+  const semN=$('py-sem').value||semObra(), sem='S'+semN, d1=$('py-d1').value, d2=$('py-d2').value, periodo=$('py-periodo').value;
   const {act,fins}=pyCandidatos(d1,d2,periodo);
   const emp=CFGEMP['empresa_PLATINUM']||{razon:'Comercializadora Platinum Hidalguense',rfc:''};
   const tag=periodo==='TODOS'?'':(periodo==='QUINCENAL'?'  (QUINCENAL)':'');
@@ -4023,7 +4031,7 @@ function openAsistencia(){
     <div class="m-body">
       <p style="color:var(--mut);margin-bottom:14px">Genera el Excel con hojas de 10 trabajadores, más las hojas de <b>NUEVO INGRESO</b> en blanco que pidas, y el <b>directorio alfabético para vigilancia</b>. Incluye a los <b>activos</b> y a las <b>altas programadas</b> (pendientes que entran en la semana elegida). Encabeza con el registro patronal y SIROC de la obra${OBRA.registro_patronal?'':' — <b style="color:var(--red)">captúralos con el lápiz ✎ de la obra</b>'}.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
-        <div><label>No. de semana</label><input id="as-sem" type="number" value="${isoWeek()}" oninput="semSincroniza('as-sem','as-d1','as-d2');asUpdateStat()"></div>
+        <div><label>No. de semana</label><input id="as-sem" type="number" value="${semObra()}" oninput="semSincroniza('as-sem','as-d1','as-d2');asUpdateStat()"></div>
         <div><label>Del (lunes)</label><input id="as-d1" type="date" value="${d1}" onchange="asUpdateStat()"></div>
         <div><label>Al (domingo)</label><input id="as-d2" type="date" value="${d2}" onchange="asUpdateStat()"></div>
         <div><label>Hojas NUEVO INGRESO</label><input id="as-extra" type="number" min="0" value="3"></div>
@@ -4113,7 +4121,7 @@ function asSheet(grupo,cfg,blanco){
   return ws;
 }
 function exportAsistencia(){
-  const sem=$('as-sem').value||isoWeek(), d1=$('as-d1').value, d2=$('as-d2').value;
+  const sem=$('as-sem').value||semObra(), d1=$('as-d1').value, d2=$('as-d2').value;
   const extra=Math.max(0,parseInt($('as-extra').value)||0);
   const act=asActivosSemana(d1,d2);
   if(!act.length){toast('No hay trabajadores activos ni altas programadas para esa semana.','err');return;}
@@ -4134,7 +4142,7 @@ function exportAsistencia(){
   setTimeout(exportDirectorio,600);
 }
 function exportDirectorio(){
-  const sem=$('as-sem')?($('as-sem').value||isoWeek()):isoWeek();
+  const sem=$('as-sem')?($('as-sem').value||semObra()):semObra();
   const d1=$('as-d1')?$('as-d1').value:'', d2=$('as-d2')?$('as-d2').value:'';
   // mismo padrón que las listas (activos + altas programadas de la semana),
   // pero en orden alfabético para vigilancia
@@ -4300,17 +4308,32 @@ function rfAnalizar(){
 }
 
 /* ---------- VACACIONES Y PERMISOS ---------- */
+/* Cuenta días HÁBILES (lunes a sábado; excluye domingos) entre dos fechas ISO,
+   inclusivo. Las vacaciones se cuentan en días laborales, no en días naturales. */
+function diasHabilesVac(d1,d2){
+  const a=new Date(d1+'T12:00'), b=new Date(d2+'T12:00'); if(isNaN(a)||isNaN(b)||b<a)return 0;
+  let n=0; for(const d=new Date(a); d<=b; d.setDate(d.getDate()+1)){ if(d.getDay()!==0)n++; }
+  return n;
+}
+/* Vacaciones NO acumulativas: se toma el derecho del AÑO EN CURSO según la
+   antigüedad (calculada por ANIVERSARIO exacto desde la fecha de alta, no por
+   365.25 — así no falla en casos de frontera, que era la diferencia con las 3
+   de JIRE). `aniv` = último aniversario (inicio del periodo vigente);
+   `vigencia` = próximo aniversario (fecha límite para gozar esos días). */
 function saldoVac(w){
-  if(!iniAntig(w))return {anios:0,derecho:0,gozados:0,saldo:0,aniv:null};
+  if(!iniAntig(w))return {anios:0,derecho:0,gozados:0,saldo:0,aniv:null,vigencia:null};
   const ini=new Date(iniAntig(w)+'T12:00'), hoy=new Date();
-  const dias=Math.floor((hoy-ini)/86400000);
-  const anios=Math.floor(dias/365.25);
+  let anios=hoy.getFullYear()-ini.getFullYear();
+  if(hoy.getMonth()<ini.getMonth()||(hoy.getMonth()===ini.getMonth()&&hoy.getDate()<ini.getDate()))anios--;
+  if(anios<0)anios=0;
   const derecho=anios<1?0:diasVacaciones(anios);
   const aniv=new Date(ini);aniv.setFullYear(ini.getFullYear()+anios);
   const anivISO=aniv.toISOString().slice(0,10);
+  const vig=new Date(ini);vig.setFullYear(ini.getFullYear()+anios+1);
+  const vigISO=vig.toISOString().slice(0,10);
   const gozados=VAC.filter(v=>v.trabajador_id===w.id&&v.activo&&v.tipo==='VACACIONES'&&v.fecha_inicio>=anivISO)
     .reduce((s,v)=>s+(v.dias||0),0);
-  return {anios,derecho,gozados,saldo:Math.max(0,derecho-gozados),aniv:anivISO};
+  return {anios,derecho,gozados,saldo:Math.max(0,derecho-gozados),aniv:anivISO,vigencia:vigISO};
 }
 function fueraHoy(w){
   const hoy=today();
@@ -4338,7 +4361,7 @@ function renderVacViews(){
     return `<tr onclick="openVacForm('${w.id}')">
       <td>${w.no_trab??''}</td><td><b>${esc(fullName(w))}</b></td><td>${esc(w.contratista)}</td>
       <td>${s.anios} año(s)</td><td>${s.derecho}</td><td>${s.gozados}</td>
-      <td><b style="color:${s.saldo>0?'var(--green)':'var(--mut)'}">${s.saldo}</b></td>
+      <td><b style="color:${s.saldo>0?'var(--green)':'var(--mut)'}">${s.saldo}</b>${s.vigencia?`<br><span style="color:var(--mut);font-size:10.5px">vig. ${fmtD(s.vigencia)}</span>`:''}</td>
       <td>${f?`<span class="badge ${f.tipo==='VACACIONES'?'ENTREGADO':'PENDIENTE'}">${esc(f.tipo)} hasta ${fmtD(f.fecha_fin)}</span>`:'—'}</td>
     </tr>`;
   }).join('')||'<tr><td colspan="8"><div class="empty">Sin trabajadores activos.</div></td></tr>';
@@ -4350,15 +4373,18 @@ function openVacForm(trabId){
   modal(`
     <div class="m-head"><h2>🌴 Vacaciones y permisos · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <div class="stats" style="margin-bottom:14px">
+      <div class="stats" style="margin-bottom:8px">
         <div class="stat"><div class="n">${s.anios}</div><div class="l">Años de antigüedad</div></div>
-        <div class="stat b"><div class="n">${s.derecho}</div><div class="l">Días por año (art. 76)</div></div>
-        <div class="stat a"><div class="n">${s.gozados}</div><div class="l">Gozados este año</div></div>
+        <div class="stat b"><div class="n">${s.derecho}</div><div class="l">Días por ley (art. 76)</div></div>
+        <div class="stat a"><div class="n">${s.gozados}</div><div class="l">Gozados este periodo</div></div>
         <div class="stat g"><div class="n">${s.saldo}</div><div class="l">Saldo disponible</div></div>
+      </div>
+      <div style="background:var(--blue-bg,#eef3fb);border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:14px;line-height:1.6">
+        Alta: <b>${fmtD(iniAntig(w))}</b> · Periodo vigente desde <b>${fmtD(s.aniv)}</b> · <b style="color:var(--accent,#c0392b)">vigencia para gozarlos: antes del ${fmtD(s.vigencia)}</b> (al cumplir el siguiente año se renuevan; estos días no se acumulan).
       </div>
       <div class="sect">Registrar periodo</div>
       <div class="grid" style="grid-template-columns:1.4fr 1fr 1fr .6fr">
-        <div><label>Tipo</label><select id="vc-tipo">${['VACACIONES','PERMISO CON GOCE','PERMISO SIN GOCE','INCAPACIDAD'].map(t=>`<option>${t}</option>`).join('')}</select></div>
+        <div><label>Tipo</label><select id="vc-tipo" onchange="vcDias()">${['VACACIONES','PERMISO CON GOCE','PERMISO SIN GOCE','INCAPACIDAD'].map(t=>`<option>${t}</option>`).join('')}</select></div>
         <div><label>Del</label><input id="vc-d1" type="date" value="${today()}" onchange="vcDias()"></div>
         <div><label>Al</label><input id="vc-d2" type="date" value="${today()}" onchange="vcDias()"></div>
         <div><label>Días</label><input id="vc-dias" type="number" min="1" value="1"></div>
@@ -4373,8 +4399,13 @@ function openVacForm(trabId){
     </div>`,'md');
 }
 function vcDias(){
-  const d1=$('vc-d1').value,d2=$('vc-d2').value;
-  if(d1&&d2&&d2>=d1)$('vc-dias').value=Math.round((new Date(d2+'T12:00')-new Date(d1+'T12:00'))/86400000)+1;
+  const d1=$('vc-d1').value,d2=$('vc-d2').value,tipo=$('vc-tipo')?$('vc-tipo').value:'';
+  if(d1&&d2&&d2>=d1){
+    // vacaciones y permisos: días hábiles (lun-sáb). Incapacidad: naturales (IMSS).
+    $('vc-dias').value=(tipo==='INCAPACIDAD')
+      ?Math.round((new Date(d2+'T12:00')-new Date(d1+'T12:00'))/86400000)+1
+      :diasHabilesVac(d1,d2);
+  }
 }
 async function saveVac(trabId){
   const w=WORKERS.find(x=>x.id===trabId);
@@ -6257,7 +6288,7 @@ function openContrato(id){
     <div class="m-body">
       <div class="grid" style="grid-template-columns:1fr 1fr">
         <div><label>Empresa (patrón)</label><select id="ct-emp" onchange="ctEmpChange()"><option value="PLATINUM" ${empDefault==='PLATINUM'?'selected':''}>PLATINUM</option><option value="JIRE" ${empDefault==='JIRE'?'selected':''}>JIRE</option></select></div>
-        <div><label>Tipo de contrato</label><select id="ct-tipo">${['OBRA DETERMINADA','TIEMPO INDETERMINADO','TIEMPO DETERMINADO'].map(t=>`<option ${(w.tipo_contrato||'OBRA DETERMINADA')===t?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div><label>Tipo de contrato</label><select id="ct-tipo">${['TIEMPO INDETERMINADO','TIEMPO DETERMINADO','OBRA DETERMINADA','PERIODO A PRUEBA'].map(t=>`<option ${(w.tipo_contrato||'TIEMPO INDETERMINADO')===t?'selected':''}>${t}</option>`).join('')}</select></div>
         <div class="c2" style="grid-column:span 2"><label>Razón social</label><input id="ct-razon" value="${esc(e.razon)}"></div>
         <div><label>RFC empresa</label><input id="ct-rfc" value="${esc(e.rfc)}"></div>
         <div><label>Representante legal</label><input id="ct-rep" value="${esc(e.representante)}" placeholder="NOMBRE DEL REPRESENTANTE"></div>
@@ -6265,7 +6296,7 @@ function openContrato(id){
         <div><label>Fecha del contrato</label><input id="ct-fecha" type="date" value="${w.fecha_alta||today()}"></div>
         <div><label>Fin (solo tiempo determinado)</label><input id="ct-fin" type="date" value="${w.fecha_fin_contrato||''}"></div>
       </div>
-      <p style="margin-top:12px;font-size:12px;color:var(--mut)">Se genera con los datos del expediente conforme al art. 25 LFT y reformas vigentes (jornada DOF 01/05/2026, vacaciones art. 76, aguinaldo art. 87). Los datos de empresa se guardan para la próxima vez. <b>Hazlo revisar por un abogado laboral antes del primer uso.</b></p>
+      <p style="margin-top:12px;font-size:12px;color:var(--mut)">Sale con el formato oficial (machote JIRE_DA_RH-08). El logo y los datos de la empresa se toman según la empresa elegida: <b>JIRE</b> lleva su logo; <b>PLATINUM</b> su membrete. Los datos legales de la empresa (instrumento notarial, notario, RFC, domicilio fiscal, carácter del representante) van <b>en blanco</b> por ahora — se llenan a mano o me los pasas para cargarlos. <b>Revísalo con abogado laboral antes del primer uso.</b></p>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
@@ -6291,47 +6322,86 @@ async function generarContrato(id){
   await sb.from('trabajadores').update({tipo_contrato:tipo,fecha_fin_contrato:fin||null}).eq('id',id);
   const F=v=>v&&String(v).trim()?esc(String(v).trim()):'<span style="background:#fff3b0">____________</span>';
   const fmtL=d=>{if(!d)return '____';const x=new Date(d+'T12:00');return `${x.getDate()} de ${MES[x.getMonth()].toLowerCase()} de ${x.getFullYear()}`;};
-  const durTxt=tipo==='OBRA DETERMINADA'
-    ?`El presente contrato se celebra por <b>OBRA DETERMINADA</b> en términos de los artículos 35 y 36 de la LFT, y su duración será la que exija la ejecución de los trabajos de la obra denominada <b>${esc(OBRA.nombre)}</b>, ubicada en ${F(OBRA.ubicacion)}, extinguiéndose la relación al concluir la obra o la fase de la misma para la que fue contratado "EL TRABAJADOR", conforme al artículo 53 fracción III de la LFT.`
-    :(tipo==='TIEMPO DETERMINADO'
-      ?`El presente contrato se celebra por <b>TIEMPO DETERMINADO</b> en términos de los artículos 35 y 37 de la LFT, con vigencia del ${fmtL(fecha)} al <b>${fmtL(fin)}</b>, por así exigirlo la naturaleza del trabajo a desarrollar.`
-      :`El presente contrato se celebra por <b>TIEMPO INDETERMINADO</b> en términos de los artículos 35 y 39-F de la LFT.`);
-  const pago=w.periodo_pago==='QUINCENAL'?'quincenal':'semanal';
+  const tipoTit = tipo==='PERIODO A PRUEBA' ? 'TIEMPO INDETERMINADO (PERIODO A PRUEBA)' : tipo;
+  const empKey=$('ct-emp')?$('ct-emp').value:'PLATINUM';
+  const edad=(function(){if(!w.fecha_nacimiento)return null;const b=new Date(w.fecha_nacimiento+'T12:00'),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))a--;return a>=0?a:null;})();
+  const pago=w.periodo_pago==='QUINCENAL'?'quincenal':(w.periodo_pago==='MENSUAL'?'mensual':'semanal');
+  const BL=v=>(v!=null&&String(v).trim())?esc(String(v).trim()):'<span class="bl">________________</span>';
+  const sdNum=Number(w.sd)||0;
+  const sdLetra=(typeof numLetras==='function'&&sdNum)?numLetras(sdNum):'';
+  const L={rep:emp.representante,cargo:emp.repCargo,rfc:emp.rfc,dom:emp.domicilio,
+    instrumento:emp.instrumento,volumen:emp.volumen,esc_fecha:emp.escritura_fecha,notario:emp.notario,
+    notaria:emp.notaria_num,ciudad:emp.notaria_ciudad,rppc:emp.rppc,folio:emp.folio_mercantil,inscr:emp.inscripcion_fecha};
+  let tercera;
+  if(tipo==='TIEMPO DETERMINADO') tercera=`Este contrato se celebra por <b>tiempo determinado</b>, con vigencia del <b>${fmtL(fecha)}</b> al <b>${fmtL(fin)}</b>, conforme al art&iacute;culo 37 de la Ley Federal del Trabajo, por as&iacute; exigirlo la naturaleza del trabajo a desarrollar.`;
+  else if(tipo==='OBRA DETERMINADA') tercera=`Este contrato se celebra por <b>obra determinada</b>, conforme al art&iacute;culo 36 de la Ley Federal del Trabajo; su duraci&oacute;n ser&aacute; la que exija la ejecuci&oacute;n de los trabajos de la obra denominada <b>${esc(OBRA.nombre)}</b>${OBRA.ubicacion?', ubicada en '+esc(OBRA.ubicacion):''}, extingui&eacute;ndose la relaci&oacute;n de trabajo al concluir la obra o la etapa de la misma para la que fue contratado "EL TRABAJADOR".`;
+  else if(tipo==='PERIODO A PRUEBA') tercera='La relaci&oacute;n de trabajo se pacta por <b>tiempo indeterminado</b> y se sujeta a un <b>periodo a prueba de treinta d&iacute;as</b>, conforme al art&iacute;culo 39-A de la Ley Federal del Trabajo, con el fin de verificar que "EL TRABAJADOR" cumple con los requisitos y conocimientos necesarios para desarrollar el trabajo. De no acreditarlos, a juicio de "EL PATR&Oacute;N" y tomando en cuenta la opini&oacute;n de la Comisi&oacute;n Mixta de Productividad, Capacitaci&oacute;n y Adiestramiento, se dar&aacute; por terminada la relaci&oacute;n de trabajo sin responsabilidad para "EL PATR&Oacute;N".';
+  else tercera='Este contrato se celebra por <b>tiempo indeterminado</b>, conforme a lo se&ntilde;alado en el art&iacute;culo 35 de la Ley Federal del Trabajo.';
+  const headerHTML = empKey==='JIRE'
+    ? `<div class="hdr"><img class="logo" src="${LOGO_JIRE}" alt="JIRE"></div>`
+    : `<div class="hdr plat"><div class="pl1">COMERCIALIZADORA PLATINUM HIDALGUENSE</div><div class="pl2">Grupo Platinum</div></div>`;
+  const fd=new Date((fecha||today())+'T12:00');
+  const fdia=fd.getDate(), fmes=MES[fd.getMonth()].toLowerCase(), fanio=fd.getFullYear();
   const html=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Contrato ${esc(fullName(w))}</title>
-  <style>body{font-family:'Times New Roman',serif;font-size:12.5px;line-height:1.55;color:#111;max-width:760px;margin:24px auto;padding:0 28px;text-align:justify}
-  h1{font-size:14px;text-align:center;text-transform:uppercase}h2{font-size:12.5px;margin:16px 0 4px}
-  .firmas{display:flex;justify-content:space-between;margin-top:70px;text-align:center;gap:30px}
-  .firmas div{flex:1;border-top:1px solid #111;padding-top:6px;font-size:11.5px}
-  .peq{font-size:10.5px;color:#444}@media print{body{margin:8mm auto}}</style></head><body>
-  <h1>Contrato Individual de Trabajo por ${esc(tipo.toLowerCase())}</h1>
-  <p>CONTRATO INDIVIDUAL DE TRABAJO QUE CELEBRAN, POR UNA PARTE, <b>${F(emp.razon)}</b>, R.F.C. ${F(emp.rfc)}, CON DOMICILIO EN ${F(emp.domicilio)}, REPRESENTADA EN ESTE ACTO POR ${F(emp.representante)}, A QUIEN EN LO SUCESIVO SE LE DENOMINARÁ <b>"EL PATRÓN"</b>; Y POR LA OTRA, POR SU PROPIO DERECHO, <b>${esc(fullName(w))}</b>, A QUIEN SE LE DENOMINARÁ <b>"EL TRABAJADOR"</b>, AL TENOR DE LAS SIGUIENTES DECLARACIONES Y CLÁUSULAS, CON FUNDAMENTO EN LOS ARTÍCULOS 20, 21, 24, 25 Y DEMÁS APLICABLES DE LA LEY FEDERAL DEL TRABAJO ("LFT").</p>
-  <h2>DECLARACIONES</h2>
-  <p><b>I.</b> Declara "EL TRABAJADOR" ser de nacionalidad ${F(w.nacionalidad||'MEXICANA')}, ${w.genero==='FEMENINO'?'sexo femenino':'sexo masculino'}, ${F(w.estado_civil)}, con fecha de nacimiento ${fmtL(w.fecha_nacimiento)}, CURP ${F(w.curp)}, R.F.C. ${F(w.rfc)}, Número de Seguridad Social ${F(w.nss)}, con domicilio en ${F(w.direccion)}, C.P. ${F(w.cp)}, teléfono ${F(w.telefono)} y correo ${F(w.correo)}.</p>
-  <p><b>II.</b> Declara "EL PATRÓN" que requiere contratar los servicios de "EL TRABAJADOR" para el puesto y actividades que se precisan en este contrato.</p>
-  <h2>CLÁUSULAS</h2>
-  <p><b>PRIMERA — RELACIÓN Y DURACIÓN.</b> ${durTxt}</p>
-  <p><b>SEGUNDA — SERVICIOS.</b> "EL TRABAJADOR" se obliga a prestar sus servicios personales subordinados como <b>${F(w.puesto)}</b>, desempeñando entre otras las siguientes funciones: ${F(w.funciones||'las inherentes al puesto')}, así como las conexas o complementarias a las mismas, bajo la dirección y dependencia de "EL PATRÓN" (art. 20 LFT).</p>
-  <p><b>TERCERA — LUGAR DE TRABAJO.</b> Los servicios se prestarán en ${esc(OBRA.nombre)}, con ubicación en ${F(OBRA.ubicacion)}, sin perjuicio de que "EL PATRÓN" pueda asignarle otro centro de trabajo conforme a la ley.</p>
-  <p><b>CUARTA — JORNADA.</b> La jornada será <b>${esc((w.turno||'DIURNA').toLowerCase()==='diurno'?'diurna':(w.turno||'diurna').toLowerCase())}</b>, con una duración máxima semanal conforme a los límites legales vigentes (48 horas semanales en 2026, con la reducción gradual prevista en el Decreto publicado en el D.O.F. el 1 de mayo de 2026: 46 h en 2027, 44 h en 2028, 42 h en 2029 y 40 h a partir de 2030, sin reducción de salario ni prestaciones). La distribución de horarios se hará conforme a las necesidades del centro de trabajo, respetando los máximos legales. "EL PATRÓN" llevará el registro de la jornada conforme a la normatividad aplicable. Por cada seis días de trabajo "EL TRABAJADOR" disfrutará de un día de descanso con goce de salario íntegro (art. 69 LFT).</p>
-  <p><b>QUINTA — SALARIO.</b> "EL TRABAJADOR" percibirá un salario diario de <b>$${money(w.sd)} M.N.</b> (salario ${pago} de <b>$${money(w.sal_semanal)} M.N.</b>), que le será cubierto de forma <b>${pago}</b> mediante ${esc((w.forma_pago||'TRANSFERENCIA').toLowerCase())} ${w.forma_pago==='TRANSFERENCIA'?`a la cuenta bancaria proporcionada por "EL TRABAJADOR"`:''}, en el centro de trabajo o por el medio pactado, a más tardar el día de pago establecido (arts. 82 a 89 y 101 LFT). Del salario se harán las deducciones legales que correspondan (impuestos, cuotas IMSS, créditos INFONAVIT/FONACOT en su caso, art. 110 LFT).</p>
-  <p><b>SEXTA — VACACIONES Y PRIMA VACACIONAL.</b> "EL TRABAJADOR" disfrutará de vacaciones conforme al artículo 76 de la LFT vigente (12 días laborables al cumplir el primer año, aumentando conforme a la ley), con prima vacacional del 25% (art. 80 LFT).</p>
-  <p><b>SÉPTIMA — AGUINALDO.</b> "EL TRABAJADOR" recibirá un aguinaldo anual equivalente a <b>15 días de salario</b>, cuando menos, pagadero antes del 20 de diciembre, o su parte proporcional (art. 87 LFT).</p>
-  <p><b>OCTAVA — SEGURIDAD SOCIAL.</b> "EL PATRÓN" inscribirá a "EL TRABAJADOR" ante el IMSS y cubrirá las aportaciones de seguridad social e INFONAVIT correspondientes. En obras de construcción, el registro se vincula al SIROC correspondiente${OBRA.registro_siroc?` (registro ${esc(OBRA.registro_siroc)})`:''}.</p>
-  <p><b>NOVENA — CAPACITACIÓN.</b> "EL TRABAJADOR" recibirá la capacitación y adiestramiento conforme a los planes y programas de "EL PATRÓN" (arts. 153-A y siguientes LFT).</p>
-  <p><b>DÉCIMA — OBLIGACIONES Y SEGURIDAD.</b> "EL TRABAJADOR" se obliga a desempeñar su trabajo con la intensidad, cuidado y esmero apropiados, observar el reglamento interior, las disposiciones en materia de seguridad y salud en el trabajo (incluida la NOM-035-STPS) y utilizar el equipo de protección personal proporcionado.</p>
-  <p><b>DÉCIMA PRIMERA — BENEFICIARIOS.</b> Para efectos del artículo 25 fracción X de la LFT, "EL TRABAJADOR" designa como beneficiario(s) para el pago de salarios y prestaciones devengadas y no cobradas en caso de fallecimiento a: <b>${F(w.beneficiario)}</b>.</p>
-  <p><b>DÉCIMA SEGUNDA — DATOS PERSONALES.</b> Las partes reconocen que los datos personales recabados serán tratados conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares, exclusivamente para los fines de la relación laboral.</p>
-  <p><b>DÉCIMA TERCERA — LO NO PREVISTO.</b> En lo no previsto por este contrato, las partes se sujetan a la LFT, y para su interpretación y cumplimiento, a la jurisdicción de los tribunales laborales competentes en el Estado de Hidalgo.</p>
-  <p>Leído que fue el presente contrato y enteradas las partes de su contenido y alcance legal, lo firman por duplicado en ${F(emp.domicilio&&emp.domicilio.includes(',')?emp.domicilio.split(',').slice(-2).join(','):'Pachuca de Soto, Hidalgo')}, el ${fmtL(fecha)}.</p>
+  <style>
+  body{font-family:'Times New Roman',serif;font-size:11.5pt;line-height:1.4;color:#000;max-width:720px;margin:0 auto;padding:0 26px;text-align:justify}
+  .hdr{text-align:center;margin:8px 0 14px;padding-bottom:8px;border-bottom:2px solid #1b3a5b}
+  .hdr .logo{height:64px}
+  .hdr.plat .pl1{font-weight:bold;font-size:15pt;color:#1B2A4A;letter-spacing:.5px}
+  .hdr.plat .pl2{font-size:10pt;color:#2E7D5B}
+  h1{font-size:12.5pt;text-align:center;text-transform:uppercase;margin:6px 0 12px}
+  h2{font-size:11.5pt;text-align:center;margin:14px 0 6px}
+  p{margin:6px 0}.bl{letter-spacing:1px}
+  .fecha{margin-top:18px}
+  .firmas{display:flex;justify-content:space-between;gap:40px;margin-top:52px;text-align:center}
+  .firmas div{flex:1;font-size:10.5pt}
+  .peq{font-size:8.5pt;color:#555;margin-top:26px;text-align:left}
+  @media print{body{margin:0 auto}}
+  </style></head><body>
+  ${headerHTML}
+  <h1>Contrato Individual de Trabajo por ${esc(tipoTit)}</h1>
+  <p>CONTRATO INDIVIDUAL DE TRABAJO POR ${esc(tipoTit.toUpperCase())} QUE CELEBRAN POR UNA PARTE LA EMPRESA <b>${BL(emp.razon)}</b>, REPRESENTADA EN ESTE ACTO POR EL (LA) C. <b>${BL(L.rep)}</b> A QUIEN EN LO SUCESIVO SE LE DENOMINAR&Aacute; <b>"EL PATR&Oacute;N"</b>, Y POR LA OTRA PARTE, EL (LA) C. <b>${esc(fullName(w))}</b> A QUIEN EN LO SUCESIVO SE LE DENOMINAR&Aacute; COMO <b>"EL TRABAJADOR"</b>, Y A QUIENES EN SU CONJUNTO SE LES DENOMINAR&Aacute; <b>"LAS PARTES"</b>; QUE CONTIENE LAS CONDICIONES GENERALES DE TRABAJO BAJO LAS SIGUIENTES:</p>
+  <h2>D E C L A R A C I O N E S:</h2>
+  <p><b>I. DECLARA "EL PATR&Oacute;N"</b></p>
+  <p><b>a)</b> Para los efectos de los art&iacute;culos 10, 11, 12, 13, 14, 16, 24 y 25 de la Ley Federal del Trabajo, que su representada denominada <b>${BL(emp.razon)}</b> est&aacute; legalmente constituida de conformidad con las leyes de la Rep&uacute;blica Mexicana, situaci&oacute;n que se corrobora en el Instrumento N&uacute;mero ${BL(L.instrumento)}, Volumen N&uacute;mero ${BL(L.volumen)}, de fecha ${BL(L.esc_fecha)}, pasado ante la fe del Licenciado ${BL(L.notario)}, Notario P&uacute;blico N&uacute;mero ${BL(L.notaria)} en la Ciudad ${BL(L.ciudad)}; el cual qued&oacute; inscrito en el Registro P&uacute;blico de la Propiedad y de Comercio de ${BL(L.rppc)}, bajo el folio mercantil ${BL(L.folio)} con fecha ${BL(L.inscr)}.</p>
+  <p><b>b)</b> Que comparece a la celebraci&oacute;n del presente contrato en su car&aacute;cter de <b>${BL(L.cargo)}</b>, personalidad que acredita en t&eacute;rminos del Instrumento notarial de referencia en el inciso a) que precede, la cual no le ha sido modificada, ni revocada en forma alguna a la fecha de firma del presente contrato.</p>
+  <p><b>c)</b> Que la empresa tiene su domicilio ubicado en ${BL(L.dom)}, y contar con Registro Federal de Contribuyentes ${BL(L.rfc)}.</p>
+  <p><b>II. DECLARA "EL TRABAJADOR"</b></p>
+  <p><b>a)</b> Para los efectos de los art&iacute;culos 8, 24 y 25 de la Ley Federal del Trabajo, "EL TRABAJADOR" declara llamarse <b>${esc(fullName(w))}</b>, sexo ${BL(w.genero)}, escolaridad ${BL(w.escolaridad)}, nacido en ${BL(w.edo_nacimiento)} que cuenta con ${edad!=null?edad:'<span class="bl">____</span>'} a&ntilde;os de edad, de nacionalidad ${BL(w.nacionalidad||'MEXICANA')} estado civil ${BL(w.estado_civil)}, con n&uacute;mero de seguridad social ${BL(w.nss)}.</p>
+  <p><b>b)</b> Que cuenta con Clave &Uacute;nica de Registro de Poblaci&oacute;n <b>${BL(w.curp)}</b>.</p>
+  <p><b>c)</b> Que se encuentra debidamente inscrito ante el Registro Federal de Contribuyentes con clave ${BL(w.rfc)}.</p>
+  <p><b>d)</b> Que su domicilio se encuentra en ${BL(w.direccion)}${w.cp?', C.P. '+esc(w.cp):''}.</p>
+  <p><b>III. Declaran "LAS PARTES"</b></p>
+  <p><b>a)</b> Que es su voluntad celebrar el presente contrato individual de trabajo y estar de acuerdo con lo aqu&iacute; expresamente pactado quedando insubsistente cualquier acuerdo verbal que se haya dado entre ellos. Asimismo, est&aacute;n de acuerdo en sujetar el presente contrato al tenor de las siguientes:</p>
+  <h2>C L &Aacute; U S U L A S:</h2>
+  <p><b>PRIMERA. -</b> "EL TRABAJADOR" se obliga a prestar sus servicios personales a "EL PATR&Oacute;N", subordin&aacute;ndose jur&iacute;dicamente para ocupar el puesto de <b>${BL(w.puesto)}</b>, conviniendo que este trabajo deber&aacute; ejecutarlo con cuidado, esmero, eficiencia y en la forma, tiempo y lugar convenido, por lo que queda expresamente pactado que acatar&aacute; en el desempe&ntilde;o de su trabajo todas las disposiciones del Reglamento Interior de Trabajo, todas las &oacute;rdenes, circulares y disposiciones que dicte "EL PATR&Oacute;N" y todos los ordenamientos legales que le sean aplicables, sobremanera lo se&ntilde;alado por el art&iacute;culo 27 de la Ley Federal del Trabajo, adem&aacute;s las actividades que ejecutar&aacute; son las de ${BL(w.funciones)}, se&ntilde;al&aacute;ndose de manera enunciativa y no limitativa.</p>
+  <p>"EL TRABAJADOR" realizar&aacute; sus servicios personales bajo la direcci&oacute;n, dependencia y subordinaci&oacute;n de "EL PATR&Oacute;N" as&iacute; como de las personas que se encuentren bajo la direcci&oacute;n y subordinaci&oacute;n de &eacute;ste y que tengan facultades de mando en el centro de trabajo ejecutando todas las labores inherentes al puesto mencionado, todas aquellas que se le relacionen directa e indirectamente de acuerdo con el uso y la costumbre y/o aquellas actividades que se relacionen con otros puestos similares al suyo y las relativas a la ley, respetando los sistemas de trabajo y pol&iacute;ticas de "EL PATR&Oacute;N".</p>
+  <p><b>SEGUNDA. -</b> "EL TRABAJADOR" deber&aacute; ejecutar su trabajo en el lugar donde "EL PATR&Oacute;N" ordene desempe&ntilde;ar las actividades. "EL TRABAJADOR" se obliga a desempe&ntilde;ar dentro de su jornada de trabajo, s&oacute;lo las actividades que correspondan con su puesto y dem&aacute;s relacionadas con el mismo, las cuales &uacute;nicamente ser&aacute;n asignadas por "EL PATR&Oacute;N".</p>
+  <p><b>TERCERA. -</b> ${tercera}</p>
+  <p><b>CUARTA. -</b> Por los servicios contratados, "EL PATR&Oacute;N" pagar&aacute; a "EL TRABAJADOR" un salario diario de <b>$${money(sdNum)}${sdLetra?' ('+esc(sdLetra)+' 00/100 M.N.)':' M.N.'}</b>; el cual, en ninguna circunstancia ser&aacute; inferior al salario m&iacute;nimo establecido para el &aacute;rea geogr&aacute;fica en donde "EL TRABAJADOR" preste sus servicios. Al salario convenido se aplicar&aacute; la parte proporcional correspondiente al descanso semanal conforme a lo dispuesto en el art&iacute;culo 69 de la Ley Federal del Trabajo. El salario se fijar&aacute; de manera <b>${pago}</b>, en moneda de curso legal y podr&aacute; efectuarse en efectivo, dep&oacute;sito en cuenta bancaria, tarjeta de d&eacute;bito, transferencias o cualquier otro medio electr&oacute;nico. Al efecto, "EL TRABAJADOR" a la firma del presente contrato, autoriza a "EL PATR&Oacute;N" para que este le efect&uacute;e el pago en las modalidades antes se&ntilde;aladas.</p>
+  <p>"EL TRABAJADOR" expresa su conformidad y autoriza a "EL PATR&Oacute;N" para que deduzca de su salario, los impuestos que resulten a su cargo, las cuotas obreras al Instituto Mexicano del Seguro Social, as&iacute; como cualquier otra cantidad a cuyo pago pudiera estar obligado "EL TRABAJADOR" y en especial aqu&eacute;llas a que se refiere el art&iacute;culo 110 de la Ley Federal del Trabajo.</p>
+  <p><b>QUINTA. -</b> "LAS PARTES" acuerdan que en atenci&oacute;n a la tendencia digital y el fomento del cuidado al medio ambiente; de conformidad con lo establecido en el art&iacute;culo 101 de la Ley Federal del Trabajo, "EL PATR&Oacute;N" se obliga a la entrega de los recibos de n&oacute;mina de "EL TRABAJADOR" al correo electr&oacute;nico <b>${BL(w.correo)}</b>, en los cuales se podr&aacute; apreciar la informaci&oacute;n detallada de los conceptos y deducciones de pago, convini&eacute;ndose en que la recepci&oacute;n del recibo v&iacute;a correo electr&oacute;nico implicar&aacute; el finiquito total de las obligaciones de "EL PATR&Oacute;N" por el periodo correspondiente.</p>
+  <p>No obstante, previa solicitud por escrito, "EL TRABAJADOR" podr&aacute; requerir de forma impresa el recibo de n&oacute;mina a "EL PATR&Oacute;N", quedando obligado a firmar estas constancias de pago.</p>
+  <p><b>SEXTA. -</b> La duraci&oacute;n de la jornada ser&aacute; de 48 horas a la semana, repartidas conforme a las necesidades de "EL PATR&Oacute;N" en t&eacute;rminos del art&iacute;culo 59 de la Ley Federal del Trabajo. Dicha jornada de trabajo podr&aacute; ajustarla "EL PATR&Oacute;N" de acuerdo con la carga de trabajo dentro de los m&aacute;ximos permitidos por la ley, notific&aacute;ndole a "EL TRABAJADOR" con debida anticipaci&oacute;n, quien manifiesta su entera conformidad para ello. "EL PATR&Oacute;N" queda en libertad de adecuar los sistemas de trabajo, horarios y la organizaci&oacute;n de las labores; "EL TRABAJADOR" est&aacute; obligado a obedecer cualquier orden relacionada con los nuevos sistemas de trabajo u organizaci&oacute;n y acudir a los eventos extraordinarios requeridos por "EL PATR&Oacute;N".</p>
+  <p><b>S&Eacute;PTIMA. -</b> Cuando por circunstancias extraordinarias se aumente la jornada de trabajo, los servicios prestados durante el tiempo excedente se considerar&aacute;n como extraordinarios y se pagar&aacute;n a raz&oacute;n de ciento por ciento m&aacute;s del salario establecido para las horas de trabajo normal. Queda prohibido a "EL TRABAJADOR" que labore tiempo extra, a menos que reciba solicitud para ello de forma expresa y por escrito de "EL PATR&Oacute;N" o de sus representantes. Tales servicios nunca podr&aacute;n exceder de tres horas diarias ni de tres veces en una semana.</p>
+  <p>En caso de que "EL TRABAJADOR" manifieste su aceptaci&oacute;n por escrito a "EL PATR&Oacute;N" de la solicitud de tiempo extraordinario, es precisamente "EL TRABAJADOR" quien se obliga a conservar dichas constancias, sin cuyo requisito no deber&aacute; prestar sus servicios en jornada extraordinaria, por lo que se obliga a exhibirlas para el cobro del tiempo extraordinario correspondiente.</p>
+  <p><b>OCTAVA. -</b> "EL TRABAJADOR" est&aacute; obligado a registrar su asistencia en la forma y t&eacute;rminos que establezca "EL PATR&Oacute;N", a la entrada y salida de sus labores, por lo que el incumplimiento de esta condici&oacute;n conducir&aacute; a considerarse como falta injustificada a sus labores, para todos los efectos legales.</p>
+  <p><b>NOVENA. -</b> Por cada seis d&iacute;as de trabajo, tendr&aacute; "EL TRABAJADOR" derecho a un d&iacute;a de descanso semanal con goce del pago de salario &iacute;ntegro, convini&eacute;ndose en que dicho descanso lo disfrutar&aacute; seg&uacute;n las condiciones de trabajo y el centro de servicios o lugar de trabajo, por lo que dicho d&iacute;a de descanso podr&aacute; ser rotativo. Tambi&eacute;n disfrutar&aacute; de descanso con pago de salario &iacute;ntegro, los d&iacute;as se&ntilde;alados en el art&iacute;culo 74 de la Ley Federal del Trabajo. Se proh&iacute;be expresamente a "EL TRABAJADOR" que labore los d&iacute;as festivos o de descanso obligatorio, salvo solicitud expresa y por escrito de "EL PATR&Oacute;N" y aceptaci&oacute;n por escrito de "EL TRABAJADOR".</p>
+  <p><b>D&Eacute;CIMA. -</b> "EL TRABAJADOR" despu&eacute;s de un a&ntilde;o de servicios continuos disfrutar&aacute; de un periodo anual de vacaciones pagadas, en t&eacute;rminos de la Ley Federal del Trabajo, mismas que aumentar&aacute;n peri&oacute;dicamente seg&uacute;n lo marque la misma Ley. Asimismo, se le cubrir&aacute; la prima vacacional conforme a lo dispuesto en la Ley Federal del Trabajo. Las vacaciones no podr&aacute;n compensarse con una remuneraci&oacute;n. Si la relaci&oacute;n de trabajo termina antes de que se cumpla el a&ntilde;o de servicios, "EL TRABAJADOR" tendr&aacute; derecho a una remuneraci&oacute;n proporcional por concepto de vacaciones al tiempo de servicios prestados.</p>
+  <p><b>D&Eacute;CIMA PRIMERA. -</b> "EL TRABAJADOR" percibir&aacute; un aguinaldo anual, que deber&aacute; pag&aacute;rsele antes del d&iacute;a 20 de diciembre, equivalente a 15 d&iacute;as de salario, de acuerdo con lo establecido por el art&iacute;culo 87 de la Ley Federal del Trabajo. Cuando "EL TRABAJADOR" no haya cumplido el a&ntilde;o de servicios, tendr&aacute; derecho a que se le pague en proporci&oacute;n al tiempo trabajado, conforme al art&iacute;culo citado.</p>
+  <p><b>D&Eacute;CIMA SEGUNDA. -</b> "EL TRABAJADOR" conviene en someterse a los reconocimientos m&eacute;dicos que peri&oacute;dicamente ordene "EL PATR&Oacute;N" en los t&eacute;rminos del art&iacute;culo 134 fracci&oacute;n X de la Ley Federal del Trabajo; en la inteligencia de que el m&eacute;dico que los practique ser&aacute; designado y retribuido por "EL PATR&Oacute;N".</p>
+  <p><b>D&Eacute;CIMA TERCERA. -</b> "EL TRABAJADOR" ser&aacute; capacitado y adiestrado en los t&eacute;rminos de los planes y programas que establezca "EL PATR&Oacute;N" conforme a lo dispuesto a la Ley, por lo que "EL TRABAJADOR" se compromete a participar en todos y cada uno de los programas de capacitaci&oacute;n y adiestramiento a que se refiere la fracci&oacute;n XV del art&iacute;culo 132 de la Ley Federal del Trabajo.</p>
+  <p><b>D&Eacute;CIMA CUARTA. -</b> "EL PATR&Oacute;N" podr&aacute; implementar el otorgamiento de beneficios adicionales en favor de "EL TRABAJADOR", con la finalidad de coadyuvar para la satisfacci&oacute;n de las necesidades presentes o futuras, tendientes a su superaci&oacute;n f&iacute;sica, social, econ&oacute;mica o cultural, que les permitan el mejoramiento en su calidad de vida y la de sus beneficiarios.</p>
+  <p><b>D&Eacute;CIMA QUINTA. -</b> "EL TRABAJADOR", en t&eacute;rminos del art&iacute;culo 25 fracci&oacute;n X y del diverso 501 de la Ley Federal del Trabajo, designa como beneficiario(s) a <b>${BL(w.beneficiario)}</b> quien(es) se favorecer&aacute;(n) del pago de los salarios, prestaciones devengadas y no cobradas o las que se generen en el caso de fallecimiento o desaparici&oacute;n derivada de un acto delincuencial de "EL TRABAJADOR". Cualquier modificaci&oacute;n respecto a la designaci&oacute;n de beneficiarios s&oacute;lo podr&aacute; efectuarla "EL TRABAJADOR", haci&eacute;ndolo del conocimiento de "EL PATR&Oacute;N".</p>
+  <p><b>D&Eacute;CIMA SEXTA. -</b> "EL TRABAJADOR" se obliga a guardar discreci&oacute;n y estricta confidencialidad de la informaci&oacute;n, datos o documentos confidenciales y reservados de "EL PATR&Oacute;N". En caso de que "EL TRABAJADOR" revele o divulgue la informaci&oacute;n, datos y documentaci&oacute;n, ser&aacute; una causa de rescisi&oacute;n de la relaci&oacute;n laboral sin consecuencia para "EL PATR&Oacute;N" conforme al art&iacute;culo 47, fracciones II y IX, de la Ley Federal del Trabajo. "EL TRABAJADOR" conviene expresamente en que no podr&aacute; aprovechar o utilizar, en ning&uacute;n caso, la informaci&oacute;n, datos o documentos confidenciales y reservados de "EL PATR&Oacute;N" para fines propios o de terceros; durante la vigencia del presente contrato y hasta por cinco a&ntilde;os contados a partir de la terminaci&oacute;n de este.</p>
+  <p><b>D&Eacute;CIMA S&Eacute;PTIMA. -</b> El presente contrato anula y deja sin efectos cualquier otro contrato anterior o convenio que hubiere existido o se hubiera celebrado entre "LAS PARTES". Para todo lo relativo a la interpretaci&oacute;n, cumplimiento y ejecuci&oacute;n del presente contrato, "LAS PARTES" se someten expresamente a la jurisdicci&oacute;n y competencia de los Tribunales del estado de HIDALGO, renunciando a cualquier otra jurisdicci&oacute;n o tribunal que por raz&oacute;n de domicilio, presente o futuro, pudiese ser competente.</p>
+  <p>Le&iacute;do que fue el presente contrato por "LAS PARTES", e impuestas de su contenido y fuerza legal, lo firmaron, quedando un tanto en poder de cada una de las mismas.</p>
+  <p class="fecha">Pachuca de Soto, Hgo.; a ${fdia} de ${fmes} de ${fanio}.</p>
   <div class="firmas">
-    <div><b>"EL PATRÓN"</b><br>${F(emp.razon)}<br>${F(emp.representante)}</div>
-    <div><b>"EL TRABAJADOR"</b><br>${esc(fullName(w))}<br>CURP: ${F(w.curp)}</div>
+    <div><b>"EL PATR&Oacute;N"</b><br><br><br>________________________________<br>C. ${BL(L.rep)}<br>En representaci&oacute;n legal de ${BL(emp.razon)}.</div>
+    <div><b>"EL TRABAJADOR"</b><br><br><br>________________________________<br>C. ${esc(fullName(w))}</div>
   </div>
-  <div class="firmas">
-    <div><b>TESTIGO</b><br><br></div>
-    <div><b>TESTIGO</b><br><br></div>
-  </div>
-  <p class="peq" style="margin-top:26px">Documento generado por la Base de Trabajadores PLATINUM el ${new Date().toLocaleDateString('es-MX')}. Plantilla elaborada conforme a la LFT y reformas vigentes a julio de 2026; sujeto a revisión por abogado laboral.</p>
+  <p class="peq">Documento generado por la Base de Trabajadores PLATINUM el ${new Date().toLocaleDateString('es-MX')}. Machote JIRE_DA_RH-08; sujeto a revisi&oacute;n por abogado laboral.</p>
   <script>window.onload=()=>window.print()<\/script></body></html>`;
   const win=window.open('','_blank');
   if(!win){toast('Tu navegador bloqueó la ventana. Permite ventanas emergentes para este archivo.','err');return;}
@@ -7048,8 +7118,11 @@ async function dlDashboardXlsx(wb,name,porHoja){
     const files=Object.keys(zip.files).filter(x=>/^xl\/worksheets\/sheet\d+\.xml$/.test(x));
     for(const f of files){
       let xml=await zip.file(f).async('string');
-      if(!/<sheetPr[ >\/]/.test(xml))xml=xml.replace(/(<worksheet[^>]*>)/,'$1<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>');
-      const ps='<pageSetup paperSize="1" orientation="landscape" fitToWidth="1" fitToHeight="0"/>';
+      // Escala EDITABLE: quitamos fitToPage (bloqueaba "Ajustar al %" en Excel) y
+      // usamos modo "Ajustar a N% del tamaño normal" (scale). Así el usuario puede
+      // cambiar la escala de impresión. Orientación horizontal por default.
+      xml=xml.replace(/<pageSetUpPr[^>]*\/>/g,'');
+      const ps='<pageSetup paperSize="1" orientation="landscape" scale="100"/>';
       if(/<pageSetup[ \/>]/.test(xml))xml=xml.replace(/<pageSetup[^>]*\/>/,ps);
       else if(/<pageMargins[^>]*\/>/.test(xml))xml=xml.replace(/(<pageMargins[^>]*\/>)/,'$1'+ps);
       else{
