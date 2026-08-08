@@ -922,7 +922,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-06.7';
+const APP_VERSION='2026-08-06.8';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -4324,6 +4324,7 @@ const AS={
   h2:{font:{bold:true,sz:7,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'2E75B6'}},alignment:{horizontal:'center',vertical:'center'},border:BORD},
   h3:{font:{sz:7,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'2E75B6'}},alignment:{horizontal:'center',vertical:'center'},border:BORD},
   w:{font:{sz:9,name:'Calibri'},fill:{fgColor:{rgb:'EBF3FB'}},border:BORD,alignment:{vertical:'center'}},
+  wn:{font:{sz:9,name:'Calibri'},fill:{fgColor:{rgb:'EBF3FB'}},border:BORD,alignment:{vertical:'center',wrapText:true}},
   wc:{font:{sz:9,name:'Calibri'},fill:{fgColor:{rgb:'EBF3FB'}},border:BORD,alignment:{horizontal:'center',vertical:'center'}},
   b:{font:{sz:9,name:'Calibri'},border:BORD},
   f:{font:{bold:true,sz:9,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'1F3864'}},alignment:{horizontal:'center',vertical:'center'}}
@@ -4358,7 +4359,15 @@ function asSheet(grupo,cfg,blanco){
   head3.push(cfg.h3,cfg.h4);
   rows.push(mrow(head3.slice(0,nc))); styles.push(AS.h3); hs.push({hpt:11});
   const wSt=[],bSt=[];
-  for(let c=0;c<nc;c++){wSt.push(c<base?(c===0&&!blanco?AS.wc:AS.w):AS.b);bSt.push(AS.b);}
+  const nameCol=blanco?0:1; // la columna del NOMBRE (con ajuste de texto para que no se corte)
+  for(let c=0;c<nc;c++){
+    let st;
+    if(c>=base)st=AS.b;
+    else if(c===nameCol)st=AS.wn;
+    else if(c===0&&!blanco)st=AS.wc;
+    else st=AS.w;
+    wSt.push(st); bSt.push(AS.b);
+  }
   for(let i=0;i<10;i++){
     const w=grupo[i];
     if(w&&!blanco)rows.push(mrow([w.no_trab??'',fullName(w),w.nss||'']));
@@ -4374,9 +4383,12 @@ function asSheet(grupo,cfg,blanco){
     {s:{r:17,c:0},e:{r:17,c:last}}];
   for(let i=0;i<6;i++)merges.push({s:{r:4,c:base+i*2},e:{r:4,c:base+i*2+1}});
   for(let c=0;c<base;c++)merges.push({s:{r:4,c},e:{r:6,c}});
-  // Anchos calibrados para caber al 100% en CARTA HORIZONTAL con márgenes de 0.25"
-  const widths=blanco?[20,11.5,9]:[3.4,21.5,9.5];
-  while(widths.length<nc)widths.push(blanco?6.5:7.0);
+  // Anchos calibrados para caber al 100% en CARTA HORIZONTAL con márgenes de 0.25".
+  // Nombre ANCHO (con ajuste de texto se parte en 2 líneas si es larguísimo) y las
+  // 12 columnas de días más angostas, de modo que el ancho total (~9.5") quepa en
+  // UNA sola página horizontal sin cortar la hoja en dos.
+  const widths=blanco?[29,12,10]:[4,32,11.5];
+  while(widths.length<nc)widths.push(5.8);
   const ws=buildSheet(rows,styles,widths,merges,hs);
   // Margen superior amplio: baja todo el contenido para dejar el espacio en
   // blanco arriba (lado del encabezado) y poder perforar SIN tocar el encabezado.
