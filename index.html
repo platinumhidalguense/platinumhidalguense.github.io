@@ -432,6 +432,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
         <button class="btn dark" onclick="openChequesDesdeRecibos()">🧾 Verificar/generar desde recibos</button>
         <button class="btn dark" onclick="openControlPagos()">🔁 Control de pagos (cheque + transferencia)</button>
         <button class="btn dark" onclick="openControlFolios()">📋 Control de folios (saltos)</button>
+        <button class="btn dark" onclick="openConciliacion()">🔎 Conciliación total (motor·pagos·CFDI)</button>
         <button class="btn dark" onclick="exportCheques()">⬇ Exportar cheques</button>
       </div>
       <div class="tbl-card">
@@ -921,7 +922,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-06.6';
+const APP_VERSION='2026-08-06.7';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -3324,6 +3325,94 @@ async function chequeFolioAviso(){
     const sinJust=r.huecos.filter(n=>!r.just.has(String(n))).length;
     if(sinJust>0)toast(`⚠ Hay ${sinJust} folio(s) de cheque saltado(s) sin justificar. Revisa "Control de folios".`,'err');
   }catch(e){/* si falta el Script 46 u otra cosa, no molesta */}
+}
+/* ============================================================
+   CONCILIACIÓN TOTAL — control absoluto de cada salida de dinero.
+   Por trabajador + semana cruza (SOLO LECTURA, no toca el motor):
+   • ESPERADO: neto que arroja el motor de nómina (nominaSemanal, base sin faltas).
+   • CHEQUE(S): capturados en CUALQUIER estatus (los CANCELADO no suman).
+   • TRANSFERENCIA(S): pagos importados (los EXITOSO suman; rechazados se marcan).
+   • CFDI: si está timbrado (monto tomado del nombre del XML archivado).
+   Banderas: doble pago, pago sin CFDI, CFDI sin pago, pago≠CFDI, pago>esperado,
+   transferencia rechazada.
+   ============================================================ */
+function concBuild(){
+  const map=new Map(); const key=(tid,ns)=>tid+'|'+ns;
+  const getRow=(w,ns)=>{const k=key(w.id,ns);let o=map.get(k);if(!o){o={w,sem:ns,chq:[],pag:[],cfdi:[]};map.set(k,o);}return o;};
+  (CHEQUES||[]).filter(c=>!c.eliminado&&c.trabajador_id).forEach(c=>{const w=WORKERS.find(x=>x.id===c.trabajador_id);if(w)getRow(w,normSem(c.semana)).chq.push(c);});
+  (PAGOS||[]).filter(p=>p.trabajador_id).forEach(p=>{const w=WORKERS.find(x=>x.id===p.trabajador_id);if(w)getRow(w,normSem(p.semana)).pag.push(p);});
+  const _amt=d=>{const m=String(d.nombre_archivo||'').match(/\$([\d,]+(?:\.\d+)?)/);return m?parseFloat(m[1].replace(/,/g,'')):null;};
+  (DOCSX||[]).filter(d=>!d.anulado&&d.categoria==='CFDI_NOMINA'&&d.trabajador_id).forEach(d=>{const w=WORKERS.find(x=>x.id===d.trabajador_id);if(w)getRow(w,normSem(d.semana)).cfdi.push({amt:_amt(d)});});
+  const rows=[...map.values()].filter(o=>o.sem);
+  rows.forEach(o=>{
+    let esp=0; try{esp=Number((nominaSemanal(o.w)||{}).neto)||0;}catch(e){esp=Number(o.w.sal_semanal)||0;}
+    o.esp=esp;
+    o.pagCheque=o.chq.filter(c=>String(c.estatus||'').toUpperCase()!=='CANCELADO'&&c.importe!=null&&c.importe!=='').reduce((s,c)=>s+(Number(c.importe)||0),0);
+    o.pagTransf=o.pag.filter(p=>String(p.estado||'').toUpperCase()==='EXITOSO').reduce((s,p)=>s+(Number(p.importe)||0),0);
+    o.pagado=o.pagCheque+o.pagTransf;
+    o.hasCFDI=o.cfdi.length>0;
+    o.cfdiAmt=o.cfdi.reduce((s,c)=>s+(Number(c.amt)||0),0);
+    const chqAct=o.chq.some(c=>String(c.estatus||'').toUpperCase()!=='CANCELADO'&&c.importe);
+    const transfOk=o.pag.some(p=>String(p.estado||'').toUpperCase()==='EXITOSO');
+    const flags=[];
+    if(chqAct&&transfOk)flags.push('DOBLE PAGO');
+    if(o.pagado>0.005&&!o.hasCFDI)flags.push('SIN CFDI');
+    if(o.hasCFDI&&o.pagado<0.005)flags.push('CFDI SIN PAGO');
+    if(o.hasCFDI&&o.cfdiAmt>0&&o.pagado>0.005&&Math.abs(o.pagado-o.cfdiAmt)>1)flags.push('PAGO≠CFDI');
+    if(o.esp>0&&o.pagado>o.esp+1)flags.push('PAGO>ESPERADO');
+    if(o.pagado<0.005&&o.pag.some(p=>String(p.estado||'').toUpperCase()==='RECHAZADO'))flags.push('TRANSF. RECHAZADA');
+    o.flags=flags; o.no=o.w.no_trab;
+  });
+  rows.sort((a,b)=>((b.flags.length>0)-(a.flags.length>0))||((parseInt(b.sem)||0)-(parseInt(a.sem)||0))||((a.no||9e9)-(b.no||9e9)));
+  window._CONC=rows; concRender();
+}
+function concRender(){
+  const rows=window._CONC||[];
+  const fs=normSem($('conc-sem')?$('conc-sem').value:'');
+  const soloDif=$('conc-dif')&&$('conc-dif').checked;
+  const filt=rows.filter(o=>(!fs||o.sem===fs)&&(!soloDif||o.flags.length));
+  const nFlag=rows.filter(o=>o.flags.length).length;
+  const m2=v=>v?'$'+money(v):'—';
+  const body=filt.map(o=>`<div class="imp-row" style="grid-template-columns:1.5fr .45fr .9fr .9fr .9fr .8fr 1.4fr${o.flags.length?';background:var(--amber-bg)':''}">
+    <span><b>${esc(fullName(o.w))}</b><br><span style="color:var(--mut);font-size:10.5px">#${o.no??'—'}</span></span>
+    <span style="font-size:12px">S${esc(o.sem)}</span>
+    <span style="font-size:11.5px">${m2(o.esp)}</span>
+    <span style="font-size:11.5px">${o.pagCheque?'🧾 '+m2(o.pagCheque):'—'}</span>
+    <span style="font-size:11.5px">${o.pagTransf?'💸 '+m2(o.pagTransf):'—'}</span>
+    <span style="font-size:11.5px">${o.hasCFDI?'🧾 '+(o.cfdiAmt?m2(o.cfdiAmt):'sí'):'<span style="color:var(--red)">no</span>'}</span>
+    <span style="font-size:10px">${o.flags.length?o.flags.map(f=>`<span class="imp-tag imp-CONFLICTO" style="font-size:9px">${f}</span>`).join(' '):'<span style="color:var(--green)">✔</span>'}</span>
+  </div>`).join('');
+  $('conc-out').innerHTML=`
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      ${nFlag?`<span class="imp-tag imp-CONFLICTO" style="background:var(--red);color:#fff">⚠ ${nFlag} con diferencia</span>`:'<span class="imp-tag imp-COINCIDE">Todo cuadra</span>'}
+      <span style="font-size:11px;color:var(--mut)">${filt.length} renglón(es)</span>
+      <span style="margin-left:auto;font-size:12px">Semana <input id="conc-sem" style="width:70px;padding:4px 6px" placeholder="todas" value="${$('conc-sem')?esc($('conc-sem').value):''}" oninput="concRender()"> · <label style="font-size:12px"><input type="checkbox" id="conc-dif" style="width:auto" ${soloDif?'checked':''} onchange="concRender()"> solo diferencias</label></span>
+    </div>
+    <div class="imp-row head" style="grid-template-columns:1.5fr .45fr .9fr .9fr .9fr .8fr 1.4fr"><span>Trabajador</span><span>Sem</span><span>Esperado</span><span>Cheque</span><span>Transfer.</span><span>CFDI</span><span>Alertas</span></div>
+    ${body||'<div class="empty">Sin movimientos de dinero para ese filtro.</div>'}
+    <p style="font-size:11px;color:var(--mut);margin-top:8px">"Esperado" es el neto que arroja el motor de nómina (base, sin faltas): si hubo faltas el pago real será menor y es normal. Se resaltan sobre todo <b>pagos sin CFDI</b>, <b>dobles pagos</b> y <b>pagos por encima del esperado</b>. Solo cruza información; no modifica nada.</p>`;
+}
+function openConciliacion(){
+  modal(`<div class="m-head"><h2>🔎 Conciliación total · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:8px">Cruza, por trabajador y semana, lo que <b>arroja el motor</b> (esperado) contra lo <b>pagado</b> (cheques en cualquier estatus + transferencias) y el <b>CFDI timbrado</b>. Para tener control absoluto de cada salida de dinero.</p>
+      <div id="conc-out"></div>
+    </div>
+    <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button><button class="btn dark" onclick="exportConciliacion()">⬇ Exportar Excel</button></div>`,'xl');
+  concBuild();
+}
+function exportConciliacion(){
+  const rows=window._CONC||[]; if(!rows.length){toast('No hay movimientos para exportar.','err');return;}
+  const aoa=[],styles=[];
+  aoa.push([`CONCILIACIÓN TOTAL — ${OBRA.nombre} — ${new Date().toLocaleDateString('es-MX')}`]);styles.push(ST.title);
+  aoa.push(['NO.','TRABAJADOR','SEMANA','ESPERADO (MOTOR)','CHEQUE','TRANSFERENCIA','CFDI','ALERTAS']);styles.push(ST.head);
+  const rs=[ST.cellC,ST.cell,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cell];
+  rows.forEach(o=>{aoa.push([o.no??'',fullName(o.w),'S'+o.sem,o.esp||'',o.pagCheque||'',o.pagTransf||'',o.hasCFDI?(o.cfdiAmt||'SÍ'):'NO',o.flags.join(' | ')]);styles.push(rs);});
+  const ws=buildSheet(aoa,styles,[7,30,8,16,14,14,12,34],[{s:{r:0,c:0},e:{r:0,c:7}}],[{hpt:24},{hpt:26}]);
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:1+rows.length,c:7}})};
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'CONCILIACION');
+  dl(wb,`CONCILIACION_TOTAL_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}_${today()}.xlsx`);
+  toast('Excel de conciliación generado.','ok');
 }
 async function verDoc(docId){
   const d=DOCSX.find(x=>x.id===docId); if(!d)return;
@@ -6456,6 +6545,7 @@ function updateAlertas(){
   const b=$('alert-badge');
   if(b){b.style.display=n?'block':'none';b.textContent=n>99?'99+':n;}
 }
+const ALERT_ACC={RECIB:{fn:'openFaltanRecibos',txt:'Ver / importar recibos'},PAGOG:{fn:'openImportPago',txt:'Importar pago'},IMSS:{fn:'openPdfImport',txt:'Importar acuses'},CREAR:{fn:'openRequisicion',txt:'Requisición de tarjetas'}};
 function openAlertas(){
   const als=computeAlertas();
   modal(`
@@ -6464,7 +6554,7 @@ function openAlertas(){
       ${als.length?als.map(a=>`
         <div class="hist-item">
           <div class="hist-top"><span style="font-size:16px">${a.icon}</span><span class="who">${a.txt}</span>
-            <span class="badge PENDIENTE" style="margin-left:auto">${a.items.length}</span></div>
+            <span class="badge PENDIENTE" style="margin-left:auto">${a.items.length}</span>${ALERT_ACC[a.k]?`<button class="btn dark" style="padding:2px 10px;font-size:11px;margin-left:8px" onclick="closeModal();${ALERT_ACC[a.k].fn}()">${ALERT_ACC[a.k].txt}</button>`:''}</div>
           <div style="font-size:12.5px;color:var(--mut)">${a.items.slice(0,12).map(x=>esc(x.nombre||fullName(x))).join(' · ')}${a.items.length>12?` · y ${a.items.length-12} más...`:''}</div>
         </div>`).join('')
       :'<div class="empty"><div class="big">✅</div>Sin pendientes en esta obra. Todo en orden.</div>'}
