@@ -431,6 +431,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
         <button class="btn gold" onclick="openChequeForm(null)">＋ Nuevo cheque</button>
         <button class="btn dark" onclick="openChequesDesdeRecibos()">🧾 Verificar/generar desde recibos</button>
         <button class="btn dark" onclick="openControlPagos()">🔁 Control de pagos (cheque + transferencia)</button>
+        <button class="btn dark" onclick="openControlFolios()">📋 Control de folios (saltos)</button>
         <button class="btn dark" onclick="exportCheques()">⬇ Exportar cheques</button>
       </div>
       <div class="tbl-card">
@@ -920,7 +921,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-06.4';
+const APP_VERSION='2026-08-06.5';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1101,7 +1102,7 @@ function openDetail(id){
       <div class="sect">Salario <button class="btn" style="padding:2px 10px;font-size:11.5px;float:right" onclick="openHistSalario('${w.id}')">📈 Historial de salario</button></div>
       ${kv('Periodo de pago',w.periodo_pago||'SEMANAL')}${kv('SD','$'+money(w.sd))}${kv('SDI','$'+money(w.sdi))}${kv('Salario '+(w.periodo_pago==='QUINCENAL'?'quincenal':'semanal'),'$'+money(w.sal_semanal))}
       <div class="sect">Datos personales</div>
-      ${kv('CURP',esc(w.curp))}${kv('RFC',esc(w.rfc))}${kv('NSS',esc(w.nss))}${kv('Fecha de nacimiento',fmtD(w.fecha_nacimiento)+(w.fecha_nacimiento?' ('+edad(w.fecha_nacimiento)+' años)':''))}${kv('Género',esc(w.genero))}${kv('Estado civil',esc(w.estado_civil))}${kv('Escolaridad',esc(w.escolaridad))}${kv('Nacionalidad',esc(w.nacionalidad))}${kv('Edo. nacimiento',esc(w.edo_nacimiento))}${kv('Dirección',esc(w.direccion))}${kv('C.P.',esc(w.cp))}${kv('Teléfono',esc(w.telefono))}${kv('Correo',esc(w.correo))}${kv('Beneficiario',esc(w.beneficiario))}
+      ${kv('CURP',esc(w.curp))}${kv('RFC',esc(w.rfc))}${kv('NSS',esc(w.nss))}${kv('Fecha de nacimiento',fmtD(w.fecha_nacimiento)+(w.fecha_nacimiento?' ('+edad(w.fecha_nacimiento)+' años)':''))}${kv('Género',esc(w.genero))}${kv('Estado civil',esc(w.estado_civil))}${kv('Escolaridad',esc(w.escolaridad))}${kv('Nacionalidad',esc(w.nacionalidad))}${kv('Edo. nacimiento',esc(w.edo_nacimiento))}${kv('Dirección',esc(w.direccion))}${kv('C.P.',esc(w.cp))}${kv('Teléfono',esc(w.telefono))}${kv('Correo',esc(w.correo))}${kv('Beneficiario',esc(w.beneficiario)+((w.benef_parentesco||w.benef_telefono||(w.benef_porcentaje!=null&&w.benef_porcentaje!==''))?` <span style="color:var(--mut);font-size:11.5px">(${[w.benef_parentesco?esc(w.benef_parentesco):'',w.benef_telefono?'tel. '+esc(w.benef_telefono):'',(w.benef_porcentaje!=null&&w.benef_porcentaje!=='')?esc(w.benef_porcentaje)+'%':''].filter(Boolean).join(' · ')})</span>`:''))}
       <div class="sect">Datos bancarios</div>
       ${kv('Cuenta',esc(w.cuenta))}${kv('CLABE',esc(w.clabe))}${kv('Banco',esc(w.banco))}${kv('Forma de pago',esc(w.forma_pago))}${kv('Observaciones',esc(w.observaciones))}
       <div class="sect">IMSS</div>
@@ -1321,6 +1322,11 @@ function openForm(id){
           <div class="fhint" id="h-correo">Si no tiene correo: CREAR CORREO genera la dirección, copia correo+contraseña y abre AtomicMail para darla de alta.</div>
         </div>
         ${fld('beneficiario','Beneficiario',w?w.beneficiario:'')}
+        ${(!w||w.benef_parentesco||w.benef_telefono||(w.benef_porcentaje!=null&&w.benef_porcentaje!==''))?`
+          ${fld('benef_parentesco','Parentesco del beneficiario',w?(w.benef_parentesco||''):'',{ph:'ej. ESPOSA, HIJO, MADRE'})}
+          ${fld('benef_telefono','Teléfono del beneficiario',w?(w.benef_telefono||''):'')}
+          ${fld('benef_porcentaje','Porcentaje asignado (%)',w?(w.benef_porcentaje??''):'',{type:'number',ph:'100'})}
+        `:''}
       </div>
       <div class="sect">Datos bancarios</div>
       <div class="grid">
@@ -1645,6 +1651,10 @@ function collectForm(){
   // registro patronal / prima RT PROPIOS del trabajador (override; vacío = usa el de la obra)
   if($('f-rp_trab'))out.registro_patronal=g('rp_trab').toUpperCase()||null;
   if($('f-prima_trab'))out.prima_rt=g('prima_trab')!==''?parseFloat(g('prima_trab')):null;
+  // datos del beneficiario (solo si el formulario los muestra = nuevas altas)
+  if($('f-benef_parentesco'))out.benef_parentesco=g('benef_parentesco').toUpperCase()||null;
+  if($('f-benef_telefono'))out.benef_telefono=g('benef_telefono').replace(/\D/g,'')||null;
+  if($('f-benef_porcentaje'))out.benef_porcentaje=g('benef_porcentaje')!==''?parseFloat(g('benef_porcentaje')):null;
   return out;
 }
 function validateWorker(w,editId){
@@ -1749,11 +1759,11 @@ async function saveWorker(id){
   }
   // v.4: si faltan las columnas del Script 42 (registro patronal/prima propios),
   // reintenta sin ellas para no bloquear el guardado y avisa que corran el script.
-  if(error&&/registro_patronal|prima_rt/i.test(error.message||'')&&/column|does not exist|schema cache|could not find/i.test(error.message||'')){
-    const w2={...w}; delete w2.registro_patronal; delete w2.prima_rt;
+  if(error&&/registro_patronal|prima_rt|benef_parentesco|benef_telefono|benef_porcentaje/i.test(error.message||'')&&/column|does not exist|schema cache|could not find/i.test(error.message||'')){
+    const w2={...w}; delete w2.registro_patronal; delete w2.prima_rt; delete w2.benef_parentesco; delete w2.benef_telefono; delete w2.benef_porcentaje;
     if(id)({error}=await sb.from('trabajadores').update(w2).eq('id',id));
     else ({error}=await sb.from('trabajadores').insert(w2));
-    if(!error)toast('Guardado, pero el registro patronal/prima propios NO se aplicaron: falta correr el Script 42 en Supabase.','err');
+    if(!error)toast('Guardado, pero algunos campos nuevos (registro patronal/prima o datos del beneficiario) NO se aplicaron: falta correr el Script 42 o 47 en Supabase.','err');
   }
   if(error){$('save-btn').textContent='💾 Guardar';toast('Error al guardar: '+error.message,'err');return;}
   closeModal();toast(msg,'ok');
@@ -3152,6 +3162,114 @@ function exportControlPagos(){
   dl(wb,`CONTROL_PAGOS_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}_${today()}.xlsx`);
   toast('Excel de control de pagos generado.','ok');
 }
+
+/* ============================================================
+   CONTROL DE FOLIOS DE CHEQUE (Script 46, tabla folios_cheque)
+   Numeración GLOBAL: detecta huecos en el consecutivo de los cheques capturados
+   (ej. del 0000365 al 0000367 falta el 0000366) y permite capturar el MOTIVO del
+   salto (a veces el jefe/contadoras toman cheques sueltos). Los folios con motivo
+   dejan de contar como pendientes.
+   ============================================================ */
+const _cfNum=c=>{const d=String(c==null?'':c).replace(/\D/g,'');return d===''?null:parseInt(d,10);};
+async function cfCargar(){
+  const [{data:ch},{data:fj}]=await Promise.all([
+    fetchAllRows(()=>sb.from('cheques').select('consecutivo,num_cheque,nombre,semana,estatus,eliminado')),
+    fetchAllRows(()=>sb.from('folios_cheque').select('*'))
+  ]);
+  const chAll=(ch||[]).filter(c=>!c.eliminado);
+  // folios presentes (consecutivo numérico) → mapa numero→cheque
+  const presentes=new Map(); let ancho=7;
+  chAll.forEach(c=>{const n=_cfNum(c.consecutivo);if(n!=null){presentes.set(n,c);ancho=Math.max(ancho,String(c.consecutivo).replace(/\D/g,'').length);}});
+  const just=new Map(); (fj||[]).forEach(f=>{const k=String(f.numero).replace(/\D/g,'');if(k)just.set(String(parseInt(k,10)),f);});
+  const nums=[...presentes.keys()].sort((a,b)=>a-b);
+  const huecos=[]; let overflow=false;
+  if(nums.length>=2){
+    for(let k=0;k<nums.length-1;k++){
+      const a=nums[k], b=nums[k+1];
+      for(let x=a+1;x<b;x++){
+        huecos.push(x);
+        if(huecos.length>400){overflow=true;break;}
+      }
+      if(overflow)break;
+    }
+  }
+  return {presentes,just,huecos,ancho,overflow,total:presentes.size,min:nums[0],max:nums[nums.length-1]};
+}
+async function openControlFolios(){
+  modal(`<div class="m-head"><h2>📋 Control de folios de cheque</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body"><div id="cf-out"><div class="empty">Analizando el consecutivo de los cheques...</div></div></div>
+    <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button><button class="btn dark" id="cf-xls" onclick="exportFolios()" style="display:none">⬇ Exportar Excel</button></div>`,'lg');
+  const r=await cfCargar(); window._CF=r; cfRender();
+}
+function _cfPad(n){const a=(window._CF&&window._CF.ancho)||7;return String(n).padStart(a,'0');}
+function cfRender(){
+  const r=window._CF; if(!r){return;}
+  const norm=n=>String(n);
+  const sinJust=r.huecos.filter(n=>!r.just.has(norm(n)));
+  const conJust=r.huecos.filter(n=>r.just.has(norm(n)));
+  const row=n=>{
+    const j=r.just.get(norm(n));
+    return j
+      ? `<div class="imp-row" style="grid-template-columns:1fr 2fr .7fr">
+          <span><b>${_cfPad(n)}</b></span>
+          <span style="font-size:12px">${esc(j.motivo||'—')}<br><span style="color:var(--mut);font-size:10.5px">${esc(j.capturado_por||'')} · ${fmtD(j.created_at)}</span></span>
+          <span><button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="quitarFolioJust('${norm(n)}')">Quitar</button></span>
+        </div>`
+      : `<div class="imp-row" style="grid-template-columns:1fr 2fr .7fr;background:var(--amber-bg)">
+          <span><b>${_cfPad(n)}</b></span>
+          <span><input id="cf-mot-${norm(n)}" placeholder="Motivo del salto (ej. lo tomó el jefe)" style="width:100%;padding:5px 7px"></span>
+          <span><button class="btn dark" style="padding:2px 8px;font-size:11px" onclick="justificarFolio('${norm(n)}')">Guardar</button></span>
+        </div>`;
+  };
+  $('cf-out').innerHTML=`
+    <p style="color:var(--mut);font-size:12.5px;margin-bottom:8px">Numeración global. Del folio <b>${_cfPad(r.min)}</b> al <b>${_cfPad(r.max)}</b> hay <b>${r.total}</b> cheques capturados. Un hueco = un folio físico que no se registró; captura el motivo y deja de aparecer como pendiente.</p>
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      ${sinJust.length?`<span class="imp-tag imp-CONFLICTO" style="background:var(--red);color:#fff">⚠ ${sinJust.length} salto(s) sin justificar</span>`:'<span class="imp-tag imp-COINCIDE">✔ Sin saltos pendientes</span>'}
+      ${conJust.length?`<span class="imp-tag imp-COINCIDE">${conJust.length} justificado(s)</span>`:''}
+      ${r.overflow?'<span class="imp-tag imp-SINREGISTRO">Hay muchísimos huecos: revisa si algún consecutivo se capturó mal</span>':''}
+    </div>
+    ${(sinJust.length||conJust.length)?`<div class="imp-row head" style="grid-template-columns:1fr 2fr .7fr"><span>Folio saltado</span><span>Motivo</span><span></span></div>`:''}
+    ${sinJust.map(row).join('')}${conJust.map(row).join('')}
+    ${(!sinJust.length&&!conJust.length)?'<div class="empty">No se detectaron folios saltados en el consecutivo.</div>':''}`;
+  if($('cf-xls'))$('cf-xls').style.display=(sinJust.length||conJust.length)?'':'none';
+}
+async function justificarFolio(numero){
+  const inp=$('cf-mot-'+numero); const motivo=inp?inp.value.trim():'';
+  if(!motivo){toast('Escribe el motivo del salto.','err');return;}
+  markWrite();
+  const {error}=await sb.from('folios_cheque').insert({numero:String(numero),motivo:motivo.toUpperCase(),capturado_por:USER.email});
+  if(error){if(/folios_cheque.*does not exist|relation .*folios_cheque/i.test(error.message||'')){toast('Falta correr el Script 46 (tabla folios_cheque) en Supabase.','err');return;}toast('Error: '+error.message,'err');return;}
+  toast('Folio '+_cfPad(numero)+' justificado.','ok');
+  const r=await cfCargar(); window._CF=r; cfRender();
+}
+async function quitarFolioJust(numero){
+  if(!confirm('¿Quitar la justificación del folio '+_cfPad(numero)+'? Volverá a aparecer como salto pendiente.'))return;
+  markWrite();
+  const {error}=await sb.from('folios_cheque').delete().eq('numero',String(numero));
+  if(error){toast('Error: '+error.message,'err');return;}
+  const r=await cfCargar(); window._CF=r; cfRender();
+}
+function exportFolios(){
+  const r=window._CF; if(!r)return;
+  const rows=[],styles=[];
+  rows.push([`CONTROL DE FOLIOS DE CHEQUE — ${new Date().toLocaleDateString('es-MX')}`]);styles.push(ST.title);
+  rows.push(['FOLIO SALTADO','ESTADO','MOTIVO','CAPTURADO POR']);styles.push(ST.head);
+  const rs=[ST.cellC,ST.cellC,ST.cell,ST.cell];
+  r.huecos.forEach(n=>{const j=r.just.get(String(n));rows.push([_cfPad(n),j?'JUSTIFICADO':'SIN JUSTIFICAR',j?j.motivo:'',j?j.capturado_por:'']);styles.push(rs);});
+  const ws=buildSheet(rows,styles,[16,16,44,26],[{s:{r:0,c:0},e:{r:0,c:3}}],[{hpt:24},{hpt:26}]);
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:1+r.huecos.length,c:3}})};
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'FOLIOS');
+  dl(wb,`CONTROL_FOLIOS_CHEQUE_${today()}.xlsx`);
+  toast('Excel de folios generado.','ok');
+}
+/* Aviso automático al entrar a Cheques: si hay saltos sin justificar, avisa una vez. */
+async function chequeFolioAviso(){
+  try{
+    const r=await cfCargar();
+    const sinJust=r.huecos.filter(n=>!r.just.has(String(n))).length;
+    if(sinJust>0)toast(`⚠ Hay ${sinJust} folio(s) de cheque saltado(s) sin justificar. Revisa "Control de folios".`,'err');
+  }catch(e){/* si falta el Script 46 u otra cosa, no molesta */}
+}
 async function verDoc(docId){
   const d=DOCSX.find(x=>x.id===docId); if(!d)return;
   const {data,error}=await sb.storage.from('expedientes').createSignedUrl(d.archivo,3600);
@@ -3640,6 +3758,7 @@ async function chqTraerRecibo(){
   toast(`Del recibo: neto $${money(info.neto)} (${info.tipo}).`,'ok');
 }
 function renderCheques(){
+  if(!window._FOLIOCHK){window._FOLIOCHK=1;chequeFolioAviso();}
   const rows=chqFiltered();
   if(!rows.length){$('chq-tbody').innerHTML='<tr><td colspan="10"><div class="empty"><div class="big">🧾</div>Sin cheques que coincidan.<br>Usa <b>＋ Nuevo cheque</b> o registra una baja con finiquito.</div></td></tr>';return;}
   $('chq-tbody').innerHTML=rows.map(c=>`
@@ -4123,7 +4242,16 @@ function asSheet(grupo,cfg,blanco){
 function exportAsistencia(){
   const sem=$('as-sem').value||semObra(), d1=$('as-d1').value, d2=$('as-d2').value;
   const extra=Math.max(0,parseInt($('as-extra').value)||0);
-  const act=asActivosSemana(d1,d2);
+  const act=asActivosSemana(d1,d2).slice();
+  // INFONAVIT: los de contratista PLATINUM (que no van en orden consecutivo) salen
+  // hasta el final, después de todos los demás y antes de las hojas en blanco.
+  if(/infonavit/i.test(OBRA.nombre||'')){
+    act.sort((a,b)=>{
+      const pa=(String(a.contratista||'').toUpperCase()==='PLATINUM')?1:0;
+      const pb=(String(b.contratista||'').toUpperCase()==='PLATINUM')?1:0;
+      return pa-pb || ((a.no_trab||9e9)-(b.no_trab||9e9));
+    });
+  }
   if(!act.length){toast('No hay trabajadores activos ni altas programadas para esa semana.','err');return;}
   const empKey=(OBRA.tipo==='OFICINA')?'PLATINUM':'PLATINUM';
   const emp=CFGEMP['empresa_'+empKey]||{razon:'COMERCIALIZADORA PLATINUM HIDALGUENSE'};
@@ -6310,11 +6438,15 @@ function ctEmpChange(){
 async function generarContrato(id){
   const w=WORKERS.find(x=>x.id===id);
   if(!w){toast('No se encontró al trabajador (recarga la página).','err');return;}
-  const emp={razon:$('ct-razon').value.trim().toUpperCase(),rfc:$('ct-rfc').value.trim().toUpperCase(),
-    representante:$('ct-rep').value.trim().toUpperCase(),domicilio:$('ct-dom').value.trim().toUpperCase()};
-  const tipo=$('ct-tipo').value, fecha=$('ct-fecha').value||today(), fin=$('ct-fin').value;
-  // guardar config de empresa
+  // FUSIONA con la config guardada (empresa_JIRE / empresa_PLATINUM) para NO perder
+  // los datos legales (instrumento notarial, notario, folio mercantil, carácter del
+  // representante, etc.) que solo viven en la config y no están en el formulario.
   const clave='empresa_'+$('ct-emp').value;
+  const cfgEmp=CFGEMP[clave]||{};
+  const emp=Object.assign({},cfgEmp,{
+    razon:$('ct-razon').value.trim().toUpperCase(),rfc:$('ct-rfc').value.trim().toUpperCase(),
+    representante:$('ct-rep').value.trim().toUpperCase(),domicilio:$('ct-dom').value.trim().toUpperCase()});
+  const tipo=$('ct-tipo').value, fecha=$('ct-fecha').value||today(), fin=$('ct-fin').value;
   CFGEMP[clave]=emp;
   try{await sb.from('config').upsert({clave,valor:emp,actualizado_por:USER.email});}catch(e){}
   // actualizar tipo de contrato del trabajador
