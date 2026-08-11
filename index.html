@@ -459,12 +459,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
       <div class="stats" id="vac-stats"></div>
       <div class="toolbar">
         <div class="search"><input id="vac-q" placeholder="Buscar trabajador..." oninput="renderVacViews()"></div>
+        <label style="font-size:12px;color:var(--mut)">Año: <select id="vac-anio" onchange="renderVacViews()" style="padding:5px 8px"></select></label>
         <button class="btn dark" onclick="openImportVac()">⬆ Importar vacaciones (Excel)</button>
-        <span style="font-size:12px;color:var(--mut)">Clic en un trabajador para ver su saldo y registrar vacaciones.</span>
+        <button class="btn dark" onclick="exportVacAnio()">📅 Exportar año (Excel)</button>
+        <span style="font-size:12px;color:var(--mut)">Clic en un trabajador para ver su detalle, prima y registrar vacaciones/pagos.</span>
       </div>
       <div class="tbl-card">
         <table>
-          <thead><tr><th>No.</th><th>Trabajador</th><th>Contratista</th><th>Antigüedad</th><th>Días por año</th><th>Gozados</th><th>Saldo</th><th>Estado hoy</th></tr></thead>
+          <thead><tr><th>No.</th><th>Trabajador</th><th>Antigüedad</th><th>Derecho</th><th>Gozados <span id="vac-anio-h"></span></th><th>Saldo</th><th>Prima vacacional</th><th>Estado hoy</th></tr></thead>
           <tbody id="vac-tbody"><tr class="loading-row"><td colspan="8">Cargando...</td></tr></tbody>
         </table>
       </div>
@@ -533,7 +535,7 @@ const DOCS = ["SOLICITUD DE EMPLEO","INE","CONSTANCIA DE SITUACION (RFC)","NSS (
 const BANCOS = {"012":"BBVA","127":"AZTECA","002":"BANAMEX","014":"SANTANDER","072":"BANORTE","021":"HSBC","137":"BANCOPPEL","030":"BAJIO","036":"INBURSA","058":"BANREGIO","044":"SCOTIABANK","646":"STP","722":"MERCADO PAGO","638":"NU MEXICO","661":"KLAR","166":"BANCO DEL BIENESTAR"};
 const RX = {curp:/^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/, rfc:/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{2,3}$/, nss:/^\d{11}$/, clabe:/^\d{18}$/, cp:/^\d{5}$/, tel:/^\d{10}$/, mail:/^[^\s@]+@[^\s@]+\.[^\s@]+$/};
 
-let sb=null, USER=null, OBRAS=[], OBRA=null, WORKERS=[], CHEQUES=[], DESC=[], DOCSX=[], VAC=[], ACTAS=[], NOM=[], PAGOS=[], VIEW='trab';
+let sb=null, USER=null, OBRAS=[], OBRA=null, WORKERS=[], CHEQUES=[], DESC=[], DOCSX=[], VAC=[], ACTAS=[], NOM=[], PAGOS=[], PRIMAS=[], VIEW='trab';
 /* Supabase corta cada consulta a 1000 filas. Con cientos de trabajadores y miles
    de recibos/cheques eso deja fuera muchos registros (por eso "solo salían los
    últimos recibos"). fetchAllRows pagina con .range() hasta traerlos TODOS. */
@@ -881,7 +883,7 @@ async function selectObra(id){
   await loadObraData(id);
 }
 async function loadObraData(id){
-  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg}]=await Promise.all([
+  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr}]=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
     fetchAllRows(()=>sb.from('cheques').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id)),
@@ -889,10 +891,11 @@ async function loadObraData(id){
     fetchAllRows(()=>sb.from('vacaciones').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('actas').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('nom035').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('pagos').select('*').eq('obra_id',id))
+    fetchAllRows(()=>sb.from('pagos').select('*').eq('obra_id',id)),
+    fetchAllRows(()=>sb.from('prima_pagos').select('*').eq('obra_id',id))
   ]);
   if(e1){toast('Error al cargar trabajadores: '+e1.message,'err');return;}
-  WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];PAGOS=pg||[];
+  WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];PAGOS=pg||[];PRIMAS=(pr||[]).filter(p=>p.activo!==false);
   await activarProgramados();
   const cs=[...new Set(WORKERS.map(w=>w.contratista).filter(Boolean))].sort();
   const cur=$('flt-contratista').value;
@@ -922,7 +925,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-06.8';
+const APP_VERSION='2026-08-06.9';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -4624,8 +4627,35 @@ function fueraHoy(w){
   const v=VAC.find(v=>v.trabajador_id===w.id&&v.activo&&v.fecha_inicio<=hoy&&v.fecha_fin>=hoy);
   return v||null;
 }
+/* Días de VACACIONES gozados por un trabajador dentro de un AÑO calendario. */
+function gozadosEnAnio(w,anio){
+  return (VAC||[]).filter(v=>v.activo&&v.tipo==='VACACIONES'&&v.trabajador_id===w.id&&String(v.fecha_inicio).slice(0,4)===String(anio)).reduce((s,v)=>s+(v.dias||0),0);
+}
+/* PRIMA VACACIONAL (art. 80 LFT): 25% del salario de los días que le corresponden.
+   total = 25% × derecho × salario diario. Fecha límite = vigencia (vencimiento de
+   sus vacaciones = próximo aniversario). Los pagos viven en prima_pagos (Script 48),
+   clasificados por el AÑO del vencimiento (periodo). */
+function primaVac(w){
+  const s=saldoVac(w);
+  const sd=Number(w.sd)||0;
+  const total=Math.round(0.25*s.derecho*sd*100)/100;
+  const periodo=s.vigencia?parseInt(String(s.vigencia).slice(0,4)):null;
+  const pagos=(PRIMAS||[]).filter(p=>p.activo!==false&&p.trabajador_id===w.id&&(periodo==null||Number(p.periodo)===periodo));
+  const pagado=Math.round(pagos.reduce((a,p)=>a+(Number(p.monto)||0),0)*100)/100;
+  const falta=Math.max(0,Math.round((total-pagado)*100)/100);
+  return {total,pagado,falta,limite:s.vigencia,periodo,derecho:s.derecho,sd,pagos};
+}
+function vacAnioSel(){const e=$('vac-anio');return e&&e.value?parseInt(e.value):new Date().getFullYear();}
 function renderVacViews(){
   if(!$('vac-tbody'))return;
+  // poblar el selector de año una vez (del más nuevo al más viejo)
+  if($('vac-anio')&&!$('vac-anio').options.length){
+    const y=new Date().getFullYear(); let o='';
+    for(let a=y+1;a>=2024;a--)o+=`<option value="${a}" ${a===y?'selected':''}>${a}</option>`;
+    $('vac-anio').innerHTML=o;
+  }
+  const anio=vacAnioSel();
+  if($('vac-anio-h'))$('vac-anio-h').textContent=anio;
   const hoy=today(), mes=hoy.slice(0,7);
   const act=WORKERS.filter(w=>w.estatus==='ACTIVO');
   const fuera=act.map(w=>({w,v:fueraHoy(w)})).filter(x=>x.v);
@@ -4641,11 +4671,16 @@ function renderVacViews(){
   let rows=act.filter(w=>!q||fullName(w).toUpperCase().includes(q));
   rows.sort((a,b)=>saldoVac(b).saldo-saldoVac(a).saldo);
   $('vac-tbody').innerHTML=rows.map(w=>{
-    const s=saldoVac(w), f=fueraHoy(w);
+    const s=saldoVac(w), f=fueraHoy(w), gz=gozadosEnAnio(w,anio), pr=primaVac(w);
+    const primaCell=pr.total>0
+      ? `$${money(pr.falta)}<span style="color:var(--mut)"> / $${money(pr.total)}</span>${pr.falta<=0.005?' <span style="color:var(--green)">✔</span>':''}${pr.limite?`<br><span style="color:var(--mut);font-size:10px">límite ${fmtD(pr.limite)}</span>`:''}`
+      : '—';
     return `<tr onclick="openVacForm('${w.id}')">
-      <td>${w.no_trab??''}</td><td><b>${esc(fullName(w))}</b></td><td>${esc(w.contratista)}</td>
-      <td>${s.anios} año(s)</td><td>${s.derecho}</td><td>${s.gozados}</td>
-      <td><b style="color:${s.saldo>0?'var(--green)':'var(--mut)'}">${s.saldo}</b>${s.vigencia?`<br><span style="color:var(--mut);font-size:10.5px">vig. ${fmtD(s.vigencia)}</span>`:''}</td>
+      <td>${w.no_trab??''}</td><td><b>${esc(fullName(w))}</b><br><span style="color:var(--mut);font-size:10.5px">${esc(w.contratista||'')}</span></td>
+      <td>${s.anios} año(s)</td><td>${s.derecho}</td>
+      <td><b>${gz}</b></td>
+      <td><b style="color:${s.saldo>0?'var(--green)':'var(--mut)'}">${s.saldo}</b>${s.vigencia?`<br><span style="color:var(--mut);font-size:10px">vig. ${fmtD(s.vigencia)}</span>`:''}</td>
+      <td style="font-size:11.5px">${primaCell}</td>
       <td>${f?`<span class="badge ${f.tipo==='VACACIONES'?'ENTREGADO':'PENDIENTE'}">${esc(f.tipo)} hasta ${fmtD(f.fecha_fin)}</span>`:'—'}</td>
     </tr>`;
   }).join('')||'<tr><td colspan="8"><div class="empty">Sin trabajadores activos.</div></td></tr>';
@@ -4653,6 +4688,7 @@ function renderVacViews(){
 function openVacForm(trabId){
   const w=WORKERS.find(x=>x.id===trabId); if(!w)return;
   const s=saldoVac(w);
+  const pr=primaVac(w);
   const regs=VAC.filter(v=>v.trabajador_id===trabId&&v.activo).sort((a,b)=>String(b.fecha_inicio).localeCompare(String(a.fecha_inicio)));
   modal(`
     <div class="m-head"><h2>🌴 Vacaciones y permisos · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
@@ -4666,6 +4702,12 @@ function openVacForm(trabId){
       <div style="background:var(--blue-bg,#eef3fb);border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:14px;line-height:1.6">
         Alta: <b>${fmtD(iniAntig(w))}</b> · Periodo vigente desde <b>${fmtD(s.aniv)}</b> · <b style="color:var(--accent,#c0392b)">vigencia para gozarlos: antes del ${fmtD(s.vigencia)}</b> (al cumplir el siguiente año se renuevan; estos días no se acumulan).
       </div>
+      <div class="sect">Prima vacacional (art. 80 LFT · 25%)</div>
+      <div style="background:var(--green-bg,#e8f5ee);border-radius:8px;padding:10px 12px;font-size:12.5px;margin-bottom:8px;line-height:1.8">
+        Corresponde: <b>$${money(pr.total)}</b> <span style="color:var(--mut)">(25% × ${pr.derecho} días × $${money(pr.sd)} SD)</span> · Pagado: <b>$${money(pr.pagado)}</b> · <b style="color:${pr.falta>0.005?'var(--accent,#c0392b)':'var(--green)'}">Falta: $${money(pr.falta)}</b>${pr.limite?` · fecha límite: <b>${fmtD(pr.limite)}</b>`:''}
+        <button class="btn dark" style="padding:3px 10px;font-size:11px;margin-left:8px" onclick="openPrimaPago('${trabId}')">💵 Registrar pago</button>
+      </div>
+      ${pr.pagos.length?`<div style="margin-bottom:14px">${pr.pagos.slice().sort((a,b)=>String(b.fecha_pago||'').localeCompare(String(a.fecha_pago||''))).map(p=>`<div class="kv"><b>$${money(p.monto)}</b><span>${fmtD(p.fecha_pago)}${p.notas?' · '+esc(p.notas):''} <button class="btn danger" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="quitarPrimaPago('${p.id}','${trabId}')">Quitar</button></span></div>`).join('')}</div>`:'<div style="height:6px"></div>'}
       <div class="sect">Registrar periodo</div>
       <div class="grid" style="grid-template-columns:1.4fr 1fr 1fr .6fr">
         <div><label>Tipo</label><select id="vc-tipo" onchange="vcDias()">${['VACACIONES','PERMISO CON GOCE','PERMISO SIN GOCE','INCAPACIDAD'].map(t=>`<option>${t}</option>`).join('')}</select></div>
@@ -4713,6 +4755,64 @@ async function quitarVac(id,trabId){
   if(error){toast('Error: '+error.message,'err');return;}
   closeModal();toast('Registro desactivado.','ok');
   await loadObraData(OBRA.id);
+}
+/* ---------- PRIMA VACACIONAL: registrar pagos (Script 48) ---------- */
+function openPrimaPago(trabId){
+  const w=WORKERS.find(x=>x.id===trabId); if(!w)return;
+  const pr=primaVac(w);
+  modal2(`
+    <div class="m-head"><h2>💵 Pago de prima vacacional · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal2()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Corresponde <b>$${money(pr.total)}</b> (25% × ${pr.derecho} días × $${money(pr.sd)} SD) · pagado <b>$${money(pr.pagado)}</b> · falta <b style="color:var(--accent,#c0392b)">$${money(pr.falta)}</b>. Fecha límite <b>${fmtD(pr.limite)}</b>${pr.periodo?` (periodo ${pr.periodo})`:''}.</p>
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div><label>Monto del pago</label><input id="pp-monto" type="number" step="0.01" value="${pr.falta>0?pr.falta.toFixed(2):''}"></div>
+        <div><label>Fecha del pago</label><input id="pp-fecha" type="date" value="${today()}"></div>
+        <div class="c2" style="grid-column:span 2"><label>Notas</label><input id="pp-notas" placeholder="Ej. pagado con nómina S18, transferencia, efectivo..."></div>
+      </div>
+    </div>
+    <div class="m-foot"><button class="btn" onclick="closeModal2()">Cancelar</button><button class="btn dark" onclick="savePrimaPago('${trabId}')">💾 Registrar pago</button></div>`,'md');
+}
+async function savePrimaPago(trabId){
+  const w=WORKERS.find(x=>x.id===trabId); if(!w)return;
+  const monto=parseFloat($('pp-monto').value), fecha=$('pp-fecha').value;
+  if(!(monto>0)){toast('Indica un monto válido.','err');return;}
+  if(!fecha){toast('Indica la fecha del pago.','err');return;}
+  const pr=primaVac(w);
+  markWrite();
+  const {error}=await sb.from('prima_pagos').insert({trabajador_id:trabId,obra_id:w.obra_id,periodo:pr.periodo,monto,fecha_pago:fecha,notas:($('pp-notas').value||'').trim().toUpperCase(),creado_por:USER.email});
+  if(error){if(/prima_pagos.*does not exist|relation .*prima_pagos/i.test(error.message||'')){toast('Falta correr el Script 48 (tabla prima_pagos) en Supabase.','err');return;}toast('Error: '+error.message,'err');return;}
+  toast('Pago de prima registrado.','ok');
+  closeModal2();
+  await loadObraData(OBRA.id);
+  openVacForm(trabId);
+}
+async function quitarPrimaPago(id,trabId){
+  if(!confirm('¿Quitar este pago de prima? (se puede recuperar en Supabase)'))return;
+  markWrite();
+  const {error}=await sb.from('prima_pagos').update({activo:false}).eq('id',id);
+  if(error){toast('Error: '+error.message,'err');return;}
+  toast('Pago quitado.','ok');
+  await loadObraData(OBRA.id);
+  openVacForm(trabId);
+}
+/* ---------- Visualizador de vacaciones + prima POR AÑO (Excel) ---------- */
+function exportVacAnio(){
+  const anio=vacAnioSel();
+  const act=WORKERS.filter(w=>w.estatus==='ACTIVO').slice().sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+  if(!act.length){toast('No hay trabajadores activos.','err');return;}
+  const rows=[],styles=[];
+  rows.push([`CONTROL DE VACACIONES Y PRIMA ${anio} — ${OBRA.nombre} — ${new Date().toLocaleDateString('es-MX')}`]);styles.push(ST.title);
+  rows.push(['NO.','TRABAJADOR','ANTIGÜEDAD','DERECHO','GOZADOS '+anio,'SALDO','VIGENCIA','PRIMA CORRESP.','PAGADO','FALTA','LÍMITE PAGO']);styles.push(ST.head);
+  const rs=[ST.cellC,ST.cell,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC];
+  act.forEach(w=>{
+    const s=saldoVac(w),gz=gozadosEnAnio(w,anio),pr=primaVac(w);
+    rows.push([w.no_trab??'',fullName(w),s.anios+' años',s.derecho,gz,s.saldo,fmtD(s.vigencia),pr.total,pr.pagado,pr.falta,fmtD(pr.limite)]);styles.push(rs);
+  });
+  const ws=buildSheet(rows,styles,[6,28,11,8,12,7,12,13,11,11,12],[{s:{r:0,c:0},e:{r:0,c:10}}],[{hpt:24},{hpt:26}]);
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:1+act.length,c:10}})};
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'VACACIONES '+anio);
+  dl(wb,`VACACIONES_PRIMA_${anio}_${OBRA.nombre.slice(0,14).replace(/\s+/g,'_')}_${today()}.xlsx`);
+  toast('Excel de vacaciones y prima del año generado.','ok');
 }
 /* ---------- v36: IMPORTAR VACACIONES DESDE EXCEL (control de vacaciones) ----------
    Lee el "CONTROL DE VACACIONES", empareja por RFC y registra los DÍAS GOZADOS
