@@ -393,7 +393,16 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
    (hamburguesa). El contenido tiene tope de ancho y se centra para
    que en monitores ultrawide no queden huecos enormes a los lados.
    ============================================================ */
-.app-shell{display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr);min-height:100vh}
+.app-shell{display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr);min-height:100vh;
+  transition:grid-template-columns .22s var(--ease)}
+/* v36.1 · PANEL PLEGABLE TAMBIÉN EN ESCRITORIO
+   El botón ☰ de la barra superior lo oculta y lo vuelve a mostrar; el estado
+   se recuerda por navegador. Al ocultarse, el contenido ocupa todo el ancho. */
+@media(min-width:1025px){
+  .app-shell.sb-oculto{grid-template-columns:0 minmax(0,1fr)}
+  .app-shell.sb-oculto .sidebar{transform:translateX(-101%);opacity:0;visibility:hidden;pointer-events:none}
+  .sidebar{transition:transform .22s var(--ease),opacity .16s ease}
+}
 
 /* ---------- PANEL LATERAL ---------- */
 .sidebar{
@@ -466,7 +475,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
   border-bottom:1px solid var(--border);min-height:var(--topbar-h);
   display:flex;align-items:center;gap:12px;padding:8px 20px;
 }
-.burger{display:none;border:1px solid var(--border);background:var(--card);color:var(--txt);
+/* El ☰ vive SIEMPRE en la barra superior (escritorio, tablet y celular) */
+.burger{display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid var(--border);background:var(--card);color:var(--txt);
   border-radius:9px;width:38px;height:38px;font-size:17px;line-height:1;flex:0 0 auto;
   transition:background var(--fast) ease,border-color var(--fast) ease}
 .burger:hover{border-color:var(--navy);background:var(--hover)}
@@ -507,7 +518,6 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
   }
   .sidebar.open{transform:none}
   .shell{grid-column:1}
-  .burger{display:inline-flex;align-items:center;justify-content:center}
   .sb-close{display:inline-flex;align-items:center;justify-content:center;margin-left:auto;
     border:none;background:transparent;color:var(--sidebar-mut);font-size:22px;padding:0 4px;cursor:pointer}
   .sb-close:hover{color:#fff}
@@ -661,7 +671,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
   <!-- ======================= CONTENIDO ======================= -->
   <div class="shell">
     <header class="appbar">
-      <button class="burger" onclick="toggleSidebar()" title="Menú" aria-label="Abrir menú">☰</button>
+      <button class="burger" id="burger" onclick="toggleSidebar()" title="Mostrar u ocultar el menú" aria-label="Mostrar u ocultar el menú" aria-controls="sidebar" aria-expanded="true">☰</button>
       <nav class="crumbs" id="crumbs" aria-label="Ruta actual"></nav>
       <div class="appbar-right">
         <span id="rt-status" style="font-size:11.5px;color:var(--mut)"></span>
@@ -692,7 +702,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <button class="btn" onclick="openMovimientos(isoWeek())">📅 Movimientos</button>
         <button class="btn dark" onclick="openAsistencia()">📝 Listas de asistencia</button>
         <button class="btn" onclick="openProyeccion()">💰 Proyección de nómina</button>
-        <button class="btn" onclick="toggleSidebar(true)" title="Todas las herramientas están en el panel lateral">☰ Más herramientas</button>
+        <button class="btn" onclick="toggleSidebar()" title="Muestra u oculta el panel lateral con todas las herramientas">☰ Menú de herramientas</button>
       </div>
       <div class="tbl-card">
         <table>
@@ -1029,7 +1039,7 @@ async function doLogout(){await sb.auth.signOut();location.reload();}
 async function enterApp(){
   $('scr-app').classList.remove('hide');
   $('user-chip').innerHTML=`<b>${esc(String(USER.email||'').split('@')[0])}</b>${esc(USER.email)}`;
-  pintarLogo();renderCrumbs();
+  pintarLogo();renderCrumbs();initSidebar();
   const {data,error}=await sb.from('obras').select('*').order('orden');
   if(error){toast('Error al cargar obras: '+error.message,'err');return;}
   OBRAS=data;
@@ -1267,7 +1277,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-14.1';
+const APP_VERSION='2026-08-14.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1319,7 +1329,7 @@ function setView(v){
   });
   if(v==='pagos')renderPagosView();
   renderCrumbs();
-  toggleSidebar(false);                       // en móvil, el cajón se cierra solo
+  cerrarCajonMovil();                         // en celular el cajón se cierra solo
   window.scrollTo({top:0,behavior:'smooth'});
 }
 /* Migas de pan: siempre se ve dónde está uno parado */
@@ -1334,15 +1344,46 @@ function renderCrumbs(){
     <span class="sep">›</span>
     <span class="c-i cur">${v.ic} ${esc(v.txt)}</span>`;
 }
-/* ---------- panel lateral (cajón en móvil) ---------- */
-function toggleSidebar(forzar){
-  const sb=$('sidebar'),sc=$('sb-scrim'); if(!sb)return;
-  const abrir=(forzar===undefined)?!sb.classList.contains('open'):!!forzar;
-  sb.classList.toggle('open',abrir);
-  if(sc)sc.classList.toggle('on',abrir);
+/* ============================================================
+   v36.1 · PANEL LATERAL PLEGABLE
+   En CELULAR/TABLET (≤1024px) es un cajón que entra por la izquierda con
+   fondo oscurecido. En ESCRITORIO se pliega y despliega con el mismo botón
+   ☰ de la barra superior, y el contenido se estira a todo el ancho.
+   El estado de escritorio se recuerda en este navegador.
+   ============================================================ */
+const esPantallaChica=()=>window.matchMedia('(max-width:1024px)').matches;
+function sidebarVisible(){
+  const app=$('scr-app'),sb=$('sidebar');
+  if(!app||!sb)return false;
+  return esPantallaChica()?sb.classList.contains('open'):!app.classList.contains('sb-oculto');
 }
-/* Ejecuta una acción del panel y cierra el cajón (móvil) */
-function sbGo(fn){try{fn();}catch(e){toast('No se pudo abrir: '+e.message,'err');}toggleSidebar(false);}
+function toggleSidebar(forzar){
+  const app=$('scr-app'),sb=$('sidebar'),sc=$('sb-scrim'),b=$('burger');
+  if(!sb||!app)return;
+  const abrir=(forzar===undefined)?!sidebarVisible():!!forzar;
+  if(esPantallaChica()){
+    sb.classList.toggle('open',abrir);
+    if(sc)sc.classList.toggle('on',abrir);
+  }else{
+    sb.classList.remove('open');
+    if(sc)sc.classList.remove('on');
+    app.classList.toggle('sb-oculto',!abrir);
+    try{localStorage.setItem('platinum_panel',abrir?'visible':'oculto');}catch(e){}
+  }
+  if(b){b.title=abrir?'Ocultar el menú':'Mostrar el menú';b.setAttribute('aria-expanded',abrir?'true':'false');}
+}
+/* Al entrar se respeta cómo lo dejó el usuario la última vez */
+function initSidebar(){
+  const app=$('scr-app'); if(!app)return;
+  let g=''; try{g=localStorage.getItem('platinum_panel')||'';}catch(e){}
+  app.classList.toggle('sb-oculto',g==='oculto'&&!esPantallaChica());
+  const b=$('burger');
+  if(b){const v=sidebarVisible();b.title=v?'Ocultar el menú':'Mostrar el menú';b.setAttribute('aria-expanded',v?'true':'false');}
+}
+/* Cierra SOLO el cajón de celular (en escritorio no debe plegarse al navegar) */
+function cerrarCajonMovil(){if(esPantallaChica())toggleSidebar(false);}
+/* Ejecuta una acción del panel y cierra el cajón (celular) */
+function sbGo(fn){try{fn();}catch(e){toast('No se pudo abrir: '+e.message,'err');}cerrarCajonMovil();}
 /* Esc cierra primero el cajón; si no está abierto, cierra el modal de encima */
 document.addEventListener('keydown',e=>{
   if(e.key!=='Escape')return;
@@ -4772,7 +4813,12 @@ function openChequeForm(id){
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn dark" id="c-save" onclick="saveCheque(${c?`'${c.id}'`:'null'})">💾 Guardar</button>
     </div>`,'md');
-  $('c-semana').oninput=()=>{const n=parseInt(String($('c-semana').value).replace(/\D/g,''));if(n>0)$('c-periodo').value=periodoCorto(n);};
+  /* v36.1 · BUG CORREGIDO: `fld()` crea los inputs con el prefijo `f-`
+     (id="f-c-semana"), así que `$('c-semana')` siempre devolvía null y esta
+     línea reventaba al abrir el formulario — por eso el PERIODO nunca se
+     llenaba solo al escribir la semana. */
+  const elSem=$('f-c-semana'), elPer=$('f-c-periodo');
+  if(elSem&&elPer)elSem.oninput=()=>{const n=parseInt(String(elSem.value).replace(/\D/g,''));if(n>0)elPer.value=periodoCorto(n);};
 }
 function chqAutofill(){
   const nom=$('c-nombre').value.trim().toUpperCase();
