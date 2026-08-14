@@ -2,7 +2,31 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<!-- v36 · SEGURIDAD DEL FRENTE: GitHub Pages no deja poner cabeceras HTTP, así
+     que la política se declara aquí. Solo se permiten los CDN que la app de
+     verdad usa y la conexión a Supabase; cualquier otro origen queda bloqueado
+     (nada de scripts, imágenes ni llamadas a servidores ajenos). -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  font-src 'self' data: https://fonts.gstatic.com;
+  img-src 'self' data: blob:;
+  connect-src 'self' blob: data: https://*.supabase.co wss://*.supabase.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net;
+  worker-src 'self' blob: https://cdnjs.cloudflare.com;
+  frame-src 'self' blob:;
+  object-src 'none'; base-uri 'self'; form-action 'self';">
+<!-- v36 · El tema se aplica ANTES de pintar para que no haya destello blanco
+     al entrar en modo oscuro. -->
+<script>
+(function(){try{
+  var t=localStorage.getItem('platinum_tema');
+  if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);
+}catch(e){}})();
+</script>
 <!-- v35: tipografías corporativas — Montserrat (títulos) + Open Sans (texto).
      Con preconnect para que carguen rápido; si el CDN fallara, cae solo a las
      fuentes del sistema (fallback en cada font-family), la app no se rompe. -->
@@ -35,32 +59,117 @@
 
 </script>
 <style>
+/* ============================================================
+   v36 · SISTEMA DE TEMAS (claro / oscuro) CON VARIABLES CSS
+   Un solo juego de nombres para toda la app: cambiando estos valores
+   cambia la interfaz entera. El tema se elige con el atributo
+   data-theme del <html> ('light' | 'dark'); sin atributo se respeta
+   la preferencia del sistema operativo.
+     CLARO:  fondo gris ultra claro, tarjetas blanco puro, sombras muy
+             sutiles, acentos en azul marino corporativo.
+     OSCURO: fondo slate/navy muy oscuro, tarjetas flotantes un tono
+             más claro, textos legibles (contraste AA).
+   ============================================================ */
 :root{
-  /* v35 · PALETA CORPORATIVA (usar cada color con mesura y para lo que toca):
-     azul marino = estructura/primario · verde menta = éxito/positivo ·
-     gris perla = fondos/bordes/texto tenue · blanco = tarjetas ·
-     coral cálido = ACENTO puntual (solo resaltar, nunca de fondo general). */
+  color-scheme:light;
+  /* --- marca --- */
   --navy:#1F3A5C; --navy2:#2B4E76; --gold:#E0785A; --accent:#E0785A;
-  --bg:#F4F6F8; --card:#ffffff;
-  --border:#E4E8ED; --txt:#1F2733; --mut:#697180;
+  --brand-txt:#1F3A5C;   /* azul de marca cuando se usa como TEXTO */
+  /* --- superficies --- */
+  --bg:#F4F6F8;            /* fondo de la página (gris ultra claro) */
+  --card:#FFFFFF;          /* tarjetas, modales, menús (blanco puro) */
+  --head-bg:#FBFCFD;       /* encabezados de tabla */
+  --hover:#EEF2F7;         /* hover de filas y menús */
+  --line:#F0F2F4;          /* líneas finas internas */
+  --chip-bg:#EEF1F5;       /* fondos de chips neutros */
+  --disabled-bg:#F1F3F5;
+  --border:#E4E8ED;
+  --input-bg:#FFFFFF;
+  /* --- texto --- */
+  --txt:#1F2733; --mut:#697180;
+  /* --- semánticos --- */
   --green:#2FA37A; --green-bg:#E7F6EF;
-  --red:#C43D30; --red-bg:#FBECEA; --amber:#B7791F; --amber-bg:#FCF3E3;
-  --blue:#2F6DB0; --blue-bg:#EAF1F9;
+  --red:#C43D30;   --red-bg:#FBECEA;  --red-br:#E8C5C3;
+  --amber:#B7791F; --amber-bg:#FCF3E3;
+  --blue:#2F6DB0;  --blue-bg:#EAF1F9;
+  --purple:#6B3FD4; --purple-bg:#EFE8FC;
+  --rt-dot:#3DDC84;
+  /* --- estructura (sidebar / topbar) --- */
+  --sidebar-bg:#12243D; --sidebar-bg2:#0E1C30; --sidebar-txt:#DCE5F2;
+  --sidebar-mut:#8FA3C0; --sidebar-hover:rgba(255,255,255,.09);
+  --sidebar-on:rgba(224,120,90,.16); --sidebar-br:rgba(255,255,255,.08);
+  --topbar-bg:#FFFFFF; --topbar-txt:#1F2733; --topbar-mut:#697180;
+  --logo-ink:#12243D; --logo-bar:#0E1C30; --logo-bar-txt:#FFFFFF;
+  /* --- medidas / movimiento --- */
   --radius:12px;
+  --sidebar-w:270px;       /* ancho del panel lateral en escritorio */
+  --content-max:1560px;    /* tope de ancho en monitores gigantes */
+  --topbar-h:56px;
+  --fast:.15s; --ease:cubic-bezier(.2,.7,.3,1);
   --shadow-sm:0 1px 2px rgba(20,33,61,.06);
   --shadow:0 1px 3px rgba(20,33,61,.07), 0 10px 26px rgba(20,33,61,.05);
+  --shadow-lg:0 24px 70px rgba(20,33,61,.28);
 }
+/* Preferencia del sistema (cuando el usuario NO ha elegido tema a mano) */
+@media(prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --navy:#3E6FAE; --navy2:#4B82C6; --gold:#F0906F; --accent:#F0906F;
+    --brand-txt:#8FB6E8;
+    --bg:#0B1220; --card:#141F33; --head-bg:#1A2740; --hover:#1D2B44;
+    --line:#22314B; --chip-bg:#1D2B44; --disabled-bg:#1A2740;
+    --border:#25344E; --input-bg:#0F1A2C;
+    --txt:#E6ECF5; --mut:#9AAAC2;
+    --green:#4ED8A6; --green-bg:#12332A;
+    --red:#FF7B6E;   --red-bg:#3A1B19;  --red-br:#5A2B27;
+    --amber:#F2C05C; --amber-bg:#3A2E14;
+    --blue:#74B0F0;  --blue-bg:#132840;
+    --purple:#B79BFF; --purple-bg:#241C3D;
+    --sidebar-bg:#0E1728; --sidebar-bg2:#0A1220; --sidebar-txt:#DCE5F2;
+    --sidebar-mut:#8194B0; --sidebar-hover:rgba(255,255,255,.07);
+    --sidebar-on:rgba(240,144,111,.18); --sidebar-br:rgba(255,255,255,.07);
+    --topbar-bg:#0F1A2C; --topbar-txt:#E6ECF5; --topbar-mut:#9AAAC2;
+    --logo-ink:#F2F6FC; --logo-bar:#F2F6FC; --logo-bar-txt:#0B1220;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+    --shadow:0 1px 3px rgba(0,0,0,.45), 0 12px 30px rgba(0,0,0,.35);
+    --shadow-lg:0 26px 74px rgba(0,0,0,.6);
+  }
+}
+/* Elección explícita del usuario — gana sobre el sistema en ambos sentidos */
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --navy:#3E6FAE; --navy2:#4B82C6; --gold:#F0906F; --accent:#F0906F;
+    --brand-txt:#8FB6E8;
+  --bg:#0B1220; --card:#141F33; --head-bg:#1A2740; --hover:#1D2B44;
+  --line:#22314B; --chip-bg:#1D2B44; --disabled-bg:#1A2740;
+  --border:#25344E; --input-bg:#0F1A2C;
+  --txt:#E6ECF5; --mut:#9AAAC2;
+  --green:#4ED8A6; --green-bg:#12332A;
+  --red:#FF7B6E;   --red-bg:#3A1B19;  --red-br:#5A2B27;
+  --amber:#F2C05C; --amber-bg:#3A2E14;
+  --blue:#74B0F0;  --blue-bg:#132840;
+  --purple:#B79BFF; --purple-bg:#241C3D;
+  --sidebar-bg:#0E1728; --sidebar-bg2:#0A1220; --sidebar-txt:#DCE5F2;
+  --sidebar-mut:#8194B0; --sidebar-hover:rgba(255,255,255,.07);
+  --sidebar-on:rgba(240,144,111,.18); --sidebar-br:rgba(255,255,255,.07);
+  --topbar-bg:#0F1A2C; --topbar-txt:#E6ECF5; --topbar-mut:#9AAAC2;
+  --logo-ink:#F2F6FC; --logo-bar:#F2F6FC; --logo-bar-txt:#0B1220;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+  --shadow:0 1px 3px rgba(0,0,0,.45), 0 12px 30px rgba(0,0,0,.35);
+  --shadow-lg:0 26px 74px rgba(0,0,0,.6);
+}
+html{scroll-behavior:smooth}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Open Sans','Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--txt);font-size:14px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 button{font-family:inherit;cursor:pointer}
-input,select,textarea{font-family:inherit;font-size:13.5px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--txt);width:100%}
+input,select,textarea{font-family:inherit;font-size:13.5px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--txt);width:100%}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--navy);outline-offset:-1px}
 input.err{outline:2px solid var(--red);outline-offset:-1px}
-input:disabled{background:#f1f3f5;color:var(--mut)}
+input:disabled{background:var(--disabled-bg);color:var(--mut)}
 label{font-size:11.5px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px}
 .hide{display:none!important}
 .gate{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,var(--navy) 0%,var(--navy2) 60%,#2b3f6b 100%)}
-.gate-card{background:#fff;border-radius:14px;padding:38px 36px;width:400px;max-width:92vw;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.gate-card{background:var(--card);border-radius:14px;padding:38px 36px;width:400px;max-width:92vw;box-shadow:0 24px 60px rgba(0,0,0,.35)}
 .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px}
 .brand-badge{width:38px;height:38px;border-radius:9px;background:var(--navy);color:var(--gold);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px}
 .brand h1{font-size:17px;letter-spacing:.3px}
@@ -74,19 +183,19 @@ label{font-size:11.5px;font-weight:600;color:var(--mut);text-transform:uppercase
 .topbar .tt{font-weight:700;font-size:15px}
 .topbar .tt span{color:var(--gold)}
 .top-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.user-chip{font-size:12.5px;color:#cdd5e4;background:rgba(255,255,255,.08);padding:6px 12px;border-radius:20px}
+.user-chip{font-size:12.5px;color:var(--topbar-mut);background:rgba(255,255,255,.08);padding:6px 12px;border-radius:20px}
 .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:6px;padding:6px 12px;font-size:12.5px}
 .btn-ghost:hover{background:rgba(255,255,255,.12)}
-.obra-bar{background:#fff;border-bottom:1px solid var(--border);padding:0 20px;display:flex;gap:2px;overflow-x:auto}
+.obra-bar{background:var(--card);border-bottom:1px solid var(--border);padding:0 20px;display:flex;gap:2px;overflow-x:auto}
 .obra-tab{border:none;background:none;padding:13px 16px 11px;font-size:13.5px;font-weight:600;color:var(--mut);border-bottom:2.5px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:8px}
 .obra-tab:hover{color:var(--txt)}
-.obra-tab.on{color:var(--navy);border-bottom-color:var(--gold)}
+.obra-tab.on{color:var(--brand-txt);border-bottom-color:var(--gold)}
 .obra-tab .cnt{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:1px 8px;font-size:11px;color:var(--mut)}
 .obra-tab.on .cnt{background:var(--navy);color:#fff;border-color:var(--navy)}
 .obra-edit{border:none;background:none;color:var(--mut);font-size:13px;padding:0 4px}
-.obra-edit:hover{color:var(--navy)}
+.obra-edit:hover{color:var(--brand-txt)}
 .view-bar{display:flex;gap:8px;margin-bottom:14px}
-.view-btn{border:1px solid var(--border);background:#fff;border-radius:20px;padding:7px 18px;font-size:13px;font-weight:600;color:var(--mut)}
+.view-btn{border:1px solid var(--border);background:var(--card);border-radius:20px;padding:7px 18px;font-size:13px;font-weight:600;color:var(--mut)}
 .view-btn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .wrap{padding:18px 20px;max-width:1500px;margin:0 auto}
 .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
@@ -94,13 +203,13 @@ label{font-size:11.5px;font-weight:600;color:var(--mut);text-transform:uppercase
 .toolbar .search input{padding-left:32px}
 .toolbar .search::before{content:'⌕';position:absolute;left:10px;top:7px;color:var(--mut);font-size:16px}
 .toolbar select{width:auto;min-width:130px}
-.btn{border-radius:7px;padding:9px 14px;font-size:13px;font-weight:600;border:1px solid var(--border);background:#fff;color:var(--txt);display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
-.btn:hover{border-color:var(--navy);color:var(--navy)}
+.btn{border-radius:7px;padding:9px 14px;font-size:13px;font-weight:600;border:1px solid var(--border);background:var(--card);color:var(--txt);display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.btn:hover{border-color:var(--navy);color:var(--brand-txt)}
 .btn.dark{background:var(--navy);color:#fff;border-color:var(--navy)}
 .btn.dark:hover{background:var(--navy2)}
-.btn.gold{background:var(--gold);border-color:var(--gold);color:var(--navy)}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:var(--brand-txt)}
 .btn.gold:hover{filter:brightness(1.06)}
-.btn.danger{color:var(--red);border-color:#e8c5c3}
+.btn.danger{color:var(--red);border-color:var(--red-br)}
 .btn.danger:hover{background:var(--red-bg)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .stats{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
@@ -110,72 +219,72 @@ label{font-size:11.5px;font-weight:600;color:var(--mut);text-transform:uppercase
 .stat.g .n{color:var(--green)} .stat.r .n{color:var(--red)} .stat.a .n{color:var(--amber)} .stat.b .n{color:var(--blue)}
 .tbl-card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:auto;max-height:calc(100vh - 330px)}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:1100px}
-thead th{position:sticky;top:0;background:#fbfcfd;border-bottom:1px solid var(--border);text-align:left;padding:10px 12px;font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;cursor:pointer;user-select:none;white-space:nowrap;z-index:5}
-thead th:hover{color:var(--navy)}
-tbody td{padding:9px 12px;border-bottom:1px solid #f0f2f4;white-space:nowrap}
+thead th{position:sticky;top:0;background:var(--head-bg);border-bottom:1px solid var(--border);text-align:left;padding:10px 12px;font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;cursor:pointer;user-select:none;white-space:nowrap;z-index:5}
+thead th:hover{color:var(--brand-txt)}
+tbody td{padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
 tbody tr{cursor:pointer}
-tbody tr:hover{background:#f6f8fb}
+tbody tr:hover{background:var(--hover)}
 .badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
 .badge.ACTIVO,.badge.EXPEDIDO{background:var(--green-bg);color:var(--green)}
 .badge.BAJA,.badge.CANCELADO{background:var(--red-bg);color:var(--red)}
 .badge.PENDIENTE{background:var(--amber-bg);color:var(--amber)}
 .badge.ENTREGADO{background:var(--blue-bg);color:var(--blue)}
-.badge.QUINCENAL{background:#efe8fc;color:#6b3fd4}
-.badge.SEMANAL{background:#eef1f5;color:var(--mut)}
+.badge.QUINCENAL{background:var(--purple-bg);color:var(--purple)}
+.badge.SEMANAL{background:var(--chip-bg);color:var(--mut)}
 .docs-pill{font-size:11px;color:var(--mut)}
 .docs-pill.ok{color:var(--green);font-weight:700}
 .empty{text-align:center;padding:60px 20px;color:var(--mut)}
 .empty .big{font-size:38px;margin-bottom:10px}
 .overlay{position:fixed;inset:0;background:rgba(16,24,40,.55);display:flex;align-items:flex-start;justify-content:center;padding:4vh 14px;z-index:100;overflow-y:auto}
-.modal{background:#fff;border-radius:12px;width:900px;max-width:100%;box-shadow:0 30px 80px rgba(0,0,0,.35);margin-bottom:4vh}
+.modal{background:var(--card);border-radius:12px;width:900px;max-width:100%;box-shadow:0 30px 80px rgba(0,0,0,.35);margin-bottom:4vh}
 .modal.sm{width:480px}
 .modal.md{width:660px}
 .modal.lg{width:1040px}
 .modal.xl{width:1280px}
-.m-head{display:flex;align-items:center;gap:12px;padding:16px 22px;border-bottom:1px solid var(--border);position:sticky;top:0;background:#fff;border-radius:12px 12px 0 0;z-index:6}
+.m-head{display:flex;align-items:center;gap:12px;padding:16px 22px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--card);border-radius:12px 12px 0 0;z-index:6}
 .m-head h2{font-size:16px}
 .m-head .x{margin-left:auto;border:none;background:none;font-size:21px;color:var(--mut);padding:2px 8px}
 .m-head .x:hover{color:var(--red)}
 .m-body{padding:20px 22px}
-.m-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff;border-radius:0 0 12px 12px;flex-wrap:wrap}
-.sect{font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.8px;border-bottom:2px solid var(--gold);padding-bottom:5px;margin:18px 0 12px}
+.m-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:var(--card);border-radius:0 0 12px 12px;flex-wrap:wrap}
+.sect{font-size:12px;font-weight:800;color:var(--brand-txt);text-transform:uppercase;letter-spacing:.8px;border-bottom:2px solid var(--gold);padding-bottom:5px;margin:18px 0 12px}
 .sect:first-child{margin-top:0}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .grid .c2{grid-column:span 2}.grid .c3{grid-column:span 3}.grid .c4{grid-column:span 4}
 @media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}.grid .c3,.grid .c4{grid-column:span 2}}
 .fhint{font-size:11px;color:var(--mut);margin-top:3px}
 .fhint.bad{color:var(--red);font-weight:600}
-.kv{display:grid;grid-template-columns:190px 1fr;border-bottom:1px solid #f0f2f4;padding:7px 0;font-size:13px}
+.kv{display:grid;grid-template-columns:190px 1fr;border-bottom:1px solid var(--line);padding:7px 0;font-size:13px}
 .kv b{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase}
-.doc-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f2f4}
+.doc-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
 .doc-row .nm{flex:1;font-size:13px}
 .doc-row select{width:150px}
 .hist-item{border:1px solid var(--border);border-radius:9px;padding:12px 14px;margin-bottom:10px}
 .hist-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
 .hist-top .who{font-weight:700;font-size:13px}
 .hist-top .when{color:var(--mut);font-size:12px}
-.hist-diff{font-size:12.5px;background:#f8f9fb;border-radius:6px;padding:8px 10px;margin-top:6px}
+.hist-diff{font-size:12.5px;background:var(--hover);border-radius:6px;padding:8px 10px;margin-top:6px}
 .hist-diff .fld-ch{padding:2px 0}
 .hist-diff .old{color:var(--red);text-decoration:line-through;margin-right:6px}
 .hist-diff .new{color:var(--green);font-weight:600}
 .acc-ALTA{background:var(--green-bg);color:var(--green)} .acc-BAJA{background:var(--red-bg);color:var(--red)}
 .acc-MODIFICACION{background:var(--blue-bg);color:var(--blue)} .acc-REACTIVACION{background:var(--amber-bg);color:var(--amber)}
-.acc-RESTAURACION{background:#efe8fc;color:#6b3fd4}
+.acc-RESTAURACION{background:var(--purple-bg);color:var(--purple)}
 .acc-CHEQUE-ALTA{background:var(--green-bg);color:var(--green)} .acc-CHEQUE-MODIFICACION{background:var(--blue-bg);color:var(--blue)}
 .acc-DESCUENTO-ALTA{background:var(--amber-bg);color:var(--amber)} .acc-DESCUENTO-MODIFICACION{background:var(--amber-bg);color:var(--amber)}
-.acc-DOCUMENTO-ALTA{background:#efe8fc;color:#6b3fd4} .acc-DOCUMENTO-MODIFICACION{background:#efe8fc;color:#6b3fd4}
-.imp-row{display:grid;grid-template-columns:26px 1.6fr 1.2fr 1.2fr 1fr;gap:8px;align-items:center;padding:7px 8px;border-bottom:1px solid #f0f2f4;font-size:12.5px}
-.imp-row.head{font-weight:700;color:var(--mut);font-size:11px;text-transform:uppercase;position:sticky;top:0;background:#fff}
+.acc-DOCUMENTO-ALTA{background:var(--purple-bg);color:var(--purple)} .acc-DOCUMENTO-MODIFICACION{background:var(--purple-bg);color:var(--purple)}
+.imp-row{display:grid;grid-template-columns:26px 1.6fr 1.2fr 1.2fr 1fr;gap:8px;align-items:center;padding:7px 8px;border-bottom:1px solid var(--line);font-size:12.5px}
+.imp-row.head{font-weight:700;color:var(--mut);font-size:11px;text-transform:uppercase;position:sticky;top:0;background:var(--card)}
 .imp-tag{font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:10px;text-align:center}
 .imp-ASIGNAR{background:var(--green-bg);color:var(--green)}
 .imp-CONFLICTO{background:var(--red-bg);color:var(--red)}
 .imp-COINCIDE{background:var(--blue-bg);color:var(--blue)}
-.imp-SINREGISTRO{background:#eef1f5;color:var(--mut)}
+.imp-SINREGISTRO{background:var(--chip-bg);color:var(--mut)}
 .menu{position:relative;display:inline-block}
-.menu-list{position:absolute;top:112%;left:0;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 14px 44px rgba(16,24,40,.2);padding:6px;display:none;z-index:70;min-width:250px}
+.menu-list{position:absolute;top:112%;left:0;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 14px 44px rgba(16,24,40,.2);padding:6px;display:none;z-index:70;min-width:250px}
 .menu.open .menu-list{display:block}
 .menu-list button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:none;background:none;padding:10px 12px;border-radius:7px;font-size:13px;cursor:pointer;color:var(--txt)}
-.menu-list button:hover{background:#f2f6fc;color:var(--navy)}
+.menu-list button:hover{background:var(--hover);color:var(--brand-txt)}
 .menu-list .sep{border-top:1px solid var(--border);margin:5px 8px}
 .toast-box{position:fixed;bottom:22px;right:22px;z-index:300;display:flex;flex-direction:column;gap:8px}
 .toast{background:var(--navy);color:#fff;padding:12px 18px;border-radius:8px;font-size:13.5px;box-shadow:0 10px 30px rgba(0,0,0,.3);animation:tin .25s ease}
@@ -184,7 +293,7 @@ tbody tr:hover{background:#f6f8fb}
 .spin{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-3px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .loading-row td{text-align:center;color:var(--mut);padding:40px}
-.rt-dot{width:8px;height:8px;border-radius:50%;background:#3ddc84;display:inline-block;margin-right:5px;box-shadow:0 0 6px #3ddc84}
+.rt-dot{width:8px;height:8px;border-radius:50%;background:var(--rt-dot);display:inline-block;margin-right:5px;box-shadow:0 0 6px var(--rt-dot)}
 /* v34: flechas de navegación entre trabajadores en la ficha */
 .ficha-nav{display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:6px}
 .ficha-nav .btn{padding:2px 12px;font-size:18px;line-height:1;font-weight:700}
@@ -257,7 +366,7 @@ tbody tr:hover{background:#f6f8fb}
 .badge{transition:all .15s ease}
 .docs-pill.ok{color:var(--green)}
 tbody tr{transition:background .12s ease}
-tbody tr:hover{background:#eef2f7}
+tbody tr:hover{background:var(--hover)}
 .kv{transition:background .12s ease}
 select,input,textarea{transition:border-color .15s ease,box-shadow .15s ease}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(31,58,92,.12)}
@@ -271,11 +380,173 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 /* Coral SOLO como acento (CTAs, marca): los títulos de sección van con línea
    neutra para no saturar de coral la interfaz (mesura). */
-.sect{border-bottom:1px solid var(--border);color:var(--navy)}
+.sect{border-bottom:1px solid var(--border);color:var(--brand-txt)}
 .btn.gold{color:#fff;font-weight:700}
 .btn.gold:hover{filter:brightness(.96)}
 .btn.dark:hover{background:var(--navy2)}
 .brand-badge{border-radius:10px}
+
+/* ============================================================
+   v36 · ARQUITECTURA DE NAVEGACIÓN — PANEL LATERAL + BREADCRUMBS
+   El menú de botones de arriba se eliminó. Todo vive en un panel
+   lateral agrupado por categorías que en móvil se vuelve cajón
+   (hamburguesa). El contenido tiene tope de ancho y se centra para
+   que en monitores ultrawide no queden huecos enormes a los lados.
+   ============================================================ */
+.app-shell{display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr);min-height:100vh}
+
+/* ---------- PANEL LATERAL ---------- */
+.sidebar{
+  grid-column:1;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;
+  background:linear-gradient(180deg,var(--sidebar-bg) 0%,var(--sidebar-bg2) 100%);
+  color:var(--sidebar-txt);border-right:1px solid var(--sidebar-br);z-index:60;
+}
+.sb-head{display:flex;align-items:center;gap:11px;padding:14px 16px 12px;border-bottom:1px solid var(--sidebar-br);flex:0 0 auto}
+.sb-head .tt{font-family:'Montserrat','Segoe UI',sans-serif;font-weight:800;font-size:13.5px;letter-spacing:.4px;line-height:1.25}
+.sb-head .tt small{display:block;font-weight:600;font-size:10.5px;color:var(--sidebar-mut);letter-spacing:.6px;text-transform:uppercase;margin-top:2px}
+.sb-nav{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;padding:10px 10px 18px;scrollbar-width:thin}
+.sb-nav::-webkit-scrollbar{width:8px}
+.sb-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:8px}
+.sb-grp{margin-top:12px}
+.sb-grp:first-child{margin-top:2px}
+.sb-grp>summary{
+  list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
+  font-size:10.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;
+  color:var(--sidebar-mut);padding:8px 10px 6px;border-radius:8px;user-select:none;
+  transition:color var(--fast) ease,background var(--fast) ease;
+}
+.sb-grp>summary::-webkit-details-marker{display:none}
+.sb-grp>summary:hover{color:var(--sidebar-txt);background:var(--sidebar-hover)}
+.sb-grp>summary::after{content:'▾';margin-left:auto;font-size:11px;transition:transform var(--fast) var(--ease)}
+.sb-grp[open]>summary::after{transform:rotate(180deg)}
+.sb-item{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:none;background:none;
+  color:var(--sidebar-txt);font-size:13px;font-weight:600;padding:9px 11px;border-radius:9px;
+  cursor:pointer;line-height:1.3;transition:background var(--fast) ease,color var(--fast) ease,transform .06s ease;
+}
+.sb-item:hover{background:var(--sidebar-hover)}
+.sb-item:active{transform:translateX(1px)}
+.sb-item .ic{width:19px;text-align:center;flex:0 0 auto;font-size:14px}
+.sb-item.on{background:var(--sidebar-on);color:#fff;box-shadow:inset 3px 0 0 var(--gold)}
+.sb-item .pill{margin-left:auto;background:rgba(255,255,255,.14);border-radius:10px;padding:1px 7px;font-size:10.5px;font-weight:800}
+.sb-item.danger{color:#FFB4A8}
+.sb-foot{flex:0 0 auto;border-top:1px solid var(--sidebar-br);padding:10px 12px;display:flex;align-items:center;gap:8px}
+.sb-foot .who{font-size:11px;color:var(--sidebar-mut);line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto}
+.sb-foot .who b{display:block;color:var(--sidebar-txt);font-size:11.5px;overflow:hidden;text-overflow:ellipsis}
+.sb-mini{border:1px solid var(--sidebar-br);background:transparent;color:var(--sidebar-txt);border-radius:8px;padding:6px 9px;font-size:13px;line-height:1;transition:background var(--fast) ease}
+.sb-mini:hover{background:var(--sidebar-hover)}
+
+/* ---------- LOGO CORPORATIVO ----------
+   El monograma va como SVG (nítido a cualquier tamaño y con fondo
+   transparente, así se funde con el panel en claro y en oscuro sin
+   verse como un recuadro pegado). Si algún día se prefiere el JPG
+   original, basta con poner su data-URI en LOGO_PLATINUM_IMG: se pinta
+   con mix-blend-mode para que su fondo gris se integre igual. */
+.logo-mark{width:94px;height:58px;flex:0 0 auto;display:block}
+.logo-mark .ink{fill:var(--logo-ink)}
+.logo-mark .bar{fill:var(--logo-bar)}
+.logo-mark .bar-txt{fill:var(--logo-bar-txt)}
+.sidebar .logo-mark .ink{fill:#fff}
+.sidebar .logo-mark .bar{fill:#0B1220}
+.sidebar .logo-mark .bar-txt{fill:#fff}
+.logo-img{width:94px;height:58px;object-fit:contain;flex:0 0 auto;mix-blend-mode:screen;filter:contrast(1.06)}
+:root[data-theme="light"] .logo-img{mix-blend-mode:multiply}
+@media(prefers-color-scheme:light){:root:not([data-theme="dark"]) .logo-img{mix-blend-mode:multiply}}
+
+/* ---------- CAJÓN EN MÓVIL ---------- */
+.sb-scrim{display:none;position:fixed;inset:0;background:rgba(8,14,26,.55);z-index:59;
+  opacity:0;transition:opacity .18s ease;backdrop-filter:blur(1px)}
+.sb-scrim.on{display:block;opacity:1}
+.sb-close{display:none}
+
+/* ---------- BARRA SUPERIOR (solo contexto, sin menú de botones) ---------- */
+.shell{grid-column:2;min-width:0;display:flex;flex-direction:column}
+.appbar{
+  position:sticky;top:0;z-index:45;background:var(--topbar-bg);color:var(--topbar-txt);
+  border-bottom:1px solid var(--border);min-height:var(--topbar-h);
+  display:flex;align-items:center;gap:12px;padding:8px 20px;
+}
+.burger{display:none;border:1px solid var(--border);background:var(--card);color:var(--txt);
+  border-radius:9px;width:38px;height:38px;font-size:17px;line-height:1;flex:0 0 auto;
+  transition:background var(--fast) ease,border-color var(--fast) ease}
+.burger:hover{border-color:var(--navy);background:var(--hover)}
+/* Migas de pan: la ruta actual siempre visible */
+.crumbs{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);flex-wrap:wrap;min-width:0}
+.crumbs .c-i{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.crumbs .sep{opacity:.5}
+.crumbs a{color:var(--mut);text-decoration:none;border-radius:5px;padding:1px 4px;transition:color var(--fast) ease,background var(--fast) ease}
+.crumbs a:hover{color:var(--brand-txt);background:var(--hover)}
+.crumbs .cur{color:var(--txt);font-weight:700}
+.appbar-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.icon-btn{border:1px solid var(--border);background:var(--card);color:var(--txt);border-radius:9px;
+  padding:7px 11px;font-size:13px;line-height:1;position:relative;
+  transition:background var(--fast) ease,border-color var(--fast) ease,color var(--fast) ease}
+.icon-btn:hover{border-color:var(--navy);color:var(--brand-txt);background:var(--hover)}
+
+/* ---------- CONTENIDO: fluido, con tope en pantallas gigantes ---------- */
+.wrap{width:100%;max-width:var(--content-max);margin:0 auto;padding:clamp(12px,1.4vw,22px) clamp(12px,1.6vw,26px)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(clamp(150px,13vw,210px),1fr));gap:10px;margin-bottom:14px}
+.stat{min-width:0}
+.stat .n{font-size:clamp(17px,1.35vw,23px);overflow-wrap:anywhere}
+.tbl-card{max-height:calc(100vh - var(--topbar-h) - 250px)}
+/* Encabezados de tabla pegados aunque la tabla sea larguísima */
+thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
+/* Ultrawide: más aire alrededor de la columna de contenido */
+@media(min-width:1800px){
+  :root{--sidebar-w:300px}
+  .wrap{padding-left:clamp(26px,3vw,64px);padding-right:clamp(26px,3vw,64px)}
+}
+@media(min-width:2400px){:root{--content-max:1760px}}
+
+/* ---------- TABLET / MÓVIL: el panel se vuelve cajón ---------- */
+@media(max-width:1024px){
+  .app-shell{grid-template-columns:1fr}
+  .sidebar{
+    position:fixed;top:0;left:0;bottom:0;width:min(86vw,320px);height:100dvh;
+    transform:translateX(-102%);transition:transform .22s var(--ease);box-shadow:var(--shadow-lg);
+  }
+  .sidebar.open{transform:none}
+  .shell{grid-column:1}
+  .burger{display:inline-flex;align-items:center;justify-content:center}
+  .sb-close{display:inline-flex;align-items:center;justify-content:center;margin-left:auto;
+    border:none;background:transparent;color:var(--sidebar-mut);font-size:22px;padding:0 4px;cursor:pointer}
+  .sb-close:hover{color:#fff}
+}
+@media(max-width:760px){
+  .appbar{padding:8px 12px;gap:9px}
+  .crumbs{font-size:11.5px}
+  .crumbs .hide-sm{display:none}
+  .stats{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+  .toolbar select{flex:1 1 calc(50% - 5px);min-width:0}
+  .toolbar .search{flex:1 1 100%;max-width:100%}
+  .toolbar .btn{flex:1 1 calc(50% - 5px);justify-content:center}
+  .tbl-card{max-height:calc(100dvh - 230px)}
+}
+
+/* ============================================================
+   v36 · CARGA CON ESQUELETOS (en vez de spinners que bloquean)
+   Se pinta la FORMA de lo que viene (filas, tarjetas) para que la
+   pantalla no salte cuando llegan los datos.
+   ============================================================ */
+.skel{position:relative;overflow:hidden;background:var(--chip-bg);border-radius:7px;height:13px}
+.skel::after{content:'';position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);animation:shine 1.15s infinite}
+:root[data-theme="dark"] .skel::after{background:linear-gradient(90deg,transparent,rgba(255,255,255,.09),transparent)}
+@keyframes shine{100%{transform:translateX(100%)}}
+.skel-row{display:grid;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid var(--line)}
+.skel-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:grid;gap:9px}
+.skel-note{font-size:12px;color:var(--mut);padding:9px 2px;display:flex;align-items:center;gap:8px}
+
+/* ============================================================
+   v36 · FLUIDEZ (transiciones < 200 ms, nada pesado)
+   ============================================================ */
+.btn,.icon-btn,.sb-item,.view-btn,.stat,.tbl-card,.badge,.obra-tab{transition-duration:var(--fast)!important}
+.stat{transition:transform var(--fast) ease,box-shadow var(--fast) ease,border-color var(--fast) ease}
+.stat:hover{transform:translateY(-1px);box-shadow:var(--shadow);border-color:var(--navy)}
+.tbl-card tbody tr{transition:background var(--fast) ease}
+.menu-list{animation:mn-in .13s var(--ease)}
+@keyframes mn-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.skel::after{animation:none}}
 </style>
 </head>
 <body>
@@ -302,35 +573,106 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
   </div>
 </div>
 
-<div id="scr-app" class="hide">
-  <div class="topbar">
-    <div class="brand-badge">P</div>
-    <div class="tt">PLATINUM <span>·</span> Base de Trabajadores</div>
-    <div class="top-right">
-      <span id="rt-status" style="font-size:11.5px;color:#9fb0cc"></span>
-      <button class="btn-ghost" onclick="openAlertas()" style="position:relative">🔔 Alertas<span id="alert-badge" style="position:absolute;top:-6px;right:-6px;background:#e5484d;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:800;display:none"></span></button>
-      <button class="btn-ghost" onclick="openDashboard()">📈 Dashboard</button>
-      <button class="btn-ghost" onclick="openHistorial(null)">🕘 Historial</button>
-      <button class="btn-ghost hide" id="btn-papelera" onclick="openPapelera()">🗑 Papelera</button>
-      <button class="btn-ghost" onclick="openContratistas()">🪪 REPSE</button>
-      <button class="btn-ghost" onclick="exportRespaldo(false)">⬇ Respaldo Excel</button>
-      <button class="btn-ghost" onclick="exportRespaldo(true)">✉ Respaldo por correo</button>
-      <div class="user-chip" id="user-chip"></div>
-      <button class="btn-ghost" onclick="doLogout()">Salir</button>
-    </div>
-  </div>
+<div id="scr-app" class="hide app-shell">
 
-  <div class="obra-bar" id="obra-bar"></div>
+  <!-- ======================= PANEL LATERAL ======================= -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-head">
+      <span id="sb-logo"></span>
+      <div class="tt">Base de<small>Trabajadores</small></div>
+      <button class="sb-close" onclick="toggleSidebar(false)" title="Cerrar menú">×</button>
+    </div>
+
+    <nav class="sb-nav">
+      <details class="sb-grp" open>
+        <summary>Operación</summary>
+        <button class="sb-item on" id="vb-trab" onclick="setView('trab')"><span class="ic">👷</span>Trabajadores</button>
+        <button class="sb-item" id="vb-chq" onclick="setView('chq')"><span class="ic">🧾</span>Cheques</button>
+        <button class="sb-item" id="vb-pagos" onclick="setView('pagos')"><span class="ic">💸</span>Pagos BBVA</button>
+        <button class="sb-item" id="vb-vac" onclick="setView('vac')"><span class="ic">🌴</span>Vacaciones y permisos</button>
+        <button class="sb-item" id="vb-actas" onclick="setView('actas')"><span class="ic">📋</span>Actas</button>
+        <button class="sb-item" id="vb-nom" onclick="setView('nom')"><span class="ic">🧠</span>NOM-035</button>
+        <button class="sb-item" id="vb-anual" onclick="setView('anual')"><span class="ic">🪙</span>PTU / Aguinaldo</button>
+      </details>
+
+      <details class="sb-grp">
+        <summary>Documentos</summary>
+        <button class="sb-item" onclick="sbGo(openAsistencia)"><span class="ic">📝</span>Listas de asistencia + directorio</button>
+        <button class="sb-item" onclick="sbGo(openRequisicion)"><span class="ic">🪪</span>Requisición de tarjetas</button>
+        <button class="sb-item" onclick="sbGo(openRecepcionTarjetas)"><span class="ic">✍</span>Recepción de tarjetas (firmas)</button>
+        <button class="sb-item" onclick="sbGo(openLegajos)"><span class="ic">🗂</span>Legajos para entrega de cheques</button>
+        <button class="sb-item" onclick="sbGo(openFaltanRecibos)"><span class="ic">📋</span>Faltan recibos de nómina</button>
+        <button class="sb-item" onclick="sbGo(openReporteDocs)"><span class="ic">📑</span>Reporte de documentación</button>
+        <button class="sb-item" onclick="sbGo(openAltasSemana)"><span class="ic">📆</span>Altas por semana</button>
+      </details>
+
+      <details class="sb-grp">
+        <summary>Nómina</summary>
+        <button class="sb-item" onclick="sbGo(openProyeccion)"><span class="ic">💰</span>Proyección de nómina</button>
+        <button class="sb-item" onclick="sbGo(openProyContratista)"><span class="ic">👷</span>Proyección por contratista</button>
+        <button class="sb-item" onclick="sbGo(()=>openMovimientos(isoWeek()))"><span class="ic">📅</span>Movimientos de la semana</button>
+        <button class="sb-item" onclick="sbGo(openIncidencias)"><span class="ic">📉</span>Incidencias de la semana</button>
+        <button class="sb-item" onclick="sbGo(openCalendarioRet)"><span class="ic">🗓</span>Calendario de retenciones</button>
+        <button class="sb-item" onclick="sbGo(openVerificadorNOI)"><span class="ic">🔢</span>Verificar números vs NOI</button>
+      </details>
+
+      <details class="sb-grp">
+        <summary>Importar</summary>
+        <button class="sb-item" onclick="sbGo(openImportExp)"><span class="ic">🏦</span>Respuesta del banco (.exp)</button>
+        <button class="sb-item" onclick="sbGo(openImport)"><span class="ic">🏛</span>Cuentas del banco (Excel)</button>
+        <button class="sb-item" onclick="sbGo(openImportPago)"><span class="ic">💸</span>Pagos BBVA (transferencias)</button>
+        <button class="sb-item" onclick="sbGo(openPdfImport)"><span class="ic">📎</span>Acuses IMSS y recibos (PDF)</button>
+        <button class="sb-item" onclick="sbGo(openCfdiImport)"><span class="ic">🧾</span>CFDI timbrados (XML)</button>
+      </details>
+
+      <details class="sb-grp">
+        <summary>Reportes y control</summary>
+        <button class="sb-item" onclick="sbGo(openDashboard)"><span class="ic">📈</span>Dashboard ejecutivo</button>
+        <button class="sb-item" onclick="sbGo(openAlertas)"><span class="ic">🔔</span>Alertas<span class="pill" id="sb-alert-badge" style="display:none"></span></button>
+        <button class="sb-item" onclick="sbGo(openResumen)"><span class="ic">📊</span>Resumen por contratista</button>
+        <button class="sb-item" onclick="sbGo(openControlSalarios)"><span class="ic">📈</span>Control de cambios de salario</button>
+        <button class="sb-item" onclick="sbGo(openPlantillaFecha)"><span class="ic">📸</span>Plantilla a una fecha</button>
+        <button class="sb-item" onclick="sbGo(openExports)"><span class="ic">🧮</span>Exports contables · IMSS/IDSE</button>
+        <button class="sb-item" onclick="sbGo(openCorreos)"><span class="ic">✉</span>Correos creados</button>
+      </details>
+
+      <details class="sb-grp">
+        <summary>Administración</summary>
+        <button class="sb-item" onclick="sbGo(openContratistas)"><span class="ic">🪪</span>Contratistas / REPSE</button>
+        <button class="sb-item" onclick="sbGo(()=>openHistorial(null))"><span class="ic">🕘</span>Historial de cambios</button>
+        <button class="sb-item" onclick="sbGo(openTransferencia)"><span class="ic">🔁</span>Transferir de obra</button>
+        <button class="sb-item" onclick="sbGo(openEditContratistas)"><span class="ic">👷</span>Editar contratistas</button>
+        <button class="sb-item" onclick="sbGo(openAutorrellenar)"><span class="ic">🪄</span>Autorrellenar desde CURP</button>
+        <button class="sb-item" onclick="sbGo(openNuevaObra)"><span class="ic">➕</span>Nueva obra / centro</button>
+        <button class="sb-item" onclick="sbGo(()=>exportRespaldo(false))"><span class="ic">⬇</span>Respaldo Excel</button>
+        <button class="sb-item" onclick="sbGo(()=>exportRespaldo(true))"><span class="ic">📧</span>Respaldo por correo</button>
+        <button class="sb-item danger hide" id="btn-papelera" onclick="sbGo(openPapelera)"><span class="ic">🗑</span>Papelera</button>
+      </details>
+    </nav>
+
+    <div class="sb-foot">
+      <div class="who" id="user-chip"></div>
+      <button class="sb-mini" id="theme-btn" onclick="toggleTema()" title="Cambiar tema claro / oscuro">🌙</button>
+      <button class="sb-mini" onclick="doLogout()" title="Cerrar sesión">⏻</button>
+    </div>
+  </aside>
+  <div class="sb-scrim" id="sb-scrim" onclick="toggleSidebar(false)"></div>
+
+  <!-- ======================= CONTENIDO ======================= -->
+  <div class="shell">
+    <header class="appbar">
+      <button class="burger" onclick="toggleSidebar()" title="Menú" aria-label="Abrir menú">☰</button>
+      <nav class="crumbs" id="crumbs" aria-label="Ruta actual"></nav>
+      <div class="appbar-right">
+        <span id="rt-status" style="font-size:11.5px;color:var(--mut)"></span>
+        <button class="icon-btn" onclick="openAlertas()" title="Alertas">🔔<span id="alert-badge" style="position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:800;display:none"></span></button>
+        <button class="icon-btn" onclick="openDashboard()" title="Dashboard ejecutivo">📈</button>
+      </div>
+    </header>
+
+    <div class="obra-bar" id="obra-bar"></div>
 
   <div class="wrap">
-    <div class="view-bar">
-      <button class="view-btn on" id="vb-trab" onclick="setView('trab')">👷 Trabajadores</button>
-      <button class="view-btn" id="vb-chq" onclick="setView('chq')">🧾 Cheques</button>
-      <button class="view-btn" id="vb-vac" onclick="setView('vac')">🌴 Vacaciones y permisos</button>
-      <button class="view-btn" id="vb-actas" onclick="setView('actas')">📋 Actas</button>
-      <button class="view-btn" id="vb-nom" onclick="setView('nom')">🧠 NOM-035</button>
-      <button class="view-btn" id="vb-anual" onclick="setView('anual')">🪙 PTU / Aguinaldo</button>
-    </div>
 
     <!-- ===== VISTA TRABAJADORES ===== -->
     <div id="view-trab">
@@ -348,49 +690,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
         <select id="f-semana" onchange="renderTable()"><option value="">Ingreso: todas</option></select>
         <button class="btn gold" onclick="openForm(null)">＋ Nueva alta</button>
         <button class="btn" onclick="openMovimientos(isoWeek())">📅 Movimientos</button>
-        <div class="menu" id="menu-docs">
-          <button class="btn dark" onclick="toggleMenu('menu-docs')">📤 Documentos ▾</button>
-          <div class="menu-list">
-            <button onclick="toggleMenu('menu-docs');openAsistencia()">📝 Listas de asistencia + directorio</button>
-            <button onclick="toggleMenu('menu-docs');openRequisicion()">🪪 Requisición de tarjetas</button>
-            <button onclick="toggleMenu('menu-docs');openRecepcionTarjetas()">✍ Recepción de tarjetas (acuse p/ firmas)</button>
-            <button onclick="toggleMenu('menu-docs');openLegajos()">🗂 Legajos para entrega de cheques</button>
-            <button onclick="toggleMenu('menu-docs');openFaltanRecibos()">📋 Faltan recibos de nómina (por semana)</button>
-            <button onclick="toggleMenu('menu-docs');openProyeccion()">💰 Proyección de nómina</button>
-            <button onclick="toggleMenu('menu-docs');openProyContratista()">👷 Proyección por contratista (todas las obras)</button>
-            <div class="sep"></div>
-            <button onclick="toggleMenu('menu-docs');openIncidencias()">📉 Incidencias de la semana</button>
-            <button onclick="toggleMenu('menu-docs');openCalendarioRet()">📅 Calendario de retenciones</button>
-            <button onclick="toggleMenu('menu-docs');openReporteDocs()">📋 Reporte de documentación (Excel)</button>
-            <button onclick="toggleMenu('menu-docs');openAltasSemana()">📆 Altas por semana (Excel)</button>
-          </div>
-        </div>
-        <div class="menu" id="menu-imp">
-          <button class="btn" onclick="toggleMenu('menu-imp')">📥 Importar ▾</button>
-          <div class="menu-list">
-            <button onclick="toggleMenu('menu-imp');openImportExp()">🏦 Respuesta del banco (.exp) → Excel + acuse</button>
-            <button onclick="toggleMenu('menu-imp');openImport()">🏦 Cuentas del banco (Excel)</button>
-            <button onclick="toggleMenu('menu-imp');openImportPago()">💸 Pago global BBVA (transferencias)</button>
-            <button onclick="toggleMenu('menu-imp');openPdfImport()">📎 Acuses IMSS y recibos (PDF)</button>
-            <button onclick="toggleMenu('menu-imp');openCfdiImport()">🧾 CFDI timbrados (XML)</button>
-          </div>
-        </div>
-        <div class="menu" id="menu-mas">
-          <button class="btn" onclick="toggleMenu('menu-mas')">⚙ Más ▾</button>
-          <div class="menu-list">
-            <button onclick="toggleMenu('menu-mas');openResumen()">📊 Resumen por contratista</button>
-            <button onclick="toggleMenu('menu-mas');openCorreos()">✉ Correos creados</button>
-            <button onclick="toggleMenu('menu-mas');openExports()">🧮 Exports contables · IMSS/IDSE</button>
-            <div class="sep"></div>
-            <button onclick="toggleMenu('menu-mas');openTransferencia()">🔁 Transferir trabajadores a otra obra</button>
-            <button onclick="toggleMenu('menu-mas');openEditContratistas()">👷 Editar contratistas (por trabajador)</button>
-            <button onclick="toggleMenu('menu-mas');openPlantillaFecha()">📸 Plantilla a una fecha</button>
-            <button onclick="toggleMenu('menu-mas');openControlSalarios()">📈 Control de cambios de salario</button>
-            <button onclick="toggleMenu('menu-mas');openCostos()">🏛 Costo patronal · IMSS/ISR/ISN + simulador</button>
-            <button onclick="toggleMenu('menu-mas');openVerificadorNOI()">🔢 Verificar números vs NOI</button>
-            <button onclick="toggleMenu('menu-mas');openAutorrellenar()">🪄 Autorrellenar desde CURP (expedientes ya capturados)</button>
-          </div>
-        </div>
+        <button class="btn dark" onclick="openAsistencia()">📝 Listas de asistencia</button>
+        <button class="btn" onclick="openProyeccion()">💰 Proyección de nómina</button>
+        <button class="btn" onclick="toggleSidebar(true)" title="Todas las herramientas están en el panel lateral">☰ Más herramientas</button>
       </div>
       <div class="tbl-card">
         <table>
@@ -519,6 +821,37 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
         </table>
       </div>
     </div>
+
+    <!-- ===== VISTA PAGOS BBVA (v36) =====
+         Los pagos por transferencia ya se importaban pero no tenían dónde
+         consultarse. Aquí salen los globales (dispersión por lote) y los
+         individuales, con el mismo formato de la ficha de cada trabajador. -->
+    <div id="view-pagos" class="hide">
+      <div class="stats" id="pg-v-stats"></div>
+      <div class="toolbar">
+        <div class="search"><input id="pg-v-q" placeholder="Buscar trabajador, folio, lote, descripción..." oninput="renderPagosView()"></div>
+        <select id="pg-v-sem" onchange="renderPagosView()"><option value="">Semana: todas</option></select>
+        <select id="pg-v-estado" onchange="renderPagosView()">
+          <option value="">Estado: todos</option><option value="EXITOSO">EXITOSO</option><option value="RECHAZADO">RECHAZADO</option>
+        </select>
+        <select id="pg-v-tipo" onchange="renderPagosView()">
+          <option value="">Tipo: todos</option><option value="GLOBAL">Pago global (dispersión)</option><option value="INDIVIDUAL">Pago individual</option>
+        </select>
+        <button class="btn gold" onclick="openImportPago()">💸 Importar pagos BBVA</button>
+        <button class="btn dark" onclick="openControlPagos()">🔁 Control de pagos (cheque + transferencia)</button>
+        <button class="btn dark" onclick="exportPagos()">⬇ Exportar Excel</button>
+      </div>
+      <div class="tbl-card">
+        <table>
+          <thead><tr>
+            <th>No.</th><th>Trabajador</th><th>Semana</th><th>Fecha</th>
+            <th style="text-align:right">Importe</th><th>Banco</th><th>Cuenta</th><th>Estado</th><th>Tipo</th>
+          </tr></thead>
+          <tbody id="pg-v-tbody"><tr class="loading-row"><td colspan="9">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
   </div>
 </div>
 
@@ -674,6 +1007,8 @@ function saveConfig(){
   location.reload();
 }
 async function init(){
+  aplicarTema(temaGuardado());   // v36: tema antes de pintar nada
+  pintarLogo();
   const cfg=getCfg();
   if(!cfg){$('scr-setup').classList.remove('hide');return;}
   sb=window.supabase.createClient(cfg.url,cfg.key);
@@ -693,7 +1028,8 @@ async function doLogout(){await sb.auth.signOut();location.reload();}
 
 async function enterApp(){
   $('scr-app').classList.remove('hide');
-  $('user-chip').textContent=USER.email;
+  $('user-chip').innerHTML=`<b>${esc(String(USER.email||'').split('@')[0])}</b>${esc(USER.email)}`;
+  pintarLogo();renderCrumbs();
   const {data,error}=await sb.from('obras').select('*').order('orden');
   if(error){toast('Error al cargar obras: '+error.message,'err');return;}
   OBRAS=data;
@@ -757,6 +1093,7 @@ function renderObraBar(){
       ${esAdmin()?`<span class="obra-edit" title="Editar obra (solo administrador)" onclick="event.stopPropagation();openEditObra('${o.id}')">✎</span>`:''}
     </button>`).join('');
   refreshCounts();
+  renderCrumbs();
 }
 async function refreshCounts(){
   const {data}=await sb.from('trabajadores').select('obra_id,estatus').eq('eliminado',false);
@@ -883,6 +1220,11 @@ async function selectObra(id){
   await loadObraData(id);
 }
 async function loadObraData(id){
+  /* v36: esqueletos mientras llegan los datos — la pantalla no se queda en
+     blanco ni salta cuando aparecen las filas. */
+  skeletonTabla('tbody',9,14,'Cargando trabajadores...');
+  skeletonTabla('chq-tbody',6,10,'Cargando cheques...');
+  skeletonTabla('pg-v-tbody',5,9,'Cargando pagos...');
   const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr}]=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
     fetchAllRows(()=>sb.from('cheques').select('*').eq('obra_id',id)),
@@ -910,7 +1252,7 @@ async function loadObraData(id){
   renderStats();renderTable();renderChqStats();renderCheques();
   await sincronizarContratistas();
   updateAlertas();
-  renderVacViews();renderActasView();renderNomView();renderAnualView();
+  renderVacViews();renderActasView();renderNomView();renderAnualView();renderPagosView();
 }
 let CFGEMP={};
 async function loadConfig(){
@@ -925,7 +1267,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-06.9';
+const APP_VERSION='2026-08-14.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -955,13 +1297,137 @@ async function chequearVersionEnVivo(){
     chequearVersion();
   }catch(e){/* silencioso: si falla la verificación, nunca interrumpe el trabajo normal */}
 }
+/* ============================================================
+   v36 · NAVEGACIÓN: vistas + migas de pan (breadcrumbs)
+   ============================================================ */
+const VISTAS={
+  trab :{ic:'👷',txt:'Trabajadores'},
+  chq  :{ic:'🧾',txt:'Cheques'},
+  pagos:{ic:'💸',txt:'Pagos BBVA'},
+  vac  :{ic:'🌴',txt:'Vacaciones y permisos'},
+  actas:{ic:'📋',txt:'Actas'},
+  nom  :{ic:'🧠',txt:'NOM-035'},
+  anual:{ic:'🪙',txt:'PTU / Aguinaldo'}
+};
 function setView(v){
+  if(!VISTAS[v])v='trab';
   VIEW=v;
-  ['trab','chq','vac','actas','nom','anual'].forEach(k=>{
+  Object.keys(VISTAS).forEach(k=>{
     const b=$('vb-'+k),d=$('view-'+k);
     if(b)b.classList.toggle('on',v===k);
     if(d)d.classList.toggle('hide',v!==k);
   });
+  if(v==='pagos')renderPagosView();
+  renderCrumbs();
+  toggleSidebar(false);                       // en móvil, el cajón se cierra solo
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+/* Migas de pan: siempre se ve dónde está uno parado */
+function renderCrumbs(){
+  const c=$('crumbs'); if(!c)return;
+  const v=VISTAS[VIEW]||VISTAS.trab;
+  const obra=(OBRA&&OBRA.nombre)||'—';
+  c.innerHTML=`
+    <span class="c-i hide-sm"><a href="#" onclick="setView('trab');return false" title="Inicio">🏠 Inicio</a></span>
+    <span class="sep hide-sm">›</span>
+    <span class="c-i"><a href="#" onclick="document.querySelector('.obra-bar').scrollIntoView({behavior:'smooth',block:'nearest'});return false" title="Cambiar de obra">🏗 ${esc(obra)}</a></span>
+    <span class="sep">›</span>
+    <span class="c-i cur">${v.ic} ${esc(v.txt)}</span>`;
+}
+/* ---------- panel lateral (cajón en móvil) ---------- */
+function toggleSidebar(forzar){
+  const sb=$('sidebar'),sc=$('sb-scrim'); if(!sb)return;
+  const abrir=(forzar===undefined)?!sb.classList.contains('open'):!!forzar;
+  sb.classList.toggle('open',abrir);
+  if(sc)sc.classList.toggle('on',abrir);
+}
+/* Ejecuta una acción del panel y cierra el cajón (móvil) */
+function sbGo(fn){try{fn();}catch(e){toast('No se pudo abrir: '+e.message,'err');}toggleSidebar(false);}
+/* Esc cierra primero el cajón; si no está abierto, cierra el modal de encima */
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape')return;
+  const sb=$('sidebar');
+  if(sb&&sb.classList.contains('open')){toggleSidebar(false);return;}
+  if($('modals')&&$('modals').querySelector('.overlay'))closeModal2();
+});
+
+/* ============================================================
+   v36 · TEMA CLARO / OSCURO
+   Se guarda la preferencia por navegador; si nunca se ha elegido,
+   se respeta la del sistema operativo.
+   ============================================================ */
+function temaGuardado(){try{return localStorage.getItem('platinum_tema')||'';}catch(e){return '';}}
+function temaEfectivo(){
+  const t=temaGuardado();
+  if(t==='dark'||t==='light')return t;
+  return (window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light';
+}
+function aplicarTema(t){
+  if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);
+  else document.documentElement.removeAttribute('data-theme');
+  const b=$('theme-btn');
+  if(b){const osc=temaEfectivo()==='dark';b.textContent=osc?'☀️':'🌙';
+    b.title=osc?'Cambiar a tema claro':'Cambiar a tema oscuro';}
+}
+function toggleTema(){
+  const nuevo=temaEfectivo()==='dark'?'light':'dark';
+  try{localStorage.setItem('platinum_tema',nuevo);}catch(e){}
+  aplicarTema(nuevo);
+}
+/* ---------- LOGO CORPORATIVO ----------
+   Monograma PH + placa PLATINUM en SVG: fondo transparente, se funde con
+   el panel en claro y en oscuro (sin recuadro gris pegado) y se ve nítido
+   en cualquier pantalla. Si se prefiere el archivo original, pega su
+   data-URI en LOGO_PLATINUM_IMG y se usará ese, mezclado con
+   mix-blend-mode (multiply en claro / screen en oscuro) para integrarlo. */
+const LOGO_PLATINUM_IMG=''; // ej. "data:image/jpeg;base64,...."
+const LOGO_PLATINUM_SVG=`
+<svg class="logo-mark" viewBox="0 0 454 280" role="img" aria-label="PLATINUM">
+  <g class="ink">
+    <!-- filete vertical que parte el monograma -->
+    <rect x="224" y="10" width="5" height="260"/>
+    <!-- P (serif tipo Didone: asta recta, ojal arriba, patines marcados) -->
+    <rect x="100" y="26"  width="70" height="14"/>
+    <rect x="94"  y="240" width="82" height="14"/>
+    <rect x="120" y="26"  width="30" height="228"/>
+    <path d="M150 40h26a45 45 0 0 1 0 90h-26z"/>
+    <!-- H (el travesaño queda detrás de la placa, igual que en el logo original) -->
+    <rect x="240" y="26"  width="68" height="14"/>
+    <rect x="332" y="26"  width="68" height="14"/>
+    <rect x="240" y="240" width="68" height="14"/>
+    <rect x="332" y="240" width="68" height="14"/>
+    <rect x="260" y="26"  width="28" height="228"/>
+    <rect x="352" y="26"  width="28" height="228"/>
+    <rect x="288" y="128" width="64" height="24"/>
+  </g>
+  <!-- placa PLATINUM cruzando el monograma, como en el logo original -->
+  <rect class="bar" x="52" y="126" width="350" height="50"/>
+  <text class="bar-txt" x="227" y="161" text-anchor="middle"
+        font-family="Montserrat,Segoe UI,Arial,sans-serif" font-size="31" font-weight="600" letter-spacing="8">PLATINUM</text>
+</svg>`;
+function pintarLogo(){
+  const el=$('sb-logo'); if(!el)return;
+  el.innerHTML=LOGO_PLATINUM_IMG
+    ? `<img class="logo-img" src="${LOGO_PLATINUM_IMG}" alt="PLATINUM">`
+    : LOGO_PLATINUM_SVG;
+}
+
+/* ============================================================
+   v36 · ESQUELETOS DE CARGA (en lugar de spinners genéricos)
+   ============================================================ */
+function skeletonRows(n=6,cols='26px 1.6fr 1.6fr .8fr',nota=''){
+  const anchos=['70%','92%','55%','80%','64%','88%'];
+  let h=nota?`<div class="skel-note"><span class="spin" style="border-color:rgba(127,127,127,.35);border-top-color:var(--navy)"></span>${esc(nota)}</div>`:'';
+  for(let i=0;i<n;i++){
+    h+=`<div class="skel-row" style="grid-template-columns:${cols}">`+
+      cols.split(' ').map((_,c)=>`<div class="skel" style="width:${anchos[(i+c)%anchos.length]};height:${c===0?'13px':'12px'}"></div>`).join('')+
+      `</div>`;
+  }
+  return h;
+}
+function skeletonTabla(el,filas=8,cols=9,nota='Cargando...'){
+  const t=$(el); if(!t)return;
+  t.innerHTML=`<tr><td colspan="${cols}" style="padding:0">${skeletonRows(filas,new Array(cols).fill('1fr').join(' '),nota)}</td></tr>`;
 }
 
 /* ---------- vista trabajadores ---------- */
@@ -2770,6 +3236,7 @@ function openPdfImport(){
     <div class="m-head"><h2>📎 Importar PDFs · acuses IMSS y recibos</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <p style="color:var(--mut);margin-bottom:14px">Sube uno o varios PDFs (individuales o combinados). La app <b>lee cada página</b>, encuentra el NSS o CURP y lo liga al trabajador. Los PDFs combinados se separan solos por trabajador. Nada se guarda hasta que confirmes.</p>
+      <p style="background:var(--blue-bg);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--txt);margin-bottom:14px">🆕 <b>Constancias IMSS con varios movimientos:</b> si el acuse del IDSE trae hasta <b>10 altas / reingresos / bajas / modificaciones</b> (aunque la tabla siga en la 2ª página), se leen <b>todos</b> los renglones y cada uno se liga a su trabajador por NSS. El tipo de movimiento y la fecha se toman del propio acuse, renglón por renglón.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
         <div><label>Categoría</label><select id="pdf-cat" onchange="pdfCatChange()"><option value="ACUSE_IMSS">ACUSE IMSS</option><option value="RECIBO_NOMINA">RECIBO DE NÓMINA</option></select></div>
         <div><label>Tipo de movimiento</label><select id="pdf-sub"><option>ALTA</option><option>BAJA</option><option>MODIFICACION SALARIAL</option></select><div class="fhint">"MODIFICACION SALARIAL" = acuse IMSS de modificación de salario (mov. 08). Al archivarlo, deja el movimiento IMSS en "MODIFICACIÓN CON ACUSE".</div></div>
@@ -2796,10 +3263,86 @@ function matchWorkerInText(txt){
   for(const w of WORKERS){if(w.curp&&w.curp.length===18&&compact.includes(w.curp))return w;}
   return null;
 }
+
+/* ============================================================
+   ACUSE IMSS MULTIPÁGINA — "Constancia de presentación de movimientos
+   afiliatorios" (IDSE). Un solo acuse trae HASTA 10 movimientos (altas,
+   reingresos, bajas o modificaciones) y puede repartirlos en varias
+   páginas: la tabla sigue en la página 2 sin repetir el encabezado.
+   Antes la app leía 1 trabajador por acuse (se quedaba con el primer NSS
+   que encontraba en la página); ahora extrae TODOS los renglones, liga
+   cada uno a su trabajador por NSS y archiva la constancia completa en
+   el expediente de cada uno (es un documento único que ampara a todos).
+   Verificado con el acuse real Lote 440862790 (10 reingresos, 2 páginas).
+   ============================================================ */
+const MOV_IMSS={'1':'ALTA','2':'BAJA','7':'MODIFICACION SALARIAL','8':'REINGRESO'};
+const CAUSA_BAJA={'0':'','1':'TÉRMINO DEL CONTRATO','2':'SEPARACIÓN VOLUNTARIA','3':'ABANDONO DE EMPLEO','4':'DEFUNCIÓN','5':'CLAUSURA','6':'OTRA','7':'AUSENTISMO','8':'RESCISIÓN DE CONTRATO','9':'JUBILACIÓN','A':'PENSIÓN'};
+/* Subtipo con el que se archiva y movimiento IMSS que queda en la ficha */
+const SUBTIPO_ACUSE=t=>t==='BAJA'?'BAJA':(t==='MODIFICACION SALARIAL'?'MODIFICACION SALARIAL':'ALTA');
+function parseAcuseIMSS(txt){
+  const t=String(txt||'').replace(/\s+/g,' ');
+  if(!/movimientos afiliatorios|Relaci[oó]n de movimientos/i.test(t))return null;
+  const cap=(rx,i=1)=>{const m=t.match(rx);return m?String(m[i]).trim():'';};
+  const enc={
+    registro_patronal:cap(/\b([A-Z]\d{10})\b/),
+    rfc_patron:cap(/\b([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})\b/),
+    folio:cap(/\b(\d{20})\b/),
+    huella:cap(/\b([0-9a-f]{40})\b/),
+    fecha_lote:cap(/(\d{4}-\d{2}-\d{2})\s+\d{2}:\d{2}/),
+    hora_lote:cap(/\d{4}-\d{2}-\d{2}\s+(\d{2}:\d{2})/),
+    razon_social:cap(/Informaci[oó]n\s*General\s+(.+?)\s+En t[eé]rminos/i),
+    lote:''
+  };
+  enc.lote=cap(/\b\d{15,25}\s+(\d{6,12})\b/)||cap(/lote[^\d]{0,60}?(\d{6,12})/i);
+  let cuerpo=t;
+  const ini=t.search(/Relaci[oó]n de movimientos operados/i);
+  if(ini>=0)cuerpo=t.slice(ini);
+  cuerpo=cuerpo.replace(/Para efectos de lo anterior[\s\S]*$/i,'');
+  const movs=[],vistos=new Set();
+  const push=o=>{const k=(o.nss||'')+'|'+(o.tipo_mov||'')+'|'+(o.fecha_mov||'');
+    if(!o.nss||vistos.has(k))return;vistos.add(k);movs.push(o);};
+  /* Orden REAL en que pdf.js entrega cada renglón (probado con el PDF real):
+     $ <tipoMov> <NOMBRE> <sal.base> <tipoSal> <UMF> <ext> <dd/mm/aaaa> <NSS> <tipoTrab> <causaBaja> */
+  const rx=/\$\s*(\d{1,2})\s+([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ'.\- ]{3,70}?)\s+([\d,]*\d\.\d{2})\s+(\d{1,2})\s+(\d{2,4})\s+(\d{1,2})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{10,11})\s+(\d{1,2})\s+([0-9A-Z])(?=\s|$)/g;
+  let m;
+  while((m=rx.exec(cuerpo))!==null){
+    push({tipo_mov:m[1],tipo:MOV_IMSS[m[1]]||('MOV '+m[1]),nombre:m[2].replace(/\s+/g,' ').trim(),
+      sal_base:parseFloat(m[3].replace(/,/g,'')),tipo_salario:m[4],umf:m[5],ext:m[6],
+      fecha_mov:m[7],nss:m[8],tipo_trab:m[9],causa_baja:m[10],causa_baja_txt:CAUSA_BAJA[m[10]]||''});
+  }
+  /* Respaldo: si algún acuse trae las columnas en otro orden, se rescatan los
+     datos por su FORMA (NSS de 11 dígitos, fecha, importe) dentro de cada
+     renglón — cada renglón siempre empieza con "$". */
+  if(!movs.length){
+    cuerpo.split('$').slice(1).forEach(ch=>{
+      const trozo=ch.slice(0,220);
+      const nss=(trozo.match(/\b(\d{11})\b/)||[])[1]||(trozo.match(/\b(\d{10})\b/)||[])[1]||'';
+      if(!nss)return;
+      const fec=(trozo.match(/(\d{2}\/\d{2}\/\d{4})/)||[])[1]||'';
+      const sal=(trozo.match(/([\d,]*\d\.\d{2})/)||[])[1]||'';
+      const tm=(trozo.match(/^\s*(\d{1,2})\b/)||[])[1]||'';
+      const nom=(trozo.match(/^\s*\d{1,2}\s+([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ'.\- ]{3,70}?)\s+(?:[\d,]*\d\.\d{2}|\d{2}\/\d{2}\/\d{4}|\d{10,11})/)||[])[1]||'';
+      push({tipo_mov:tm,tipo:MOV_IMSS[tm]||('MOV '+tm),nombre:nom.replace(/\s+/g,' ').trim(),
+        sal_base:sal?parseFloat(sal.replace(/,/g,'')):null,fecha_mov:fec,nss,causa_baja:'',causa_baja_txt:''});
+    });
+  }
+  return movs.length?{...enc,movimientos:movs,total:movs.length}:null;
+}
+/* dd/mm/aaaa → aaaa-mm-dd (para guardar fecha_doc) */
+function dmyISO(v){const m=String(v||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);return m?`${m[3]}-${m[2]}-${m[1]}`:null;}
+/* Empareja un renglón del acuse con un trabajador: 1º NSS, 2º nombre completo */
+function matchWorkerAcuse(mov){
+  const nss=String(mov.nss||'').replace(/\D/g,'');
+  if(nss){const w=WORKERS.find(x=>String(x.nss||'').replace(/\D/g,'')===nss);if(w)return w;}
+  const norm=s=>String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z ]/g,'').split(/\s+/).filter(Boolean).sort().join(' ');
+  const objetivo=norm(mov.nombre);
+  if(!objetivo)return null;
+  return WORKERS.find(x=>norm(fullName(x))===objetivo)||null;
+}
 async function parsePdfs(inp){
   if(!window.pdfjsLib||!window.PDFLib){toast('Las librerías de PDF no cargaron. Revisa tu internet y reabre la app.','err');return;}
   PDFIMP=[];
-  $('pdf-prev').innerHTML='<div class="empty">Leyendo PDFs...</div>';
+  $('pdf-prev').innerHTML=skeletonRows(Math.min(8,Math.max(3,inp.files.length)),'26px 1.6fr 1.6fr .8fr','Leyendo los PDFs y buscando a cada trabajador...');
   for(const file of inp.files){
     try{
       const buf=await file.arrayBuffer();
@@ -2810,6 +3353,19 @@ async function parsePdfs(inp){
         const t=tc.items.map(it=>it.str).join(' ');
         texts.push(t);
         owners.push(matchWorkerInText(t.toUpperCase()));
+      }
+      /* ¿Es una constancia IDSE con VARIOS movimientos (hasta 10)? Se lee el
+         documento COMPLETO (todas las páginas juntas, porque la tabla continúa
+         en la 2ª sin repetir encabezado) y se genera una fila por movimiento:
+         el mismo PDF se archiva en el expediente de cada trabajador. */
+      const ac=parseAcuseIMSS(texts.join(' '));
+      if(ac&&ac.total>=2){
+        ac.movimientos.forEach((mv,k)=>{
+          const w=matchWorkerAcuse(mv);
+          PDFIMP.push({name:file.name,bytes:buf,ownerId:w?w.id:null,pages:doc.numPages,sel:!!w,sem:'',
+            acuse:ac,mov:mv,multi:true,idx:k+1});
+        });
+        continue;
       }
       const groups=[];let cur=null;
       owners.forEach((w,idx)=>{
@@ -2844,11 +3400,15 @@ async function marcarDuplicadosPdf(){
   try{
     const conBytes=PDFIMP.filter(x=>!x.error&&x.bytes);
     for(const x of conBytes)x.hash=await sha256Hex(x.bytes);
-    // duplicados dentro del mismo lote (el mismo archivo seleccionado dos veces)
+    // duplicados dentro del mismo lote (el mismo archivo seleccionado dos veces).
+    // En un acuse MULTIPÁGINA el mismo PDF va a varios trabajadores a propósito,
+    // así que la huella se compara junto con el trabajador destino.
+    const clave=x=>x.hash+'|'+(x.multi?(x.ownerId||'sin'):'');
     const vistos={};
     conBytes.forEach(x=>{
-      if(vistos[x.hash]){x.dup='MISMO LOTE: '+vistos[x.hash];x.sel=false;}
-      else vistos[x.hash]=x.name;
+      const k=clave(x);
+      if(vistos[k]){x.dup='MISMO LOTE: '+vistos[k];x.sel=false;}
+      else vistos[k]=x.name;
     });
     // duplicados contra lo YA archivado en cualquier obra
     const hashes=[...new Set(conBytes.filter(x=>!x.dup).map(x=>x.hash))];
@@ -2856,7 +3416,9 @@ async function marcarDuplicadosPdf(){
     const {data,error}=await sb.from('documentos').select('hash,nombre_archivo,trabajador_id,created_at').eq('anulado',false).in('hash',hashes);
     if(error||!data)return; // si la columna hash aún no existe (Script 33 sin correr), no bloquea la importación
     conBytes.forEach(x=>{
-      const ya=data.find(d=>d.hash===x.hash);
+      // el acuse multipágina solo es duplicado si YA está en el expediente de ESE trabajador
+      const ya=x.multi?data.find(d=>d.hash===x.hash&&d.trabajador_id===x.ownerId)
+                      :data.find(d=>d.hash===x.hash);
       if(ya&&!x.dup){
         const w=WORKERS.find(z=>z.id===ya.trabajador_id);
         x.dup=`YA ARCHIVADO${w?' — '+fullName(w):''} (${fmtD(ya.created_at)})`;
@@ -2868,14 +3430,25 @@ async function marcarDuplicadosPdf(){
 function renderPdfImp(){
   if(!PDFIMP.length){$('pdf-prev').innerHTML='<div class="empty">No se pudo leer ningún PDF.</div>';return;}
   const okN=PDFIMP.filter(x=>x.ownerId).length;
-  $('pdf-prev').innerHTML=`
+  /* Resumen del acuse multipágina (lote, registro patronal, folio, movimientos) */
+  const ac=(PDFIMP.find(x=>x.acuse)||{}).acuse;
+  const cab=ac?`
+    <div style="background:var(--blue-bg);border:1px solid var(--border);border-radius:9px;padding:11px 14px;margin-bottom:10px;font-size:12.5px;line-height:1.7">
+      <b>📄 Constancia IMSS con ${ac.total} movimiento(s)</b> — se detectaron TODOS los renglones del acuse.<br>
+      <span style="color:var(--mut)">Lote</span> <b>${esc(ac.lote||'—')}</b> ·
+      <span style="color:var(--mut)">Registro patronal</span> <b>${esc(ac.registro_patronal||'—')}</b> ·
+      <span style="color:var(--mut)">Folio</span> <b>${esc(ac.folio||'—')}</b> ·
+      <span style="color:var(--mut)">Recibido</span> <b>${esc(ac.fecha_lote||'—')} ${esc(ac.hora_lote||'')}</b>
+      <div style="color:var(--mut);font-size:11.5px;margin-top:4px">La constancia ampara a todos: se archiva completa en el expediente de cada trabajador y cada quien recibe el movimiento IMSS que le corresponde.</div>
+    </div>`:'';
+  $('pdf-prev').innerHTML=cab+`
     <div style="margin-bottom:8px;font-size:12.5px"><b>${okN}</b> de <b>${PDFIMP.length}</b> documentos identificados automáticamente. Asigna manualmente los que falten.</div>
     <div class="imp-row head" style="grid-template-columns:26px 1.6fr 1.6fr .8fr"><span></span><span>Documento</span><span>Trabajador</span><span>Estado</span></div>
     ${PDFIMP.map((x,i)=>x.error
       ?`<div class="imp-row" style="grid-template-columns:26px 1.6fr 1.6fr .8fr"><span></span><span>${esc(x.name)}</span><span style="color:var(--red)">${esc(x.error)}</span><span class="imp-tag imp-SINREGISTRO">ERROR</span></div>`
       :`<div class="imp-row" style="grid-template-columns:26px 1.6fr 1.6fr .8fr${x.dup?';background:var(--amber-bg)':''}">
         <span><input type="checkbox" style="width:auto" ${x.sel?'checked':''} onchange="PDFIMP[${i}].sel=this.checked"></span>
-        <span>${esc(x.name)}<br><span style="color:var(--mut);font-size:11px">${x.pages} pág.${x.sem?' · semana <b style="color:var(--green)">'+esc(x.sem)+'</b> (auto)':''}</span>${x.dup?`<br><span style="color:var(--amber);font-size:11px;font-weight:700">⚠ DUPLICADO: ${esc(x.dup)}</span>`:''}</span>
+        <span>${esc(x.name)}<br><span style="color:var(--mut);font-size:11px">${x.pages} pág.${x.sem?' · semana <b style="color:var(--green)">'+esc(x.sem)+'</b> (auto)':''}${x.mov?` · <b>${esc(x.idx)}/${esc(x.acuse.total)}</b> · <b style="color:var(--blue)">${esc(x.mov.tipo)}</b> · NSS ${esc(x.mov.nss)} · ${esc(x.mov.fecha_mov)}${x.mov.sal_base?' · SBC $'+money(x.mov.sal_base):''}${x.mov.causa_baja_txt?' · '+esc(x.mov.causa_baja_txt):''}<br><span style="color:var(--mut)">en el acuse: ${esc(x.mov.nombre||'—')}</span>`:''}</span>${x.dup?`<br><span style="color:var(--amber);font-size:11px;font-weight:700">⚠ DUPLICADO: ${esc(x.dup)}</span>`:''}</span>
         <span><select onchange="PDFIMP[${i}].ownerId=this.value||null;PDFIMP[${i}].sel=!!this.value">
           <option value="">— asignar trabajador —</option>
           ${WORKERS.map(w=>`<option value="${w.id}" ${x.ownerId===w.id?'selected':''}>${esc(fullName(w))}</option>`).join('')}
@@ -2890,25 +3463,39 @@ async function applyPdfImport(){
   const sel=PDFIMP.filter(x=>x.sel&&x.ownerId&&!x.error);
   if(!sel.length){toast('No hay documentos identificados y seleccionados.','err');return;}
   const nDup=sel.filter(x=>x.dup).length;
-  if(!confirm(`¿Archivar ${sel.length} documento(s) como ${cat==='ACUSE_IMSS'?'ACUSE IMSS '+sub:'RECIBO DE NÓMINA'} en los expedientes?${nDup?`\n\n⚠ ATENCIÓN: ${nDup} de ellos están marcados como DUPLICADOS (ya existen en un expediente) y se archivarían POR SEGUNDA VEZ.`:''}`))return;
+  const multi=sel.filter(x=>x.mov);
+  const detalle=multi.length
+    ? `${multi.length} movimiento(s) de la constancia IMSS (lote ${multi[0].acuse.lote||'—'}):\n`+
+      Object.entries(multi.reduce((a,x)=>{a[x.mov.tipo]=(a[x.mov.tipo]||0)+1;return a;},{})).map(([k,v])=>`   · ${v} ${k}`).join('\n')+
+      `\n\nLa constancia completa se archiva en el expediente de cada uno y a cada quien se le pone SU movimiento IMSS.`
+    : `${sel.length} documento(s) como ${cat==='ACUSE_IMSS'?'ACUSE IMSS '+sub:'RECIBO DE NÓMINA'}`;
+  if(!confirm(`¿Archivar ${detalle}${nDup?`\n\n⚠ ATENCIÓN: ${nDup} de ellos están marcados como DUPLICADOS (ya existen en un expediente) y se archivarían POR SEGUNDA VEZ.`:''}`))return;
   $('pdf-btn').innerHTML='<span class="spin"></span> Archivando...';
   markWrite();
   let ok=0,fail=0;
   for(const x of sel){
     const w=WORKERS.find(z=>z.id===x.ownerId);
-    const safe=x.name.replace(/[^A-Za-z0-9._-]+/g,'_').slice(-70);
+    /* En un acuse multipágina cada trabajador manda su propio subtipo y su
+       propia fecha de movimiento (las que trae SU renglón del acuse), no las
+       del formulario: un mismo lote puede traer altas, bajas y modificaciones. */
+    const subX=x.mov?SUBTIPO_ACUSE(x.mov.tipo):sub;
+    const fdX=x.mov?(dmyISO(x.mov.fecha_mov)||fd):fd;
+    const nombreX=x.mov
+      ?`ACUSE_IMSS_${x.mov.tipo.replace(/\s+/g,'_')}_LOTE${x.acuse.lote||''}_${(w?fullName(w):x.mov.nombre||'').replace(/\s+/g,'_')}.pdf`
+      :x.name;
+    const safe=nombreX.replace(/[^A-Za-z0-9._-]+/g,'_').slice(-70);
     const path=`${x.ownerId}/${cat}/${Date.now()}_${safe}${safe.toLowerCase().endsWith('.pdf')?'':'.pdf'}`;
     const {error:e1}=await sb.storage.from('expedientes').upload(path,new Blob([x.bytes],{type:'application/pdf'}));
     if(e1){fail++;continue;}
     const fila={trabajador_id:x.ownerId,obra_id:w?w.obra_id:OBRA.id,categoria:cat,
-      subtipo:cat==='ACUSE_IMSS'?sub:'RECIBO',semana:((cat==='RECIBO_NOMINA'&&x.sem)||sem),fecha_doc:fd,archivo:path,nombre_archivo:x.name.slice(0,120),subido_por:USER.email,hash:x.hash||''};
+      subtipo:cat==='ACUSE_IMSS'?subX:'RECIBO',semana:((cat==='RECIBO_NOMINA'&&x.sem)||sem),fecha_doc:fdX,archivo:path,nombre_archivo:nombreX.slice(0,120),subido_por:USER.email,hash:x.hash||''};
     let {error:e2}=await sb.from('documentos').insert(fila);
     if(e2&&/hash/i.test(e2.message||'')){delete fila.hash;({error:e2}=await sb.from('documentos').insert(fila));} // si falta el Script 33, archiva sin huella
     if(e2){fail++;continue;}
     ok++;
     if(cat==='ACUSE_IMSS'&&w){
-      const mv=sub==='ALTA'?'ALTA CON ACUSE':(sub==='BAJA'?'BAJA CON ACUSE':'MODIFICACION CON ACUSE');
-      await sb.from('trabajadores').update({movimiento_imss:mv,fecha_mov_imss:fd||today()}).eq('id',w.id);
+      const mv=subX==='ALTA'?'ALTA CON ACUSE':(subX==='BAJA'?'BAJA CON ACUSE':'MODIFICACION CON ACUSE');
+      await sb.from('trabajadores').update({movimiento_imss:mv,fecha_mov_imss:fdX||today()}).eq('id',w.id);
     }
   }
   closeModal();
@@ -3025,7 +3612,7 @@ function openImportPago(){
 async function pgParse(inp){
   const files=inp.files?[...inp.files]:[]; if(!files.length)return;
   if(!window.pdfjsLib){toast('La librería de PDF no cargó. Revisa tu internet y reabre la app.','err');return;}
-  $('pg-out').innerHTML='<div class="empty">Leyendo '+files.length+' archivo(s)...</div>';
+  $('pg-out').innerHTML=skeletonRows(6,'26px 1.5fr 1fr 1fr .9fr','Leyendo '+files.length+' comprobante(s) de pago...');
   const rows=[]; let sugFecha=null;
   const yaHash=async h=>{try{const {data}=await sb.from('pagos').select('id').eq('hash',h).limit(1);return !!(data&&data.length);}catch(e){return false;}};
   for(const file of files){
@@ -3136,6 +3723,234 @@ async function applyPagoImport(){
   toast(`Pagos registrados: ${ok}${fail?`, ${fail} con error`:''}.`,fail?'err':'ok');
   await loadObraData(OBRA.id);
 }
+/* ============================================================
+   v36 · MÓDULO DE PAGOS BBVA (vista nueva)
+   Hasta ahora los pagos por transferencia SE IMPORTABAN pero no tenían dónde
+   consultarse: solo aparecían de refilón en "Control de pagos". Esta vista los
+   muestra completos, con el mismo formato de la ficha individual del trabajador
+   (secciones + renglones clave/valor), y separa:
+     · PAGO GLOBAL     = dispersión de nómina; varios trabajadores comparten
+                         el mismo folio de lote (un solo movimiento del banco).
+     · PAGO INDIVIDUAL = comprobante suelto (mismo banco o interbancario).
+   Se alimenta de la tabla `pagos` (Script 44). Solo lectura: no toca importes,
+   no toca cheques, no toca el motor de nómina.
+   ============================================================ */
+const pagoSemNum=p=>parseInt(String(p.semana||'').replace(/\D/g,''))||0;
+/* Un folio de lote con más de un pago = dispersión global. */
+function pagosIndexados(){
+  const porFolio={};
+  (PAGOS||[]).forEach(p=>{const f=p.folio_lote||('__'+p.id);(porFolio[f]=porFolio[f]||[]).push(p);});
+  return (PAGOS||[]).map(p=>{
+    const f=p.folio_lote||('__'+p.id);
+    const w=WORKERS.find(x=>x.id===p.trabajador_id)||null;
+    return {...p, w, nombre:w?fullName(w):(p.titular||'—'),
+      no_trab:w?w.no_trab:null, contratista:w?(w.contratista||''):'',
+      tipo:(porFolio[f].length>1?'GLOBAL':'INDIVIDUAL'), lote:f, enLote:porFolio[f].length};
+  });
+}
+function pagosFiltered(){
+  const q=($('pg-v-q')&&$('pg-v-q').value||'').trim().toUpperCase();
+  const fs=($('pg-v-sem')&&$('pg-v-sem').value)||'';
+  const fe=($('pg-v-estado')&&$('pg-v-estado').value)||'';
+  const ft=($('pg-v-tipo')&&$('pg-v-tipo').value)||'';
+  return pagosIndexados().filter(p=>{
+    if(fs&&String(pagoSemNum(p))!==fs)return false;
+    if(fe&&String(p.estado||'').toUpperCase()!==fe)return false;
+    if(ft&&p.tipo!==ft)return false;
+    if(q){const hay=[p.nombre,p.titular,p.semana,p.banco,p.cuenta_mask,p.folio_lote,p.descripcion,p.no_trab,p.contratista].join(' ').toUpperCase();
+      if(!hay.includes(q))return false;}
+    return true;
+  }).sort((a,b)=>pagoSemNum(b)-pagoSemNum(a)||String(a.nombre).localeCompare(String(b.nombre)));
+}
+function renderPagosView(){
+  if(!$('pg-v-tbody'))return;
+  const todos=pagosIndexados();
+  // selector de semanas (se arma con lo que de verdad hay importado)
+  const sel=$('pg-v-sem');
+  if(sel){
+    const cur=sel.value;
+    const sems=[...new Set(todos.map(pagoSemNum).filter(Boolean))].sort((a,b)=>b-a);
+    sel.innerHTML='<option value="">Semana: todas</option>'+sems.map(s=>`<option value="${s}" ${String(s)===cur?'selected':''}>S${s}</option>`).join('');
+  }
+  const rows=pagosFiltered();
+  const ex=rows.filter(p=>String(p.estado||'').toUpperCase()!=='RECHAZADO');
+  const re=rows.filter(p=>String(p.estado||'').toUpperCase()==='RECHAZADO');
+  const suma=a=>a.reduce((s,p)=>s+(Number(p.importe)||0),0);
+  const lotes=new Set(rows.filter(p=>p.tipo==='GLOBAL').map(p=>p.lote));
+  $('pg-v-stats').innerHTML=`
+    <div class="stat g"><div class="n">$${money(suma(ex))}</div><div class="l">Dispersado (exitoso)</div></div>
+    <div class="stat b"><div class="n">${ex.length}</div><div class="l">Pagos exitosos</div></div>
+    <div class="stat r"><div class="n">${re.length}</div><div class="l">Rechazados · $${money(suma(re))}</div></div>
+    <div class="stat"><div class="n">${new Set(rows.map(p=>p.trabajador_id).filter(Boolean)).size}</div><div class="l">Trabajadores pagados</div></div>
+    <div class="stat a"><div class="n">${lotes.size}</div><div class="l">Lotes globales</div></div>`;
+  if(!todos.length){
+    $('pg-v-tbody').innerHTML=`<tr><td colspan="9"><div class="empty"><div class="big">💸</div>Todavía no hay pagos importados en esta obra.<br><span style="font-size:12.5px">Impórtalos con <b>📥 Importar → 💸 Pago global BBVA</b> (acepta el resumen de dispersión y también comprobantes individuales).</span><br><button class="btn dark" style="margin-top:12px" onclick="openImportPago()">💸 Importar pagos BBVA</button></div></td></tr>`;
+    return;
+  }
+  if(!rows.length){$('pg-v-tbody').innerHTML='<tr><td colspan="9"><div class="empty">Ningún pago coincide con el filtro.</div></td></tr>';return;}
+  $('pg-v-tbody').innerHTML=rows.map(p=>{
+    const rech=String(p.estado||'').toUpperCase()==='RECHAZADO';
+    return `<tr onclick="${p.trabajador_id?`openPagoTrabajador('${p.trabajador_id}')`:`openPagoLote('${esc(p.lote)}')`}" title="Ver el detalle">
+      <td>${p.no_trab??'—'}</td>
+      <td><b>${esc(p.nombre)}</b>${p.contratista?`<br><span style="color:var(--mut);font-size:11px">${esc(p.contratista)}</span>`:''}</td>
+      <td>${esc(p.semana||'—')}</td>
+      <td>${p.fecha_pago?fmtD(p.fecha_pago):'—'}</td>
+      <td style="text-align:right;font-weight:700${rech?';color:var(--red);text-decoration:line-through':''}">$${money(p.importe)}</td>
+      <td>${esc(p.banco||'BBVA')}</td>
+      <td>${esc(p.cuenta_mask||'—')}</td>
+      <td><span class="badge ${rech?'BAJA':'ACTIVO'}">${esc(p.estado||'EXITOSO')}</span></td>
+      <td><span class="badge ${p.tipo==='GLOBAL'?'ENTREGADO':'SEMANAL'}">${p.tipo}</span>${p.tipo==='GLOBAL'?`<br><span style="color:var(--mut);font-size:10.5px" onclick="event.stopPropagation();openPagoLote('${esc(p.lote)}')">lote ${esc(String(p.lote).slice(0,10))}… (${p.enLote})</span>`:''}</td>
+    </tr>`;
+  }).join('');
+}
+/* Detalle por trabajador — mismo formato que el recibo de nómina individual */
+function openPagoTrabajador(id){
+  const w=WORKERS.find(x=>x.id===id);
+  const mios=pagosIndexados().filter(p=>p.trabajador_id===id).sort((a,b)=>pagoSemNum(a)-pagoSemNum(b));
+  if(!mios.length){toast('Ese trabajador no tiene pagos registrados.','err');return;}
+  const ex=mios.filter(p=>String(p.estado||'').toUpperCase()!=='RECHAZADO');
+  const total=ex.reduce((s,p)=>s+(Number(p.importe)||0),0);
+  const kv=(k,v)=>`<div class="kv"><b>${k}</b><span>${v}</span></div>`;
+  const porSem={}; mios.forEach(p=>{(porSem[pagoSemNum(p)]=porSem[pagoSemNum(p)]||[]).push(p);});
+  const semanas=Object.keys(porSem).map(Number).sort((a,b)=>a-b);
+  modal(`
+    <div class="m-head"><h2>💸 Pagos BBVA · ${esc(w?fullName(w):(mios[0].titular||''))}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <div class="stats">
+        <div class="stat g"><div class="n">$${money(total)}</div><div class="l">Total transferido</div></div>
+        <div class="stat b"><div class="n">${ex.length}</div><div class="l">Pagos exitosos</div></div>
+        ${mios.length-ex.length?`<div class="stat r"><div class="n">${mios.length-ex.length}</div><div class="l">Rechazados</div></div>`:''}
+        <div class="stat"><div class="n">${semanas.length}</div><div class="l">Semanas pagadas</div></div>
+      </div>
+      ${w?`<div class="sect">Datos del trabajador</div>
+      ${kv('No. de trabajador',w.no_trab??'—')}
+      ${kv('Contratista',esc(w.contratista||'—'))}
+      ${kv('Puesto',esc(w.puesto||'—'))}
+      ${kv('Cuenta / CLABE',esc(w.cuenta||'—')+(w.clabe?' · '+esc(w.clabe):''))}
+      ${kv('Banco',esc(w.banco||'—'))}`:''}
+      ${semanas.map(s=>{
+        const ps=porSem[s];
+        const tot=ps.filter(p=>String(p.estado||'').toUpperCase()!=='RECHAZADO').reduce((a,p)=>a+(Number(p.importe)||0),0);
+        /* cruce solo-lectura contra el cheque de esa semana (aviso de pago doble) */
+        const chq=(CHEQUES||[]).filter(c=>c.trabajador_id===id&&normSem(c.semana)===String(s)&&c.estatus!=='CANCELADO');
+        return `<div class="sect">Semana S${s} · $${money(tot)}</div>
+        ${ps.map(p=>{
+          const rech=String(p.estado||'').toUpperCase()==='RECHAZADO';
+          return `<div class="kv" ${rech?'style="background:var(--red-bg)"':''}>
+            <b>${p.fecha_pago?fmtD(p.fecha_pago):'sin fecha'}</b>
+            <span><b style="font-size:14px${rech?';color:var(--red)':''}">$${money(p.importe)}</b> · ${esc(p.banco||'BBVA')} ${esc(p.cuenta_mask||'')}
+            · <span class="badge ${p.tipo==='GLOBAL'?'ENTREGADO':'SEMANAL'}">${p.tipo}</span>
+            · <span class="badge ${rech?'BAJA':'ACTIVO'}">${esc(p.estado||'EXITOSO')}</span>
+            ${p.descripcion?`<br><span style="color:var(--mut);font-size:11.5px">${esc(p.descripcion)}</span>`:''}
+            ${p.folio_lote?`<br><span style="color:var(--mut);font-size:11px">Folio/lote ${esc(p.folio_lote)} ${p.enLote>1?`· <a href="#" onclick="closeModal();openPagoLote('${esc(p.lote)}');return false">ver el lote completo (${p.enLote})</a>`:''}</span>`:''}
+            ${p.titular&&w&&p.titular.toUpperCase()!==fullName(w).toUpperCase()?`<br><span style="color:var(--mut);font-size:11px">Titular en el banco: ${esc(p.titular)}</span>`:''}
+            </span></div>`;
+        }).join('')}
+        ${chq.length?`<div class="kv" style="background:var(--amber-bg)"><b style="color:var(--amber)">⚠ También hay cheque</b><span>${chq.map(c=>`${esc(c.tipo_pago)} $${money(c.importe)} · <span class="badge ${c.estatus}">${c.estatus}</span>`).join(' · ')} — revísalo en <b>🔁 Control de pagos</b> por posible pago doble.</span></div>`:''}`;
+      }).join('')}
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      ${w?`<button class="btn" onclick="closeModal();openDetail('${w.id}')">👤 Abrir ficha del trabajador</button>`:''}
+      <button class="btn dark" onclick="exportPagoTrabajador('${id}')">⬇ Exportar sus pagos</button>
+    </div>`,'lg');
+}
+/* Detalle de un pago GLOBAL (la dispersión completa de un lote) */
+function openPagoLote(folio){
+  const ps=pagosIndexados().filter(p=>p.lote===folio).sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre)));
+  if(!ps.length){toast('Lote no encontrado.','err');return;}
+  const ex=ps.filter(p=>String(p.estado||'').toUpperCase()!=='RECHAZADO');
+  const re=ps.filter(p=>String(p.estado||'').toUpperCase()==='RECHAZADO');
+  const suma=a=>a.reduce((s,p)=>s+(Number(p.importe)||0),0);
+  const p0=ps[0];
+  window._PGLOTE=ps;
+  modal(`
+    <div class="m-head"><h2>🏦 Pago global BBVA · lote ${esc(String(p0.folio_lote||'—'))}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <div class="stats">
+        <div class="stat g"><div class="n">$${money(suma(ex))}</div><div class="l">Total dispersado</div></div>
+        <div class="stat b"><div class="n">${ex.length}</div><div class="l">Exitosos</div></div>
+        ${re.length?`<div class="stat r"><div class="n">${re.length}</div><div class="l">Rechazados · $${money(suma(re))}</div></div>`:''}
+        <div class="stat"><div class="n">${esc(p0.semana||'—')}</div><div class="l">Nómina pagada</div></div>
+      </div>
+      <div class="kv"><b>Descripción</b><span>${esc(p0.descripcion||'—')}</span></div>
+      <div class="kv"><b>Fecha de dispersión</b><span>${p0.fecha_pago?fmtD(p0.fecha_pago):'—'}</span></div>
+      <div class="kv"><b>Banco</b><span>${esc(p0.banco||'BBVA')}</span></div>
+      <div class="kv"><b>Archivo importado</b><span>${esc(p0.nombre_archivo||'—')}</span></div>
+      <div class="sect">Trabajadores del lote (${ps.length})</div>
+      <div class="tbl-card" style="max-height:46vh">
+        <table style="min-width:0">
+          <thead><tr><th>No.</th><th>Trabajador</th><th>Cuenta</th><th style="text-align:right">Importe</th><th>Estado</th></tr></thead>
+          <tbody>${ps.map(p=>{
+            const rech=String(p.estado||'').toUpperCase()==='RECHAZADO';
+            return `<tr ${p.trabajador_id?`onclick="closeModal();openPagoTrabajador('${p.trabajador_id}')"`:''} ${rech?'style="background:var(--red-bg)"':''}>
+              <td>${p.no_trab??'—'}</td><td><b>${esc(p.nombre)}</b></td><td>${esc(p.cuenta_mask||'—')}</td>
+              <td style="text-align:right">$${money(p.importe)}</td>
+              <td><span class="badge ${rech?'BAJA':'ACTIVO'}">${esc(p.estado||'EXITOSO')}</span></td></tr>`;
+          }).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn dark" onclick="exportPagoLote()">⬇ Exportar este lote</button>
+    </div>`,'lg');
+}
+/* ---- Exports del módulo de pagos ---- */
+function _pagosSheet(rows,titulo){
+  const aoa=[],st=[];
+  aoa.push([titulo]);st.push(ST.title);
+  aoa.push([`Generado el ${new Date().toLocaleDateString('es-MX')} · ${OBRA.nombre}`]);st.push([ST.sub]);
+  aoa.push(['NO.','TRABAJADOR','CONTRATISTA','SEMANA','FECHA','IMPORTE','BANCO','CUENTA','ESTADO','TIPO','FOLIO / LOTE','DESCRIPCIÓN']);st.push(ST.head);
+  const rs=[ST.cellC,ST.cell,ST.cell,ST.cellC,ST.cellC,ST.money,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cell,ST.cell];
+  rows.forEach(p=>{aoa.push([p.no_trab??'',p.nombre,p.contratista||'',p.semana||'',p.fecha_pago?fmtD(p.fecha_pago):'',
+    Number(p.importe)||0,p.banco||'',p.cuenta_mask||'',p.estado||'',p.tipo,p.folio_lote||'',p.descripcion||'']);st.push(rs);});
+  const tot=rows.filter(p=>String(p.estado||'').toUpperCase()!=='RECHAZADO').reduce((s,p)=>s+(Number(p.importe)||0),0);
+  aoa.push(['','TOTAL EXITOSO','','','',tot,'','','','','','']);
+  st.push([ST.total,ST.total,ST.total,ST.total,ST.total,ST.totalMoney,ST.total,ST.total,ST.total,ST.total,ST.total,ST.total]);
+  const ws=buildSheet(aoa,st,[6,30,20,9,12,13,10,11,12,12,34,28],[{s:{r:0,c:0},e:{r:0,c:11}},{s:{r:1,c:0},e:{r:1,c:11}}],[{hpt:26},{hpt:16},{hpt:24}]);
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:2,c:0},e:{r:2+rows.length,c:11}})};
+  return ws;
+}
+function exportPagos(){
+  const rows=pagosFiltered();
+  if(!rows.length){toast('No hay pagos que exportar con el filtro actual.','err');return;}
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,_pagosSheet(rows,'PAGOS BBVA — DETALLE'),'DETALLE');
+  // hoja de lotes globales
+  const lotes={};
+  rows.filter(p=>p.tipo==='GLOBAL').forEach(p=>{(lotes[p.lote]=lotes[p.lote]||[]).push(p);});
+  const ks=Object.keys(lotes);
+  if(ks.length){
+    const aoa=[],st=[];
+    aoa.push(['PAGOS GLOBALES BBVA — RESUMEN POR LOTE']);st.push(ST.title);
+    aoa.push(['FOLIO / LOTE','DESCRIPCIÓN','SEMANA','FECHA','TRABAJADORES','EXITOSOS','RECHAZADOS','TOTAL DISPERSADO']);st.push(ST.head);
+    const rs=[ST.cell,ST.cell,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.money];
+    ks.forEach(k=>{const g=lotes[k];const e=g.filter(p=>String(p.estado||'').toUpperCase()!=='RECHAZADO');
+      aoa.push([g[0].folio_lote||k,g[0].descripcion||'',g[0].semana||'',g[0].fecha_pago?fmtD(g[0].fecha_pago):'',
+        g.length,e.length,g.length-e.length,e.reduce((s,p)=>s+(Number(p.importe)||0),0)]);st.push(rs);});
+    XLSX.utils.book_append_sheet(wb,buildSheet(aoa,st,[36,28,9,12,14,11,12,17],[{s:{r:0,c:0},e:{r:0,c:7}}],[{hpt:26},{hpt:24}]),'LOTES GLOBALES');
+  }
+  dl(wb,`PAGOS_BBVA_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}_${today()}.xlsx`);
+  toast(`Excel de pagos generado: ${rows.length} movimiento(s).`,'ok');
+}
+function exportPagoTrabajador(id){
+  const rows=pagosIndexados().filter(p=>p.trabajador_id===id).sort((a,b)=>pagoSemNum(a)-pagoSemNum(b));
+  if(!rows.length){toast('Sin pagos que exportar.','err');return;}
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,_pagosSheet(rows,'PAGOS BBVA — '+rows[0].nombre),'PAGOS');
+  dl(wb,`PAGOS_${String(rows[0].nombre).replace(/\s+/g,'_').slice(0,28)}_${today()}.xlsx`);
+  toast('Pagos del trabajador exportados.','ok');
+}
+function exportPagoLote(){
+  const rows=window._PGLOTE||[];
+  if(!rows.length){toast('Sin datos del lote.','err');return;}
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,_pagosSheet(rows,'PAGO GLOBAL BBVA — LOTE '+(rows[0].folio_lote||'')),'LOTE');
+  dl(wb,`PAGO_GLOBAL_LOTE_${String(rows[0].folio_lote||'').slice(0,16)}_${today()}.xlsx`);
+  toast('Lote exportado.','ok');
+}
+
 /* Cancela (no borra) un cheque porque ya se pagó por transferencia. */
 async function pagoCancelarCheque(id){
   const c=(CHEQUES||[]).find(x=>x.id===id); if(!c){toast('Cheque no encontrado.','err');return;}
@@ -3256,7 +4071,7 @@ async function cfCargar(){
 }
 async function openControlFolios(){
   modal(`<div class="m-head"><h2>📋 Control de folios de cheque</h2><button class="x" onclick="closeModal()">×</button></div>
-    <div class="m-body"><div id="cf-out"><div class="empty">Analizando el consecutivo de los cheques...</div></div></div>
+    <div class="m-body"><div id="cf-out">${skeletonRows(6,'1fr 2fr .7fr','Analizando el consecutivo de los cheques...')}</div></div>
     <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button><button class="btn dark" id="cf-xls" onclick="exportFolios()" style="display:none">⬇ Exportar Excel</button></div>`,'lg');
   const r=await cfCargar(); window._CF=r; cfRender();
 }
@@ -3447,11 +4262,9 @@ function openExports(){
     <div class="m-body">
       <div class="kv"><b>Registro patronal</b><span>${esc(OBRA.registro_patronal)||'— (agrégalo con el lápiz ✎ de la obra)'}</span></div>
       <div class="kv"><b>Registro SIROC</b><span>${esc(OBRA.registro_siroc)||'—'}</span></div>
-      <p style="color:var(--mut);font-size:12.5px;margin:14px 0">Layouts con los datos que SUA y Aspel NOI piden, listos para que las contadoras los importen o capturen sin volver a teclear. Verificar en el sistema antes de aplicar.</p>
+      <p style="color:var(--mut);font-size:12.5px;margin:14px 0">El archivo <b>exacto</b> que usa la contadora: hoja <b>Trabajadores</b> (importación Aspel NOI 11) y hoja <b>SUA</b> con la <b>fórmula de concatenación</b>, más el <b>TXT</b> de concatenación listo para el SUA. Verificar en el sistema antes de aplicar.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn dark" onclick="exportSUA()">⬇ Movimientos afiliatorios (SUA)</button>
-        <button class="btn dark" onclick="exportNOI()">⬇ Alta de trabajadores (Aspel NOI)</button>
-        <button class="btn dark" onclick="openAltasNOI()">⬇ Altas p/ contadora · NOI + SUA + TXT</button>
+        <button class="btn dark" onclick="openAltasNOI()">⬇ Concatenar TXT y Excel (NOI + SUA)</button>
       </div>
       <div class="sect" style="margin-top:18px">Portales IMSS (donde se presentan los movimientos)</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -3462,39 +4275,6 @@ function openExports(){
       <p style="color:var(--mut);font-size:12px;margin-top:10px">Flujo: el sistema genera el layout → la contadora lo presenta en IDSE con la e.firma → descarga el acuse PDF → se archiva aquí con 📥 Importar → el estatus IMSS del trabajador se actualiza solo.</p>
     </div>
     <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`,'md');
-}
-function exportSUA(){
-  const rows=[],styles=[];
-  rows.push([`MOVIMIENTOS AFILIATORIOS IMSS — ${OBRA.nombre} — REG. PATRONAL: ${OBRA.registro_patronal||'PENDIENTE'} — SIROC: ${OBRA.registro_siroc||'PENDIENTE'}`]); styles.push(ST.title);
-  rows.push(['REG. PATRONAL','NSS','RFC','CURP','PRIMER APELLIDO','SEGUNDO APELLIDO','NOMBRE(S)','TIPO MOVIMIENTO','FECHA MOVIMIENTO','SBC (SDI)','SD','ESTATUS EN BASE','ESTATUS IMSS']); styles.push(ST.head);
-  const rs=[ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cell,ST.cell,ST.cell,ST.cellC,ST.cellC,ST.money,ST.money,ST.cellC,ST.cell];
-  WORKERS.slice().sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9)).forEach(w=>{
-    const tipo=w.estatus==='BAJA'?'BAJA (02)':(String(w.movimiento_imss||'').includes('MODIFICACION')?'MOD. SALARIO (08)':'ALTA/REINGRESO (07)');
-    const fecha=w.estatus==='BAJA'?fmtD(w.fecha_baja):fmtD(w.fecha_alta);
-    rows.push([rpDe(w),w.nss,w.rfc,w.curp,w.primer_apellido,w.segundo_apellido,w.nombres,tipo,fecha,Number(w.sdi)||'',Number(w.sd)||'',w.estatus,w.movimiento_imss||'SIN MOVIMIENTO']);
-    styles.push(rs);
-  });
-  const ws=buildSheet(rows,styles,[14,13,15,20,16,16,18,18,14,11,10,12,22],[{s:{r:0,c:0},e:{r:0,c:12}}],[{hpt:26},{hpt:24}]);
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'MOVIMIENTOS SUA');
-  dl(wb,`SUA_MOVIMIENTOS_${OBRA.nombre.slice(0,18).replace(/\s+/g,'_')}_${today()}.xlsx`);
-  toast('Layout SUA generado.','ok');
-}
-function exportNOI(){
-  const rows=[],styles=[];
-  rows.push([`ALTA DE TRABAJADORES PARA ASPEL NOI — ${OBRA.nombre} — ${new Date().toLocaleDateString('es-MX')}`]); styles.push(ST.title);
-  rows.push(['CLAVE','PRIMER APELLIDO','SEGUNDO APELLIDO','NOMBRE(S)','RFC','CURP','NSS','FECHA ALTA','DEPARTAMENTO','PUESTO','SD','SDI','PERIODO PAGO','BANCO','CUENTA','CLABE','INFONAVIT ($/NÓMINA)']); styles.push(ST.head);
-  const rs=[ST.cellC,ST.cell,ST.cell,ST.cell,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cell,ST.cell,ST.money,ST.money,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.money];
-  WORKERS.filter(w=>w.estatus!=='BAJA').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9)).forEach(w=>{
-    const inf=DESC.filter(d=>d.trabajador_id===w.id&&d.activo&&d.recurrente&&d.tipo==='INFONAVIT').reduce((s,d)=>s+(Number(d.monto)||0),0);
-    rows.push([w.no_trab??'',w.primer_apellido,w.segundo_apellido,w.nombres,w.rfc,w.curp,w.nss,fmtD(w.fecha_alta),w.contratista||'CONSTRUCCION',w.puesto,Number(w.sd)||'',Number(w.sdi)||'',w.periodo_pago||'SEMANAL',w.banco,w.cuenta,w.clabe,inf||'']);
-    styles.push(rs);
-  });
-  const ws=buildSheet(rows,styles,[7,16,16,18,15,20,13,12,16,22,10,11,13,12,14,20,14],[{s:{r:0,c:0},e:{r:0,c:16}}],[{hpt:26},{hpt:24}]);
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'ALTA NOI');
-  dl(wb,`NOI_ALTAS_${OBRA.nombre.slice(0,18).replace(/\s+/g,'_')}_${today()}.xlsx`);
-  toast('Layout NOI generado.','ok');
 }
 
 /* ---------- IMPORTAR RESPUESTA DEL BANCO (.exp de ancho fijo, 2026-07-31) ----
@@ -3539,7 +4319,7 @@ function expClasifica(code,desc,ctaOk){
 }
 async function parseImportExp(inp){
   const file=inp.files[0]; if(!file)return;
-  $('impx-prev').innerHTML='<div class="empty">Leyendo archivo del banco...</div>';
+  $('impx-prev').innerHTML=skeletonRows(7,'1.4fr 1fr 1fr 1.2fr','Leyendo la respuesta del banco...');
   let txt; try{txt=await file.text();}catch(e){$('impx-prev').innerHTML='<div class="empty">No pude leer el archivo.</div>';return;}
   const lineas=txt.split(/\r?\n/).filter(l=>l.startsWith('02'));
   if(!lineas.length){$('impx-prev').innerHTML='<div class="empty">No encontré registros de detalle (02). ¿Es el archivo .exp que responde el banco?</div>';return;}
@@ -3611,7 +4391,7 @@ async function applyImportExp(){
       const {error}=await sb.from('trabajadores').update({cuenta:x.cta,clabe:x.clabe,banco:bankFromClabe(x.clabe)||'BBVA'}).eq('id',base.id);
       if(error)fail++;else ok++;
     } else if(String(base.cuenta)!==x.cta||String(base.clabe)!==x.clabe){ skip++; }
-    acuse.push({nombre:fullName(base),cuenta:x.cta,res:x.motivo||x.res});
+    acuse.push({nombre:fullName(base),cuenta:x.cta,res:x.motivo||x.res,contratista:base.contratista||''});
   }
   closeModal();
   toast(`Aplicado: ${ok} cuenta(s) llenada(s)${skip?`, ${skip} con cuenta distinta se dejaron intactas`:''}${fail?`, ${fail} con error`:''}.`,fail?'err':'ok');
@@ -3639,7 +4419,7 @@ function openImport(){
 let IMP=[];
 async function parseImport(inp){
   const file=inp.files[0]; if(!file)return;
-  $('imp-prev').innerHTML='<div class="empty">Leyendo archivo...</div>';
+  $('imp-prev').innerHTML=skeletonRows(7,'26px 1.6fr 1.2fr 1.2fr 1fr','Leyendo el archivo de cuentas...');
   const buf=await file.arrayBuffer();
   let wb;
   try{wb=XLSX.read(buf,{type:'array'});}catch(e){$('imp-prev').innerHTML='<div class="empty">No pude leer el archivo. ¿Es un Excel válido?</div>';return;}
@@ -3710,7 +4490,7 @@ async function applyImport(){
     if(x.res&&x.res.includes('EXISTENTE')&&!(x.w.observaciones||'').includes('EXISTENTE'))
       upd.observaciones=((x.w.observaciones||'')?x.w.observaciones+' | ':'')+'BANCO: '+x.res;
     const {error}=await sb.from('trabajadores').update(upd).eq('id',x.w.id);
-    if(error)fail++;else{ok++;aplicados.push({nombre:fullName(x.w),cuenta:upd.cuenta,res:x.res||''});}
+    if(error)fail++;else{ok++;aplicados.push({nombre:fullName(x.w),cuenta:upd.cuenta,res:x.res||'',contratista:x.w.contratista||''});}
   }
   closeModal();
   toast(`Importación aplicada: ${ok} actualizados${fail?`, ${fail} con error`:''}.`,fail?'err':'ok');
@@ -3730,28 +4510,66 @@ function exportAcuseTarjetas(lista,sem){
     r:{font:{sz:9,color:{rgb:'555555'},name:'Calibri'},border:BORD,alignment:{vertical:'center',wrapText:true}},
     f:{font:{bold:true,sz:11,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'004A87'}},alignment:{horizontal:'center',vertical:'center'}},
     p:{font:{sz:9,color:{rgb:'555555'},name:'Calibri'},fill:{fgColor:{rgb:'EAF3FC'}},alignment:{horizontal:'center',vertical:'center'}}};
-  const rows=[],styles=[],hs=[];
-  rows.push(['ACUSE DE RECIBO — TARJETA DE NÓMINA']); styles.push(AZ.t); hs.push({hpt:36});
-  rows.push([`SEMANA ${sem}   |   Fecha de entrega: ______ / ______ / ${new Date().getFullYear()}`]); styles.push(AZ.s); hs.push({hpt:24});
-  rows.push(['Por este medio, el trabajador declara haber recibido de conformidad la tarjeta bancaria de nómina correspondiente a la semana indicada.']); styles.push(AZ.l); hs.push({hpt:30});
-  rows.push(['#','NOMBRE COMPLETO','NO. DE CUENTA','FIRMA DE CONFORMIDAD','RESOLUCIÓN DEL BANCO']); styles.push(AZ.h); hs.push({hpt:26});
-  const hFila=Math.max(30,Math.min(100,Math.floor(412/Math.max(1,lista.length)))); // llena el alto de la hoja carta
-  lista.forEach((x,i)=>{
-    rows.push([i+1,x.nombre,x.cuenta,'',x.res]);
-    styles.push([AZ.cc,AZ.cb,AZ.cc,AZ.c,AZ.r]); hs.push({hpt:hFila});
-  });
-  rows.push([`TOTAL DE TRABAJADORES: ${lista.length}`]); styles.push(AZ.f); hs.push({hpt:22});
-  const empKey=OBRA.tipo==='OFICINA'?'PLATINUM':'PLATINUM';
-  const emp=CFGEMP['empresa_'+empKey]||{razon:'PLATINUM',rfc:''};
-  rows.push([`Documento elaborado por Recursos Humanos  —  ${emp.razon||'PLATINUM'}  |  RFC: ${emp.rfc||''}`]); styles.push(AZ.p); hs.push({hpt:18});
-  const merges=[{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}},{s:{r:2,c:0},e:{r:2,c:4}},
-    {s:{r:rows.length-2,c:0},e:{r:rows.length-2,c:4}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:4}}];
-  const ws=buildSheet(rows,styles,[4.5,38,18,46,32],merges,hs); // (7×138.5+25)/96 = 10.36" — hoja carta horizontal completa
-  ws['!pageSetup']={orientation:'landscape',paperSize:1};
+  const emp=CFGEMP['empresa_PLATINUM']||{razon:'PLATINUM',rfc:''};
+
+  /* Una hoja de firmas (hoja carta horizontal completa) para un grupo */
+  const hojaFirmas=(grupo,titulo)=>{
+    const rows=[],styles=[],hs=[];
+    rows.push(['ACUSE DE RECIBO — TARJETA DE NÓMINA']); styles.push(AZ.t); hs.push({hpt:36});
+    rows.push([`SEMANA ${sem}   |   ${titulo}   |   Fecha de entrega: ______ / ______ / ${new Date().getFullYear()}`]); styles.push(AZ.s); hs.push({hpt:24});
+    rows.push(['Por este medio, el trabajador declara haber recibido de conformidad la tarjeta bancaria de nómina correspondiente a la semana indicada.']); styles.push(AZ.l); hs.push({hpt:30});
+    rows.push(['#','NOMBRE COMPLETO','NO. DE CUENTA','FIRMA DE CONFORMIDAD','RESOLUCIÓN DEL BANCO']); styles.push(AZ.h); hs.push({hpt:26});
+    const hFila=Math.max(30,Math.min(100,Math.floor(412/Math.max(1,grupo.length)))); // llena el alto de la hoja carta
+    grupo.forEach((x,i)=>{
+      rows.push([i+1,x.nombre,x.cuenta,'',x.res]);
+      styles.push([AZ.cc,AZ.cb,AZ.cc,AZ.c,AZ.r]); hs.push({hpt:hFila});
+    });
+    rows.push([`TOTAL DE TRABAJADORES: ${grupo.length}`]); styles.push(AZ.f); hs.push({hpt:22});
+    rows.push([`Documento elaborado por Recursos Humanos  —  ${emp.razon||'PLATINUM'}  |  RFC: ${emp.rfc||''}`]); styles.push(AZ.p); hs.push({hpt:18});
+    const merges=[{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}},{s:{r:2,c:0},e:{r:2,c:4}},
+      {s:{r:rows.length-2,c:0},e:{r:rows.length-2,c:4}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:4}}];
+    const ws=buildSheet(rows,styles,[4.5,38,18,46,32],merges,hs); // (7×138.5+25)/96 = 10.36" — hoja carta horizontal completa
+    ws['!pageSetup']={orientation:'landscape',paperSize:1};
+    return ws;
+  };
+
+  /* v36: UNA HOJA POR CONTRATISTA. Cada contratista firma su propio acuse,
+     así se entrega por cuadrilla sin recortar ni volver a capturar nada.
+     Si ninguna fila trae contratista, sale una sola hoja como antes. */
+  const grupos={};
+  lista.forEach(x=>{const c=(x.contratista||'SIN CONTRATISTA').toString().trim().toUpperCase()||'SIN CONTRATISTA';(grupos[c]=grupos[c]||[]).push(x);});
+  const nombres=Object.keys(grupos).sort((a,b)=>a.localeCompare(b));
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,`FIRMAS SEMANA ${sem}`);
+
+  if(nombres.length>1){
+    // Hoja RESUMEN: cuántas tarjetas lleva cada contratista
+    const rr=[],ss=[];
+    rr.push([`ACUSE DE TARJETAS — SEMANA ${sem} — ${OBRA.nombre}`]); ss.push(ST.title);
+    rr.push([`Generado el ${new Date().toLocaleDateString('es-MX')} · una hoja de firmas por contratista`]); ss.push([ST.sub]);
+    rr.push(['CONTRATISTA','TARJETAS','TARJETAS NUEVAS','YA TENÍAN CUENTA']); ss.push(ST.head);
+    nombres.forEach(c=>{
+      const g=grupos[c];
+      rr.push([c,g.length,
+        g.filter(x=>!/EXISTENTE|YA TEN/i.test(x.res||'')).length,
+        g.filter(x=>/EXISTENTE|YA TEN/i.test(x.res||'')).length]);
+      ss.push([ST.cell,ST.cellC,ST.cellC,ST.cellC]);
+    });
+    rr.push(['TOTAL',lista.length,'','']); ss.push([ST.total,ST.total,ST.total,ST.total]);
+    const wsR=buildSheet(rr,ss,[38,12,17,18],[{s:{r:0,c:0},e:{r:0,c:3}},{s:{r:1,c:0},e:{r:1,c:3}}],[{hpt:26},{hpt:16},{hpt:24}]);
+    XLSX.utils.book_append_sheet(wb,wsR,'RESUMEN');
+  }
+
+  const usados=new Set(['RESUMEN']);
+  nombres.forEach(c=>{
+    // Excel: máx. 31 caracteres y sin : \ / ? * [ ]
+    let nom=c.replace(/[\\\/\?\*\[\]:]/g,' ').replace(/\s+/g,' ').trim().slice(0,31)||'CONTRATISTA';
+    let n=2; while(usados.has(nom)){const suf=' ('+n+')'; nom=nom.slice(0,31-suf.length)+suf; n++;}
+    usados.add(nom);
+    XLSX.utils.book_append_sheet(wb,hojaFirmas(grupos[c],c),nom);
+  });
+
   dl(wb,`ACUSE_TARJETAS_SEMANA${sem}_${today()}.xlsx`);
-  toast(`Acuse de recepción generado: ${lista.length} tarjeta(s). Imprimir en hoja carta HORIZONTAL.`,'ok');
+  toast(`Acuse generado: ${lista.length} tarjeta(s) en ${nombres.length} hoja(s) — una por contratista. Imprimir en hoja carta HORIZONTAL.`,'ok');
 }
 
 /* ---------- MÓDULO DE CHEQUES ---------- */
@@ -3828,7 +4646,7 @@ async function crAnalizar(){
   if(!ns){toast('Escribe la semana (ej. S17).','err');return;}
   const recs=(DOCSX||[]).filter(d=>!d.anulado&&d.categoria==='RECIBO_NOMINA'&&normSem(d.semana)===ns);
   if(!recs.length){$('cr-out').innerHTML='<div class="empty">No hay recibos de nómina archivados en la semana S'+ns+' en esta obra. Impórtalos en 📥 Importar → Acuses IMSS y recibos (categoría RECIBO DE NÓMINA).</div>';$('cr-btn').classList.add('hide');return;}
-  $('cr-out').innerHTML='<div class="empty">Leyendo '+recs.length+' recibo(s)...</div>';
+  $('cr-out').innerHTML=skeletonRows(Math.min(9,Math.max(3,recs.length)),'1.5fr .8fr 1fr 1fr 1fr','Descargando y leyendo '+recs.length+' recibo(s) de nómina...');
   const rows=[];
   for(const d of recs){
     let info=_RECCACHE[d.archivo];
@@ -3964,6 +4782,27 @@ function chqAutofill(){
   $('f-c-puesto').value=w.puesto||'';$('f-c-curp').value=w.curp||'';
   if(!$('f-c-importe').value)$('f-c-importe').value=w.estatus==='BAJA'&&w.monto_finiquito?w.monto_finiquito:(w.sal_semanal??'');
 }
+/* ============================================================
+   v36 · REGLA ANTI-DUPLICADOS DE CHEQUES (espejo del Script 52)
+   Máximo 1 cheque de SUELDO y 1 de FINIQUITO por trabajador y semana.
+   NO cuentan: los CANCELADOS, los de la papelera, ni el propio cheque que
+   se está editando. Devuelve el cheque que estorba, o null si está limpio.
+   ============================================================ */
+function chequeDuplicado(rec,idActual){
+  const sem=normSem(rec.semana);
+  if(!sem)return null;                                  // sin semana legible no aplica
+  if(String(rec.estatus||'').toUpperCase()==='CANCELADO')return null;
+  const mismoTrab=c=>rec.trabajador_id
+    ? c.trabajador_id===rec.trabajador_id
+    : (!c.trabajador_id&&String(c.nombre||'').toUpperCase()===String(rec.nombre||'').toUpperCase());
+  return (CHEQUES||[]).find(c=>
+    c.id!==idActual && !c.eliminado &&
+    String(c.estatus||'').toUpperCase()!=='CANCELADO' &&
+    String(c.tipo_pago||'')===String(rec.tipo_pago||'') &&
+    normSem(c.semana)===sem &&
+    mismoTrab(c)
+  )||null;
+}
 async function saveCheque(id){
   const g=i=>{const el=$('f-'+i)||$(i);return el?el.value.trim():'';};
   if(!g('c-nombre')){toast('Indica el nombre del trabajador o beneficiario.','err');return;}
@@ -3981,12 +4820,29 @@ async function saveCheque(id){
   };
   const dupNum=rec.num_cheque&&CHEQUES.find(x=>x.num_cheque===rec.num_cheque&&x.id!==id&&x.estatus!=='CANCELADO');
   if(dupNum){toast(`El número de cheque ${rec.num_cheque} ya está registrado para ${dupNum.nombre}.`,'err');return;}
+  /* v36 · REGLA ABSOLUTA (Script 52): por trabajador y semana solo puede haber
+     1 cheque de SUELDO y 1 de FINIQUITO. La base lo impide con un índice único
+     + trigger; aquí se avisa ANTES de guardar, con nombre y folio del previo. */
+  const choque=chequeDuplicado(rec,id);
+  if(choque){
+    toast(`Ya existe un cheque de ${rec.tipo_pago==='FINIQUITO'?'FINIQUITO':'SUELDO'} de ${rec.nombre} en la semana ${rec.semana} `+
+          `(${choque.num_cheque?'folio '+choque.num_cheque:'sin folio'} · $${money(choque.importe)} · ${choque.estatus}). `+
+          `Solo se permite 1 de sueldo y 1 de finiquito por semana: cancela el anterior si se capturó mal.`,'err');
+    return;
+  }
   $('c-save').innerHTML='<span class="spin"></span> Guardando...';
   markWrite();
   let error;
   if(id){({error}=await sb.from('cheques').update(rec).eq('id',id));}
   else{rec.creado_por=USER.email;({error}=await sb.from('cheques').insert(rec));}
-  if(error){$('c-save').textContent='💾 Guardar';toast('Error: '+error.message,'err');return;}
+  if(error){
+    $('c-save').textContent='💾 Guardar';
+    // el candado de la base habla en español: se muestra tal cual
+    if(/CHEQUE DUPLICADO/i.test(error.message||'')||error.code==='23505'&&/ux_cheque_sueldo_finiquito/i.test(error.message||''))
+      toast(String(error.message).replace(/^.*CHEQUE DUPLICADO/i,'CHEQUE DUPLICADO'),'err');
+    else toast('Error: '+error.message,'err');
+    return;
+  }
   closeModal();toast('Cheque guardado.','ok');
   await loadObraData(OBRA.id);
 }
@@ -4846,7 +5702,7 @@ function celdaAiso(v){
 const numDe=v=>{const m=String(v??'').match(/-?\d+(\.\d+)?/);return m?Math.round(parseFloat(m[0])):0;};
 async function parseImportVac(inp){
   const file=inp.files[0]; if(!file)return;
-  $('vi-prev').innerHTML='<div class="empty">Leyendo archivo...</div>';
+  $('vi-prev').innerHTML=skeletonRows(6,'1.5fr 1fr 1fr 1fr','Leyendo el control de vacaciones...');
   let wb; try{wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});}catch(e){$('vi-prev').innerHTML='<div class="empty">No pude leer el archivo. ¿Es un Excel válido?</div>';return;}
   // la fila de encabezados REAL es la que contiene "DÍAS GOZADOS" (así no
   // confundimos con el "RFC: XXX" del membrete de la empresa)
@@ -5236,7 +6092,7 @@ function openCfdiImport(){
 }
 async function parseCfdi(inp){
   CFDIIMP=[];
-  $('cf-prev').innerHTML='<div class="empty">Leyendo XML...</div>';
+  $('cf-prev').innerHTML=skeletonRows(6,'26px 1.6fr 1.2fr 1fr','Leyendo los CFDI timbrados...');
   const {data:allW}=await sb.from('trabajadores').select('id,obra_id,rfc,curp,primer_apellido,segundo_apellido,nombres').eq('eliminado',false);
   for(const file of inp.files){
     try{
@@ -5543,7 +6399,11 @@ function cuotaSemanalInfonavit(mensual){
   const f=FISC();
   return Math.round((mensual*2+f.seg)/diasBimestreActual()*7*100)/100;
 }
-/* --- CUOTAS IMSS/ISN (LSS arts. 25,71,106,107,147,168,211; CEAV 2026 4o ajuste) --- */
+/* --- CUOTAS IMSS/ISN (LSS arts. 25,71,106,107,147,168,211; CEAV 2026 4o ajuste) ---
+   v36: el módulo "Costo patronal · simulador" se eliminó del sistema por
+   petición del usuario. Esta función se conserva porque es la calculadora de
+   cuotas IMSS del proyecto (parte del motor fiscal, calibrada contra la EBA),
+   NO parte del simulador: se deja disponible para cálculos futuros. */
 function cuotasSemana(w,prima,diasCot){
   const f=FISC(); const sbc=Math.min(Number(w.sdi)||Number(w.sd)||0, 25*f.uma);
   const d=(diasCot==null?7:Math.max(0,diasCot)); const B=sbc*d; // REGLA IMSS: con ausentismo se cotizan 7−faltas días (LSS art. 31)
@@ -5561,68 +6421,6 @@ function cuotasSemana(w,prima,diasCot){
   const r2=o=>Object.values(o).reduce((s,x)=>s+x,0);
   const bruto=(Number(w.sd)||0)*7;
   return {sbc,ceavPct:ceav,pat,obr,totPat:r2(pat),totObr:r2(obr),isn:bruto*f.isn/100,isr:isrSemanal(bruto),bruto};
-}
-function openCostos(){
-  const f=FISC();
-  modal(`
-    <div class="m-head"><h2>🏛 Costo patronal semanal · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
-    <div class="m-body">
-      <div style="background:var(--blue-bg);border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:12px;line-height:1.7">
-        Cuotas IMSS conforme a la LSS con la <b>tabla CEAV 2026</b> (reforma de pensiones), INFONAVIT 5%, <b>ISN Hidalgo ${f.isn}%</b> y <b>ISR estimado con tarifa semanal del Anexo 8 2026</b> (validado contra tu reporte NOI: Romario $208.00 ✔; NOI hace ajuste mensual, puede variar en cierres de mes). SBC = SDI topado a 25 UMA ($${money(25*f.uma)}).
-      </div>
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
-        <div><label>Prima de riesgo de trabajo de ESTA obra (%)</label><input id="ct-prima" type="number" step="0.00001" value="${OBRA.prima_rt??''}" placeholder="Ej. 7.58875 (Clase V)"></div>
-        <div><label>Simular aumento general (%)</label><input id="ct-aum" type="number" step="0.1" value="0"></div>
-        <div style="display:flex;align-items:end"><button class="btn dark" style="width:100%" onclick="costosCalcular()">🧮 Calcular</button></div>
-      </div>
-      <div id="ct-out" style="margin-top:14px"></div>
-    </div>
-    <div class="m-foot">
-      <button class="btn" onclick="closeModal()">Cerrar</button>
-      <button class="btn dark hide" id="ct-exp" onclick="costosExportar()">⬇ Exportar Excel (estilo EBA)</button>
-    </div>`,'lg');
-}
-async function costosCalcular(){
-  const prima=parseFloat($('ct-prima').value);
-  if(!prima&&prima!==0){toast('Captura la prima de riesgo de la obra (las contadoras la tienen; Bienestar usa Clase V 7.58875).','err');return;}
-  if(OBRA.prima_rt!==prima){markWrite();try{await sb.from('obras').update({prima_rt:prima}).eq('id',OBRA.id);OBRA.prima_rt=prima;}catch(e){}}
-  const aum=1+((parseFloat($('ct-aum').value)||0)/100);
-  const act=WORKERS.filter(w=>w.estatus==='ACTIVO');
-  const calc=esc2=>act.map(w=>{
-    const w2=esc2===1?w:{...w,sd:(Number(w.sd)||0)*aum,sdi:(Number(w.sdi)||0)*aum};
-    return {w:w2,c:cuotasSemana(w2,primaDe(w2,prima))};
-  });
-  const A=calc(1), B=aum!==1?calc(2):null;
-  const sum=(L,k)=>L.reduce((s,x)=>s+x.c[k],0);
-  const fila=(t,L)=>`<tr><td><b>${t}</b></td><td>$${money(L.reduce((s,x)=>s+x.c.bruto,0))}</td><td>$${money(sum(L,'totPat'))}</td><td>$${money(sum(L,'totObr'))}</td><td>$${money(sum(L,'isr'))}</td><td>$${money(sum(L,'isn'))}</td><td><b>$${money(L.reduce((s,x)=>s+x.c.bruto+x.c.totPat,0)+sum(L,'isn'))}</b></td></tr>`;
-  window._COSTOS={A,B,prima,aum};
-  $('ct-out').innerHTML=`
-    <table style="min-width:0"><thead><tr><th>Escenario</th><th>Nómina bruta</th><th>Cuotas patrón (IMSS+INF)</th><th>Cuotas obrero</th><th>ISR est.</th><th>ISN ${FISC().isn}%</th><th>COSTO TOTAL PATRÓN</th></tr></thead>
-    <tbody>${fila('ACTUAL ('+act.length+' activos)',A)}${B?fila('CON AUMENTO '+$('ct-aum').value+'%',B):''}</tbody></table>
-    ${B?`<div class="stats" style="margin-top:10px"><div class="stat r"><div class="n">+$${money((B.reduce((s,x)=>s+x.c.bruto+x.c.totPat,0)+sum(B,'isn'))-(A.reduce((s,x)=>s+x.c.bruto+x.c.totPat,0)+sum(A,'isn')))}</div><div class="l">Costo extra semanal del aumento</div></div></div>`:''}`;
-  $('ct-exp').classList.remove('hide');
-}
-function costosExportar(){
-  const {A,prima}=window._COSTOS||{}; if(!A)return;
-  const rows=[],styles=[],hs=[];
-  rows.push([`COSTO PATRONAL SEMANAL — ${OBRA.nombre} — PRIMA RT ${prima}% — ${new Date().toLocaleDateString('es-MX')}`]); styles.push(ST.title); hs.push({hpt:26});
-  rows.push(['NO.','TRABAJADOR','SD','SBC (SDI)','CEAV %','RETIRO 2%','CEAV PAT','RT','EyM+DIN+GMP+IyV+GUARD','INFONAVIT 5%','TOTAL PATRÓN','CUOTA OBRERO','ISR EST.','ISN']); styles.push(ST.head); hs.push({hpt:28});
-  const rs=[ST.cellC,ST.cell,ST.money,ST.money,ST.cellC,ST.money,ST.money,ST.money,ST.money,ST.money,ST.money,ST.money,ST.money,ST.money];
-  A.forEach(x=>{const p=x.c.pat;
-    rows.push([x.w.no_trab??'',fullName(x.w),Number(x.w.sd)||0,x.c.sbc,x.c.ceavPct+'%',p.retiro,p.ceav,p.rt,p.eym_fija+p.eym_exc+p.dinero+p.gmp+p.iyv+p.guarderias,p.infonavit,x.c.totPat,x.c.totObr,x.c.isr,x.c.isn]);
-    styles.push(rs);hs.push(null);});
-  const S=k=>A.reduce((s,x)=>s+x.c[k],0);
-  rows.push(['','TOTALES','','','','','','','','',S('totPat'),S('totObr'),S('isr'),S('isn')]);
-  styles.push([ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.totalMoney,ST.totalMoney,ST.totalMoney,ST.totalMoney]); hs.push({hpt:22});
-  let fund='Fundamentos: LSS arts. 25, 71, 106-107, 147, 168, 211 · CEAV 2026 (reforma 2020, 4º ajuste) · INFONAVIT 5% · ISN Hidalgo · ISR Anexo 8 RMF 2026 DOF 28/12/2025. El ISR semanal es estimación; NOI realiza ajuste mensual.';
-  const ovr=A.filter(x=>tieneRPpropio(x.w));
-  if(ovr.length)fund+='   ||   REGISTRO PATRONAL / PRIMA PROPIOS: '+ovr.map(x=>fullName(x.w)+' (RP '+(rpDe(x.w)||'—')+', prima '+primaDe(x.w)+'%)').join('; ');
-  rows.push([fund]);
-  styles.push(ST.sub); hs.push({hpt:ovr.length?28:18});
-  const ws=buildSheet(rows,styles,[6,30,9,10,8,10,10,10,16,11,12,12,10,10],[{s:{r:0,c:0},e:{r:0,c:13}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:13}}],hs);
-  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'COSTO PATRONAL');
-  dl(wb,`COSTO_PATRONAL_${OBRA.nombre.slice(0,14).replace(/\s+/g,'_')}_${today()}.xlsx`);
-  toast('Costo patronal exportado.','ok');
 }
 /* --- PLANTILLA A UNA FECHA --- */
 function openPlantillaFecha(){
@@ -5726,7 +6524,7 @@ function openVerificadorNOI(){
 }
 async function verificarNOI(inp){
   const file=inp.files[0]; if(!file)return;
-  $('vn-out').innerHTML='<div class="empty">Leyendo PDF de NOI...</div>';
+  $('vn-out').innerHTML=skeletonRows(8,'1.5fr 1fr 1fr 1fr','Leyendo el reporte de NOI y cruzando contra la base...');
   try{
     const buf=await file.arrayBuffer();
     const doc=await pdfjsLib.getDocument({data:buf}).promise;
@@ -6407,7 +7205,7 @@ function openRecepcionTarjetas(){
   modal(`
     <div class="m-head"><h2>✍ Recepción de tarjetas · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:12px">Genera el <b>acuse de recibo para firmas</b> de la semana que elijas (hoja carta horizontal, ocupa toda la hoja). Marca a quienes se les entregará tarjeta. Los que importaste del banco con 🏦 ya traen su cuenta y su resolución. Por default se marcan los ingresos de la semana elegida.</p>
+      <p style="color:var(--mut);margin-bottom:12px">Genera el <b>acuse de recibo para firmas</b> de la semana que elijas (hoja carta horizontal, ocupa toda la hoja). Marca a quienes se les entregará tarjeta. Los que importaste del banco con 🏦 ya traen su cuenta y su resolución. Por default se marcan los ingresos de la semana elegida.<br><b>El Excel sale con una hoja por contratista</b> (más una hoja RESUMEN), para entregar y firmar por cuadrilla.</p>
       <div class="grid" style="grid-template-columns:160px 1fr;align-items:end">
         <div><label>No. de semana</label><input id="rt-sem" type="number" value="${semAct}" oninput="rtMarcaSemana()"></div>
         <div style="font-size:12px;color:var(--mut)">
@@ -6418,7 +7216,7 @@ function openRecepcionTarjetas(){
       </div>
       <div id="rt-lista" style="margin-top:10px;max-height:380px;overflow:auto">
         ${cands.map((w,i)=>`<label id="rt-row-${i}" style="display:block;padding:3px 2px;font-size:12.5px">
-          <input type="checkbox" id="rt-${i}"> #${w.no_trab??'—'} ${esc(fullName(w))} · cta ${esc(w.cuenta)}${(w.observaciones||'').includes('EXISTENTE')?' · <span class="badge PENDIENTE">YA TENÍA CUENTA</span>':''}</label>`).join('')}
+          <input type="checkbox" id="rt-${i}"> #${w.no_trab??'—'} ${esc(fullName(w))} · cta ${esc(w.cuenta)} · <span style="color:var(--mut)">${esc(w.contratista||'SIN CONTRATISTA')}</span>${(w.observaciones||'').includes('EXISTENTE')?' · <span class="badge PENDIENTE">YA TENÍA CUENTA</span>':''}</label>`).join('')}
       </div>
     </div>
     <div class="m-foot">
@@ -6439,7 +7237,7 @@ function exportRecepcionTarjetas(){
   const sem=$('rt-sem').value||isoWeek();
   const sel=window._RT.filter((w,i)=>$('rt-'+i)&&$('rt-'+i).checked);
   if(!sel.length){toast('Marca al menos un trabajador.','err');return;}
-  const lista=sel.map(w=>({nombre:fullName(w),cuenta:w.cuenta,
+  const lista=sel.map(w=>({nombre:fullName(w),cuenta:w.cuenta,contratista:w.contratista||'',
     res:(w.observaciones||'').includes('EXISTENTE')?'YA TENÍA CUENTA/TARJETA':'TARJETA NUEVA'}));
   closeModal();
   exportAcuseTarjetas(lista,sem);
@@ -6656,6 +7454,8 @@ function updateAlertas(){
   const n=computeAlertas().filter(a=>a.k!=='PROG').reduce((s,a)=>s+a.items.length,0);
   const b=$('alert-badge');
   if(b){b.style.display=n?'block':'none';b.textContent=n>99?'99+':n;}
+  const sbb=$('sb-alert-badge');   // v36: el mismo contador en el panel lateral
+  if(sbb){sbb.style.display=n?'inline-block':'none';sbb.textContent=n>99?'99+':n;}
 }
 const ALERT_ACC={RECIB:{fn:'openFaltanRecibos',txt:'Ver / importar recibos'},PAGOG:{fn:'openImportPago',txt:'Importar pago'},IMSS:{fn:'openPdfImport',txt:'Importar acuses'},CREAR:{fn:'openRequisicion',txt:'Requisición de tarjetas'}};
 function openAlertas(){
