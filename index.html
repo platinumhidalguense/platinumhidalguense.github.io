@@ -1387,7 +1387,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-15.4';
+const APP_VERSION='2026-08-15.5';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1762,7 +1762,8 @@ function iaEjecutaConsulta(c){
         case 'promedio': {const n=nums();return n.length?_n2(n.reduce((s,x)=>s+x,0)/n.length):0;}
         case 'minimo':   {const n=nums();return n.length?Math.min(...n):null;}
         case 'maximo':   {const n=nums();return n.length?Math.max(...n):null;}
-        case 'distintos':return [...new Set(arr.map(x=>x[campo]).filter(v=>v!==null&&v!==undefined&&v!==''))];
+        case 'distintos':{const s=[...new Set(arr.map(x=>x[campo]).filter(v=>v!==null&&v!==undefined&&v!==''))];
+                          return s.length<=200?s:{cuantos:s.length,muestra:s.slice(0,200)};}
         case 'conteo_distintos':return new Set(arr.map(x=>x[campo]).filter(v=>v!==null&&v!==undefined&&v!=='')).size;
         case 'lista':    return arr.slice(0,c.limite||25).map(x=>{
                             const cs=(Array.isArray(c.campos)&&c.campos.length)?c.campos:['nombre','trabajador','no_trab',campo].filter(Boolean);
@@ -2169,9 +2170,18 @@ async function iaEnviar(){
     const calc=Object.keys(datos).length?datos:await iaContextoLocal(q).catch(()=>({}));
     if(est)est.textContent='Redactando la respuesta...';
     const j=await iaLlamar(IA_FN.chat,{pregunta:q,obra_id:(OBRA&&OBRA.id)||null,
-      historial:IA_HIST.slice(-6),contexto_calculado:calc,plan_ejecutado:plan});
+      historial:IA_HIST.slice(-6),contexto_calculado:calc,plan_ejecutado:plan},60000);
     iaEscribiendo(false);
-    const txt=j&&j.respuesta?j.respuesta:'No pude responder en este momento.';
+    let txt=j&&j.respuesta?j.respuesta:'No pude responder en este momento.';
+    /* Si la redacción falló pero los números YA se calcularon aquí, se muestran:
+       vale más el dato crudo que un "no pude". Y se enseña el motivo real. */
+    if(j&&j.ok===false){
+      if(Object.keys(calc||{}).length&&plan.length){
+        txt+='\n\nLos números sí salieron de tu base:\n```\n'+
+             JSON.stringify(calc,null,1).slice(0,2500)+'\n```';
+      }
+      if(j.detalle)txt+='\n\n**Motivo técnico:** '+String(j.detalle).slice(0,300);
+    }
     iaPinta(j&&j.ok===false?'err':'bot',iaFormato(txt),j&&j.fuentes);
     IA_HIST.push({rol:'bot',texto:txt});
     if(j&&j.sugerencias&&j.sugerencias.length)iaSugerencias(j.sugerencias);
