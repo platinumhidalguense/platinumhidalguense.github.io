@@ -1519,8 +1519,22 @@ async function iaProbarConexion(){
         else if(resp.ok||j.ok!==undefined||j.respuesta){r.ok=true;r.msg='Responde bien ('+resp.status+')';}
         else{r.msg='Respondió '+resp.status;r.fix=txt.slice(0,120);}
       }catch(e){
-        r.msg='No se pudo ni contactar';
-        r.fix='O no está desplegada, o tiene "Verify JWT" encendido, o no hay internet.';
+        /* El navegador tira el mismo error cuando el servidor NO contestó y cuando
+           contestó pero sin permiso de lectura (CORS). Se distingue con una sonda
+           "no-cors": si algo respondió, la sonda pasa aunque no podamos leerla. */
+        let respondio=false;
+        try{ await fetch(base+fn,{method:'POST',mode:'no-cors',
+              headers:{'Content-Type':'text/plain'},body:'{}'}); respondio=true; }catch(e2){}
+        if(respondio){
+          r.msg='El servidor SÍ contesta, pero la respuesta viene sin permiso de lectura';
+          r.fix=`Casi siempre es una de dos: (a) el nombre no es exactamente «${fn}» `+
+                `—revísalo en la lista de Edge Functions, sin mayúsculas ni .ts—, o `+
+                `(b) la función truena al arrancar. Ábrela en Supabase → pestaña Logs: `+
+                `si trae un error de arranque, ahí sale.`;
+        }else{
+          r.msg='No respondió nada';
+          r.fix='No está desplegada, o el proyecto de Supabase no es el que tienes configurado aquí.';
+        }
       }
       filas.push(r);
     }
