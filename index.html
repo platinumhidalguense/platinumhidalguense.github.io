@@ -1386,7 +1386,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-15.1';
+const APP_VERSION='2026-08-15.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1478,7 +1478,60 @@ async function iaLlamar(fn,cuerpo,ms=45000){
     const j=await r.json().catch(()=>({}));
     if(!r.ok&&!j.respuesta&&!j.error)throw new Error('El servicio respondió '+r.status);
     return j;
+  }catch(e){
+    /* "Failed to fetch" no dice nada útil: el navegador lo suelta igual cuando la
+       función no existe, cuando el permiso de origen (CORS) falla y cuando no hay
+       internet. Aquí se traduce a algo accionable. */
+    if(e&&e.name==='AbortError')throw new Error('Se tardó demasiado. Intenta otra vez.');
+    if(e instanceof TypeError||/failed to fetch|networkerror|load failed/i.test(String(e.message||''))){
+      throw new Error(`No pude comunicarme con la función «${fn}».\n\n`+
+        `Casi siempre es una de estas tres:\n`+
+        `1. La función todavía no está desplegada en Supabase.\n`+
+        `2. Está desplegada pero con "Verify JWT" encendido (bloquea la llamada antes de que entre).\n`+
+        `3. No hay internet.\n\n`+
+        `Usa ⚙ Administración → 🤖 Asistente e índice de IA → "Probar conexión" y te digo cuál es.`);
+    }
+    throw e;
   }finally{clearTimeout(t);}
+}
+/* ---------- DIAGNÓSTICO: dice exactamente qué falta ----------
+   Prueba las 3 funciones y traduce cada resultado a una instrucción concreta. */
+async function iaProbarConexion(){
+  const out=$('ia-diag'); if(out)out.innerHTML=skeletonRows(3,'1fr 2fr','Probando las 3 funciones...');
+  const base=iaBaseUrl();
+  const {data:{session}}=await sb.auth.getSession();
+  const filas=[];
+  if(!base)filas.push({fn:'—',ok:false,msg:'No hay Supabase configurado en esta computadora.',fix:''});
+  else if(!session)filas.push({fn:'—',ok:false,msg:'No hay sesión iniciada.',fix:'Cierra sesión y vuelve a entrar.'});
+  else{
+    for(const fn of [IA_FN.chat,IA_FN.extract,IA_FN.embed]){
+      let r={fn,ok:false,msg:'',fix:''};
+      try{
+        const resp=await fetch(base+fn,{method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+          body:JSON.stringify({pregunta:'ping',limite:0,tipo:'generico',texto:''})});
+        const txt=await resp.text();
+        let j={}; try{j=JSON.parse(txt);}catch(e){}
+        if(resp.status===404){r.msg='No existe (404)';r.fix=`Falta desplegarla. Debe llamarse exactamente «${fn}».`;}
+        else if(resp.status===401&&!j.respuesta&&!j.error){r.msg='Rechazada antes de entrar (401)';r.fix='Apaga "Verify JWT" en los ajustes de la función: ella valida la sesión por su cuenta.';}
+        else if(/GEMINI_API_KEY/i.test(txt)){r.msg='Desplegada, pero sin llave de Google';r.fix='Edge Functions → Secrets → agrega GEMINI_API_KEY.';}
+        else if(/Origen no autorizado/i.test(txt)){r.msg='Bloqueada por origen';r.fix='Agrega '+location.origin+' al secret ORIGENES_PERMITIDOS.';}
+        else if(resp.ok||j.ok!==undefined||j.respuesta){r.ok=true;r.msg='Responde bien ('+resp.status+')';}
+        else{r.msg='Respondió '+resp.status;r.fix=txt.slice(0,120);}
+      }catch(e){
+        r.msg='No se pudo ni contactar';
+        r.fix='O no está desplegada, o tiene "Verify JWT" encendido, o no hay internet.';
+      }
+      filas.push(r);
+    }
+  }
+  const bien=filas.every(f=>f.ok);
+  if(out)out.innerHTML=`
+    <div style="background:${bien?'var(--green-bg)':'var(--red-bg)'};border-radius:9px;padding:10px 13px;margin-bottom:10px;font-size:13px">
+      <b style="color:${bien?'var(--green)':'var(--red)'}">${bien?'✅ Las 3 funciones responden bien.':'⚠ Algo falta todavía.'}</b>
+    </div>
+    ${filas.map(f=>`<div class="kv"><b>${esc(f.fn)}</b><span>${f.ok?'✔':'✘'} ${esc(f.msg)}${f.fix?`<br><span style="color:var(--mut);font-size:11.5px">→ ${esc(f.fix)}</span>`:''}</span></div>`).join('')}
+    <div class="fhint" style="margin-top:8px">Tu dirección de Supabase: <b>${esc(base||'(sin configurar)')}</b></div>`;
 }
 
 /* ---------- EXTRACTOR HÍBRIDO ----------
@@ -1504,11 +1557,14 @@ async function openIA(){
     <div class="m-body">
       <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px">El asistente busca en un <b>índice</b> que se arma con los trabajadores, cheques y finiquitos. Cada vez que capturas o editas algo, ese registro se vuelve a poner en cola solo. Aquí puedes ver cómo va y forzar la indexación.</p>
       <div id="ia-stats"><div class="empty">Consultando el estado del índice...</div></div>
+      <div class="sect">Conexión con las funciones de IA</div>
+      <div id="ia-diag"><div class="fhint">Si el asistente marca error, aquí te digo exactamente qué falta.</div></div>
       <div class="sect">Privacidad</div>
       <p style="font-size:12.5px;line-height:1.7">Al índice <b>NO</b> se mandan CURP, RFC, NSS, cuentas ni CLABE — solo nombre, puesto, contratista, estatus, fechas, sueldo y notas, que es lo que el asistente necesita para responder. Cada quien recibe únicamente información de las obras que tiene permitidas.</p>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn" onclick="iaProbarConexion()">🔌 Probar conexión</button>
       <button class="btn dark" id="ia-reindex" onclick="iaReindexar()">⚙ Indexar pendientes</button>
     </div>`,'md');
   iaEstadoIndice();
@@ -1630,9 +1686,7 @@ async function iaEnviar(){
     if(j&&j.sugerencias&&j.sugerencias.length)iaSugerencias(j.sugerencias);
   }catch(e){
     iaEscribiendo(false);
-    iaPinta('err',iaFormato(/abort/i.test(String(e.message))
-      ?'Se tardó demasiado. Intenta otra vez con una pregunta más concreta.'
-      :('No pude consultar: '+e.message)));
+    iaPinta('err',iaFormato(e.message||'No pude consultar.'));
   }finally{
     IA_OCUPADO=false;
     if(btn)btn.disabled=false;
