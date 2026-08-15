@@ -1357,6 +1357,7 @@ async function loadObraData(id){
   ]);
   if(e1){toast('Error al cargar trabajadores: '+e1.message,'err');return;}
   WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];PAGOS=pg||[];PRIMAS=(pr||[]).filter(p=>p.activo!==false);
+  if(typeof iaInvalidaGlobal==='function')iaInvalidaGlobal(); // el corte de todas las obras se vuelve a bajar
   await activarProgramados();
   const cs=[...new Set(WORKERS.map(w=>w.contratista).filter(Boolean))].sort();
   const cur=$('flt-contratista').value;
@@ -1386,7 +1387,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-15.3';
+const APP_VERSION='2026-08-15.4';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1596,9 +1597,13 @@ const _iaAnios=f=>{if(!f)return null;const a=new Date(f+'T12:00'),h=new Date();
    gente usa al preguntar (nombre completo, semana como número, antigüedad...) */
 const IA_DATASETS={
   trabajadores:{
-    desc:'Padrón de la obra abierta. Un renglón por trabajador.',
-    filas:()=>(WORKERS||[]).map(w=>({
+    desc:'Padrón: un renglón por trabajador. Con ambito "global" trae los de TODAS las obras '+
+         '(en ese caso docs_entregados, docs_completos y dias_vacaciones_saldo vienen vacíos: '+
+         'solo se calculan para la obra abierta).',
+    global:true,
+    filas:(o)=>((o&&o.src)||WORKERS||[]).map(w=>({
       id:w.id,no_trab:w.no_trab,nombre:fullName(w),estatus:w.estatus,puesto:w.puesto,
+      obra:w._obra||(OBRA?OBRA.nombre:''),
       contratista:w.contratista,area:w.area,periodo_pago:w.periodo_pago||'SEMANAL',
       banco:w.banco,cuenta:w.cuenta,tiene_cuenta:!!(w.cuenta&&String(w.cuenta).toUpperCase()!=='CREAR'),
       sd:_iaNum(w.sd),sdi:_iaNum(w.sdi),sal_semanal:_iaNum(w.sal_semanal),
@@ -1607,30 +1612,47 @@ const IA_DATASETS={
       edad:edad(w.fecha_nacimiento),genero:w.genero,estado_civil:w.estado_civil,
       escolaridad:w.escolaridad,edo_nacimiento:w.edo_nacimiento,
       movimiento_imss:w.movimiento_imss,tiene_acuse_imss:String(w.movimiento_imss||'').includes('CON ACUSE'),
-      docs_entregados:docsOk(w),docs_completos:docsOk(w)===DOCS.length,
+      docs_entregados:(o&&o.global)?null:docsOk(w),
+      docs_completos:(o&&o.global)?null:(docsOk(w)===DOCS.length),
       telefono:w.telefono,correo:w.correo,observaciones:w.observaciones,
-      dias_vacaciones_saldo:(()=>{try{return saldoVac(w).saldo;}catch(e){return null;}})()
+      dias_vacaciones_saldo:(o&&o.global)?null:(()=>{try{return saldoVac(w).saldo;}catch(e){return null;}})()
     }))},
   cheques:{
-    desc:'Cheques y finiquitos. tipo_pago: CHEQUE (sueldo) o FINIQUITO.',
-    filas:()=>(CHEQUES||[]).map(c=>({
+    desc:'Cheques y finiquitos. tipo_pago: CHEQUE (sueldo) o FINIQUITO. Acepta ambito "global" (todas las obras).',
+    global:true,
+    filas:(o)=>((o&&o.src)||CHEQUES||[]).map(c=>({
       id:c.id,nombre:c.nombre,no_trab:c.no_trab,contratista:c.contratista,
+      obra:c._obra||(OBRA?OBRA.nombre:''),
       semana:_iaSem(c.semana),periodo:c.periodo,importe:_iaNum(c.importe),
       tipo_pago:c.tipo_pago,es_finiquito:c.tipo_pago==='FINIQUITO',
       num_cheque:c.num_cheque,consecutivo:c.consecutivo,estatus:c.estatus,
       observaciones:c.observaciones,creado_por:c.creado_por}))},
   pagos:{
-    desc:'Pagos por transferencia (BBVA y otros bancos). origen: GLOBAL o INDIVIDUAL.',
-    filas:()=>(typeof pagosIndexados==='function'?pagosIndexados():(PAGOS||[])).map(p=>({
-      id:p.id,trabajador:p.nombre||p.titular,no_trab:p.no_trab,contratista:p.contratista,
-      semana:_iaSem(p.semana),importe:_iaNum(p.importe),estado:p.estado,
-      exitoso:String(p.estado||'').toUpperCase()!=='RECHAZADO',
-      banco:p.banco,cuenta_mask:p.cuenta_mask,fecha_pago:p.fecha_pago,
-      folio_lote:p.folio_lote,origen:p.origen||p.tipo,descripcion:p.descripcion}))},
+    desc:'Pagos por transferencia (BBVA y otros bancos). origen: GLOBAL o INDIVIDUAL. Acepta ambito "global" (todas las obras).',
+    global:true,
+    filas:(o)=>{
+      let src;
+      if(o&&o.src){ // ámbito global: se arma aquí el mismo enriquecido que pagosIndexados
+        const porFolio={};o.src.forEach(p=>{const f=p.folio_lote||('__'+p.id);(porFolio[f]=porFolio[f]||[]).push(p);});
+        src=o.src.map(p=>{const f=p.folio_lote||('__'+p.id);
+          const w=(o.pool||[]).find(x=>x.id===p.trabajador_id)||null;
+          return {...p,nombre:w?fullName(w):(p.titular||'—'),no_trab:w?w.no_trab:null,
+            contratista:w?(w.contratista||''):'',tipo:(porFolio[f].length>1?'GLOBAL':'INDIVIDUAL')};});
+      }else src=(typeof pagosIndexados==='function'?pagosIndexados():(PAGOS||[]));
+      return src.map(p=>({
+        id:p.id,trabajador:p.nombre||p.titular,no_trab:p.no_trab,contratista:p.contratista,
+        obra:p._obra||(OBRA?OBRA.nombre:''),
+        semana:_iaSem(p.semana),importe:_iaNum(p.importe),estado:p.estado,
+        exitoso:String(p.estado||'').toUpperCase()!=='RECHAZADO',
+        banco:p.banco,cuenta_mask:p.cuenta_mask,fecha_pago:p.fecha_pago,
+        folio_lote:p.folio_lote,origen:p.origen||p.tipo,descripcion:p.descripcion}));}},
   descuentos:{
-    desc:'Descuentos y retenciones (INFONAVIT, FONACOT, préstamos, etc.).',
-    filas:()=>(DESC||[]).map(d=>{const w=(WORKERS||[]).find(x=>x.id===d.trabajador_id);
-      return{id:d.id,trabajador:w?fullName(w):'',no_trab:w?w.no_trab:null,
+    desc:'Descuentos y retenciones (INFONAVIT, FONACOT, préstamos, etc.). Acepta ambito "global" (todas las obras).',
+    global:true,
+    filas:(o)=>((o&&o.src)||DESC||[]).map(d=>{
+      const w=((o&&o.pool)||WORKERS||[]).find(x=>x.id===d.trabajador_id);
+      return{id:d.id,trabajador_id:d.trabajador_id,trabajador:w?fullName(w):'',no_trab:w?w.no_trab:null,
+        obra:d._obra||(OBRA?OBRA.nombre:''),
         contratista:w?w.contratista:'',tipo:d.tipo,monto:_iaNum(d.monto),motivo:d.motivo,
         activo:d.activo,recurrente:d.recurrente,semana:_iaSem(d.semana)};})},
   documentos:{
@@ -1669,6 +1691,36 @@ const IA_DATASETS={
       es_la_abierta:!!(OBRA&&o.id===OBRA.id)}))}
 };
 
+/* --- Ámbito GLOBAL --------------------------------------------------------
+   Los mismos conjuntos, pero de TODAS las obras. No se relaja nada de seguridad:
+   se pide igual que cualquier otra consulta y la BASE decide qué devuelve según
+   el RLS del usuario. Se guarda en memoria 5 minutos para no repetir la bajada. */
+let IA_GLOBAL=null, IA_GLOBAL_TS=0;
+const IA_GLOBAL_VIDA=300000;
+async function iaCargaGlobal(forzar){
+  if(!forzar&&IA_GLOBAL&&(Date.now()-IA_GLOBAL_TS)<IA_GLOBAL_VIDA)return IA_GLOBAL;
+  const [tw,ch,pg,ds]=await Promise.all([
+    fetchAllRows(()=>sb.from('trabajadores').select('*').eq('eliminado',false)),
+    fetchAllRows(()=>sb.from('cheques').select('*')),
+    fetchAllRows(()=>sb.from('pagos').select('*')),
+    fetchAllRows(()=>sb.from('descuentos').select('*'))
+  ]);
+  const err=[tw,ch,pg,ds].map(r=>r.error).find(Boolean);
+  if(err)throw new Error(String(err.message||err));
+  const nom={};(OBRAS||[]).forEach(o=>{nom[o.id]=o.nombre;});
+  const marca=a=>(a||[]).map(r=>Object.assign({},r,{_obra:nom[r.obra_id]||'(obra no identificada)'}));
+  IA_GLOBAL={
+    trabajadores:marca(tw.data),
+    cheques:marca((ch.data||[]).filter(c=>!c.eliminado)),
+    pagos:marca(pg.data),
+    descuentos:marca(ds.data)
+  };
+  IA_GLOBAL_TS=Date.now();
+  return IA_GLOBAL;
+}
+/* Cuando se cambia de obra o se recarga, el corte global deja de ser vigente. */
+function iaInvalidaGlobal(){IA_GLOBAL=null;IA_GLOBAL_TS=0;}
+
 /* Operadores permitidos. No hay eval: cada uno es una función fija. */
 const IA_OPS={
   '=':(a,b)=>String(a??'').toUpperCase()===String(b??'').toUpperCase(),
@@ -1694,7 +1746,13 @@ function iaEjecutaConsulta(c){
   try{
     const ds=IA_DATASETS[c.dataset];
     if(!ds)return {error:`No existe el conjunto de datos "${c.dataset}". Disponibles: ${Object.keys(IA_DATASETS).join(', ')}`};
-    let filas=ds.filas().filter(f=>iaAplicaFiltro(f,c.filtros));
+    /* Ámbito: "global" solo si el conjunto lo soporta y el corte ya se bajó. */
+    const quiereGlob=c.ambito==='global', puedeGlob=quiereGlob&&!!ds.global&&!!IA_GLOBAL;
+    const ambito=puedeGlob?'todas las obras'
+      :(quiereGlob?('solo la obra abierta: '+(ds.global?'no se pudieron traer las demás obras':'este conjunto no tiene ámbito global'))
+                  :'solo la obra abierta');
+    const opc=puedeGlob?{global:true,src:IA_GLOBAL[c.dataset],pool:IA_GLOBAL.trabajadores}:undefined;
+    let filas=ds.filas(opc).filter(f=>iaAplicaFiltro(f,c.filtros));
     const campo=c.campo, met=(c.metrica||'conteo').toLowerCase();
     const calc=(arr)=>{
       const nums=()=>arr.map(x=>Number(x[campo])).filter(n=>Number.isFinite(n));
@@ -1705,6 +1763,7 @@ function iaEjecutaConsulta(c){
         case 'minimo':   {const n=nums();return n.length?Math.min(...n):null;}
         case 'maximo':   {const n=nums();return n.length?Math.max(...n):null;}
         case 'distintos':return [...new Set(arr.map(x=>x[campo]).filter(v=>v!==null&&v!==undefined&&v!==''))];
+        case 'conteo_distintos':return new Set(arr.map(x=>x[campo]).filter(v=>v!==null&&v!==undefined&&v!=='')).size;
         case 'lista':    return arr.slice(0,c.limite||25).map(x=>{
                             const cs=(Array.isArray(c.campos)&&c.campos.length)?c.campos:['nombre','trabajador','no_trab',campo].filter(Boolean);
                             const o={};cs.forEach(k=>{if(k&&x[k]!==undefined)o[k]=x[k];});
@@ -1716,9 +1775,9 @@ function iaEjecutaConsulta(c){
       const g={};
       filas.forEach(f=>{const k=String(f[c.agrupar]??'(sin dato)');(g[k]=g[k]||[]).push(f);});
       const res={};Object.keys(g).sort().forEach(k=>{res[k]=calc(g[k]);});
-      return {dataset:c.dataset,agrupado_por:c.agrupar,metrica:met,campo,filas_consideradas:filas.length,resultado:res};
+      return {dataset:c.dataset,ambito,agrupado_por:c.agrupar,metrica:met,campo,filas_consideradas:filas.length,resultado:res};
     }
-    return {dataset:c.dataset,metrica:met,campo,filas_consideradas:filas.length,resultado:calc(filas)};
+    return {dataset:c.dataset,ambito,metrica:met,campo,filas_consideradas:filas.length,resultado:calc(filas)};
   }catch(e){return {error:'no se pudo ejecutar: '+e.message};}
 }
 
@@ -1812,20 +1871,29 @@ function iaCatalogo(){
   Object.entries(IA_CALCULOS).forEach(([k,v])=>{calculos[k]=v.desc;});
   return {datos,calculos,
     operadores:Object.keys(IA_OPS),
-    metricas:['conteo','suma','promedio','minimo','maximo','distintos','lista'],
-    contexto:{obra_abierta:OBRA?OBRA.nombre:'—',semana_actual:semObra(),hoy:today()}};
+    metricas:['conteo','suma','promedio','minimo','maximo','distintos','conteo_distintos','lista'],
+    ambito_global:Object.keys(IA_DATASETS).filter(k=>IA_DATASETS[k].global),
+    contexto:{obra_abierta:OBRA?OBRA.nombre:'—',semana_actual:semObra(),hoy:today(),
+      obras_visibles:(OBRAS||[]).map(o=>o.nombre)}};
 }
 /* Ejecuta el plan completo que devolvió el modelo */
 async function iaEjecutaPlan(plan){
   const res={};
-  for(const c of (plan||[]).slice(0,6)){
+  const lista=(plan||[]).slice(0,6);
+  // Si alguna consulta pide todas las obras, se baja el corte global una sola vez.
+  if(lista.some(c=>c.ambito==='global'&&c.dataset&&IA_DATASETS[c.dataset]&&IA_DATASETS[c.dataset].global)){
+    try{await iaCargaGlobal();}
+    catch(e){res._aviso={error:'No se pudieron traer los datos de las demás obras: '+String(e.message||e)+
+      '. Lo que sigue es SOLO de la obra abierta.'};}
+  }
+  for(const c of lista){
     try{
       if(c.calculo){
         const k=IA_CALCULOS[c.calculo];
         res[c.calculo+(c.parametros&&c.parametros.semana?'_S'+c.parametros.semana:'')]=
           k?await k.fn(c.parametros||{}):{error:'No existe el cálculo "'+c.calculo+'"'};
       }else if(c.dataset){
-        const nom=`${c.dataset}_${c.metrica||'conteo'}${c.agrupar?'_por_'+c.agrupar:''}`;
+        const nom=`${c.dataset}_${c.metrica||'conteo'}${c.agrupar?'_por_'+c.agrupar:''}${c.ambito==='global'?'_todas_las_obras':''}`;
         res[nom]=iaEjecutaConsulta(c);
       }
     }catch(e){res['error_'+(c.calculo||c.dataset||'?')]={error:String(e.message||e)};}
