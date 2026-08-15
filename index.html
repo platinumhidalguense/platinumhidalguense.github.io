@@ -1386,7 +1386,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-15.6';
+const APP_VERSION='2026-08-15.7';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1669,16 +1669,10 @@ const IA_CALCULOS={
         pendientes:(WORKERS||[]).filter(w=>w.estatus==='PENDIENTE').length,cheques:chq};}}
 };
 
-/* Lo único que se le manda al planificador: los cálculos que SOLO puede hacer
-   la app (motor de nómina). Todo lo que sea contar o sumar lo resuelven las
-   herramientas de la Edge Function contra la base. */
-function iaCatalogo(){
-  const calculos={};
-  Object.entries(IA_CALCULOS).forEach(([k,v])=>{calculos[k]=v.desc;});
-  return {calculos,
-    contexto:{obra_abierta:OBRA?OBRA.nombre:'—',semana_actual:semObra(),hoy:today()}};
-}
-/* Ejecuta los cálculos que pidió el planificador */
+/* El catálogo de cálculos ya no se manda: el modelo los pide por herramienta
+   (calculo_del_motor) dentro de la misma llamada. Así se ahorra una petición a
+   Google por pregunta, que era la mitad del gasto de cuota. */
+/* Ejecuta el cálculo que pidió la Edge Function */
 async function iaEjecutaPlan(plan){
   const res={};
   for(const c of (plan||[]).slice(0,2)){
@@ -1825,30 +1819,27 @@ async function iaEnviar(){
   const est=$('ia-estado'); if(est)est.textContent='Consultando tu base...';
   iaEscribiendo(true);
   try{
-    /* PASO 1 — el modelo decide QUÉ datos necesita (no una lista mía de casos) */
-    let plan=[],datos={};
+    /* UNA sola llamada. Antes eran dos (una para planear y otra para responder) y
+       cada una gastaba cuota de Google; el 429 salía por eso. Ahora la función
+       consulta la base con sus herramientas y solo vuelve a pedir algo si de
+       verdad necesita el MOTOR de nómina, que únicamente puede correr aquí. */
     const est=$('ia-estado');
-    try{
-      if(est)est.textContent='Viendo qué necesito consultar...';
-      const pl=await iaLlamar(IA_FN.chat,{modo:'plan',pregunta:q,catalogo:iaCatalogo(),
-        historial:IA_HIST.slice(-4)},30000);
-      plan=(pl&&Array.isArray(pl.consultas))?pl.consultas:[];
-    }catch(e){plan=[];}
-    /* PASO 2 — la app ejecuta el plan con SUS funciones (motor real) */
-    if(plan.length){
-      if(est)est.textContent='Sacando los números...';
-      datos=await iaEjecutaPlan(plan);
+    let datos={}, j=null;
+    for(let ronda=0;ronda<2;ronda++){
+      if(est)est.textContent=ronda?'Sacando los números...':'Consultando tu base...';
+      j=await iaLlamar(IA_FN.chat,{pregunta:q,obra_id:(OBRA&&OBRA.id)||null,
+        obra_nombre:(OBRA&&OBRA.nombre)||null,
+        historial:IA_HIST.slice(-6),contexto_calculado:datos},60000);
+      if(!(j&&j.necesita_calculo))break;
+      /* La función pidió un cálculo del motor: se corre aquí y se vuelve a preguntar
+         UNA vez. Nunca más: si insistiera, se rompería el ciclo con lo que haya. */
+      const nc=j.necesita_calculo;
+      const res=await iaEjecutaPlan([{calculo:nc.calculo,parametros:nc.parametros||{}}]);
+      /* La clave tiene que ser EXACTAMENTE el nombre que pidió la función: si no
+         coincide, creería que sigue faltando y volvería a pedirlo. */
+      const valor=Object.values(res)[0];
+      datos[nc.calculo]=(valor===undefined)?{error:'La aplicación no pudo hacer ese cálculo.'}:valor;
     }
-    /* Red de seguridad: si el plan salió vacío, va el contexto por palabras clave */
-    /* Solo viaja lo que calculó el MOTOR de nómina (proyecciones, folios saltados,
-       saldos). Los conteos y totales los saca la función con sus herramientas, que
-       consultan TODAS las obras: mandar aquí cifras de la obra abierta solo la
-       confundiría — que es justo lo que pasaba antes. */
-    const calc=datos;
-    if(est)est.textContent='Redactando la respuesta...';
-    const j=await iaLlamar(IA_FN.chat,{pregunta:q,obra_id:(OBRA&&OBRA.id)||null,
-      obra_nombre:(OBRA&&OBRA.nombre)||null,
-      historial:IA_HIST.slice(-6),contexto_calculado:calc,plan_ejecutado:plan},60000);
     iaEscribiendo(false);
     let txt=j&&j.respuesta?j.respuesta:'No pude responder en este momento.';
     /* Nunca se le enseña al usuario el JSON de una consulta: la función siempre
