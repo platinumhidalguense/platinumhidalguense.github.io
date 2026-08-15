@@ -1386,7 +1386,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-15.2';
+const APP_VERSION='2026-08-15.3';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1564,6 +1564,397 @@ const IA_BANNER=`<div style="background:var(--amber-bg);border:1px solid var(--a
   🤖 <b>Leído con ayuda de la IA</b> porque el lector normal no reconoció el formato.
   <b>Revisa cada renglón antes de guardar</b> — sobre todo importes y fechas.</div>`;
 
+/* ============================================================
+   v37.1 · CONTEXTO CALCULADO — lo que la búsqueda por parecido NO puede dar
+   Un índice vectorial encuentra TEXTOS parecidos; jamás va a saber "cuántos
+   folios están salteados" ni "cuánto suma la proyección de la S20", porque eso
+   no está escrito en ningún lado: SE CALCULA.
+   Por eso el navegador —que ya tiene todo cargado y el motor de nómina real—
+   hace las cuentas y se las entrega al asistente como dato duro. Así el
+   modelo solo REDACTA; los números salen del mismo motor calibrado con NOI.
+   ⚠ NO se reescribe ninguna fórmula aquí: se llaman las funciones que ya usan
+   las pantallas (cfCargar, pyCandidatos, descuentosDe, retFilasDe, saldoVac...).
+   ============================================================ */
+const _n2=v=>Math.round((Number(v)||0)*100)/100;
+
+/* ============================================================
+   v37.2 · MOTOR DE CONSULTAS PARA EL ASISTENTE
+   En vez de adivinar qué va a preguntar la gente (lista que SIEMPRE se queda
+   corta), se le da al modelo un CATÁLOGO de datos y operaciones y él arma la
+   consulta. La app la ejecuta con sus propias funciones y le devuelve la cifra.
+   Lo que está en lista blanca son las OPERACIONES, no las preguntas.
+   Nada se evalúa como código: hay un intérprete con operadores fijos.
+   ============================================================ */
+const _iaNum=v=>{const n=parseFloat(String(v??'').replace(/[^\d.-]/g,''));return Number.isFinite(n)?n:null;};
+const _iaSem=v=>{const d=String(v??'').replace(/\D/g,'');return d?parseInt(d,10):null;};
+const _iaAnios=f=>{if(!f)return null;const a=new Date(f+'T12:00'),h=new Date();
+  let n=h.getFullYear()-a.getFullYear();
+  if(h.getMonth()<a.getMonth()||(h.getMonth()===a.getMonth()&&h.getDate()<a.getDate()))n--;
+  return n<0?0:n;};
+
+/* Cada conjunto de datos, ya normalizado y con los campos derivados que la
+   gente usa al preguntar (nombre completo, semana como número, antigüedad...) */
+const IA_DATASETS={
+  trabajadores:{
+    desc:'Padrón de la obra abierta. Un renglón por trabajador.',
+    filas:()=>(WORKERS||[]).map(w=>({
+      id:w.id,no_trab:w.no_trab,nombre:fullName(w),estatus:w.estatus,puesto:w.puesto,
+      contratista:w.contratista,area:w.area,periodo_pago:w.periodo_pago||'SEMANAL',
+      banco:w.banco,cuenta:w.cuenta,tiene_cuenta:!!(w.cuenta&&String(w.cuenta).toUpperCase()!=='CREAR'),
+      sd:_iaNum(w.sd),sdi:_iaNum(w.sdi),sal_semanal:_iaNum(w.sal_semanal),
+      fecha_alta:w.fecha_alta,fecha_baja:w.fecha_baja,fecha_reingreso:w.fecha_reingreso,
+      semana_ingreso:_iaSem(w.semana_ingreso),antiguedad_anios:_iaAnios(iniAntig(w)),
+      edad:edad(w.fecha_nacimiento),genero:w.genero,estado_civil:w.estado_civil,
+      escolaridad:w.escolaridad,edo_nacimiento:w.edo_nacimiento,
+      movimiento_imss:w.movimiento_imss,tiene_acuse_imss:String(w.movimiento_imss||'').includes('CON ACUSE'),
+      docs_entregados:docsOk(w),docs_completos:docsOk(w)===DOCS.length,
+      telefono:w.telefono,correo:w.correo,observaciones:w.observaciones,
+      dias_vacaciones_saldo:(()=>{try{return saldoVac(w).saldo;}catch(e){return null;}})()
+    }))},
+  cheques:{
+    desc:'Cheques y finiquitos. tipo_pago: CHEQUE (sueldo) o FINIQUITO.',
+    filas:()=>(CHEQUES||[]).map(c=>({
+      id:c.id,nombre:c.nombre,no_trab:c.no_trab,contratista:c.contratista,
+      semana:_iaSem(c.semana),periodo:c.periodo,importe:_iaNum(c.importe),
+      tipo_pago:c.tipo_pago,es_finiquito:c.tipo_pago==='FINIQUITO',
+      num_cheque:c.num_cheque,consecutivo:c.consecutivo,estatus:c.estatus,
+      observaciones:c.observaciones,creado_por:c.creado_por}))},
+  pagos:{
+    desc:'Pagos por transferencia (BBVA y otros bancos). origen: GLOBAL o INDIVIDUAL.',
+    filas:()=>(typeof pagosIndexados==='function'?pagosIndexados():(PAGOS||[])).map(p=>({
+      id:p.id,trabajador:p.nombre||p.titular,no_trab:p.no_trab,contratista:p.contratista,
+      semana:_iaSem(p.semana),importe:_iaNum(p.importe),estado:p.estado,
+      exitoso:String(p.estado||'').toUpperCase()!=='RECHAZADO',
+      banco:p.banco,cuenta_mask:p.cuenta_mask,fecha_pago:p.fecha_pago,
+      folio_lote:p.folio_lote,origen:p.origen||p.tipo,descripcion:p.descripcion}))},
+  descuentos:{
+    desc:'Descuentos y retenciones (INFONAVIT, FONACOT, préstamos, etc.).',
+    filas:()=>(DESC||[]).map(d=>{const w=(WORKERS||[]).find(x=>x.id===d.trabajador_id);
+      return{id:d.id,trabajador:w?fullName(w):'',no_trab:w?w.no_trab:null,
+        contratista:w?w.contratista:'',tipo:d.tipo,monto:_iaNum(d.monto),motivo:d.motivo,
+        activo:d.activo,recurrente:d.recurrente,semana:_iaSem(d.semana)};})},
+  documentos:{
+    desc:'Documentos del expediente: acuses IMSS, recibos de nómina, CFDI.',
+    filas:()=>(DOCSX||[]).map(d=>{const w=(WORKERS||[]).find(x=>x.id===d.trabajador_id);
+      return{id:d.id,trabajador:w?fullName(w):'',no_trab:w?w.no_trab:null,
+        categoria:d.categoria,subtipo:d.subtipo,semana:_iaSem(d.semana),
+        nombre_archivo:d.nombre_archivo,fecha_doc:d.fecha_doc,anulado:!!d.anulado};})},
+  vacaciones:{
+    desc:'Vacaciones, permisos e incapacidades registradas.',
+    filas:()=>(VAC||[]).map(v=>{const w=(WORKERS||[]).find(x=>x.id===v.trabajador_id);
+      return{id:v.id,trabajador:w?fullName(w):'',no_trab:w?w.no_trab:null,tipo:v.tipo,
+        fecha_inicio:v.fecha_inicio,fecha_fin:v.fecha_fin,dias:_iaNum(v.dias),
+        observaciones:v.observaciones};})},
+  actas:{
+    desc:'Actas administrativas y amonestaciones.',
+    filas:()=>(ACTAS||[]).map(a=>{const w=(WORKERS||[]).find(x=>x.id===a.trabajador_id);
+      return{id:a.id,trabajador:w?fullName(w):'',fecha:a.fecha,tipo:a.tipo,
+        motivo:a.motivo,sancion:a.sancion,levanto:a.levanto};})},
+  nom035:{
+    desc:'Evaluaciones NOM-035.',
+    filas:()=>(NOM||[]).map(n=>{const w=(WORKERS||[]).find(x=>x.id===n.trabajador_id);
+      return{id:n.id,trabajador:w?fullName(w):'',fecha:n.fecha,guia:n.guia,
+        puntaje:_iaNum(n.puntaje),resultado:n.resultado,requiere_atencion:!!n.requiere_atencion};})},
+  contratistas:{
+    desc:'Contratistas y su registro REPSE.',
+    filas:()=>(CONTRATISTAS||[]).map(c=>({id:c.id,nombre:c.nombre,
+      repse_folio:c.repse_folio,repse_vigencia:c.repse_vigencia,
+      repse_no_aplica:!!c.repse_no_aplica,
+      trabajadores:(WORKERS||[]).filter(w=>w.contratista===c.nombre&&w.estatus==='ACTIVO').length}))},
+  obras:{
+    desc:'Obras y centros de trabajo del sistema.',
+    filas:()=>(OBRAS||[]).map(o=>({id:o.id,nombre:o.nombre,tipo:o.tipo,ubicacion:o.ubicacion,
+      registro_patronal:o.registro_patronal,registro_siroc:o.registro_siroc,
+      prima_rt:_iaNum(o.prima_rt),fecha_inicio:o.fecha_inicio,
+      es_la_abierta:!!(OBRA&&o.id===OBRA.id)}))}
+};
+
+/* Operadores permitidos. No hay eval: cada uno es una función fija. */
+const IA_OPS={
+  '=':(a,b)=>String(a??'').toUpperCase()===String(b??'').toUpperCase(),
+  '!=':(a,b)=>String(a??'').toUpperCase()!==String(b??'').toUpperCase(),
+  '>':(a,b)=>Number(a)>Number(b), '<':(a,b)=>Number(a)<Number(b),
+  '>=':(a,b)=>Number(a)>=Number(b), '<=':(a,b)=>Number(a)<=Number(b),
+  contiene:(a,b)=>String(a??'').toUpperCase().includes(String(b??'').toUpperCase()),
+  empieza:(a,b)=>String(a??'').toUpperCase().startsWith(String(b??'').toUpperCase()),
+  vacio:a=>a===null||a===undefined||a==='',
+  no_vacio:a=>!(a===null||a===undefined||a===''),
+  verdadero:a=>a===true, falso:a=>a===false,
+  en:(a,b)=>(Array.isArray(b)?b:[b]).some(x=>String(x??'').toUpperCase()===String(a??'').toUpperCase())
+};
+function iaAplicaFiltro(fila,filtros){
+  if(!Array.isArray(filtros)||!filtros.length)return true;
+  return filtros.every(f=>{
+    const op=IA_OPS[f.op||'=']; if(!op)return true;
+    return !!op(fila[f.campo],f.valor);
+  });
+}
+/* Ejecuta UNA consulta del plan. Devuelve siempre algo legible para el modelo. */
+function iaEjecutaConsulta(c){
+  try{
+    const ds=IA_DATASETS[c.dataset];
+    if(!ds)return {error:`No existe el conjunto de datos "${c.dataset}". Disponibles: ${Object.keys(IA_DATASETS).join(', ')}`};
+    let filas=ds.filas().filter(f=>iaAplicaFiltro(f,c.filtros));
+    const campo=c.campo, met=(c.metrica||'conteo').toLowerCase();
+    const calc=(arr)=>{
+      const nums=()=>arr.map(x=>Number(x[campo])).filter(n=>Number.isFinite(n));
+      switch(met){
+        case 'conteo':   return arr.length;
+        case 'suma':     return _n2(nums().reduce((s,n)=>s+n,0));
+        case 'promedio': {const n=nums();return n.length?_n2(n.reduce((s,x)=>s+x,0)/n.length):0;}
+        case 'minimo':   {const n=nums();return n.length?Math.min(...n):null;}
+        case 'maximo':   {const n=nums();return n.length?Math.max(...n):null;}
+        case 'distintos':return [...new Set(arr.map(x=>x[campo]).filter(v=>v!==null&&v!==undefined&&v!==''))];
+        case 'lista':    return arr.slice(0,c.limite||25).map(x=>{
+                            const cs=(Array.isArray(c.campos)&&c.campos.length)?c.campos:['nombre','trabajador','no_trab',campo].filter(Boolean);
+                            const o={};cs.forEach(k=>{if(k&&x[k]!==undefined)o[k]=x[k];});
+                            return Object.keys(o).length?o:x;});
+        default:         return arr.length;
+      }
+    };
+    if(c.agrupar){
+      const g={};
+      filas.forEach(f=>{const k=String(f[c.agrupar]??'(sin dato)');(g[k]=g[k]||[]).push(f);});
+      const res={};Object.keys(g).sort().forEach(k=>{res[k]=calc(g[k]);});
+      return {dataset:c.dataset,agrupado_por:c.agrupar,metrica:met,campo,filas_consideradas:filas.length,resultado:res};
+    }
+    return {dataset:c.dataset,metrica:met,campo,filas_consideradas:filas.length,resultado:calc(filas)};
+  }catch(e){return {error:'no se pudo ejecutar: '+e.message};}
+}
+
+/* Cálculos con nombre: los que necesitan el MOTOR de nómina o lógica propia.
+   Aquí NO se reescribe ninguna fórmula: se llaman las funciones de la app. */
+const IA_CALCULOS={
+  proyeccion_semana:{
+    desc:'Proyección de nómina de una semana: a cuántos se paga, sueldos, descuentos por tipo (INFONAVIT, FONACOT...), finiquitos y total a dispersar. Parámetro: semana (número).',
+    fn:(a)=>{
+      const W=parseInt(a&&a.semana)||semObra(), sem='S'+W;
+      const base=new Date((OBRA&&OBRA.fecha_inicio?String(OBRA.fecha_inicio).slice(0,10):SEMANA1)+'T12:00');
+      const d1=new Date(base);d1.setDate(base.getDate()+(W-1)*7);
+      const d2=new Date(d1);d2.setDate(d1.getDate()+6);
+      const D1=d1.toISOString().slice(0,10),D2=d2.toISOString().slice(0,10);
+      const {act,fins}=pyCandidatos(D1,D2,'TODOS');
+      const sueldos=act.reduce((s,w)=>s+(Number(w.sal_semanal)||0),0);
+      const finiq=fins.reduce((s,w)=>s+(Number(w.monto_finiquito)||0),0);
+      let desc=0;const porTipo={};
+      act.forEach(w=>{desc+=descuentosDe(w,sem).total;});
+      (retFilasDe(sem)||[]).forEach(f=>{if(!act.some(w=>w.id===f.w.id))return;
+        const t=(f.d.tipo||'OTRO').toUpperCase();porTipo[t]=porTipo[t]||{cuantos:0,total:0};
+        porTipo[t].cuantos++;porTipo[t].total=_n2(porTipo[t].total+(Number(f.monto)||0));});
+      return {semana:sem,del:D1,al:D2,obra:OBRA.nombre,trabajadores_a_pagar:act.length,
+        suma_sueldos:_n2(sueldos),total_descuentos:_n2(desc),descuentos_por_tipo:porTipo,
+        finiquitos:{cuantos:fins.length,importe:_n2(finiq)},total_a_dispersar:_n2(sueldos-desc+finiq)};}},
+  folios_saltados:{
+    desc:'Folios de cheque que se saltaron en el consecutivo GLOBAL, cuáles están justificados y cuáles no. Sin parámetros.',
+    fn:async()=>{const r=await cfCargar();
+      const sin=r.huecos.filter(n=>!r.just.has(String(n))),con=r.huecos.filter(n=>r.just.has(String(n)));
+      return {del:_cfPad(r.min),al:_cfPad(r.max),cheques_capturados:r.total,
+        total_saltados:r.huecos.length,sin_justificar:sin.length,justificados:con.length,
+        cuales_sin_justificar:sin.slice(0,50).map(n=>_cfPad(n)),
+        cuales_justificados:con.slice(0,50).map(n=>_cfPad(n))};}},
+  revision_pagos_semana:{
+    desc:'Cruce de una semana: quién tiene pago, quién cheque, a quién le rebotó y a quién NO se le pagó. Parámetro: semana (número).',
+    fn:(a)=>{const S='S'+(parseInt(a&&a.semana)||semObra());
+      const f=conciliaSemanaDatos(S);
+      return {semana:S,con_pago:f.filter(x=>x.estado==='OK').length,
+        con_cheque:f.filter(x=>x.estado==='CHEQUE').length,
+        rechazados_sin_reponer:f.filter(x=>x.estado==='RECHAZADO').map(x=>fullName(x.w)),
+        sin_ningun_pago:f.filter(x=>x.estado==='SIN PAGO').map(x=>fullName(x.w))};}},
+  nomina_de_trabajador:{
+    desc:'Cálculo semanal exacto de UN trabajador (bruto, IMSS, ISR, subsidio, neto), con el motor calibrado contra NOI. Parámetros: nombre (texto), faltas (número, opcional).',
+    fn:(a)=>{const q=String(a&&a.nombre||'').toUpperCase();
+      const w=(WORKERS||[]).find(x=>fullName(x).toUpperCase().includes(q));
+      if(!w)return {error:'No encontré a "'+q+'" en la obra abierta.'};
+      const n=nominaSemanal(w,{faltas:Number(a&&a.faltas)||0});
+      return {trabajador:fullName(w),no_trab:w.no_trab,puesto:w.puesto,sd:w.sd,sdi:w.sdi,
+        faltas:n.faltas,bruto:_n2(n.bruto),imss_obrero:_n2(n.imssObr),isr:_n2(n.isr),
+        subsidio:_n2(n.subsidio),neto:_n2(n.neto)};}},
+  vacaciones_de_todos:{
+    desc:'Saldo de vacaciones de los activos: derecho, gozados, saldo y vigencia. Sin parámetros.',
+    fn:()=>{const v=(WORKERS||[]).filter(w=>w.estatus==='ACTIVO').map(w=>{
+        const s=saldoVac(w);return {trabajador:fullName(w),antiguedad:s.anios,derecho:s.derecho,
+          gozados:s.gozados,saldo:s.saldo,vigencia:s.vigencia};});
+      return {total_activos:v.length,con_saldo:v.filter(x=>x.saldo>0).length,
+        dias_pendientes_en_total:v.reduce((s,x)=>s+(x.saldo||0),0),
+        detalle:v.filter(x=>x.saldo>0).sort((a,b)=>b.saldo-a.saldo).slice(0,30)};}},
+  recibos_faltantes:{
+    desc:'Trabajadores a los que les falta archivar el recibo de nómina de alguna semana. Sin parámetros.',
+    fn:()=>{const set=new Set((DOCSX||[]).filter(d=>!d.anulado&&d.categoria==='RECIBO_NOMINA')
+        .map(d=>d.trabajador_id+'|'+normSem(d.semana)));
+      const r=[];(WORKERS||[]).forEach(w=>{const f=faltantesReciboDe(w,set);
+        if(f.length)r.push({trabajador:fullName(w),faltan_semanas:f.map(x=>'S'+x)});});
+      return {cuantos_con_faltantes:r.length,detalle:r.slice(0,30)};}},
+  pendientes_del_sistema:{
+    desc:'Todas las alertas abiertas: documentación, acuses IMSS, REPSE, contratos, tarjetas, pagos, etc. Sin parámetros.',
+    fn:()=>computeAlertas().filter(a=>a.items.length)
+      .map(a=>({tema:a.txt,cuantos:a.items.length,
+        ejemplos:a.items.slice(0,8).map(x=>x.nombre||(x.primer_apellido?fullName(x):String(x)))}))},
+  resumen_general:{
+    desc:'Panorama rápido de la obra abierta: activos, bajas, cheques por estatus, semana actual. Sin parámetros.',
+    fn:()=>{const act=(WORKERS||[]).filter(w=>w.estatus==='ACTIVO');
+      const chq={};(CHEQUES||[]).forEach(c=>{const k=c.estatus||'?';
+        chq[k]=chq[k]||{cuantos:0,importe:0};chq[k].cuantos++;
+        chq[k].importe=_n2(chq[k].importe+(Number(c.importe)||0));});
+      return {obra:OBRA?OBRA.nombre:'—',semana_actual:semObra(),hoy:today(),
+        activos:act.length,bajas:(WORKERS||[]).filter(w=>w.estatus==='BAJA').length,
+        pendientes:(WORKERS||[]).filter(w=>w.estatus==='PENDIENTE').length,cheques:chq};}}
+};
+
+/* El catálogo que se le manda al modelo para que arme su plan */
+function iaCatalogo(){
+  const datos={};
+  Object.entries(IA_DATASETS).forEach(([k,v])=>{
+    let campos=[];
+    try{const f=v.filas()[0];campos=f?Object.keys(f):[];}catch(e){}
+    datos[k]={descripcion:v.desc,campos};
+  });
+  const calculos={};
+  Object.entries(IA_CALCULOS).forEach(([k,v])=>{calculos[k]=v.desc;});
+  return {datos,calculos,
+    operadores:Object.keys(IA_OPS),
+    metricas:['conteo','suma','promedio','minimo','maximo','distintos','lista'],
+    contexto:{obra_abierta:OBRA?OBRA.nombre:'—',semana_actual:semObra(),hoy:today()}};
+}
+/* Ejecuta el plan completo que devolvió el modelo */
+async function iaEjecutaPlan(plan){
+  const res={};
+  for(const c of (plan||[]).slice(0,6)){
+    try{
+      if(c.calculo){
+        const k=IA_CALCULOS[c.calculo];
+        res[c.calculo+(c.parametros&&c.parametros.semana?'_S'+c.parametros.semana:'')]=
+          k?await k.fn(c.parametros||{}):{error:'No existe el cálculo "'+c.calculo+'"'};
+      }else if(c.dataset){
+        const nom=`${c.dataset}_${c.metrica||'conteo'}${c.agrupar?'_por_'+c.agrupar:''}`;
+        res[nom]=iaEjecutaConsulta(c);
+      }
+    }catch(e){res['error_'+(c.calculo||c.dataset||'?')]={error:String(e.message||e)};}
+  }
+  return res;
+}
+
+async function iaContextoLocal(pregunta){
+  const q=String(pregunta||'').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const tiene=(...ws)=>ws.some(w=>q.includes(w));
+  const ctx={obra:OBRA?OBRA.nombre:'—', semana_actual:semObra(), hoy:today()};
+
+  /* --- panorama base: siempre va --- */
+  const act=WORKERS.filter(w=>w.estatus==='ACTIVO');
+  ctx.trabajadores={activos:act.length,bajas:WORKERS.filter(w=>w.estatus==='BAJA').length,
+    pendientes:WORKERS.filter(w=>w.estatus==='PENDIENTE').length,
+    sin_cuenta:act.filter(w=>String(w.cuenta||'').toUpperCase()==='CREAR').length};
+  const porEst={};(CHEQUES||[]).forEach(c=>{const k=c.estatus||'?';
+    porEst[k]=porEst[k]||{cuantos:0,importe:0};porEst[k].cuantos++;porEst[k].importe=_n2(porEst[k].importe+(Number(c.importe)||0));});
+  ctx.cheques=porEst;
+  ctx.cheques.finiquitos_pendientes=(CHEQUES||[]).filter(c=>c.tipo_pago==='FINIQUITO'&&c.estatus==='PENDIENTE').length;
+
+  /* --- FOLIOS SALTADOS (numeración global de cheques) --- */
+  if(tiene('folio','salta','saltad','consecutiv','secuencia','faltante de cheque')){
+    try{
+      const r=await cfCargar();
+      const sinJust=r.huecos.filter(n=>!r.just.has(String(n)));
+      const conJust=r.huecos.filter(n=>r.just.has(String(n)));
+      ctx.folios_de_cheque={
+        del:_cfPad(r.min),al:_cfPad(r.max),cheques_capturados:r.total,
+        total_saltados:r.huecos.length,
+        sin_justificar:sinJust.length,
+        justificados:conJust.length,
+        lista_sin_justificar:sinJust.slice(0,40).map(n=>_cfPad(n)),
+        nota:r.overflow?'Hay demasiados huecos: probablemente algún consecutivo se capturó mal.':'La numeración es GLOBAL, no por obra.'
+      };
+    }catch(e){ctx.folios_de_cheque={error:'no se pudo calcular: '+e.message};}
+  }
+
+  /* --- PROYECCIÓN DE NÓMINA / DESCUENTOS / INFONAVIT de una semana --- */
+  /* Se activa con cualquier forma de preguntar "cuánto se paga": es preferible
+     mandar contexto de más que dejar al asistente sin la cifra. */
+  if(tiene('proyec','infonavit','fonacot','descuent','retenc','dispers','pagar','pagamos','pagaremos',
+           'nomina','sueldo','salario','raya','retien','retengo','cuanto se paga','cuanto va','cuanto sale','total de la semana')){
+    const m=q.match(/semana\s*(\d{1,2})|[sS](\d{1,2})\b/);
+    const W=m?parseInt(m[1]||m[2]):semObra();
+    const sem='S'+W;
+    const base=new Date((OBRA&&OBRA.fecha_inicio?String(OBRA.fecha_inicio).slice(0,10):SEMANA1)+'T12:00');
+    const d1=new Date(base); d1.setDate(base.getDate()+(W-1)*7);
+    const d2=new Date(d1);   d2.setDate(d1.getDate()+6);
+    const D1=d1.toISOString().slice(0,10), D2=d2.toISOString().slice(0,10);
+    try{
+      const {act:acti,fins}=pyCandidatos(D1,D2,'TODOS');
+      const sueldos=acti.reduce((s,w)=>s+(Number(w.sal_semanal)||0),0);
+      const finiq=fins.reduce((s,w)=>s+(Number(w.monto_finiquito)||0),0);
+      let desc=0; const porTipo={};
+      acti.forEach(w=>{desc+=descuentosDe(w,sem).total;});
+      (retFilasDe(sem)||[]).forEach(f=>{
+        if(!acti.some(w=>w.id===f.w.id))return;
+        const t=(f.d.tipo||'OTRO').toUpperCase();
+        porTipo[t]=porTipo[t]||{cuantos:0,total:0};
+        porTipo[t].cuantos++; porTipo[t].total=_n2(porTipo[t].total+(Number(f.monto)||0));
+      });
+      ctx.proyeccion={
+        semana:sem, del:D1, al:D2, obra:OBRA.nombre,
+        trabajadores_a_pagar:acti.length,
+        suma_sueldos_semanales:_n2(sueldos),
+        total_descuentos:_n2(desc),
+        descuentos_por_tipo:porTipo,
+        finiquitos:{cuantos:fins.length,importe:_n2(finiq)},
+        total_a_dispersar:_n2(sueldos-desc+finiq),
+        nota:'Calculado con el motor de nómina de la app (el mismo que cuadra al centavo con NOI).'
+      };
+    }catch(e){ctx.proyeccion={error:'no se pudo calcular: '+e.message};}
+  }
+
+  /* --- PAGOS de una semana + quién quedó sin pago --- */
+  if(tiene('pago','transferenc','bbva','dispers','se le pago','sin pagar','rechaz')){
+    const m=q.match(/semana\s*(\d{1,2})|[sS](\d{1,2})\b/);
+    const W=m?parseInt(m[1]||m[2]):null;
+    const porSem={};
+    (PAGOS||[]).forEach(p=>{const k='S'+normSem(p.semana);
+      porSem[k]=porSem[k]||{cuantos:0,exitoso:0,rechazados:0};
+      porSem[k].cuantos++;
+      if(String(p.estado||'').toUpperCase()==='RECHAZADO')porSem[k].rechazados++;
+      else porSem[k].exitoso=_n2(porSem[k].exitoso+(Number(p.importe)||0));});
+    ctx.pagos_por_semana=porSem;
+    if(W){try{
+      const f=conciliaSemanaDatos('S'+W);
+      ctx.revision_semana={semana:'S'+W,
+        con_pago:f.filter(x=>x.estado==='OK').length,
+        con_cheque:f.filter(x=>x.estado==='CHEQUE').length,
+        rechazados_sin_reponer:f.filter(x=>x.estado==='RECHAZADO').map(x=>fullName(x.w)),
+        sin_ningun_pago:f.filter(x=>x.estado==='SIN PAGO').map(x=>fullName(x.w))};
+    }catch(e){}}
+  }
+
+  /* --- VACACIONES --- */
+  if(tiene('vacacion','prima vacacional','dias de descanso')){
+    try{
+      const v=act.map(w=>({n:fullName(w),...saldoVac(w)}));
+      ctx.vacaciones={
+        con_saldo:v.filter(x=>x.saldo>0).length,
+        total_dias_pendientes:v.reduce((s,x)=>s+(x.saldo||0),0),
+        top_saldos:v.filter(x=>x.saldo>0).sort((a,b)=>b.saldo-a.saldo).slice(0,10)
+          .map(x=>`${x.n}: ${x.saldo} de ${x.derecho} días`)};
+    }catch(e){}
+  }
+
+  /* --- DOCUMENTOS / EXPEDIENTES / IMSS --- */
+  if(tiene('document','expedient','acuse','imss','papel','falta')){
+    ctx.documentos={
+      completos:act.filter(w=>docsOk(w)===DOCS.length).length,
+      incompletos:act.filter(w=>docsOk(w)<DOCS.length).length,
+      sin_acuse_imss:act.filter(w=>!String(w.movimiento_imss||'').includes('CON ACUSE')).length,
+      lista_sin_acuse:act.filter(w=>!String(w.movimiento_imss||'').includes('CON ACUSE')).slice(0,15).map(fullName)};
+  }
+
+  /* --- PENDIENTES GENERALES --- */
+  if(tiene('pendient','alerta','falta','urgente','pendiente')){
+    try{
+      ctx.alertas=computeAlertas().filter(a=>a.items.length)
+        .map(a=>({tema:a.txt,cuantos:a.items.length}));
+    }catch(e){}
+  }
+  return ctx;
+}
+
 /* ---------- PANEL DE ADMINISTRACIÓN DE LA IA ---------- */
 async function openIA(){
   modal(`
@@ -1692,7 +2083,25 @@ async function iaEnviar(){
   const est=$('ia-estado'); if(est)est.textContent='Consultando tu base...';
   iaEscribiendo(true);
   try{
-    const j=await iaLlamar(IA_FN.chat,{pregunta:q,obra_id:(OBRA&&OBRA.id)||null,historial:IA_HIST.slice(-6)});
+    /* PASO 1 — el modelo decide QUÉ datos necesita (no una lista mía de casos) */
+    let plan=[],datos={};
+    const est=$('ia-estado');
+    try{
+      if(est)est.textContent='Viendo qué necesito consultar...';
+      const pl=await iaLlamar(IA_FN.chat,{modo:'plan',pregunta:q,catalogo:iaCatalogo(),
+        historial:IA_HIST.slice(-4)},30000);
+      plan=(pl&&Array.isArray(pl.consultas))?pl.consultas:[];
+    }catch(e){plan=[];}
+    /* PASO 2 — la app ejecuta el plan con SUS funciones (motor real) */
+    if(plan.length){
+      if(est)est.textContent='Sacando los números...';
+      datos=await iaEjecutaPlan(plan);
+    }
+    /* Red de seguridad: si el plan salió vacío, va el contexto por palabras clave */
+    const calc=Object.keys(datos).length?datos:await iaContextoLocal(q).catch(()=>({}));
+    if(est)est.textContent='Redactando la respuesta...';
+    const j=await iaLlamar(IA_FN.chat,{pregunta:q,obra_id:(OBRA&&OBRA.id)||null,
+      historial:IA_HIST.slice(-6),contexto_calculado:calc,plan_ejecutado:plan});
     iaEscribiendo(false);
     const txt=j&&j.respuesta?j.respuesta:'No pude responder en este momento.';
     iaPinta(j&&j.ok===false?'err':'bot',iaFormato(txt),j&&j.fuentes);
