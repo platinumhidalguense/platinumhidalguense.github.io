@@ -557,6 +557,94 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 .menu-list{animation:mn-in .13s var(--ease)}
 @keyframes mn-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.skel::after{animation:none}}
+
+/* ============================================================
+   v37 · ASISTENTE (chatbot flotante)
+   Usa las mismas variables de tema, así que se ve igual de bien en claro
+   y en oscuro sin una sola regla duplicada.
+   ============================================================ */
+.ia-fab{
+  position:fixed;right:22px;bottom:22px;z-index:200;width:56px;height:56px;border-radius:50%;
+  border:none;background:linear-gradient(145deg,var(--navy),var(--navy2));color:#fff;
+  font-size:23px;line-height:1;cursor:pointer;box-shadow:0 10px 30px rgba(20,33,61,.35);
+  display:flex;align-items:center;justify-content:center;
+  transition:transform var(--fast) var(--ease),box-shadow var(--fast) ease,opacity var(--fast) ease;
+}
+.ia-fab:hover{transform:translateY(-2px) scale(1.04);box-shadow:0 14px 38px rgba(20,33,61,.45)}
+.ia-fab:active{transform:scale(.96)}
+.ia-fab.oculto{opacity:0;pointer-events:none;transform:scale(.7)}
+.ia-fab .punto{position:absolute;top:3px;right:3px;width:11px;height:11px;border-radius:50%;
+  background:var(--green);border:2px solid var(--card)}
+
+.ia-panel{
+  position:fixed;right:22px;bottom:22px;z-index:201;width:min(410px,calc(100vw - 32px));
+  height:min(620px,calc(100dvh - 44px));background:var(--card);border:1px solid var(--border);
+  border-radius:16px;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;overflow:hidden;
+  opacity:0;transform:translateY(14px) scale(.97);pointer-events:none;
+  transition:opacity .18s ease,transform .18s var(--ease);
+}
+.ia-panel.abierto{opacity:1;transform:none;pointer-events:auto}
+.ia-head{display:flex;align-items:center;gap:10px;padding:12px 14px;flex:0 0 auto;
+  background:linear-gradient(145deg,var(--navy),var(--navy2));color:#fff}
+.ia-head .av{width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,.16);
+  display:flex;align-items:center;justify-content:center;font-size:16px}
+.ia-head .tt{font-family:'Montserrat','Segoe UI',sans-serif;font-weight:700;font-size:13.5px;line-height:1.25}
+.ia-head .tt small{display:block;font-weight:600;font-size:10.5px;opacity:.75}
+.ia-head .cerrar{margin-left:auto;border:none;background:transparent;color:#fff;opacity:.8;
+  font-size:20px;cursor:pointer;padding:2px 6px;border-radius:6px;transition:opacity var(--fast) ease}
+.ia-head .cerrar:hover{opacity:1;background:rgba(255,255,255,.14)}
+
+.ia-msgs{flex:1 1 auto;overflow-y:auto;scroll-behavior:smooth;padding:14px;display:flex;
+  flex-direction:column;gap:10px;background:var(--bg)}
+.ia-msgs::-webkit-scrollbar{width:8px}
+.ia-msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
+.ia-msg{max-width:88%;padding:9px 12px;border-radius:13px;font-size:13px;line-height:1.55;
+  animation:ia-in .2s var(--ease);word-wrap:break-word;overflow-wrap:anywhere}
+.ia-msg.bot{background:var(--card);border:1px solid var(--border);color:var(--txt);
+  align-self:flex-start;border-bottom-left-radius:4px}
+.ia-msg.yo{background:var(--navy);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.ia-msg.err{background:var(--red-bg);border:1px solid var(--red-br);color:var(--red);align-self:flex-start}
+.ia-msg b{font-weight:700}
+.ia-msg .fuentes{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);
+  font-size:10.5px;color:var(--mut)}
+@keyframes ia-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.ia-sug{display:flex;flex-wrap:wrap;gap:6px;align-self:flex-start;max-width:92%}
+.ia-sug button{border:1px solid var(--border);background:var(--card);color:var(--brand-txt);
+  border-radius:14px;padding:5px 11px;font-size:11.5px;font-weight:600;cursor:pointer;
+  transition:background var(--fast) ease,border-color var(--fast) ease}
+.ia-sug button:hover{background:var(--hover);border-color:var(--navy)}
+
+/* "escribiendo..." */
+.ia-typing{display:flex;gap:4px;align-items:center;padding:11px 14px;background:var(--card);
+  border:1px solid var(--border);border-radius:13px;border-bottom-left-radius:4px;align-self:flex-start}
+.ia-typing i{width:7px;height:7px;border-radius:50%;background:var(--mut);display:block;
+  animation:ia-bounce 1.3s infinite ease-in-out}
+.ia-typing i:nth-child(2){animation-delay:.16s}
+.ia-typing i:nth-child(3){animation-delay:.32s}
+@keyframes ia-bounce{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-5px);opacity:1}}
+
+.ia-foot{flex:0 0 auto;border-top:1px solid var(--border);padding:10px;background:var(--card);
+  display:flex;gap:8px;align-items:flex-end}
+.ia-foot textarea{flex:1 1 auto;resize:none;max-height:96px;min-height:38px;font-size:13px;
+  padding:9px 11px;border-radius:10px;line-height:1.4}
+.ia-foot .enviar{flex:0 0 auto;width:38px;height:38px;border-radius:10px;border:none;
+  background:var(--navy);color:#fff;font-size:15px;cursor:pointer;
+  transition:background var(--fast) ease,transform .06s ease}
+.ia-foot .enviar:hover{background:var(--navy2)}
+.ia-foot .enviar:active{transform:scale(.94)}
+.ia-foot .enviar:disabled{opacity:.45;cursor:not-allowed}
+.ia-aviso{font-size:10px;color:var(--mut);text-align:center;padding:0 10px 8px;background:var(--card)}
+
+@media(max-width:520px){
+  .ia-panel{right:0;bottom:0;width:100vw;height:100dvh;border-radius:0;border:none}
+  .ia-fab{right:16px;bottom:16px;width:52px;height:52px}
+}
+@media(prefers-reduced-motion:reduce){
+  .ia-panel,.ia-msg,.ia-fab{transition:none;animation:none}
+  .ia-typing i{animation:none}
+  .ia-msgs{scroll-behavior:auto}
+}
 </style>
 </head>
 <body>
@@ -656,6 +744,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <button class="sb-item" onclick="sbGo(openNuevaObra)"><span class="ic">➕</span>Nueva obra / centro</button>
         <button class="sb-item" onclick="sbGo(()=>exportRespaldo(false))"><span class="ic">⬇</span>Respaldo Excel</button>
         <button class="sb-item" onclick="sbGo(()=>exportRespaldo(true))"><span class="ic">📧</span>Respaldo por correo</button>
+        <button class="sb-item" onclick="sbGo(openIA)"><span class="ic">🤖</span>Asistente e índice de IA</button>
         <button class="sb-item danger hide" id="btn-papelera" onclick="sbGo(openPapelera)"><span class="ic">🗑</span>Papelera</button>
       </details>
     </nav>
@@ -869,6 +958,25 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 <div id="modals"></div>
 <div class="toast-box" id="toasts"></div>
 
+<!-- ===== ASISTENTE (v37) ===== -->
+<button class="ia-fab hide" id="ia-fab" onclick="iaAbrir()" title="Asistente PLATINUM" aria-label="Abrir el asistente">
+  💬<span class="punto"></span>
+</button>
+<div class="ia-panel" id="ia-panel" role="dialog" aria-label="Asistente PLATINUM" aria-modal="false">
+  <div class="ia-head">
+    <div class="av">🤖</div>
+    <div class="tt">Asistente PLATINUM<small id="ia-estado">Solo temas de la empresa</small></div>
+    <button class="cerrar" onclick="iaCerrar()" title="Cerrar" aria-label="Cerrar">×</button>
+  </div>
+  <div class="ia-msgs" id="ia-msgs"></div>
+  <div class="ia-foot">
+    <textarea id="ia-input" rows="1" placeholder="Pregunta sobre trabajadores, cheques, pagos..."
+      oninput="iaAutoAlto(this)" onkeydown="iaTecla(event)" maxlength="1000"></textarea>
+    <button class="enviar" id="ia-enviar" onclick="iaEnviar()" title="Enviar">➤</button>
+  </div>
+  <div class="ia-aviso">Responde con los datos que TÚ tienes permitido ver. Verifica cifras contra el recibo o NOI.</div>
+</div>
+
 <script>
 /* ================== CONFIGURACIÓN ================== */
 const CONFIG_URL = "";
@@ -1040,7 +1148,7 @@ async function doLogout(){await sb.auth.signOut();location.reload();}
 async function enterApp(){
   $('scr-app').classList.remove('hide');
   $('user-chip').innerHTML=`<b>${esc(String(USER.email||'').split('@')[0])}</b>${esc(USER.email)}`;
-  pintarLogo();renderCrumbs();initSidebar();
+  pintarLogo();renderCrumbs();initSidebar();iaMostrarFab();
   const {data,error}=await sb.from('obras').select('*').order('orden');
   if(error){toast('Error al cargar obras: '+error.message,'err');return;}
   OBRAS=data;
@@ -1278,7 +1386,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-14.3';
+const APP_VERSION='2026-08-15.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1345,6 +1453,194 @@ function renderCrumbs(){
     <span class="sep">›</span>
     <span class="c-i cur">${v.ic} ${esc(v.txt)}</span>`;
 }
+/* ============================================================
+   v37 · ASISTENTE INTELIGENTE (RAG) + EXTRACTOR DE JSON
+   Todo pasa por Edge Functions: la llave de Google NUNCA vive en este archivo
+   (es público en GitHub Pages). El asistente hereda la sesión del usuario, así
+   que la búsqueda respeta el RLS y nadie ve obras que no le tocan.
+   ============================================================ */
+const IA_FN={chat:'gemini-chat',extract:'gemini-extract',embed:'gemini-embed'};
+function iaBaseUrl(){
+  const c=getCfg();
+  return c&&c.url?String(c.url).replace(/\/$/,'')+'/functions/v1/':'';
+}
+async function iaLlamar(fn,cuerpo,ms=45000){
+  const base=iaBaseUrl();
+  if(!base)throw new Error('Falta configurar Supabase en esta computadora.');
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session)throw new Error('Tu sesión expiró. Vuelve a entrar.');
+  const ctrl=new AbortController();
+  const t=setTimeout(()=>ctrl.abort(),ms);
+  try{
+    const r=await fetch(base+fn,{method:'POST',signal:ctrl.signal,
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+      body:JSON.stringify(cuerpo||{})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok&&!j.respuesta&&!j.error)throw new Error('El servicio respondió '+r.status);
+    return j;
+  }finally{clearTimeout(t);}
+}
+
+/* ---------- EXTRACTOR HÍBRIDO ----------
+   Los lectores propios (regex calibrados contra los documentos reales) van
+   PRIMERO. Solo si no reconocen nada entra el modelo. Nunca al revés: un regex
+   probado contra el PDF real no se cambia por una respuesta generada. */
+async function extraerConIA(tipo,texto,pista){
+  try{
+    const j=await iaLlamar(IA_FN.extract,{tipo,texto:String(texto||'').slice(0,60000),pista:pista||''});
+    if(j&&j.ok&&Array.isArray(j.registros)&&j.registros.length)return j;
+    return null;
+  }catch(e){return null;}   // si la IA falla, la app sigue igual que antes
+}
+/* Aviso reutilizable: lo que salió del modelo SIEMPRE se revisa antes de guardar */
+const IA_BANNER=`<div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:9px;padding:9px 12px;margin-bottom:10px;font-size:12px;line-height:1.6">
+  🤖 <b>Leído con ayuda de la IA</b> porque el lector normal no reconoció el formato.
+  <b>Revisa cada renglón antes de guardar</b> — sobre todo importes y fechas.</div>`;
+
+/* ---------- PANEL DE ADMINISTRACIÓN DE LA IA ---------- */
+async function openIA(){
+  modal(`
+    <div class="m-head"><h2>🤖 Asistente e índice de IA</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px">El asistente busca en un <b>índice</b> que se arma con los trabajadores, cheques y finiquitos. Cada vez que capturas o editas algo, ese registro se vuelve a poner en cola solo. Aquí puedes ver cómo va y forzar la indexación.</p>
+      <div id="ia-stats"><div class="empty">Consultando el estado del índice...</div></div>
+      <div class="sect">Privacidad</div>
+      <p style="font-size:12.5px;line-height:1.7">Al índice <b>NO</b> se mandan CURP, RFC, NSS, cuentas ni CLABE — solo nombre, puesto, contratista, estatus, fechas, sueldo y notas, que es lo que el asistente necesita para responder. Cada quien recibe únicamente información de las obras que tiene permitidas.</p>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn dark" id="ia-reindex" onclick="iaReindexar()">⚙ Indexar pendientes</button>
+    </div>`,'md');
+  iaEstadoIndice();
+}
+async function iaEstadoIndice(){
+  const el=$('ia-stats'); if(!el)return;
+  try{
+    const [{data:emb,error:e1},{data:cola}]=await Promise.all([
+      sb.from('ia_embeddings').select('tabla'),
+      sb.from('ia_cola_embeddings').select('id').is('procesado_en',null)
+    ]);
+    if(e1&&/does not exist/i.test(e1.message||'')){
+      el.innerHTML='<div class="empty">Todavía no corres el <b>Script 54</b> en Supabase. El asistente funcionará con los datos en vivo, pero sin búsqueda por parecido.</div>';return;
+    }
+    const por={};(emb||[]).forEach(r=>{por[r.tabla]=(por[r.tabla]||0)+1;});
+    el.innerHTML=`<div class="stats">
+      <div class="stat g"><div class="n">${(emb||[]).length}</div><div class="l">Registros indexados</div></div>
+      <div class="stat ${(cola||[]).length?'a':''}"><div class="n">${(cola||[]).length}</div><div class="l">Pendientes de indexar</div></div>
+    </div>
+    ${Object.entries(por).map(([k,v])=>`<div class="kv"><b>${esc(k)}</b><span>${v}</span></div>`).join('')||'<div class="kv"><b>—</b><span>Aún no hay nada indexado.</span></div>'}`;
+  }catch(e){el.innerHTML='<div class="empty">No pude leer el estado: '+esc(e.message)+'</div>';}
+}
+async function iaReindexar(){
+  const b=$('ia-reindex'); if(b){b.disabled=true;b.innerHTML='<span class="spin"></span> Indexando...';}
+  let total=0;
+  try{
+    for(let v=0;v<10;v++){
+      const j=await iaLlamar(IA_FN.embed,{limite:50},60000);
+      if(!j||!j.ok)throw new Error(j&&j.error?j.error:'El servicio no respondió bien');
+      total+=j.procesados||0;
+      if(!j.procesados)break;
+    }
+    toast(total?`Indexados ${total} registro(s).`:'No había nada pendiente.','ok');
+  }catch(e){toast('No se pudo indexar: '+e.message,'err');}
+  if(b){b.disabled=false;b.textContent='⚙ Indexar pendientes';}
+  iaEstadoIndice();
+}
+
+/* ---------- WIDGET DEL ASISTENTE ---------- */
+let IA_HIST=[], IA_OCUPADO=false;
+function iaDisponible(){return !!(sb&&USER&&iaBaseUrl());}
+function iaMostrarFab(){const f=$('ia-fab');if(f)f.classList.toggle('hide',!iaDisponible());}
+function iaAbrir(){
+  const p=$('ia-panel'),f=$('ia-fab');
+  if(!p)return;
+  p.classList.add('abierto');
+  if(f)f.classList.add('oculto');
+  if(!IA_HIST.length)iaBienvenida();
+  setTimeout(()=>{const i=$('ia-input');if(i)i.focus();},180);
+}
+function iaCerrar(){
+  const p=$('ia-panel'),f=$('ia-fab');
+  if(p)p.classList.remove('abierto');
+  if(f)f.classList.remove('oculto');
+}
+function iaBienvenida(){
+  iaPinta('bot',`Hola ${esc(String(USER&&USER.email||'').split('@')[0])} 👋 Soy el asistente de PLATINUM.
+Pregúntame de <b>trabajadores, cheques, pagos, IMSS, vacaciones</b> o de cómo usar el sistema.`);
+  iaSugerencias(['¿Cuántos cheques tenemos pendientes por expedir?',
+                 '¿Quién no tiene acuse del IMSS?',
+                 '¿Cómo registro un pago en otro banco?']);
+}
+function iaAutoAlto(el){el.style.height='auto';el.style.height=Math.min(96,el.scrollHeight)+'px';}
+function iaTecla(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();iaEnviar();}
+  if(e.key==='Escape')iaCerrar();
+}
+/* Texto plano → HTML seguro. Solo se permiten **negritas** y saltos de línea:
+   nada de inyectar marcado desde la respuesta del modelo. */
+function iaFormato(t){
+  return esc(String(t||''))
+    .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+    .replace(/^[-•]\s+/gm,'• ')
+    .replace(/\n/g,'<br>');
+}
+function iaPinta(quien,html,fuentes){
+  const c=$('ia-msgs'); if(!c)return null;
+  const d=document.createElement('div');
+  d.className='ia-msg '+(quien==='yo'?'yo':quien==='err'?'err':'bot');
+  d.innerHTML=html+(fuentes&&fuentes.length
+    ?`<div class="fuentes">📎 ${fuentes.length} registro(s) consultado(s) de tu base</div>`:'');
+  c.appendChild(d); iaAbajo(); return d;
+}
+function iaSugerencias(lista){
+  const c=$('ia-msgs'); if(!c||!lista||!lista.length)return;
+  const d=document.createElement('div');
+  d.className='ia-sug';
+  d.innerHTML=lista.slice(0,3).map(s=>`<button onclick="iaPreguntar(this.textContent)">${esc(s)}</button>`).join('');
+  c.appendChild(d); iaAbajo();
+}
+function iaAbajo(){const c=$('ia-msgs');if(c)c.scrollTop=c.scrollHeight;}
+function iaEscribiendo(on){
+  const c=$('ia-msgs'); if(!c)return;
+  const v=c.querySelector('.ia-typing'); if(v)v.remove();
+  if(on){
+    const d=document.createElement('div');
+    d.className='ia-typing'; d.innerHTML='<i></i><i></i><i></i>';
+    c.appendChild(d); iaAbajo();
+  }
+}
+function iaPreguntar(txt){const i=$('ia-input');if(i){i.value=txt;iaEnviar();}}
+async function iaEnviar(){
+  const i=$('ia-input'); if(!i||IA_OCUPADO)return;
+  const q=i.value.trim(); if(!q)return;
+  i.value=''; iaAutoAlto(i);
+  const sug=$('ia-msgs').querySelectorAll('.ia-sug'); sug.forEach(s=>s.remove());
+  iaPinta('yo',iaFormato(q));
+  IA_HIST.push({rol:'user',texto:q});
+  IA_OCUPADO=true;
+  const btn=$('ia-enviar'); if(btn)btn.disabled=true;
+  const est=$('ia-estado'); if(est)est.textContent='Consultando tu base...';
+  iaEscribiendo(true);
+  try{
+    const j=await iaLlamar(IA_FN.chat,{pregunta:q,obra_id:(OBRA&&OBRA.id)||null,historial:IA_HIST.slice(-6)});
+    iaEscribiendo(false);
+    const txt=j&&j.respuesta?j.respuesta:'No pude responder en este momento.';
+    iaPinta(j&&j.ok===false?'err':'bot',iaFormato(txt),j&&j.fuentes);
+    IA_HIST.push({rol:'bot',texto:txt});
+    if(j&&j.sugerencias&&j.sugerencias.length)iaSugerencias(j.sugerencias);
+  }catch(e){
+    iaEscribiendo(false);
+    iaPinta('err',iaFormato(/abort/i.test(String(e.message))
+      ?'Se tardó demasiado. Intenta otra vez con una pregunta más concreta.'
+      :('No pude consultar: '+e.message)));
+  }finally{
+    IA_OCUPADO=false;
+    if(btn)btn.disabled=false;
+    if(est)est.textContent='Solo temas de la empresa';
+    const inp=$('ia-input'); if(inp)inp.focus();
+  }
+}
+
 /* ============================================================
    v36.1 · PANEL LATERAL PLEGABLE
    En CELULAR/TABLET (≤1024px) es un cajón que entra por la izquierda con
@@ -3400,7 +3696,24 @@ async function parsePdfs(inp){
          documento COMPLETO (todas las páginas juntas, porque la tabla continúa
          en la 2ª sin repetir encabezado) y se genera una fila por movimiento:
          el mismo PDF se archiva en el expediente de cada trabajador. */
-      const ac=parseAcuseIMSS(texts.join(' '));
+      let ac=parseAcuseIMSS(texts.join(' '));
+      /* Híbrido: si el lector propio no reconoció el acuse pero el PDF SÍ trae
+         texto, se intenta con la IA. El lector de siempre manda; la IA es red
+         de seguridad para formatos nuevos del IDSE. */
+      if(!ac&&$('pdf-cat')&&$('pdf-cat').value==='ACUSE_IMSS'&&texts.join(' ').trim().length>200&&!owners.some(Boolean)){
+        const ia=await extraerConIA('acuse_imss',texts.join(' '),'Constancia de movimientos afiliatorios del IDSE');
+        if(ia&&ia.registros.length){
+          ac={lote:ia.lote||'',registro_patronal:ia.registro_patronal||'',rfc_patron:ia.rfc_patron||'',
+              folio:ia.folio||'',fecha_lote:ia.fecha_lote||'',hora_lote:'',razon_social:ia.razon_social||'',
+              porIA:true,total:ia.registros.length,
+              movimientos:ia.registros.map(r=>({
+                tipo_mov:String(r.tipo_mov||''),
+                tipo:(r.tipo||MOV_IMSS[String(r.tipo_mov||'')]||'ALTA').toUpperCase(),
+                nombre:r.nombre||'',nss:String(r.nss||'').replace(/\D/g,''),
+                sal_base:r.sal_base,fecha_mov:r.fecha_mov?isoADMY(r.fecha_mov):'',
+                causa_baja:'',causa_baja_txt:''}))};
+        }
+      }
       if(ac&&ac.total>=2){
         ac.movimientos.forEach((mv,k)=>{
           const w=matchWorkerAcuse(mv);
@@ -3474,7 +3787,7 @@ function renderPdfImp(){
   const okN=PDFIMP.filter(x=>x.ownerId).length;
   /* Resumen del acuse multipágina (lote, registro patronal, folio, movimientos) */
   const ac=(PDFIMP.find(x=>x.acuse)||{}).acuse;
-  const cab=ac?`
+  const cab=ac?(ac.porIA?IA_BANNER:'')+`
     <div style="background:var(--blue-bg);border:1px solid var(--border);border-radius:9px;padding:11px 14px;margin-bottom:10px;font-size:12.5px;line-height:1.7">
       <b>📄 Constancia IMSS con ${ac.total} movimiento(s)</b> — se detectaron TODOS los renglones del acuse.<br>
       <span style="color:var(--mut)">Lote</span> <b>${esc(ac.lote||'—')}</b> ·
@@ -3739,6 +4052,23 @@ async function pgParse(inp){
           fecha:ind.fecha,folio:ind.folio,descripcion:ind.descripcion,hash,file:file.name,yaRep:ya,individual:true,
           wId:w?w.id:null,sel:(!!w&&ind.estado==='EXITOSO'&&!ya),already:false});
         if(ind.fechaObj&&!sugFecha)sugFecha=ind.fechaObj;
+      }else if(String(txt||'').trim().length>200&&await (async()=>{
+        /* Híbrido: el PDF SÍ trae texto pero ningún lector lo reconoció →
+           se intenta con la IA antes de mandarlo a captura manual. */
+        const ia=await extraerConIA('pago_individual',txt,'Comprobante de pago BBVA Net Cash');
+        if(!ia||!ia.registros.length)return false;
+        const ya=await yaHash(hash);
+        ia.registros.forEach(r=>{
+          const w=matchPagoWorker(r.titular||'',String(r.cuenta||'').slice(-4))||matchWorkerArchivo(file.name);
+          rows.push({mask:String(r.cuenta||'').slice(-4),titular:r.titular||nombreDesdeArchivo(file.name),
+            estado:/rechaz/i.test(String(r.estado||''))?'RECHAZADO':'EXITOSO',importe:r.importe,
+            banco:r.banco||'BBVA',fecha:r.fecha||'',folio:r.folio||'',
+            descripcion:'PAGO INDIVIDUAL (leído con IA)',hash,file:file.name,yaRep:ya,
+            individual:true,porIA:true,wId:w?w.id:null,sel:false,already:false});
+        });
+        return true;
+      })()){
+        /* ya se agregaron las filas leídas por la IA */
       }else{
         /* Sin texto legible: se renderiza el comprobante y se captura a mano
            (el trabajador se adivina por el nombre del archivo). */
@@ -3767,7 +4097,7 @@ function pgRender(){
   const nRech=valid.filter(r=>r.estado==='RECHAZADO').length;
   const bancos=[...new Set(valid.map(r=>r.banco).filter(Boolean))];
   const nInd=valid.filter(r=>r.individual).length;
-  $('pg-head').innerHTML=`<div style="background:var(--blue-bg,#eef3fb);border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.7">
+  $('pg-head').innerHTML=(valid.some(r=>r.porIA)?IA_BANNER:'')+`<div style="background:var(--blue-bg,#eef3fb);border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.7">
     <b>${valid.length} pago(s)</b> · total $${money(suma)}${nInd?` · ${nInd} individual(es)`:''}${bancos.length?` · banco(s): ${esc(bancos.join(', '))}`:''}</div>`;
   let nDup=0;
   const body=PAGOIMP.rows.map((r,i)=>{
