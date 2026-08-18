@@ -1386,7 +1386,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-15.8';
+const APP_VERSION='2026-08-15.9';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -8391,7 +8391,13 @@ function computeAlertas(){
   const act=WORKERS.filter(w=>w.estatus==='ACTIVO');
   // pendientes de IMPORTAR: recibos de nómina (PDF) y pago global por semana
   const recSet=new Set((DOCSX||[]).filter(d=>!d.anulado&&d.categoria==='RECIBO_NOMINA').map(d=>d.trabajador_id+'|'+normSem(d.semana)));
-  const recFalt=[]; WORKERS.forEach(w=>{const f=faltantesReciboDe(w,recSet);if(f.length)recFalt.push({nombre:fullName(w)+' → faltan S'+f.join(', S')});});
+  /* Los que YA SON BAJA van en su propia línea: sus recibos históricos siguen
+     haciendo falta para el expediente, pero no son trabajo de esta semana y no
+     tienen por qué inflar la alerta de los activos. */
+  const recFalt=[], recFaltBaja=[];
+  WORKERS.forEach(w=>{const f=faltantesReciboDe(w,recSet);if(!f.length)return;
+    const fila={nombre:fullName(w)+' → faltan S'+f.join(', S')};
+    (w.estatus==='BAJA'?recFaltBaja:recFalt).push(fila);});
   const hoyW=isoWeekDe(OBRA,new Date());
   const pagWk=new Set((PAGOS||[]).map(p=>normSem(p.semana)));
   const actWk=new Set();
@@ -8425,6 +8431,7 @@ function computeAlertas(){
     {k:'REPSEX',icon:'🚫',txt:'Registros REPSE VENCIDOS',items:CONTRATISTAS.filter(c=>!c.repse_no_aplica&&c.repse_vigencia&&c.repse_vigencia<hoy)},
     {k:'IMSS',icon:'🏥',txt:'Acuses de IMSS por importar (activos sin acuse CON ACUSE)',items:act.filter(w=>!String(w.movimiento_imss||'').includes('CON ACUSE'))},
     {k:'RECIB',icon:'📥',txt:'Recibos de nómina por importar (PDF)',items:recFalt},
+    {k:'RECIBB',icon:'📁',txt:'Recibos pendientes de trabajadores YA DADOS DE BAJA (expediente)',items:recFaltBaja},
     {k:'PAGOG',icon:'💸',txt:'Semanas sin pago global importado (revisa)',items:pagoFalt},
     {k:'DOCS',icon:'📋',txt:'Activos con documentación incompleta',items:act.filter(w=>docsOk(w)<DOCS.length)},
     {k:'CREAR',icon:'🪪',txt:'Tarjetas por solicitar (cuenta CREAR)',items:act.filter(w=>String(w.cuenta).toUpperCase()==='CREAR')},
@@ -8805,13 +8812,24 @@ ${RENUNCIA_CSS}`;
 /* Semanas SIN recibo de nómina archivado de UN trabajador (desde su alta hasta la
    semana pasada; respeta reingresos/bajas; quincenales quedan fuera). Fuente única
    usada por el reporte "Faltan recibos" Y por la ficha del trabajador. */
+function lunesDe(f){const d=new Date(String(f).slice(0,10)+'T12:00');
+  d.setDate(d.getDate()-((d.getDay()+6)%7));return d.toISOString().slice(0,10);}
 function faltantesReciboDe(w,recSet){
   if(!w||!w.fecha_alta||String(w.periodo_pago||'SEMANAL')==='QUINCENAL')return [];
   const hoyW=isoWeekDe(OBRA,new Date());
   const base=new Date((OBRA.fecha_inicio?String(OBRA.fecha_inicio).slice(0,10):SEMANA1)+'T12:00');
   const monISO=W=>{const d=new Date(base);d.setDate(base.getDate()+(W-1)*7);return d.toISOString().slice(0,10);};
   const sW=Math.max(1,isoWeekDe(OBRA,new Date(w.fecha_alta+'T12:00')));
-  const eW=(w.estatus==='BAJA'&&w.fecha_baja)?isoWeekDe(OBRA,new Date(w.fecha_baja+'T12:00')):(hoyW-1);
+  /* BAJAS: se procesan en LUNES. Si la baja cae en el lunes de la semana X, esa
+     semana YA NO se le exige —no trabajó ni un día— ni ninguna posterior. Si la
+     baja cayó entre martes y domingo, sí trabajó parte de X y ese recibo sí falta.
+     La comparación se hace contra el lunes REAL de la fecha de baja, no contra el
+     calendario de la obra: así aguanta que una obra tenga mal la fecha de inicio. */
+  let eW=hoyW-1;
+  if(w.estatus==='BAJA'&&w.fecha_baja){
+    const wB=isoWeekDe(OBRA,new Date(w.fecha_baja+'T12:00'));
+    eW=Math.min(eW,(w.fecha_baja===lunesDe(w.fecha_baja))?wB-1:wB);
+  }
   const falt=[];
   for(let W=sW;W<=eW;W++){
     if(!activoEn(w,monISO(W)))continue;
