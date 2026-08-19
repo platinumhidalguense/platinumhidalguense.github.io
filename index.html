@@ -267,6 +267,14 @@ tbody tr:hover{background:var(--hover)}
 .hist-diff .fld-ch{padding:2px 0}
 .hist-diff .old{color:var(--red);text-decoration:line-through;margin-right:6px}
 .hist-diff .new{color:var(--green);font-weight:600}
+/* Franjas de TOTAL y de aviso. Antes llevaban un color fijo (#f2f6fc, #fdecec):
+   en modo oscuro el texto es claro, y sobre un fondo claro fijo desaparecía.
+   Ahora usan las variables del tema, así que cambian con él. */
+.franja-total{background:var(--blue-bg);color:var(--txt);font-weight:800;padding:10px 8px}
+.franja-total b,.franja-total span{color:var(--txt)}
+tr.franja-total td{background:var(--blue-bg);color:var(--txt)}
+.franja-aviso{background:var(--red-bg);color:var(--txt);border:1px solid var(--red);
+  border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:1.6}
 .acc-ALTA{background:var(--green-bg);color:var(--green)} .acc-BAJA{background:var(--red-bg);color:var(--red)}
 .acc-MODIFICACION{background:var(--blue-bg);color:var(--blue)} .acc-REACTIVACION{background:var(--amber-bg);color:var(--amber)}
 .acc-RESTAURACION{background:var(--purple-bg);color:var(--purple)}
@@ -1386,7 +1394,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-15.9';
+const APP_VERSION='2026-08-15.10';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2038,7 +2046,7 @@ function openResumen(){
             <td style="text-align:right;color:var(--red)">${r.b}</td>
             <td style="text-align:right;color:var(--amber)">${r.p}</td>
             <td style="text-align:right;font-weight:700">${r.t}</td></tr>`).join('')}
-          <tr style="background:#f2f6fc;font-weight:800">
+          <tr class="franja-total">
             <td>TOTAL</td><td style="text-align:right;color:var(--green)">${T.a}</td>
             <td style="text-align:right;color:var(--red)">${T.b}</td>
             <td style="text-align:right;color:var(--amber)">${T.p}</td>
@@ -2198,7 +2206,7 @@ function openEliminarTrabajador(id){
   modal(`
     <div class="m-head"><h2 style="color:var(--red)">🗑 Eliminar trabajador</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <div style="background:#fdecec;border:1px solid #f3b8b8;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:1.6">
+      <div class="franja-aviso">
         Vas a mover a <b>${esc(nombre)}</b> (${esc(w.estatus)}) a la <b>papelera</b>. No sale en ninguna
         vista, conteo, proyección ni exportación — solo tú puedes verlo y restaurarlo desde
         🗑 Papelera. Esta acción queda protegida en la base de datos: nadie más puede hacerla
@@ -5906,10 +5914,16 @@ function openMovimientos(n){
   n=Math.max(1,parseInt(n)||isoWeek());
   const [d1,d2]=semRange(n);
   const enR=f=>f&&f>=d1&&f<=d2;
-  const ingresos=WORKERS.filter(w=>enR(w.fecha_alta));
+  /* REINGRESOS: quien vuelve a entrar tras una baja. Su fecha_alta es la ORIGINAL
+     (de hace meses), así que filtrando solo por fecha_alta no aparecía en ninguna
+     parte. Va en su propio apartado y NUNCA como alta nueva. */
+  const reingresos=WORKERS.filter(w=>enR(w.fecha_reingreso)).sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+  const reIds=new Set(reingresos.map(w=>w.id));
+  const ingresos=WORKERS.filter(w=>enR(w.fecha_alta)&&!reIds.has(w.id));
   const altas=ingresos.filter(w=>w.estatus!=='PENDIENTE').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9)); // ACTIVOS y bajas de la misma semana cuentan como alta
   const pend=ingresos.filter(w=>w.estatus==='PENDIENTE').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
-  const bajas=WORKERS.filter(w=>enR(w.fecha_baja)).sort((a,b)=>String(a.fecha_baja).localeCompare(String(b.fecha_baja)));
+  const bajas=WORKERS.filter(w=>enR(w.fecha_baja)&&!reIds.has(w.id)).sort((a,b)=>String(a.fecha_baja).localeCompare(String(b.fecha_baja)));
+  const entradas=altas.length+reingresos.length;
   const porDia={};bajas.forEach(w=>{const k=fmtD(w.fecha_baja);porDia[k]=(porDia[k]||0)+1;});
   const item=(w,extra)=>`<div class="kv"><b>#${w.no_trab??'—'}</b><span>${esc(fullName(w))} · ${esc(w.contratista)}${extra?` · <b>${extra}</b>`:''}</span></div>`;
   window._MOVSEM=n;
@@ -5924,41 +5938,48 @@ function openMovimientos(n){
       <button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <div class="stats" style="margin-bottom:16px">
-        <div class="stat g"><div class="n">+${altas.length}</div><div class="l">Altas de la semana${(function(){const m=altas.filter(x=>x.estatus==='BAJA').length;return m?` (${altas.length-m} vigentes + ${m} con baja misma sem.)`:'';})()}</div></div>
+        <div class="stat g"><div class="n">+${altas.length}</div><div class="l">Altas nuevas${(function(){const m=altas.filter(x=>x.estatus==='BAJA').length;return m?` (${altas.length-m} vigentes + ${m} con baja misma sem.)`:'';})()}</div></div>
+        <div class="stat b"><div class="n">+${reingresos.length}</div><div class="l">Reingresos (ya habían trabajado)</div></div>
         <div class="stat r"><div class="n">−${bajas.length}</div><div class="l">Bajas de la semana</div></div>
         <div class="stat a"><div class="n">${pend.length}</div><div class="l">Pendientes (aparte)</div></div>
-        <div class="stat b"><div class="n">${altas.length-bajas.length>=0?'+':''}${altas.length-bajas.length}</div><div class="l">Diferencia neta</div></div>
+        <div class="stat b"><div class="n">${entradas-bajas.length>=0?'+':''}${entradas-bajas.length}</div><div class="l">Diferencia neta (altas + reingresos − bajas)</div></div>
       </div>
       ${bajas.length?`<div class="sect">Bajas (${bajas.length})${Object.keys(porDia).length>1?` — ${Object.entries(porDia).map(([k,v])=>`${v} el ${k}`).join(', ')}`:''}</div>
         ${bajas.map(w=>item(w,'baja '+fmtD(w.fecha_baja)+(w.monto_finiquito?' · finiquito $'+money(w.monto_finiquito):''))).join('')}`:''}
-      ${altas.length?`<div class="sect">Altas (${altas.length})</div>
+      ${altas.length?`<div class="sect">Altas nuevas (${altas.length})</div>
         ${altas.map(w=>item(w,fmtD(w.fecha_alta)+(w.estatus==='BAJA'?' · alta y baja en la misma semana':''))).join('')}`:''}
+      ${reingresos.length?`<div class="sect">Reingresos (${reingresos.length}) — ya habían trabajado antes; la antigüedad cuenta desde el reingreso</div>
+        ${reingresos.map(w=>item(w,'reingresó '+fmtD(w.fecha_reingreso)+' · alta original '+fmtD(w.fecha_alta)+(w.fecha_baja?' · baja previa '+fmtD(w.fecha_baja):''))).join('')}`:''}
       ${pend.length?`<div class="sect">Pendientes (${pend.length}) — no cuentan como alta hasta activarse</div>
         ${pend.map(w=>item(w,'capturado '+fmtD(w.fecha_alta))).join('')}`:''}
-      ${!altas.length&&!bajas.length&&!pend.length?'<div class="empty"><div class="big">📭</div>Sin movimientos en esta semana.</div>':''}
+      ${!altas.length&&!reingresos.length&&!bajas.length&&!pend.length?'<div class="empty"><div class="big">📭</div>Sin movimientos en esta semana.</div>':''}
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cerrar</button>
-      <button class="btn dark" ${altas.length+bajas.length?'':'disabled'} onclick="exportMovimientos()">⬇ Exportar Excel</button>
+      <button class="btn dark" ${entradas+bajas.length?'':'disabled'} onclick="exportMovimientos()">⬇ Exportar Excel</button>
     </div>`);
 }
 function exportMovimientos(){
   const n=window._MOVSEM||isoWeek();
   const [d1,d2]=semRange(n);
   const enR=f=>f&&f>=d1&&f<=d2;
-  const ingresos=WORKERS.filter(w=>enR(w.fecha_alta));
+  const reingresos=WORKERS.filter(w=>enR(w.fecha_reingreso)).sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+  const reIds=new Set(reingresos.map(w=>w.id));
+  const ingresos=WORKERS.filter(w=>enR(w.fecha_alta)&&!reIds.has(w.id));
   const altas=ingresos.filter(w=>w.estatus!=='PENDIENTE').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
   const pend=ingresos.filter(w=>w.estatus==='PENDIENTE').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
-  const bajas=WORKERS.filter(w=>enR(w.fecha_baja)).sort((a,b)=>String(a.fecha_baja).localeCompare(String(b.fecha_baja)));
+  const bajas=WORKERS.filter(w=>enR(w.fecha_baja)&&!reIds.has(w.id)).sort((a,b)=>String(a.fecha_baja).localeCompare(String(b.fecha_baja)));
   const rows=[],styles=[];
   rows.push([`MOVIMIENTOS DE PERSONAL — SEMANA ${n} (${rangoTexto(d1,d2)}) — ${OBRA.nombre}`]); styles.push(ST.title);
   rows.push(['MOVIMIENTO','NO. TRAB.','NOMBRE COMPLETO','CONTRATISTA','PUESTO','FECHA','ESTATUS ACTUAL','FINIQUITO']); styles.push(ST.head);
   const rA=[ST.cellC,ST.cellC,ST.cell,ST.cellC,ST.cell,ST.cellC,ST.cellC,ST.money];
   const rB=[ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.finMoney];
   altas.forEach(w=>{rows.push(['ALTA',w.no_trab??'',fullName(w),w.contratista,w.puesto,fmtD(w.fecha_alta),w.estatus,'']);styles.push(rA);});
+  reingresos.forEach(w=>{rows.push(['REINGRESO',w.no_trab??'',fullName(w),w.contratista,w.puesto,fmtD(w.fecha_reingreso),w.estatus,'']);styles.push(rA);});
   pend.forEach(w=>{rows.push(['PENDIENTE',w.no_trab??'',fullName(w),w.contratista,w.puesto,fmtD(w.fecha_alta),w.estatus,'']);styles.push(rA);});
   bajas.forEach(w=>{rows.push(['BAJA',w.no_trab??'',fullName(w),w.contratista,w.puesto,fmtD(w.fecha_baja),w.estatus,Number(w.monto_finiquito)||'']);styles.push(rB);});
-  rows.push([`TOTALES: ${altas.length} ALTAS · ${bajas.length} BAJAS · ${pend.length} PENDIENTES (APARTE) · NETO ${altas.length-bajas.length>=0?'+':''}${altas.length-bajas.length}`]); styles.push(ST.total);
+  const neto=altas.length+reingresos.length-bajas.length;
+  rows.push([`TOTALES: ${altas.length} ALTAS NUEVAS · ${reingresos.length} REINGRESOS · ${bajas.length} BAJAS · ${pend.length} PENDIENTES (APARTE) · NETO ${neto>=0?'+':''}${neto}`]); styles.push(ST.total);
   const ws=buildSheet(rows,styles,[13,10,36,15,24,12,15,12],[{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:7}}],[{hpt:26},{hpt:24}]);
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,`MOVIMIENTOS S${n}`);
@@ -9045,8 +9066,8 @@ function calcPrestaciones(id){
   PR_TOTAL=(noiV!=null)?noiV:modeloTotal;
   const dif=(noiV!=null)?Math.round((noiV-modeloTotal)*100)/100:0;
   $('pr-out').innerHTML=rows.map(r=>`<div class="kv"><b>${r[0]}</b><span>${r[1]}</span></div>`).join('')+
-    `<div class="kv" style="background:#f2f6fc;font-weight:800;padding:10px 8px"><b>TOTAL ${noiV!=null?'(modelo)':''}</b><span>$${money(modeloTotal)}</span></div>`+
-    (noiV!=null?`<div class="kv" style="background:var(--green-bg);font-weight:800;padding:10px 8px"><b>✔ FINIQUITO NOI (este va al cheque)</b><span>$${money(noiV)}${dif?` · dif ${dif>0?'+':''}$${money(Math.abs(dif))} vs modelo`:' · idéntico al modelo'}</span></div>`:'')+
+    `<div class="kv franja-total"><b>TOTAL ${noiV!=null?'(modelo)':''}</b><span>$${money(modeloTotal)}</span></div>`+
+    (noiV!=null?`<div class="kv" style="background:var(--green-bg);color:var(--txt);font-weight:800;padding:10px 8px"><b>✔ FINIQUITO NOI (este va al cheque)</b><span>$${money(noiV)}${dif?` · dif ${dif>0?'+':''}$${money(Math.abs(dif))} vs modelo`:' · idéntico al modelo'}</span></div>`:'')+
     `<div style="font-size:11px;color:var(--mut);margin-top:4px">${noiV!=null?'El cheque de finiquito saldrá con el <b>monto de NOI</b> capturado arriba (es lo que se factura).':'El total se muestra <b>tal cual sale</b>, a 2 decimales <b>sin redondear hacia arriba</b> (ej. 499.9978 → 499.99). Si NOI te arroja otro centavo, captúralo en “Finiquito según NOI” y el cheque saldrá con ese monto.'}</div>`;
 }
 function usarEnBaja(id){
