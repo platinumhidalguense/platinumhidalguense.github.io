@@ -939,7 +939,12 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
       <div class="stats" id="au-stats"></div>
       <div class="toolbar">
         <div class="search"><input id="au-q" placeholder="Buscar trabajador, contratista, cuadrilla, folio..." oninput="auRender()"></div>
-        <select id="au-sem" onchange="auCargar()"></select>
+        <select id="au-modo" onchange="auCambiaModo()">
+          <option value="semana">Faltantes de una semana</option>
+          <option value="global">Reposiciones pendientes · todas las semanas</option>
+        </select>
+        <select id="au-sem" onchange="auCargar(true)"></select>
+        <select id="au-obra" style="display:none" onchange="auCargar(true)"></select>
         <select id="au-contr" onchange="auRender()"><option value="">Contratista: todos</option></select>
         <select id="au-cuad" onchange="auRender()"><option value="">Cuadrilla: todas</option></select>
         <select id="au-motivo" onchange="auRender()">
@@ -1423,7 +1428,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-25.1';
+const APP_VERSION='2026-08-25.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -4764,17 +4769,43 @@ function pagosFiltered(){
    ============================================================ */
 let AUDIT=null, AUDIT_SEM=null;
 function auSemActual(){const v=$('au-sem')?parseInt($('au-sem').value):0;return v>0?v:semObra();}
+/* Las opciones se arman UNA sola vez por obra.
+   BUG QUE HABÍA: auCargar() llamaba a esta función ANTES de leer el selector, y
+   aquí se reconstruía el innerHTML marcando como `selected` la semana ya cargada.
+   Resultado: elegías la 18, se reescribía el selector de vuelta a la 22 y se
+   recargaba la 22. Por eso "no hacía nada". Ahora no se toca si ya está armado. */
 function auLlenaSemanas(){
   const sel=$('au-sem'); if(!sel)return;
-  const hoy=semObra(), act=AUDIT_SEM||hoy, ops=[];
-  for(let w=hoy;w>=Math.max(1,hoy-25);w--)ops.push(`<option value="${w}" ${w===act?'selected':''}>Semana ${w}${w===hoy?' (en curso)':''}</option>`);
+  const hoy=semObra();
+  if(sel.options.length&&Number(sel.dataset.hoy)===hoy)return;   // ya está: se respeta lo elegido
+  const act=parseInt(sel.value)||AUDIT_SEM||hoy, ops=[];
+  for(let w=hoy;w>=Math.max(1,hoy-25);w--)
+    ops.push(`<option value="${w}">Semana ${w}${w===hoy?' (en curso)':''}</option>`);
   sel.innerHTML=ops.join('');
+  sel.dataset.hoy=hoy;
+  sel.value=String(Math.max(1,Math.min(act,hoy)));
+}
+function auLlenaObras(){
+  const sel=$('au-obra'); if(!sel)return;
+  if(sel.options.length&&sel.dataset.n===String((OBRAS||[]).length))return;
+  sel.innerHTML='<option value="">Todas las obras que puedo ver</option>'+
+    (OBRAS||[]).map(o=>`<option ${OBRA&&o.id===OBRA.id?'selected':''}>${esc(o.nombre)}</option>`).join('');
+  sel.dataset.n=(OBRAS||[]).length;
+}
+function auModo(){return ($('au-modo')&&$('au-modo').value)||'semana';}
+/* Al cambiar de modo se enseñan unos filtros u otros y se vuelve a consultar. */
+function auCambiaModo(){
+  const glob=auModo()==='global';
+  const v=(id,ver)=>{const e=$(id);if(e)e.style.display=ver?'':'none';};
+  v('au-sem',!glob); v('au-obra',glob); v('au-motivo',!glob);
+  auCargar(true);
 }
 async function auCargar(forzar){
   if(!sb||!OBRA){$('au-body').innerHTML='<tr><td colspan="7"><div class="empty">Abre una obra para auditar.</div></td></tr>';return;}
-  auLlenaSemanas();
+  auLlenaSemanas(); auLlenaObras();
+  if(auModo()==='global')return auCargarGlobal(forzar);
   const sem=auSemActual();
-  if(!forzar&&AUDIT&&AUDIT_SEM===sem)return auRender();
+  if(!forzar&&AUDIT&&AUDIT_SEM===sem&&AUDIT.modo!=='global')return auRender();
   AUDIT_SEM=sem;
   $('au-body').innerHTML=Array.from({length:6},()=>
     '<tr>'+Array.from({length:7},(_,i)=>`<td><span class="skel" style="display:inline-block;width:${[80,55,60,40,45,70,50][i]}%"></span></td>`).join('')+'</tr>').join('');
@@ -4784,7 +4815,7 @@ async function auCargar(forzar){
       p_semana:sem, p_obras:[OBRA.nombre], p_contratista:null, p_cuadrilla:null,
       p_motivo:null, p_limite:500});
     if(error)throw error;
-    AUDIT=data||{faltantes:[]};
+    AUDIT=Object.assign({faltantes:[]},data||{},{modo:'semana'});
     auLlenaFiltros();
     auRender();
   }catch(e){
@@ -4797,13 +4828,37 @@ async function auCargar(forzar){
       </div></td></tr>`;
   }
 }
+async function auCargarGlobal(forzar){
+  const obra=($('au-obra')&&$('au-obra').value)||'';
+  if(!forzar&&AUDIT&&AUDIT.modo==='global'&&AUDIT._obra===obra)return auRender();
+  $('au-body').innerHTML=Array.from({length:6},()=>
+    '<tr>'+Array.from({length:7},(_,i)=>`<td><span class="skel" style="display:inline-block;width:${[80,55,60,40,45,70,50][i]}%"></span></td>`).join('')+'</tr>').join('');
+  $('au-stats').innerHTML='';
+  try{
+    const {data,error}=await sb.rpc('ia_reposiciones_pendientes',{
+      p_obras:obra?[obra]:null, p_contratista:null, p_limite:800});
+    if(error)throw error;
+    AUDIT=Object.assign({faltantes:[]},data||{},{modo:'global',_obra:obra});
+    auLlenaFiltros();
+    auRender();
+  }catch(e){
+    AUDIT=null;
+    const falta=/does not exist|could not find|404|PGRST202/i.test(String(e.message||e));
+    $('au-body').innerHTML=`<tr><td colspan="7"><div class="empty">
+      <div class="big">${falta?'🧩':'⚠'}</div>
+      ${falta?'Falta volver a correr el <b>Script 57</b> en Supabase.<br><span style="color:var(--mut);font-size:12px">Trae la función nueva <b>ia_reposiciones_pendientes</b>. Es de solo lectura.</span>'
+             :'No se pudo auditar: '+esc(String(e.message||e))}
+      </div></td></tr>`;
+  }
+}
 function auLlenaFiltros(){
   const f=(AUDIT&&AUDIT.faltantes)||[];
   const pon=(id,lbl,vals)=>{const sel=$(id);if(!sel)return;const cur=sel.value;
     sel.innerHTML=`<option value="">${lbl}</option>`+[...new Set(vals.filter(Boolean))].sort()
       .map(v=>`<option ${v===cur?'selected':''}>${esc(v)}</option>`).join('');};
   pon('au-contr','Contratista: todos',f.map(x=>x.contratista));
-  pon('au-cuad','Cuadrilla: todas',f.map(x=>x.cuadrilla));
+  const glob=AUDIT&&AUDIT.modo==='global';
+  pon('au-cuad',glob?'Obra: todas':'Cuadrilla: todas',f.map(x=>glob?x.obra:x.cuadrilla));
 }
 function auFiltradas(){
   const f=(AUDIT&&AUDIT.faltantes)||[];
@@ -4813,25 +4868,43 @@ function auFiltradas(){
   const m=($('au-motivo')&&$('au-motivo').value)||'';
   return f.filter(x=>{
     if(c&&x.contratista!==c)return false;
-    if(cu&&x.cuadrilla!==cu)return false;
+    if(cu&&((AUDIT&&AUDIT.modo==='global')?x.obra:x.cuadrilla)!==cu)return false;
     if(m&&!String(x.motivo||'').includes(m))return false;
-    if(q){const hay=[x.trabajador,x.contratista,x.cuadrilla,x.semana,x.tipo_pago,x.motivo,x.folio_cancelado]
+    if(q){const hay=[x.trabajador,x.contratista,x.cuadrilla,x.obra,x.semana,x.tipo_pago,x.motivo,x.folio_cancelado]
       .join(' ').toUpperCase(); if(!hay.includes(q))return false;}
     return true;
   });
 }
 function auRender(){
   if(!AUDIT)return;
+  const glob=AUDIT.modo==='global';
   const f=auFiltradas();
+  /* En el histórico la columna útil es la OBRA (puede haber varias); en el de la
+     semana, la cuadrilla. El encabezado cambia con el modo. */
+  const th=$('au-tbl').tHead.rows[0];
+  th.cells[2].textContent=glob?'Obra':'Cuadrilla';
+  th.cells[3].textContent='Semana';
   const rep=f.filter(x=>/REPOSICIÓN/.test(x.motivo)).length, emi=f.length-rep;
-  $('au-stats').innerHTML=`
-    <div class="stat ${f.length?'r':'g'}"><div class="n">${f.length}</div><div class="l">Cheques faltantes · semana ${AUDIT_SEM}</div></div>
-    <div class="stat a"><div class="n">${rep}</div><div class="l">Se canceló y no se repuso</div></div>
-    <div class="stat a"><div class="n">${emi}</div><div class="l">Nunca se emitió</div></div>
-    <div class="stat b"><div class="n">${esc(String(AUDIT.del||'').slice(5))} a ${esc(String(AUDIT.al||'').slice(5))}</div><div class="l">Periodo auditado</div></div>`;
+  if(glob){
+    const imp=f.reduce((a,x)=>a+(Number(x.importe_cancelado)||0),0);
+    const obras=[...new Set(f.map(x=>x.obra).filter(Boolean))];
+    const viejo=f.reduce((a,x)=>Math.max(a,Number(x.dias_sin_reponer)||0),0);
+    $('au-stats').innerHTML=`
+      <div class="stat ${f.length?'r':'g'}"><div class="n">${f.length}</div><div class="l">Reposiciones pendientes · todas las semanas</div></div>
+      <div class="stat r"><div class="n">$${money(imp)}</div><div class="l">Importe que quedó sin cobrar</div></div>
+      <div class="stat a"><div class="n">${obras.length}</div><div class="l">Obra(s) con faltantes${obras.length===1?': '+esc(obras[0]):''}</div></div>
+      <div class="stat b"><div class="n">${viejo}</div><div class="l">Días del más viejo sin reponer</div></div>`;
+  }else{
+    $('au-stats').innerHTML=`
+      <div class="stat ${f.length?'r':'g'}"><div class="n">${f.length}</div><div class="l">Cheques faltantes · semana ${AUDIT_SEM}</div></div>
+      <div class="stat a"><div class="n">${rep}</div><div class="l">Se canceló y no se repuso</div></div>
+      <div class="stat a"><div class="n">${emi}</div><div class="l">Nunca se emitió</div></div>
+      <div class="stat b"><div class="n">${esc(String(AUDIT.del||'').slice(5))} a ${esc(String(AUDIT.al||'').slice(5))}</div><div class="l">Periodo auditado</div></div>`;
+  }
   if(!f.length){
     $('au-body').innerHTML=`<tr><td colspan="7"><div class="empty"><div class="big">✅</div>
-      Sin faltantes en la semana ${AUDIT_SEM}. Todos los que trabajaron tienen su cheque.</div></td></tr>`;
+      ${glob?'Ningún cheque cancelado quedó sin reponer. Nada pendiente en el histórico.'
+            :`Sin faltantes en la semana ${AUDIT_SEM}. Todos los que trabajaron tienen su cheque.`}</div></td></tr>`;
     return;
   }
   $('au-body').innerHTML=f.map(x=>{
@@ -4840,7 +4913,7 @@ function auRender(){
       <td><b>${esc(x.trabajador||'—')}</b>${x.no_trab?` <span style="color:var(--mut)">#${x.no_trab}</span>`:''}
         <div style="color:var(--mut);font-size:11.5px">${esc(x.detalle||'')}</div></td>
       <td>${esc(x.contratista||'—')}</td>
-      <td>${x.cuadrilla?esc(x.cuadrilla):'<span style="color:var(--mut)">—</span>'}</td>
+      <td>${glob?esc(x.obra||'—'):(x.cuadrilla?esc(x.cuadrilla):'<span style="color:var(--mut)">—</span>')}</td>
       <td style="text-align:center"><b>${esc(x.semana||'')}</b></td>
       <td style="text-align:center"><span class="badge ${x.tipo_pago==='FINIQUITO'?'PENDIENTE':'ENTREGADO'}">${esc(x.tipo_pago||'CHEQUE')}</span></td>
       <td><span class="badge ${esRep?'CANCELADO':'PENDIENTE'}">${esc(x.motivo)}</span>
@@ -4874,21 +4947,26 @@ function auHacerCheque(tid,sem,tipo){
 function auExport(){
   const f=auFiltradas();
   if(!f.length){toast('No hay faltantes que exportar.','err');return;}
+  const glob=AUDIT&&AUDIT.modo==='global';
   const rows=[],styles=[];
-  rows.push([`AUDITORÍA DE PAGOS — CHEQUES FALTANTES · SEMANA ${AUDIT_SEM} · ${OBRA.nombre}`]); styles.push(ST.title);
-  rows.push(['TRABAJADOR','NO.','CONTRATISTA','CUADRILLA','SEMANA','TIPO','MOTIVO','DETALLE','FOLIO CANCELADO','IMPORTE']);
+  rows.push([glob?`AUDITORÍA DE PAGOS — REPOSICIONES PENDIENTES (TODAS LAS SEMANAS) · ${($('au-obra')&&$('au-obra').value)||'TODAS LAS OBRAS'}`
+                 :`AUDITORÍA DE PAGOS — CHEQUES FALTANTES · SEMANA ${AUDIT_SEM} · ${OBRA.nombre}`]); styles.push(ST.title);
+  rows.push(['TRABAJADOR','NO.','CONTRATISTA',glob?'OBRA':'CUADRILLA','SEMANA','TIPO','MOTIVO','DETALLE','FOLIO CANCELADO','IMPORTE']);
   styles.push(ST.head);
   const r1=[ST.cell,ST.cellC,ST.cell,ST.cell,ST.cellC,ST.cellC,ST.cell,ST.cell,ST.cellC,ST.money];
-  f.forEach(x=>{rows.push([x.trabajador||'',x.no_trab??'',x.contratista||'',x.cuadrilla||'',
+  f.forEach(x=>{rows.push([x.trabajador||'',x.no_trab??'',x.contratista||'',(glob?x.obra:x.cuadrilla)||'',
     x.semana||'',x.tipo_pago||'',x.motivo||'',x.detalle||'',x.folio_cancelado||'',
     Number(x.importe_cancelado)||'']); styles.push(r1);});
-  rows.push([`TOTAL: ${f.length} faltante(s) · ${f.filter(x=>/REPOSICIÓN/.test(x.motivo)).length} sin reponer · ${f.filter(x=>/EMISIÓN/.test(x.motivo)).length} sin emitir`]);
+  const impT=f.reduce((a,x)=>a+(Number(x.importe_cancelado)||0),0);
+  rows.push([glob?`TOTAL: ${f.length} reposición(es) pendiente(s) · $${money(impT)} sin cobrar`
+                 :`TOTAL: ${f.length} faltante(s) · ${f.filter(x=>/REPOSICIÓN/.test(x.motivo)).length} sin reponer · ${f.filter(x=>/EMISIÓN/.test(x.motivo)).length} sin emitir`]);
   styles.push(ST.total);
   const ws=buildSheet(rows,styles,[34,7,16,24,9,11,24,44,15,12],
     [{s:{r:0,c:0},e:{r:0,c:9}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:9}}],[{hpt:26},{hpt:24}]);
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,`FALTANTES S${AUDIT_SEM}`);
-  dl(wb,`AUDITORIA_CHEQUES_SEMANA${AUDIT_SEM}_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}.xlsx`);
+  XLSX.utils.book_append_sheet(wb,ws,glob?'REPOSICIONES PENDIENTES':`FALTANTES S${AUDIT_SEM}`);
+  dl(wb,glob?`AUDITORIA_REPOSICIONES_PENDIENTES.xlsx`
+           :`AUDITORIA_CHEQUES_SEMANA${AUDIT_SEM}_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}.xlsx`);
   toast('Excel de la auditoría generado.','ok');
 }
 function renderPagosView(){
