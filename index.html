@@ -695,6 +695,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <button class="sb-item on" id="vb-trab" onclick="setView('trab')"><span class="ic">👷</span>Trabajadores</button>
         <button class="sb-item" id="vb-chq" onclick="setView('chq')"><span class="ic">🧾</span>Cheques</button>
         <button class="sb-item" id="vb-pagos" onclick="setView('pagos')"><span class="ic">💸</span>Pagos BBVA</button>
+        <button class="sb-item" id="vb-audit" onclick="setView('audit')"><span class="ic">🔎</span>Auditoría de pagos</button>
         <button class="sb-item" id="vb-vac" onclick="setView('vac')"><span class="ic">🌴</span>Vacaciones y permisos</button>
         <button class="sb-item" id="vb-actas" onclick="setView('actas')"><span class="ic">📋</span>Actas</button>
         <button class="sb-item" id="vb-nom" onclick="setView('nom')"><span class="ic">🧠</span>NOM-035</button>
@@ -934,6 +935,32 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
          Los pagos por transferencia ya se importaban pero no tenían dónde
          consultarse. Aquí salen los globales (dispersión por lote) y los
          individuales, con el mismo formato de la ficha de cada trabajador. -->
+    <div id="view-audit" class="hide">
+      <div class="stats" id="au-stats"></div>
+      <div class="toolbar">
+        <div class="search"><input id="au-q" placeholder="Buscar trabajador, contratista, cuadrilla, folio..." oninput="auRender()"></div>
+        <select id="au-sem" onchange="auCargar()"></select>
+        <select id="au-contr" onchange="auRender()"><option value="">Contratista: todos</option></select>
+        <select id="au-cuad" onchange="auRender()"><option value="">Cuadrilla: todas</option></select>
+        <select id="au-motivo" onchange="auRender()">
+          <option value="">Motivo: los dos</option>
+          <option value="REPOSICIÓN">Falta reposición (se canceló)</option>
+          <option value="EMISIÓN">Falta emisión original (nunca se hizo)</option>
+        </select>
+        <button class="btn dark" onclick="auCargar(true)">↻ Volver a auditar</button>
+        <button class="btn dark" onclick="auExport()">⬇ Exportar Excel</button>
+      </div>
+      <div class="tbl-card">
+        <div class="tbl-wrap"><table id="au-tbl">
+          <thead><tr>
+            <th>Trabajador</th><th>Contratista</th><th>Cuadrilla</th>
+            <th style="text-align:center">Semana</th><th style="text-align:center">Tipo</th>
+            <th>Motivo</th><th style="text-align:center">Acción</th>
+          </tr></thead>
+          <tbody id="au-body"></tbody>
+        </table></div>
+      </div>
+    </div>
     <div id="view-pagos" class="hide">
       <div class="stats" id="pg-v-stats"></div>
       <div class="toolbar">
@@ -1396,7 +1423,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-20.2';
+const APP_VERSION='2026-08-25.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1436,7 +1463,8 @@ const VISTAS={
   vac  :{ic:'🌴',txt:'Vacaciones y permisos'},
   actas:{ic:'📋',txt:'Actas'},
   nom  :{ic:'🧠',txt:'NOM-035'},
-  anual:{ic:'🪙',txt:'PTU / Aguinaldo'}
+  anual:{ic:'🪙',txt:'PTU / Aguinaldo'},
+  audit:{ic:'🔎',txt:'Auditoría de pagos'}
 };
 function setView(v){
   if(!VISTAS[v])v='trab';
@@ -1447,6 +1475,7 @@ function setView(v){
     if(d)d.classList.toggle('hide',v!==k);
   });
   if(v==='pagos')renderPagosView();
+  if(v==='audit')auCargar();
   renderCrumbs();
   cerrarCajonMovil();                         // en celular el cajón se cierra solo
   window.scrollTo({top:0,behavior:'smooth'});
@@ -4726,6 +4755,141 @@ function pagosFiltered(){
       if(!hay.includes(q))return false;}
     return true;
   }).sort((a,b)=>pagoSemNum(b)-pagoSemNum(a)||String(a.nombre).localeCompare(String(b.nombre)));
+}
+/* ============================================================
+   AUDITORÍA DE PAGOS · cheques que faltan por emitir
+   La REGLA vive en la base (Script 57, ia_cheques_faltantes): un solo lugar
+   donde está escrito qué es un faltante. Aquí solo se pide y se pinta. Así no
+   hay dos versiones del mismo criterio, que es lo que nos ha costado caro.
+   ============================================================ */
+let AUDIT=null, AUDIT_SEM=null;
+function auSemActual(){const v=$('au-sem')?parseInt($('au-sem').value):0;return v>0?v:semObra();}
+function auLlenaSemanas(){
+  const sel=$('au-sem'); if(!sel)return;
+  const hoy=semObra(), act=AUDIT_SEM||hoy, ops=[];
+  for(let w=hoy;w>=Math.max(1,hoy-25);w--)ops.push(`<option value="${w}" ${w===act?'selected':''}>Semana ${w}${w===hoy?' (en curso)':''}</option>`);
+  sel.innerHTML=ops.join('');
+}
+async function auCargar(forzar){
+  if(!sb||!OBRA){$('au-body').innerHTML='<tr><td colspan="7"><div class="empty">Abre una obra para auditar.</div></td></tr>';return;}
+  auLlenaSemanas();
+  const sem=auSemActual();
+  if(!forzar&&AUDIT&&AUDIT_SEM===sem)return auRender();
+  AUDIT_SEM=sem;
+  $('au-body').innerHTML=Array.from({length:6},()=>
+    '<tr>'+Array.from({length:7},(_,i)=>`<td><span class="skel" style="display:inline-block;width:${[80,55,60,40,45,70,50][i]}%"></span></td>`).join('')+'</tr>').join('');
+  $('au-stats').innerHTML='';
+  try{
+    const {data,error}=await sb.rpc('ia_cheques_faltantes',{
+      p_semana:sem, p_obras:[OBRA.nombre], p_contratista:null, p_cuadrilla:null,
+      p_motivo:null, p_limite:500});
+    if(error)throw error;
+    AUDIT=data||{faltantes:[]};
+    auLlenaFiltros();
+    auRender();
+  }catch(e){
+    AUDIT=null;
+    const falta=/does not exist|could not find|404|PGRST202/i.test(String(e.message||e));
+    $('au-body').innerHTML=`<tr><td colspan="7"><div class="empty">
+      <div class="big">${falta?'🧩':'⚠'}</div>
+      ${falta?'Falta correr el <b>Script 57</b> en Supabase.<br><span style="color:var(--mut);font-size:12px">SQL Editor → pega <b>57_CHEQUES_FALTANTES.sql</b> → Run. Es de solo lectura y no toca ninguna tabla.</span>'
+             :'No se pudo auditar: '+esc(String(e.message||e))}
+      </div></td></tr>`;
+  }
+}
+function auLlenaFiltros(){
+  const f=(AUDIT&&AUDIT.faltantes)||[];
+  const pon=(id,lbl,vals)=>{const sel=$(id);if(!sel)return;const cur=sel.value;
+    sel.innerHTML=`<option value="">${lbl}</option>`+[...new Set(vals.filter(Boolean))].sort()
+      .map(v=>`<option ${v===cur?'selected':''}>${esc(v)}</option>`).join('');};
+  pon('au-contr','Contratista: todos',f.map(x=>x.contratista));
+  pon('au-cuad','Cuadrilla: todas',f.map(x=>x.cuadrilla));
+}
+function auFiltradas(){
+  const f=(AUDIT&&AUDIT.faltantes)||[];
+  const q=($('au-q')&&$('au-q').value||'').trim().toUpperCase();
+  const c=($('au-contr')&&$('au-contr').value)||'';
+  const cu=($('au-cuad')&&$('au-cuad').value)||'';
+  const m=($('au-motivo')&&$('au-motivo').value)||'';
+  return f.filter(x=>{
+    if(c&&x.contratista!==c)return false;
+    if(cu&&x.cuadrilla!==cu)return false;
+    if(m&&!String(x.motivo||'').includes(m))return false;
+    if(q){const hay=[x.trabajador,x.contratista,x.cuadrilla,x.semana,x.tipo_pago,x.motivo,x.folio_cancelado]
+      .join(' ').toUpperCase(); if(!hay.includes(q))return false;}
+    return true;
+  });
+}
+function auRender(){
+  if(!AUDIT)return;
+  const f=auFiltradas();
+  const rep=f.filter(x=>/REPOSICIÓN/.test(x.motivo)).length, emi=f.length-rep;
+  $('au-stats').innerHTML=`
+    <div class="stat ${f.length?'r':'g'}"><div class="n">${f.length}</div><div class="l">Cheques faltantes · semana ${AUDIT_SEM}</div></div>
+    <div class="stat a"><div class="n">${rep}</div><div class="l">Se canceló y no se repuso</div></div>
+    <div class="stat a"><div class="n">${emi}</div><div class="l">Nunca se emitió</div></div>
+    <div class="stat b"><div class="n">${esc(String(AUDIT.del||'').slice(5))} a ${esc(String(AUDIT.al||'').slice(5))}</div><div class="l">Periodo auditado</div></div>`;
+  if(!f.length){
+    $('au-body').innerHTML=`<tr><td colspan="7"><div class="empty"><div class="big">✅</div>
+      Sin faltantes en la semana ${AUDIT_SEM}. Todos los que trabajaron tienen su cheque.</div></td></tr>`;
+    return;
+  }
+  $('au-body').innerHTML=f.map(x=>{
+    const esRep=/REPOSICIÓN/.test(x.motivo);
+    return `<tr>
+      <td><b>${esc(x.trabajador||'—')}</b>${x.no_trab?` <span style="color:var(--mut)">#${x.no_trab}</span>`:''}
+        <div style="color:var(--mut);font-size:11.5px">${esc(x.detalle||'')}</div></td>
+      <td>${esc(x.contratista||'—')}</td>
+      <td>${x.cuadrilla?esc(x.cuadrilla):'<span style="color:var(--mut)">—</span>'}</td>
+      <td style="text-align:center"><b>${esc(x.semana||'')}</b></td>
+      <td style="text-align:center"><span class="badge ${x.tipo_pago==='FINIQUITO'?'PENDIENTE':'ENTREGADO'}">${esc(x.tipo_pago||'CHEQUE')}</span></td>
+      <td><span class="badge ${esRep?'CANCELADO':'PENDIENTE'}">${esc(x.motivo)}</span>
+        ${x.folio_cancelado?`<div style="color:var(--mut);font-size:11.5px">folio ${esc(x.folio_cancelado)}${x.importe_cancelado?' · $'+money(x.importe_cancelado):''}</div>`:''}</td>
+      <td style="text-align:center">${x.trabajador_id?`<button class="btn" style="padding:4px 10px" onclick="auHacerCheque('${x.trabajador_id}','${esc(x.semana)}','${esc(x.tipo_pago||'CHEQUE')}')">🧾 Hacer cheque</button>`:'—'}</td>
+    </tr>`;}).join('');
+}
+/* Abre el alta de cheque ya con el trabajador, la semana y el tipo puestos.
+   No guarda nada solo: el importe y el folio los captura una persona. */
+function auHacerCheque(tid,sem,tipo){
+  const w=(WORKERS||[]).find(x=>x.id===tid);
+  if(!w){toast('Ese trabajador no está en la obra abierta.','err');return;}
+  openChequeForm(null);
+  /* Se llenan los campos del alta y se dispara chqAutofill(), que es quien trae
+     puesto, CURP, contratista y el sueldo semanal. El FOLIO siempre lo captura
+     una persona: esto ahorra tecleo, no inventa el cheque. */
+  setTimeout(()=>{
+    const nom=$('c-nombre');
+    if(nom){nom.value=fullName(w); if(typeof chqAutofill==='function')chqAutofill();}
+    const es=$('f-c-semana'), ep=$('f-c-periodo');
+    if(es){es.value=sem; const n=parseInt(String(sem).replace(/\D/g,'')); if(ep&&n>0)ep.value=periodoCorto(n);}
+    const et=$('c-tipo'); if(et)et.value=tipo;
+    /* Un FINIQUITO no vale el sueldo de la semana: chqAutofill acaba de poner
+       sal_semanal y aquí eso sería un error caro. Se pone el finiquito capturado
+       en su ficha y, si no lo hay, se deja VACÍO para que se calcule (🧮 Prestaciones). */
+    const ei=$('f-c-importe');
+    if(ei&&tipo==='FINIQUITO')ei.value=(Number(w.monto_finiquito)>0)?w.monto_finiquito:'';
+    if(ei)ei.focus();
+  },140);
+}
+function auExport(){
+  const f=auFiltradas();
+  if(!f.length){toast('No hay faltantes que exportar.','err');return;}
+  const rows=[],styles=[];
+  rows.push([`AUDITORÍA DE PAGOS — CHEQUES FALTANTES · SEMANA ${AUDIT_SEM} · ${OBRA.nombre}`]); styles.push(ST.title);
+  rows.push(['TRABAJADOR','NO.','CONTRATISTA','CUADRILLA','SEMANA','TIPO','MOTIVO','DETALLE','FOLIO CANCELADO','IMPORTE']);
+  styles.push(ST.head);
+  const r1=[ST.cell,ST.cellC,ST.cell,ST.cell,ST.cellC,ST.cellC,ST.cell,ST.cell,ST.cellC,ST.money];
+  f.forEach(x=>{rows.push([x.trabajador||'',x.no_trab??'',x.contratista||'',x.cuadrilla||'',
+    x.semana||'',x.tipo_pago||'',x.motivo||'',x.detalle||'',x.folio_cancelado||'',
+    Number(x.importe_cancelado)||'']); styles.push(r1);});
+  rows.push([`TOTAL: ${f.length} faltante(s) · ${f.filter(x=>/REPOSICIÓN/.test(x.motivo)).length} sin reponer · ${f.filter(x=>/EMISIÓN/.test(x.motivo)).length} sin emitir`]);
+  styles.push(ST.total);
+  const ws=buildSheet(rows,styles,[34,7,16,24,9,11,24,44,15,12],
+    [{s:{r:0,c:0},e:{r:0,c:9}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:9}}],[{hpt:26},{hpt:24}]);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,`FALTANTES S${AUDIT_SEM}`);
+  dl(wb,`AUDITORIA_CHEQUES_SEMANA${AUDIT_SEM}_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}.xlsx`);
+  toast('Excel de la auditoría generado.','ok');
 }
 function renderPagosView(){
   if(!$('pg-v-tbody'))return;
