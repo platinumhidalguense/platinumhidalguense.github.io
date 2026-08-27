@@ -1428,7 +1428,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-25.2';
+const APP_VERSION='2026-08-27.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1692,8 +1692,7 @@ const IA_CALCULOS={
         detalle:v.filter(x=>x.saldo>0).sort((a,b)=>b.saldo-a.saldo).slice(0,30)};}},
   recibos_faltantes:{
     desc:'Trabajadores a los que les falta archivar el recibo de nómina de alguna semana. Sin parámetros.',
-    fn:()=>{const set=new Set((DOCSX||[]).filter(d=>!d.anulado&&d.categoria==='RECIBO_NOMINA')
-        .map(d=>d.trabajador_id+'|'+normSem(d.semana)));
+    fn:()=>{const set=recSetGlobal();
       const r=[];(WORKERS||[]).forEach(w=>{const f=faltantesReciboDe(w,set);
         if(f.length)r.push({trabajador:fullName(w),faltan_semanas:f.map(x=>'S'+x)});});
       return {cuantos_con_faltantes:r.length,detalle:r.slice(0,30)};}},
@@ -5885,7 +5884,7 @@ function openChequesDesdeRecibos(){
 async function crAnalizar(){
   const sem=($('cr-sem').value||'').trim(); const ns=normSem(sem);
   if(!ns){toast('Escribe la semana (ej. S17).','err');return;}
-  const recs=(DOCSX||[]).filter(d=>!d.anulado&&d.categoria==='RECIBO_NOMINA'&&normSem(d.semana)===ns);
+  const recs=(DOCSX||[]).filter(d=>esRecibo(d)&&normSem(d.semana)===ns);
   if(!recs.length){$('cr-out').innerHTML='<div class="empty">No hay recibos de nómina archivados en la semana S'+ns+' en esta obra. Impórtalos en 📥 Importar → Acuses IMSS y recibos (categoría RECIBO DE NÓMINA).</div>';$('cr-btn').classList.add('hide');return;}
   $('cr-out').innerHTML=skeletonRows(Math.min(9,Math.max(3,recs.length)),'1.5fr .8fr 1fr 1fr 1fr','Descargando y leyendo '+recs.length+' recibo(s) de nómina...');
   const rows=[];
@@ -5953,7 +5952,7 @@ async function chqTraerRecibo(){
   const w=WORKERS.find(x=>fullName(x).toUpperCase()===nom);
   if(!w){toast('Elige primero al trabajador.','err');return;}
   if(!normSem(sem)){toast('Indica la semana (ej. S17).','err');return;}
-  const d=(DOCSX||[]).filter(z=>!z.anulado&&z.categoria==='RECIBO_NOMINA'&&z.trabajador_id===w.id&&normSem(z.semana)===normSem(sem));
+  const d=recibosDe(w.id,sem);
   if(!d.length){toast('No hay recibo de nómina archivado de '+fullName(w)+' en la semana S'+normSem(sem)+'.','err');return;}
   toast('Leyendo recibo...');
   let info=_RECCACHE[d[0].archivo];
@@ -9086,7 +9085,7 @@ function computeAlertas(){
   const en30=new Date(Date.now()+30*86400000).toISOString().slice(0,10);
   const act=WORKERS.filter(w=>w.estatus==='ACTIVO');
   // pendientes de IMPORTAR: recibos de nómina (PDF) y pago global por semana
-  const recSet=new Set((DOCSX||[]).filter(d=>!d.anulado&&d.categoria==='RECIBO_NOMINA').map(d=>d.trabajador_id+'|'+normSem(d.semana)));
+  const recSet=recSetGlobal();
   /* Los que YA SON BAJA van en su propia línea: sus recibos históricos siguen
      haciendo falta para el expediente, pero no son trabajo de esta semana y no
      tienen por qué inflar la alerta de los activos. */
@@ -9097,7 +9096,7 @@ function computeAlertas(){
   const hoyW=isoWeekDe(OBRA,new Date());
   const pagWk=new Set((PAGOS||[]).map(p=>normSem(p.semana)));
   const actWk=new Set();
-  (DOCSX||[]).filter(d=>!d.anulado&&d.categoria==='RECIBO_NOMINA').forEach(d=>actWk.add(normSem(d.semana)));
+  (DOCSX||[]).filter(esRecibo).forEach(d=>actWk.add(normSem(d.semana)));
   (CHEQUES||[]).filter(c=>!c.eliminado).forEach(c=>actWk.add(normSem(c.semana)));
   const pagoFalt=[...actWk].map(s=>parseInt(s)).filter(n=>n>0&&n<hoyW&&n>=hoyW-8&&!pagWk.has(String(n))).sort((a,b)=>a-b).map(n=>({nombre:'Semana S'+n}));
   /* v36.2 · ALERTA URGENTE: semanas que YA tienen pago global pero donde algún
@@ -9395,7 +9394,36 @@ function domingoDeSemana(sem){
    semana elegida, su RECIBO DE NÓMINA (PDF archivado en el expediente, renderizado
    a imagen con pdf.js) y, si es BAJA/finiquito, su CARTA DE RENUNCIA + RECIBO DE
    FINIQUITO (mismo texto oficial que el generador individual). */
-const normSem=s=>String(s||'').replace(/\D/g,'');
+/* Canoniza la semana EXACTAMENTE como norm_semana() en la base: quita todo lo
+   que no sea dígito y luego el cero a la izquierda. "S08" → "8", "S8" → "8",
+   8 → "8", "" → "".
+   BUG QUE HABÍA: solo quitaba los no-dígitos, así que "S08" quedaba en "08" y
+   nunca era igual a "8". La ficha del trabajador lista TODOS sus recibos sin
+   comparar semana, por eso ahí sí se veía; los legajos comparan semana y por eso
+   decían "sin recibo" con el PDF perfectamente archivado. La base ya casteaba a
+   int (norm_semana), así que app y base también estaban en desacuerdo. */
+const normSem=s=>{const n=String(s??'').replace(/\D/g,'');return n?String(parseInt(n,10)):'';};
+
+/* Un recibo de nómina puede quedar archivado como RECIBO_NOMINA o como
+   CFDI_NOMINA. La ficha del trabajador acepta las dos categorías; los legajos
+   solo aceptaban la primera — segunda causa de los falsos negativos.
+   A partir de aquí TODO el que busque un recibo pasa por recibosDe(): una sola
+   regla, para que la ficha, los legajos y las alertas no puedan discrepar. */
+const RECIBO_CATS=['RECIBO_NOMINA','CFDI_NOMINA'];
+const esRecibo=d=>d&&!d.anulado&&RECIBO_CATS.includes(String(d.categoria||'').toUpperCase());
+/* sem === undefined → todos los recibos del trabajador (como la ficha).
+   sem con valor      → solo los de esa semana, comparando en forma canónica. */
+function recibosDe(tid,sem){
+  if(!tid)return [];
+  const ns=(sem===undefined||sem===null||sem==='')?null:normSem(sem);
+  return (DOCSX||[]).filter(d=>esRecibo(d)&&d.trabajador_id===tid
+    &&(ns===null||normSem(d.semana)===ns));
+}
+/* Índice "trabajador|semana" de todos los recibos archivados. Lo usan las
+   alertas de recibos faltantes; se arma una vez y se consulta muchas. */
+function recSetGlobal(){
+  return new Set((DOCSX||[]).filter(esRecibo).map(d=>d.trabajador_id+'|'+normSem(d.semana)));
+}
 async function pdfBytesToImgs(bytes,scale){
   const doc=await pdfjsLib.getDocument({data:bytes}).promise; const out=[];
   for(let p=1;p<=doc.numPages;p++){
@@ -9406,90 +9434,190 @@ async function pdfBytesToImgs(bytes,scale){
   }
   return out;
 }
-function legajoCandidatos(sems){
-  const set=new Set((sems||[]).map(normSem).filter(Boolean));
-  const byW=new Map();
-  (CHEQUES||[]).filter(c=>!c.eliminado&&set.has(normSem(c.semana))).forEach(c=>{
-    const k=c.trabajador_id||('N:'+c.nombre); if(byW.has(k))return;
-    const w=WORKERS.find(x=>x.id===c.trabajador_id)||null;
-    const recs=(DOCSX||[]).filter(d=>!d.anulado&&d.categoria==='RECIBO_NOMINA'&&w&&d.trabajador_id===w.id&&set.has(normSem(d.semana)));
-    const esBaja=!!(w&&(w.estatus==='BAJA'||String(c.tipo_pago).toUpperCase()==='FINIQUITO'));
-    byW.set(k,{c,w,recs,esBaja});
-  });
-  return [...byW.values()].sort((a,b)=>((a.w&&a.w.no_trab)||9e9)-((b.w&&b.w.no_trab)||9e9));
+/* ---------- LEGAJOS · FILA MANUAL (2026-08-27) ------------------------
+   ANTES: se escribía la semana, la app buscaba todos los cheques de esa semana
+   y los ordenaba por número de trabajador. Ese orden NO es el de la chequera
+   física, así que había que reacomodar el fajo a mano después de imprimir.
+   AHORA: el usuario arma la fila trabajador por trabajador, cada uno con SU
+   semana, y la fila conserva el orden de captura. No hay ningún sort. */
+
+/* Fila de impresión: [{tid, sem}] en el orden EXACTO en que se capturó. */
+function lgFila(){ return (window._LGQ=window._LGQ||[]); }
+
+/* Datos de una entrada de la fila, resueltos al vuelo contra el padrón. */
+function lgDatos(r){
+  const w=WORKERS.find(x=>x.id===r.tid)||null;
+  const recs=recibosDe(r.tid,r.sem);
+  const chq=(CHEQUES||[]).find(c=>!c.eliminado&&c.trabajador_id===r.tid
+    &&normSem(c.semana)===r.sem&&String(c.estatus||'').toUpperCase()!=='CANCELADO')||null;
+  const esBaja=!!(w&&(w.estatus==='BAJA'||String((chq&&chq.tipo_pago)||'').toUpperCase()==='FINIQUITO'));
+  return {w,recs,chq,esBaja,nombre:w?fullName(w):'(trabajador fuera del padrón)'};
 }
+
+/* Identifica al trabajador desde lo que se escribió en el buscador: acepta el
+   formato del desplegable ("#12 · JUAN PÉREZ"), solo el número, el nombre
+   completo, o un fragmento si es inequívoco. */
+function lgResuelve(txt){
+  const t=String(txt||'').trim(); if(!t)return null;
+  const norm=s=>String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+  const m=t.match(/^#?\s*(\d+)\s*·/);
+  if(m){const w=WORKERS.find(x=>String(x.no_trab)===m[1]); if(w)return w;}
+  if(/^\d+$/.test(t)){const w=WORKERS.find(x=>String(x.no_trab)===t); if(w)return w;}
+  const nt=norm(t);
+  let w=WORKERS.find(x=>norm(fullName(x))===nt); if(w)return w;
+  const hits=WORKERS.filter(x=>norm(fullName(x)).includes(nt));
+  return hits.length===1?hits[0]:null;
+}
+
 function openLegajos(){
+  window._LGQ=window._LGQ||[];
+  const hoy=semObra();
+  const sems=[]; for(let s=hoy;s>=1;s--)sems.push(s);
+  const ops=WORKERS.slice().sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9))
+    .map(w=>`<option value="#${w.no_trab??''} · ${esc(fullName(w))}"></option>`).join('');
   modal(`
     <div class="m-head"><h2>🗂 Legajos para entrega de cheques · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Arma <b>un solo documento</b> para imprimir de golpe: por cada trabajador con cheque de la(s) semana(s) que elijas, su <b>recibo de nómina</b> (el PDF que importaste a su ficha) y —si es <b>baja</b>— su <b>carta de renuncia + recibo de finiquito</b>. El recibo de nómina debe estar archivado en la ficha (📥 Importar → Acuses IMSS y recibos, categoría RECIBO DE NÓMINA).</p>
-      <div class="grid" style="grid-template-columns:1fr 1.2fr auto;align-items:end;gap:10px">
-        <div><label>Semana(s) de pago — separa con coma (ej. S15, S16)</label><input id="lg-sem" value="S${isoWeek()}" placeholder="S15, S16"></div>
-        <div><label>¿Qué imprimir?</label><select id="lg-modo" onchange="if(window._LEG)lgVer()">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Arma la fila <b>en el mismo orden en que traes los cheques en la mano</b>: busca al trabajador, elige su semana y agrégalo. La lista <b>respeta el orden en que la capturas</b> —no se reordena sola— y el documento se imprime en ese mismo orden. Por cada uno se adjunta su <b>recibo de nómina</b> y, si es <b>baja</b> esa semana, su <b>carta de renuncia + recibo de finiquito</b>.</p>
+      <div class="grid" style="grid-template-columns:2.2fr .9fr auto auto;align-items:end;gap:10px">
+        <div><label>Trabajador — nombre o número</label>
+          <input id="lg-q" list="dl-lg-trab" placeholder="Escribe y elige de la lista..." autocomplete="off"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();lgAgregar();}">
+          <datalist id="dl-lg-trab">${ops}</datalist></div>
+        <div><label>Semana</label><select id="lg-sem">${sems.map(s=>`<option value="${s}"${s===hoy?' selected':''}>Semana ${s}${s===hoy?' (en curso)':''}</option>`).join('')}</select></div>
+        <div><button class="btn dark" onclick="lgAgregar()">➕ Agregar a lista</button></div>
+        <div><button class="btn" onclick="lgAgregarSemana()" title="Agrega de golpe a todos los que tienen cheque de esa semana, en el orden del consecutivo de la chequera">⇩ Toda la semana</button></div>
+      </div>
+      <div style="margin-top:10px"><label>¿Qué imprimir?</label>
+        <select id="lg-modo" style="max-width:340px" onchange="lgPinta()">
           <option value="ambos">Recibo + renuncia y finiquito (todo)</option>
           <option value="recibo">Solo recibo de nómina</option>
           <option value="renuncia">Solo renuncia + finiquito (bajas)</option>
         </select></div>
-        <div><button class="btn dark" onclick="lgVer()">Ver trabajadores</button></div>
-      </div>
-      <div id="lg-out" style="margin-top:12px;max-height:360px;overflow:auto"></div>
+      <div id="lg-out" style="margin-top:12px;max-height:340px;overflow:auto"></div>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cerrar</button>
-      <button class="btn dark hide" id="lgj-btn" onclick="generarLegajos()">🖨 Generar documento para imprimir</button>
+      <button class="btn danger" onclick="lgVaciar()">Vaciar fila</button>
+      <button class="btn dark" id="lgj-btn" onclick="generarLegajos()">🖨 Generar documento</button>
     </div>`,'lg');
+  lgPinta();
 }
-function lgVer(){
-  const sems=($('lg-sem').value||'').split(',').map(s=>s.trim()).filter(Boolean);
-  const cand=legajoCandidatos(sems);
-  window._LEG=cand;
-  if(!cand.length){$('lg-out').innerHTML='<div class="empty">No hay cheques en esa(s) semana(s) en esta obra.</div>';$('lgj-btn').classList.add('hide');return;}
-  const conRec=cand.filter(x=>x.recs.length).length, sinRec=cand.length-conRec, bajas=cand.filter(x=>x.esBaja).length;
-  $('lg-out').innerHTML=`
-    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-      <span class="imp-tag imp-COINCIDE">${cand.length} trabajador(es)</span>
-      <span class="imp-tag imp-ASIGNAR">${conRec} con recibo</span>
-      <span class="imp-tag imp-CONFLICTO">${sinRec} SIN recibo archivado</span>
-      <span class="imp-tag imp-SINREGISTRO">${bajas} baja(s) → carta + finiquito</span>
-      <span style="margin-left:auto;font-size:11.5px"><a href="#" onclick="window._LEG.forEach((x,i)=>$('lg-'+i).checked=true);return false">todos</a> · <a href="#" onclick="window._LEG.forEach((x,i)=>$('lg-'+i).checked=false);return false">ninguno</a></span>
+
+function lgAgregar(){
+  const w=lgResuelve($('lg-q').value);
+  if(!w){toast('No identifiqué al trabajador. Elige uno del desplegable.','err');return;}
+  const sem=normSem($('lg-sem').value);
+  if(!sem){toast('Elige la semana.','err');return;}
+  const q=lgFila();
+  if(q.some(r=>r.tid===w.id&&r.sem===sem)){toast(fullName(w)+' ya está en la fila con la semana S'+sem+'.','err');return;}
+  q.push({tid:w.id,sem});                       // al final: la fila es el orden
+  $('lg-q').value=''; $('lg-q').focus();
+  lgPinta();
+}
+
+/* Alta masiva: agrega a todos los que tienen cheque de la semana elegida.
+   Los agrega EN EL ORDEN DEL CONSECUTIVO DE LA CHEQUERA (no por nombre ni por
+   número de trabajador), que es justo el orden físico del fajo. Después se
+   pueden reacomodar a mano. */
+function lgAgregarSemana(){
+  const sem=normSem($('lg-sem').value); if(!sem){toast('Elige la semana.','err');return;}
+  const q=lgFila(), ya=new Set(q.map(r=>r.tid+'|'+r.sem));
+  const num=c=>{const n=parseInt(String(c.consecutivo??c.num_cheque??'').replace(/\D/g,''));return isNaN(n)?9e9:n;};
+  const chs=(CHEQUES||[]).filter(c=>!c.eliminado&&c.trabajador_id&&normSem(c.semana)===sem
+      &&String(c.estatus||'').toUpperCase()!=='CANCELADO')
+    .sort((a,b)=>num(a)-num(b));
+  let add=0;
+  for(const c of chs){
+    const k=c.trabajador_id+'|'+sem; if(ya.has(k))continue;
+    ya.add(k); q.push({tid:c.trabajador_id,sem}); add++;
+  }
+  lgPinta();
+  toast(add?`Agregados ${add} de la semana S${sem}, en el orden del consecutivo de cheque.`
+           :`No hay cheques nuevos que agregar de la semana S${sem}.`, add?'ok':'err');
+}
+
+function lgMover(i,d){
+  const q=lgFila(), j=i+d;
+  if(j<0||j>=q.length)return;
+  const t=q[i]; q[i]=q[j]; q[j]=t;
+  lgPinta();
+}
+function lgQuitar(i){ lgFila().splice(i,1); lgPinta(); }
+function lgVaciar(){
+  if(!lgFila().length)return;
+  if(!confirm('¿Vaciar la fila completa? Se pierde el orden que ya armaste.'))return;
+  window._LGQ=[]; lgPinta();
+}
+
+function lgPinta(){
+  const q=lgFila(), out=$('lg-out'), btn=$('lgj-btn');
+  if(!out)return;
+  if(btn)btn.innerHTML=`🖨 Generar documento${q.length?' ('+q.length+')':''}`;
+  if(!q.length){
+    out.innerHTML='<div class="empty">La fila está vacía. Busca un trabajador, elige su semana y presiona <b>Agregar a lista</b>.</div>';
+    return;
+  }
+  const modo=($('lg-modo')&&$('lg-modo').value)||'ambos';
+  const filas=q.map(lgDatos);
+  const sinRec=filas.filter(x=>!x.recs.length).length, bajas=filas.filter(x=>x.esBaja).length;
+  out.innerHTML=`
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <span class="imp-tag imp-COINCIDE"><b>${q.length}</b> legajo(s) en la fila</span>
+      <span class="imp-tag imp-ASIGNAR">${q.length-sinRec} con recibo</span>
+      ${sinRec?`<span class="imp-tag imp-CONFLICTO">${sinRec} SIN recibo archivado</span>`:''}
+      ${bajas?`<span class="imp-tag imp-SINREGISTRO">${bajas} baja(s) → carta + finiquito</span>`:''}
+      <span style="margin-left:auto;font-size:11px;color:var(--mut)">Se imprime de arriba hacia abajo, en este orden.</span>
     </div>
-    ${cand.map((x,i)=>`<div class="imp-row" style="grid-template-columns:26px 1.6fr 1fr 1.2fr">
-      <span><input type="checkbox" id="lg-${i}" checked></span>
-      <span><b>${esc(x.w?fullName(x.w):x.c.nombre)}</b> ${x.esBaja?'<span class="badge BAJA" style="font-size:9.5px">BAJA</span>':''}<br><span style="color:var(--mut);font-size:11px">#${(x.w&&x.w.no_trab)??'—'} · ${esc(x.c.semana)} · $${money(x.c.importe)}</span></span>
-      <span style="font-size:11.5px">${x.recs.length?`<b style="color:var(--green)">✔ recibo</b>`:`<b style="color:var(--amber)">⚠ sin recibo</b>`}</span>
-      <span style="font-size:11.5px;color:var(--mut)">${(function(){const m=($('lg-modo')&&$('lg-modo').value)||'ambos';if(m==='recibo')return 'solo recibo';if(m==='renuncia')return x.esBaja?'solo carta + finiquito':'— (no es baja)';return x.esBaja?'recibo + carta + finiquito':'solo recibo';})()}</span>
-    </div>`).join('')}`;
-  $('lgj-btn').classList.remove('hide');
+    <div class="imp-row head" style="grid-template-columns:34px 1.7fr .7fr 1fr 1fr 92px"><span>#</span><span>Trabajador</span><span>Semana</span><span>Documentos</span><span>Se imprime</span><span>Orden</span></div>
+    ${filas.map((x,i)=>{
+      const qué=modo==='recibo'?'solo recibo'
+        :modo==='renuncia'?(x.esBaja?'carta + finiquito':'— (no es baja)')
+        :(x.esBaja?'recibo + carta + finiquito':'solo recibo');
+      return `<div class="imp-row" style="grid-template-columns:34px 1.7fr .7fr 1fr 1fr 92px">
+        <span style="font-weight:700;color:var(--mut)">${i+1}</span>
+        <span><b>${esc(x.nombre)}</b> ${x.esBaja?'<span class="badge BAJA" style="font-size:9.5px">BAJA</span>':''}
+          <br><span style="color:var(--mut);font-size:11px">#${(x.w&&x.w.no_trab)??'—'}${x.chq?' · cheque '+esc(x.chq.num_cheque||x.chq.consecutivo||'—')+' · $'+money(x.chq.importe):' · sin cheque capturado'}</span></span>
+        <span>S${esc(q[i].sem)}</span>
+        <span style="font-size:11.5px">${x.recs.length
+          ?`<b style="color:var(--green)">✔ ${x.recs.length} recibo${x.recs.length>1?'s':''}</b>`
+          :`<b style="color:var(--amber)">⚠ sin recibo</b>`}</span>
+        <span style="font-size:11.5px;color:var(--mut)">${qué}</span>
+        <span style="white-space:nowrap">
+          <button class="btn" style="padding:2px 7px;font-size:12px" onclick="lgMover(${i},-1)" ${i===0?'disabled':''} title="Subir">↑</button>
+          <button class="btn" style="padding:2px 7px;font-size:12px" onclick="lgMover(${i},1)" ${i===q.length-1?'disabled':''} title="Bajar">↓</button>
+          <button class="btn danger" style="padding:2px 7px;font-size:12px" onclick="lgQuitar(${i})" title="Quitar de la fila">✕</button>
+        </span>
+      </div>`;}).join('')}`;
 }
+
 async function generarLegajos(){
-  const cand=(window._LEG||[]).filter((x,i)=>$('lg-'+i)&&$('lg-'+i).checked);
-  if(!cand.length){toast('Marca al menos un trabajador.','err');return;}
+  const q=lgFila().slice();          // copia: el orden de la fila ES el de impresión
+  if(!q.length){toast('La fila está vacía.','err');return;}
   const modo=($('lg-modo')&&$('lg-modo').value)||'ambos';
   const incRecibo=(modo==='ambos'||modo==='recibo'), incRenuncia=(modo==='ambos'||modo==='renuncia');
-  $('lgj-btn').innerHTML='<span class="spin"></span> Armando... (0/'+cand.length+')';
-  let body='', faltan=[], n=0;
-  for(const x of cand){
-    n++; $('lgj-btn').innerHTML=`<span class="spin"></span> Armando... (${n}/${cand.length})`;
-    const nombre=x.w?fullName(x.w):x.c.nombre;
-    // recibo(s) de nómina archivados → imagen
+  const btn=$('lgj-btn');
+  let body='', faltan=[];
+  for(let i=0;i<q.length;i++){                  // índice explícito: no se reordena
+    if(btn)btn.innerHTML=`<span class="spin"></span> Armando... (${i+1}/${q.length})`;
+    const r=q[i], x=lgDatos(r), nombre=x.nombre;
     if(incRecibo){
-      if(!x.recs.length)faltan.push(nombre+' (sin recibo archivado)');
+      if(!x.recs.length)faltan.push(`${nombre} — S${r.sem} (sin recibo archivado)`);
       for(const d of x.recs){
         try{
           const {data:blob,error}=await sb.storage.from('expedientes').download(d.archivo);
-          if(error||!blob){faltan.push(nombre+' (no se pudo descargar el recibo)');continue;}
+          if(error||!blob){faltan.push(`${nombre} — S${r.sem} (no se pudo descargar el recibo)`);continue;}
           const imgs=await pdfBytesToImgs(new Uint8Array(await blob.arrayBuffer()),1.6);
           body+=imgs.map(src=>`<div class="pg-img"><img src="${src}"></div>`).join('');
-        }catch(e){faltan.push(nombre+' (recibo ilegible)');}
+        }catch(e){faltan.push(`${nombre} — S${r.sem} (recibo ilegible)`);}
       }
     }
-    // baja/finiquito → carta + recibo de finiquito
     if(incRenuncia&&x.esBaja&&x.w){
-      const monto=Number(x.c.importe)||Number(x.w.monto_finiquito)||0;
-      body+=renunciaPagesHTML(x.w,renunciaOpts(x.w,monto,domingoDeSemana(x.c.semana)));
+      const monto=Number(x.chq&&x.chq.importe)||Number(x.w.monto_finiquito)||0;
+      body+=renunciaPagesHTML(x.w,renunciaOpts(x.w,monto,domingoDeSemana(r.sem)));
     }
   }
-  $('lgj-btn').innerHTML='🖨 Generar documento para imprimir';
+  if(btn)btn.innerHTML=`🖨 Generar documento (${q.length})`;
   if(!body){toast('No se armó nada (¿ningún recibo archivado y ninguna baja?).','err');return;}
   const css=`.pg-img{page-break-after:always;text-align:center;margin:0}
 .pg-img img{width:100%;max-width:800px;display:block;margin:0 auto}
@@ -9498,7 +9626,7 @@ ${RENUNCIA_CSS}`;
   const url=URL.createObjectURL(new Blob([html],{type:'text/html'}));
   const win=window.open(url,'_blank');
   if(!win){toast('Permite ventanas emergentes para abrir el documento.','err');return;}
-  toast(`Documento armado: ${cand.length} trabajador(es)${faltan.length?` · ${faltan.length} sin recibo (revísalos)`:''}. Imprime o guarda como PDF.`,faltan.length?'err':'ok');
+  toast(`Documento armado: ${q.length} legajo(s) en el orden de la fila${faltan.length?` · ${faltan.length} sin recibo (revísalos)`:''}. Imprime o guarda como PDF.`,faltan.length?'err':'ok');
   if(faltan.length)setTimeout(()=>alert('Estos NO traen recibo de nómina archivado (revísalos e impórtalos si aplica):\n\n• '+faltan.join('\n• ')),600);
 }
 /* ---------- AVISO: recibos de nómina faltantes por trabajador (2026-08-03) ----
@@ -9529,7 +9657,7 @@ function faltantesReciboDe(w,recSet){
   const falt=[];
   for(let W=sW;W<=eW;W++){
     if(!activoEn(w,monISO(W)))continue;
-    const tiene=recSet?recSet.has(w.id+'|'+String(W)):(DOCSX||[]).some(d=>!d.anulado&&d.categoria==='RECIBO_NOMINA'&&d.trabajador_id===w.id&&normSem(d.semana)===String(W));
+    const tiene=recSet?recSet.has(w.id+'|'+String(W)):recibosDe(w.id,W).length>0;
     if(!tiene)falt.push(W);
   }
   return falt;
