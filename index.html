@@ -1458,7 +1458,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-27.2';
+const APP_VERSION='2026-08-27.3';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2262,6 +2262,7 @@ function openDetail(id){
       ${kv('Capturado por',esc(w.creado_por))}${kv('Última modificación',esc(w.actualizado_por)+' · '+fmtD(w.updated_at))}
     </div>
     <div class="m-foot">
+      <button class="btn" onclick="exportExpediente('${w.id}')">📊 Exportar expediente (Excel)</button>
       <button class="btn" onclick="openHistorial('${w.id}')">🕘 Historial</button>
       <button class="btn" onclick="openValidar('${w.id}')">🔍 Validar</button>
       <button class="btn" onclick="openContrato('${w.id}')">📄 Contrato</button>
@@ -3786,6 +3787,162 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
   F('I'+rT2,'G'+rTot);
   F('H'+rT3,'H'+rTot);
   return {ws,tT,tC,tP,tR,total,nTot};
+}
+/* ---------- EXPEDIENTE INDIVIDUAL A EXCEL (2026-08-27) ----------------
+   Todo lo que la plataforma sabe de UN trabajador, en vertical: columna A
+   el nombre del campo, columna B su valor. Se arma en el navegador con
+   xlsx-js-style, igual que el resto de los exportes.
+   REGLA: ningún hueco se queda en blanco. Lo que no esté capturado sale
+   como "Sin información", para que quien reciba la hoja sepa que falta el
+   dato y no que se perdió al exportar. */
+const EXP_VACIO='Sin información';
+/* Un valor listo para la celda. null, undefined, '' y NaN → "Sin información". */
+function expVal(v,fmt){
+  if(v===null||v===undefined)return EXP_VACIO;
+  if(typeof v==='number'&&!isFinite(v))return EXP_VACIO;
+  if(typeof v==='string'&&!v.trim())return EXP_VACIO;
+  if(Array.isArray(v))return v.length?v.join(', '):EXP_VACIO;
+  if(typeof v==='boolean')return v?'Sí':'No';
+  try{
+    if(fmt==='money')  return '$'+money(v);
+    if(fmt==='fecha')  return fmtD(v)||EXP_VACIO;
+    if(fmt==='pct')    return (Number(v)||0)+'%';
+  }catch(e){ /* si el formateador falla, se devuelve el valor tal cual */ }
+  const t=String(v).trim();
+  return t||EXP_VACIO;
+}
+function exportExpediente(id){
+  const w=WORKERS.find(x=>x.id===id);
+  if(!w){toast('No encontré a ese trabajador.','err');return;}
+  const cu=cuadDe(w), si=sueldoInternoDe(w.id), d=w.docs||{};
+  const vac=saldoVac(w), fh=fueraHoy(w);
+  const chq=(CHEQUES||[]).filter(c=>c.trabajador_id===w.id&&!c.eliminado);
+  const des=(DESC||[]).filter(x=>x.trabajador_id===w.id&&x.activo);
+  const recs=recibosDe(w.id);
+  const nActas=(ACTAS||[]).filter(a=>a.trabajador_id===w.id&&a.activo!==false).length;
+  const nom=(NOM||[]).filter(n=>n.trabajador_id===w.id&&n.activo!==false)
+    .sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)))[0];
+
+  /* [etiqueta, valor, formato] · una cadena sola = título de sección */
+  const F=[
+    'IDENTIFICACIÓN',
+    ['Número de trabajador',w.no_trab],
+    ['Nombre completo',fullName(w)],
+    ['Primer apellido',w.primer_apellido],
+    ['Segundo apellido',w.segundo_apellido],
+    ['Nombres',w.nombres],
+    ['CURP',w.curp],
+    ['RFC',w.rfc],
+    ['NSS',w.nss],
+    ['Fecha de nacimiento',w.fecha_nacimiento,'fecha'],
+    ['Género',w.genero],
+    ['Estado civil',w.estado_civil],
+    ['Escolaridad',w.escolaridad],
+    ['Nacionalidad',w.nacionalidad],
+    ['Estado de nacimiento',w.edo_nacimiento],
+    'CONTACTO Y DOMICILIO',
+    ['Dirección',w.direccion],
+    ['Código postal',w.cp],
+    ['Teléfono',w.telefono],
+    ['Correo electrónico',w.correo],
+    'ADSCRIPCIÓN',
+    ['Obra',(OBRA&&OBRA.nombre)||null],
+    ['Contratista',w.contratista],
+    ['Cuadrilla',cu?cu.nombre:null],
+    ['Cabeza de la cuadrilla',cu?cuadLider(cu):null],
+    ['Puesto',w.puesto],
+    ['Funciones',w.funciones],
+    ['Turno',w.turno],
+    'ALTA, BAJA Y CONTRATO',
+    ['Estatus',w.estatus],
+    ['Fecha de alta',w.fecha_alta,'fecha'],
+    ['Semana de ingreso',w.semana_ingreso],
+    ['Fecha de reingreso',w.fecha_reingreso,'fecha'],
+    ['Tipo de contrato',w.tipo_contrato],
+    ['Fin de contrato',w.fecha_fin_contrato,'fecha'],
+    ['Fecha de baja',w.fecha_baja,'fecha'],
+    ['Motivo de baja',w.motivo_baja],
+    ['Monto de finiquito',w.monto_finiquito,'money'],
+    ['Motivo de pendiente',w.motivo_pendiente],
+    'SUELDO Y PAGO',
+    ['Salario diario (SD)',w.sd,'money'],
+    ['Salario diario integrado (SDI)',w.sdi,'money'],
+    ['Sueldo semanal',w.sal_semanal,'money'],
+    ['Periodo de pago',w.periodo_pago],
+    ['Forma de pago',w.forma_pago],
+    ['Banco',w.banco],
+    ['Cuenta',w.cuenta],
+    ['CLABE interbancaria',w.clabe],
+    'IMSS E INFONAVIT',
+    ['Movimiento IMSS',w.movimiento_imss],
+    ['Fecha del movimiento IMSS',w.fecha_mov_imss,'fecha'],
+    ['Registro patronal propio',w.registro_patronal],
+    ['Prima de riesgo propia',w.prima_rt],
+    ['Créditos y descuentos activos',des.length?des.map(x=>`${x.tipo||'DESCUENTO'} $${money(x.monto)}`):null],
+    'BENEFICIARIO',
+    ['Beneficiario',w.beneficiario],
+    ['Parentesco',w.benef_parentesco],
+    ['Teléfono del beneficiario',w.benef_telefono],
+    ['Porcentaje',w.benef_porcentaje,'pct'],
+    'VACACIONES, ACTAS Y NOM-035',
+    ['Antigüedad (años)',vac?vac.anios:null],
+    ['Días de vacaciones por ley',vac?vac.derecho:null],
+    ['Saldo de vacaciones',vac?vac.saldo:null],
+    ['Ausencia vigente',fh?`${fh.tipo} hasta ${fmtD(fh.fecha_fin)}`:null],
+    ['Actas administrativas',nActas||null],
+    ['NOM-035',nom?`${nom.guia} · ${fmtD(nom.fecha)} · ${nom.resultado}`:null],
+    'EXPEDIENTE',
+    ...DOCS.map(k=>[k,d[k]]),
+    ['Recibos de nómina archivados',recs.length||null],
+    ['Cheques emitidos',chq.length||null],
+    ['Carpeta en Drive',w.drive_link],
+  ];
+  /* El control interno salarial SOLO va si quien exporta es VIP: si no,
+     ni siquiera tiene las cifras (la base no se las manda). */
+  if(esVip()){
+    F.push('CONTROL INTERNO SALARIAL (SOLO VIP)',
+      ['Sueldo registrado (IMSS)',si?si.sueldo_imss:null,'money'],
+      ['Sueldo real',si?si.sueldo_real:null,'money'],
+      ['Diferencia',(si&&si.sueldo_imss!=null&&si.sueldo_real!=null)?(Number(si.sueldo_real)-Number(si.sueldo_imss)):null,'money'],
+      ['Notas del control interno',si?si.notas:null]);
+  }
+  F.push('REGISTRO',
+    ['Capturado por',w.creado_por],
+    ['Última modificación',w.actualizado_por],
+    ['Fecha de la última modificación',w.updated_at,'fecha'],
+    ['Exportado por',USER.email],
+    ['Fecha de exportación',new Date().toLocaleString('es-MX')]);
+
+  const EX={
+    tit:{font:{bold:true,sz:14,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'1F3864'}},alignment:{horizontal:'center',vertical:'center'}},
+    sub:{font:{sz:10,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'2F5496'}},alignment:{horizontal:'center',vertical:'center'}},
+    sec:{font:{bold:true,sz:11,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'2E75B6'}},alignment:{vertical:'center'}},
+    et :{font:{bold:true,sz:10,name:'Calibri'},fill:{fgColor:{rgb:'EBF3FB'}},border:BORD,alignment:{vertical:'center'}},
+    va :{font:{sz:10,name:'Calibri'},border:BORD,alignment:{vertical:'center',wrapText:true}},
+    /* Lo que falta se marca en ámbar: se ve de un vistazo qué hay que capturar. */
+    vf :{font:{sz:10,italic:true,color:{rgb:'8A6D1A'},name:'Calibri'},fill:{fgColor:{rgb:'FFF7E6'}},border:BORD,alignment:{vertical:'center'}}
+  };
+  const rows=[],styles=[],hs=[];
+  rows.push(['EXPEDIENTE DEL TRABAJADOR','']); styles.push(EX.tit); hs.push({hpt:26});
+  rows.push([fullName(w)+'   ·   No. '+expVal(w.no_trab),'']); styles.push(EX.sub); hs.push({hpt:18});
+  let faltan=0;
+  F.forEach(f=>{
+    if(typeof f==='string'){ rows.push([f,'']); styles.push(EX.sec); hs.push({hpt:20}); return; }
+    const v=expVal(f[1],f[2]);
+    if(v===EXP_VACIO)faltan++;
+    rows.push([f[0],v]);
+    styles.push([EX.et, v===EXP_VACIO?EX.vf:EX.va]);
+    hs.push({hpt:16});
+  });
+  const merges=[{s:{r:0,c:0},e:{r:0,c:1}},{s:{r:1,c:0},e:{r:1,c:1}}];
+  styles.forEach((st,r)=>{ if(st===EX.sec)merges.push({s:{r,c:0},e:{r,c:1}}); });
+  const ws=buildSheet(rows,styles,[34,52],merges,hs);
+  ws['!margins']={left:0.5,right:0.5,top:0.5,bottom:0.5,header:0.2,footer:0.2};
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'EXPEDIENTE');
+  const safe=fullName(w).replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+/g,'_').slice(0,60);
+  dl(wb,`EXPEDIENTE_${w.no_trab??'SN'}_${safe}.xlsx`);
+  toast(`Expediente de ${fullName(w)} exportado${faltan?` · ${faltan} campo(s) sin información`:' · completo'}.`,faltan?'':'ok');
 }
 /* ---------- BLOQUES (LOTES) DE CHEQUES POR SEMANA (2026-08-27) --------
    Un bloque es "los cheques de esta obra en esta semana". No se guarda
@@ -7185,6 +7342,15 @@ const AS={
   b:{font:{sz:9,name:'Calibri'},border:BORD},
   f:{font:{bold:true,sz:9,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'1F3864'}},alignment:{horizontal:'center',vertical:'center'}}
 };
+/* Ancho de una columna a la medida de su contenido, en unidades de Excel
+   (1 unidad ≈ 1 carácter). Se acota entre min y max para que ni se corte ni
+   se coma el espacio que necesita la firma. */
+function asAncho(valores,min,max,holgura){
+  let n=0;
+  (valores||[]).forEach(v=>String(v==null?'':v).split('\n')
+    .forEach(l=>{ if(l.length>n)n=l.length; }));
+  return Math.max(min,Math.min(max,n+(holgura===undefined?2:holgura)));
+}
 function asDias(d1){
   const DN=['LUNES','MARTES','MIÉ.','JUEVES','VIERNES','SÁBADO'];
   const M3=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
@@ -7195,7 +7361,10 @@ function asDias(d1){
 function asSheet(grupo,cfg,blanco){
   // blanco (nuevo ingreso): solo NOMBRE + EMPRESA/CONTRATISTA + 12 columnas de días = 14
   // lista normal: NO. + NOMBRE + NSS + 12 columnas de días = 15
-  const nc=blanco?15:15;
+  /* Columnas de datos: la lista normal lleva 3 (No., nombre, NSS) y la de nuevo
+     ingreso solo 2 (nombre y puesto). Las 12 restantes son las de firma. */
+  const base=blanco?2:3;
+  const nc=base+12;
   const rows=[],styles=[],hs=[];
   const dias=asDias(cfg.d1);
   const mrow=(arr)=>{while(arr.length<nc)arr.push('');return arr;};
@@ -7210,10 +7379,9 @@ function asSheet(grupo,cfg,blanco){
   const gTxt=cfg.grupo?(cfg.grupo.contratista+(cfg.grupo.cuadrilla?' · '+cfg.grupo.cuadrilla:'')
     +(cfg.grupo.lider?'  —  CABEZA: '+cfg.grupo.lider:'')+(cfg.parte?'  ('+cfg.parte+')':'')):'';
   rows.push(mrow(['CUADRILLA:','',gTxt||'—'])); styles.push([AS.lb2,AS.lb2].concat(new Array(nc-2).fill(AS.lv2))); hs.push({hpt:20});
-  const head1=blanco?['NOMBRE COMPLETO','EMPRESA /\nCONTRATISTA','TELÉFONO']:['NO.\nTRAB.','NOMBRE COMPLETO','NSS'];
+  const head1=blanco?['NOMBRE COMPLETO','PUESTO']:['NO.\nTRAB.','NOMBRE COMPLETO','NSS'];
   dias.forEach(d=>{head1.push(d,'');});
   rows.push(mrow(head1.slice(0,nc))); styles.push(AS.h); hs.push({hpt:26});
-  const base=blanco?3:3;
   const head2=new Array(base).fill('');
   for(let i=0;i<6;i++)head2.push('ENTRADA','SALIDA');
   rows.push(mrow(head2.slice(0,nc))); styles.push(AS.h2); hs.push({hpt:12});
@@ -7249,12 +7417,27 @@ function asSheet(grupo,cfg,blanco){
     {s:{r:17,c:0},e:{r:17,c:last}}];
   for(let i=0;i<6;i++)merges.push({s:{r:4,c:base+i*2},e:{r:4,c:base+i*2+1}});
   for(let c=0;c<base;c++)merges.push({s:{r:4,c},e:{r:6,c}});
-  // Anchos calibrados para caber al 100% en CARTA HORIZONTAL con márgenes de 0.25".
-  // Nombre ANCHO (con ajuste de texto se parte en 2 líneas si es larguísimo) y las
-  // 12 columnas de días más angostas, de modo que el ancho total (~9.5") quepa en
-  // UNA sola página horizontal sin cortar la hoja en dos.
-  const widths=blanco?[29,12,10]:[4,32,11.5];
-  while(widths.length<nc)widths.push(5.8);
+  /* ANCHOS (2026-08-27) · CARTA HORIZONTAL con márgenes de 0.25" = 10.5" útiles.
+     En unidades de Excel eso son ~130 caracteres. Las columnas de datos se
+     ajustan a SU contenido —ni cortan ni sobra— y TODO lo que sobra se reparte
+     entre las 12 columnas de firma, que es donde de verdad hace falta espacio.
+     Antes iban fijas en 5.8 y quedaban ~12 unidades de la hoja sin usar. */
+  /* 117 es el presupuesto REAL, medido contra la lista que ya se imprimía bien:
+     sus anchos sumaban 117 y Excel les agrega ~0.8 de relleno a cada columna,
+     así que el archivo terminaba en ~129, que es justo lo que cabe en carta
+     horizontal. Con 130 la hoja se pasaba a 11.5" y se partía en dos páginas. */
+  const ANCHO_UTIL=117;
+  const widths = blanco
+    ? [ asAncho(['NOMBRE COMPLETO'],24,26), asAncho(['PUESTO'],14,16) ]
+    : [ asAncho(['NO.','TRAB.'].concat(grupo.map(w=>w.no_trab)),4,5,1),
+        /* El nombre lleva ajuste de texto y el renglón mide 38 pt: si alguno es
+           larguísimo se parte en dos líneas y se lee igual, así que se acota
+           para que el espacio sobrante se vaya a las firmas. */
+        asAncho(['NOMBRE COMPLETO'].concat(grupo.map(w=>fullName(w))),16,24),
+        asAncho(['NSS'].concat(grupo.map(w=>w.nss||'')),11,12,1) ];
+  const sobra=Math.max(0,ANCHO_UTIL-widths.reduce((a,b)=>a+b,0));
+  const wFirma=Math.max(5.8,Math.round((sobra/12)*10)/10);
+  while(widths.length<nc)widths.push(wFirma);
   const ws=buildSheet(rows,styles,widths,merges,hs);
   // Margen superior amplio: baja todo el contenido para dejar el espacio en
   // blanco arriba (lado del encabezado) y poder perforar SIN tocar el encabezado.
