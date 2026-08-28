@@ -709,6 +709,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <button class="sb-item" onclick="sbGo(openRequisicion)"><span class="ic">🪪</span>Requisición de tarjetas</button>
         <button class="sb-item" onclick="sbGo(openRecepcionTarjetas)"><span class="ic">✍</span>Recepción de tarjetas (firmas)</button>
         <button class="sb-item" onclick="sbGo(openLegajos)"><span class="ic">🗂</span>Legajos para entrega de cheques</button>
+        <button class="sb-item" onclick="sbGo(openBloques)"><span class="ic">📦</span>Bloques de cheques por semana</button>
         <button class="sb-item" onclick="sbGo(openFaltanRecibos)"><span class="ic">📋</span>Faltan recibos de nómina</button>
         <button class="sb-item" onclick="sbGo(openReporteDocs)"><span class="ic">📑</span>Reporte de documentación</button>
         <button class="sb-item" onclick="sbGo(openAltasSemana)"><span class="ic">📆</span>Altas por semana</button>
@@ -1029,6 +1030,10 @@ const BANCOS = {"012":"BBVA","127":"AZTECA","002":"BANAMEX","014":"SANTANDER","0
 const RX = {curp:/^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/, rfc:/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{2,3}$/, nss:/^\d{11}$/, clabe:/^\d{18}$/, cp:/^\d{5}$/, tel:/^\d{10}$/, mail:/^[^\s@]+@[^\s@]+\.[^\s@]+$/};
 
 let sb=null, USER=null, OBRAS=[], OBRA=null, WORKERS=[], CHEQUES=[], DESC=[], DOCSX=[], VAC=[], ACTAS=[], NOM=[], PAGOS=[], PRIMAS=[], CUADS=[], VIEW='trab';
+/* Script 59: diferenciales de proyección, bloques de cheques y control interno
+   salarial. SUELDOSINT solo trae filas si el usuario es VIP — lo decide la RLS
+   de la base, no la app. */
+let DIFS=[], BLOQUES=[], SUELDOSINT=[], ES_VIP=false;
 /* Supabase corta cada consulta a 1000 filas. Con cientos de trabajadores y miles
    de recibos/cheques eso deja fuera muchos registros (por eso "solo salían los
    últimos recibos"). fetchAllRows pagina con .range() hasta traerlos TODOS. */
@@ -1051,6 +1056,25 @@ let _DASHCHARTS=[]; // v24: instancias de Chart.js del dashboard ejecutivo, para
    (trigger fn_proteger_papelera, Script 27) — esto solo oculta el botón en la UI. */
 function adminEmail(){return ((CFGEMP['admin_papelera']||{}).email||'darieljtg@gmail.com').toLowerCase();}
 function esAdmin(){return !!(USER&&USER.email&&USER.email.toLowerCase()===adminEmail());}
+/* VIP = acceso total (app_usuarios.full_access en la base). Se resuelve al abrir
+   sesión; el administrador siempre lo es. Solo sirve para MOSTRAR u ocultar: lo
+   que de verdad protege los datos es la RLS. */
+function esVip(){return ES_VIP||esAdmin();}
+async function cargaPermisos(){
+  try{
+    const {data}=await sb.from('app_usuarios').select('full_access,activo,rol').eq('user_id',USER.id).limit(1);
+    const u=(data||[])[0];
+    ES_VIP=!!(u&&u.full_access&&u.activo!==false);
+  }catch(e){ ES_VIP=false; }   // sin script 51 corrido: solo el administrador
+}
+/* Diferencial vigente de un trabajador en una semana (Bloque 1). */
+function difDe(tid,sem){
+  const ns=normSem(sem); if(!tid||!ns)return 0;
+  const d=(DIFS||[]).find(x=>x.activo!==false&&x.trabajador_id===tid&&String(x.semana)===ns);
+  return d?(Number(d.monto)||0):0;
+}
+/* Sueldos internos de un trabajador (Bloque 2). Vacío si no es VIP. */
+function sueldoInternoDe(tid){return (SUELDOSINT||[]).find(x=>x.trabajador_id===tid)||null;}
 if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 let SORT={k:'no_trab',asc:true}, CSORT={k:'semana',asc:false};
 let lastLocalWrite=0, rtTimer=null;
@@ -1189,6 +1213,7 @@ async function doLogout(){await sb.auth.signOut();location.reload();}
 async function enterApp(){
   $('scr-app').classList.remove('hide');
   $('user-chip').innerHTML=`<b>${esc(String(USER.email||'').split('@')[0])}</b>${esc(USER.email)}`;
+  await cargaPermisos();          // define si es VIP (control interno salarial)
   pintarLogo();renderCrumbs();initSidebar();iaMostrarFab();
   const {data,error}=await sb.from('obras').select('*').order('orden');
   if(error){toast('Error al cargar obras: '+error.message,'err');return;}
@@ -1385,7 +1410,7 @@ async function loadObraData(id){
   skeletonTabla('tbody',9,14,'Cargando trabajadores...');
   skeletonTabla('chq-tbody',6,10,'Cargando cheques...');
   skeletonTabla('pg-v-tbody',5,9,'Cargando pagos...');
-  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd}]=await Promise.all([
+  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si}]=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
     fetchAllRows(()=>sb.from('cheques').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id)),
@@ -1395,10 +1420,15 @@ async function loadObraData(id){
     fetchAllRows(()=>sb.from('nom035').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('pagos').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('prima_pagos').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('cuadrillas').select('*').eq('obra_id',id))
+    fetchAllRows(()=>sb.from('cuadrillas').select('*').eq('obra_id',id)),
+    fetchAllRows(()=>sb.from('diferenciales').select('*').eq('obra_id',id).eq('activo',true)),
+    fetchAllRows(()=>sb.from('bloques_cheques').select('*').eq('obra_id',id)),
+    /* Si el usuario NO es VIP, la política de la base devuelve cero filas: la
+       cifra no llega al navegador, no es que se esconda con CSS. */
+    fetchAllRows(()=>sb.from('sueldos_internos').select('*').eq('obra_id',id))
   ]);
   if(e1){toast('Error al cargar trabajadores: '+e1.message,'err');return;}
-  WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];PAGOS=pg||[];PRIMAS=(pr||[]).filter(p=>p.activo!==false);CUADS=cd||[];
+  WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];PAGOS=pg||[];PRIMAS=(pr||[]).filter(p=>p.activo!==false);CUADS=cd||[];DIFS=df||[];BLOQUES=bq||[];SUELDOSINT=si||[];
   await activarProgramados();
   const cs=[...new Set(WORKERS.map(w=>w.contratista).filter(Boolean))].sort();
   const cur=$('flt-contratista').value;
@@ -1428,7 +1458,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-27.1';
+const APP_VERSION='2026-08-27.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2192,6 +2222,22 @@ function openDetail(id){
         <div class="kv"><b>Vacaciones</b><span>Saldo <b style="color:var(--green)">${s.saldo}</b> de ${s.derecho} día(s) · ${s.anios} año(s) de antigüedad ${f?` · <span class="badge PENDIENTE">${esc(f.tipo)} hasta ${fmtD(f.fecha_fin)}</span>`:''} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:6px" onclick="openVacForm('${w.id}')">🌴 Ver / registrar</button></span></div>
         <div class="kv"><b>Actas</b><span>${nActas?nActas+' registro(s) en su expediente':'Sin actas'} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:6px" onclick="openActaForm('${w.id}')">📋 Nueva acta</button></span></div>
         <div class="kv"><b>NOM-035</b><span>${nomU?`${esc(nomU.guia)} · ${fmtD(nomU.fecha)} · <b>${esc(nomU.resultado)}</b>${nomU.requiere_atencion?' ⚠️':''}`:'Sin evaluación registrada'}</span></div>`;
+      })()}
+      ${(function(){
+        /* CONTROL INTERNO SALARIAL (Bloque 2) — solo VIP.
+           Esconder el recuadro no protegería nada: lo que de verdad tapa las
+           cifras es la política RLS de sueldos_internos, que a quien no es VIP
+           le devuelve CERO filas. Este `if` solo evita mostrar un recuadro
+           vacío a quien no tiene por qué verlo. */
+        if(!esVip())return '';
+        const si=sueldoInternoDe(w.id)||{};
+        const dif=(Number(si.sueldo_real)||0)-(Number(si.sueldo_imss)||0);
+        return `<div class="sect">Control interno salarial <span class="badge PENDIENTE" style="font-size:9.5px;margin-left:6px">SOLO VIP</span></div>
+        <div class="kv" style="background:var(--blue-bg)"><b>Métrica interna</b><span style="font-size:12px">Estas cifras <b>no intervienen</b> en el cálculo de nómina, ISR ni IMSS: son solo para medir la diferencia entre lo registrado y lo que se paga.</span></div>
+        <div class="kv"><b>Sueldo registrado (IMSS)</b><span>${si.sueldo_imss!=null?'$'+money(si.sueldo_imss):'<span style="color:var(--mut)">sin capturar</span>'}</span></div>
+        <div class="kv"><b>Sueldo real</b><span>${si.sueldo_real!=null?'$'+money(si.sueldo_real):'<span style="color:var(--mut)">sin capturar</span>'}</span></div>
+        ${(si.sueldo_imss!=null&&si.sueldo_real!=null)?`<div class="kv"><b>Diferencia</b><span><b style="color:${dif>0?'var(--amber)':'var(--txt)'}">${dif>=0?'+':''}$${money(dif)}</b>${si.sueldo_imss>0?` · el real es ${Math.round((Number(si.sueldo_real)/Number(si.sueldo_imss))*100)}% del registrado`:''}</span></div>`:''}
+        <div class="kv"><b></b><span><button class="btn" style="padding:3px 12px;font-size:12px" onclick="openSueldoInterno('${w.id}')">✎ Editar control interno</button>${si.actualizado_por?` <span style="color:var(--mut);font-size:11px;margin-left:8px">Última edición: ${esc(si.actualizado_por)}</span>`:''}</span></div>`;
       })()}
       ${(function(){
         const byW=x=>parseInt(String(x.semana||'').replace(/\D/g,''))||0;
@@ -3614,6 +3660,7 @@ function openProyeccion(){
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn" onclick="openProyContratista()">👷 Por contratista</button>
+      <button class="btn" onclick="openDiferenciales()" title="Monto extra por trabajador para esta semana (opcional)">➕ Agregar diferencial</button>
       <button class="btn dark" id="py-btn" onclick="exportProyeccion()">⬇ Generar Excel</button>
     </div>`,'md');
   pyPreview();
@@ -3653,7 +3700,11 @@ function pyPreview(){
 }
 /* ---------- v12: núcleo compartido de proyección (con fórmulas vivas) ---------- */
 function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
-  const dsInfo=w=>{const d=descuentosDe(w,sem);return {ret:d.total,neto:Math.max(0,(Number(w.sal_semanal)||0)-d.total)};};
+  /* MONTO = sueldo base + DIFERENCIAL de la semana − retenciones (Bloque 1).
+     El diferencial es un extra capturado a mano para esa semana; no forma parte
+     del sueldo, así que no toca el tabulador ni el cálculo de ISR/IMSS. */
+  const dsInfo=w=>{const d=descuentosDe(w,sem), dif=difDe(w.id,sem);
+    return {ret:d.total, dif, neto:Math.max(0,(Number(w.sal_semanal)||0)+dif-d.total)};};
   // v12.1: SOLO cuentan datos reales — cuenta con 6+ dígitos, CLABE con 10+ dígitos.
   const digitos=v=>String(v??'').replace(/\D/g,'');
   const ctaOk=w=>{const c=String(w.cuenta??'').trim();return (c&&c.toUpperCase()!=='CREAR'&&digitos(c).length>=6)?c:'';};
@@ -3665,7 +3716,8 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
   const transf=act.filter(w=>tieneCta(w)&&(w.forma_pago||'TRANSFERENCIA')==='TRANSFERENCIA').sort(cmp);
   const chqAct=act.filter(w=>tieneCta(w)&&w.forma_pago==='CHEQUE');
   const sinCta=act.filter(w=>!tieneCta(w)).sort(cmp);
-  const chequeRows=[...fins.map(w=>({w,ret:0,imp:Number(w.monto_finiquito)||0,fin:true})),...chqAct.map(w=>{const x=dsInfo(w);return {w,ret:x.ret,imp:x.neto,fin:false};})].sort((a,b)=>cmp(a.w,b.w));
+  // dif viaja en cada renglón: la fórmula de Excel lo necesita para no borrarlo.
+  const chequeRows=[...fins.map(w=>({w,ret:0,dif:0,imp:Number(w.monto_finiquito)||0,fin:true})),...chqAct.map(w=>{const x=dsInfo(w);return {w,ret:x.ret,dif:x.dif,imp:x.neto,fin:false};})].sort((a,b)=>cmp(a.w,b.w));
   const rows=[],styles=[],hs=[],secRows=[],fx=[];
   rows.push([titulo]); styles.push(ST.title); hs.push({hpt:26});
   rows.push([sub]); styles.push(ST.sub); hs.push({hpt:18});
@@ -3681,7 +3733,9 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
     transf.forEach(w=>{const x=dsInfo(w);tT+=x.neto;tR+=x.ret;
       const r=xr();
       rows.push([w.no_trab??'',bVal(w),fullName(w),clOk(w)?'/'+clOk(w):'—',ctaOk(w)||'—',w.banco||'BBVA',x.ret||'',x.neto,'TRANSFERENCIA']);
-      if(x.ret>0)fx.push({r,base:Number(w.sal_semanal)||0});
+      // OJO: la base de la fórmula lleva el diferencial. Si se dejara el sueldo
+      // pelón, Excel recalcularía H = base − retención y lo borraría.
+      if(x.ret>0)fx.push({r,base:(Number(w.sal_semanal)||0)+x.dif});
       styles.push(rowSt);hs.push(null);});
     trRange=[a,xr()-1];}
   if(chequeRows.length){
@@ -3691,7 +3745,7 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
     chequeRows.forEach(x=>{tC+=x.imp;tR+=x.ret;
       const r=xr();
       rows.push([x.w.no_trab??'',bVal(x.w),fullName(x.w),clOk(x.w)?'/'+clOk(x.w):'—',ctaOk(x.w)||'—',x.w.banco||'—',x.ret||'',x.imp||'','CHEQUE']);
-      if(!x.fin&&x.ret>0)fx.push({r,base:Number(x.w.sal_semanal)||0});
+      if(!x.fin&&x.ret>0)fx.push({r,base:(Number(x.w.sal_semanal)||0)+(x.dif||0)});
       styles.push(finSt);hs.push(null);});
     chRange=[a,xr()-1];}
   if(sinCta.length){
@@ -3701,7 +3755,7 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
     sinCta.forEach(w=>{const x=dsInfo(w);tP+=x.neto;tR+=x.ret;
       const r=xr();
       rows.push([w.no_trab??'',bVal(w),fullName(w),'—','—',w.banco||'—',x.ret||'',x.neto,'CHEQUE']);
-      if(x.ret>0)fx.push({r,base:Number(w.sal_semanal)||0});
+      if(x.ret>0)fx.push({r,base:(Number(w.sal_semanal)||0)+x.dif});
       styles.push(penSt);hs.push(null);});
     pendRange=[a,xr()-1];}
   const total=tT+tC+tP, nTot=transf.length+chequeRows.length+sinCta.length;
@@ -3732,6 +3786,241 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
   F('I'+rT2,'G'+rTot);
   F('H'+rT3,'H'+rTot);
   return {ws,tT,tC,tP,tR,total,nTot};
+}
+/* ---------- BLOQUES (LOTES) DE CHEQUES POR SEMANA (2026-08-27) --------
+   Un bloque es "los cheques de esta obra en esta semana". No se guarda
+   una copia de los cheques ni un id en cada uno: las cantidades, montos y
+   el desglose por contratista se calculan en vivo desde CHEQUES, y la
+   tabla bloques_cheques solo guarda lo que no se puede deducir —cuándo se
+   armó y cuándo se entrega—. Así no hay dos verdades: si se cancela un
+   cheque, el bloque se ajusta solo. */
+function bloquesDatos(){
+  const porSem=new Map();
+  (CHEQUES||[]).forEach(c=>{
+    if(c.eliminado)return;
+    if(String(c.estatus||'').toUpperCase()==='CANCELADO')return;
+    const sem=normSem(c.semana); if(!sem)return;
+    if(!porSem.has(sem))porSem.set(sem,{sem,cuantos:0,monto:0,pendientes:0,entregados:0,finiquitos:0,contr:new Map()});
+    const b=porSem.get(sem), imp=Number(c.importe)||0, est=String(c.estatus||'').toUpperCase();
+    b.cuantos++; b.monto+=imp;
+    if(est==='PENDIENTE')b.pendientes++; else if(est==='ENTREGADO')b.entregados++;
+    if(String(c.tipo_pago||'').toUpperCase()==='FINIQUITO')b.finiquitos++;
+    const k=String(c.contratista||'').trim()||'(sin contratista)';
+    const x=b.contr.get(k)||{contratista:k,cuantos:0,monto:0};
+    x.cuantos++; x.monto+=imp; b.contr.set(k,x);
+  });
+  // Semanas con registro pero sin cheques vigentes: también se muestran.
+  (BLOQUES||[]).forEach(r=>{const sem=String(r.semana);
+    if(!porSem.has(sem))porSem.set(sem,{sem,cuantos:0,monto:0,pendientes:0,entregados:0,finiquitos:0,contr:new Map()});});
+  return [...porSem.values()].map(b=>{
+    const reg=(BLOQUES||[]).find(r=>String(r.semana)===b.sem)||null;
+    return {...b, reg, desglose:[...b.contr.values()].sort((x,y)=>y.monto-x.monto)};
+  }).sort((a,b)=>Number(b.sem)-Number(a.sem));
+}
+function openBloques(){
+  modal(`
+    <div class="m-head"><h2>📦 Bloques de cheques · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px">Cada bloque son <b>los cheques de una semana</b>. Las cantidades y los montos se calculan de los cheques capturados, así que <b>siempre están al día</b>: si se cancela uno, el bloque se ajusta solo. Lo único que se captura a mano son las <b>fechas</b> de armado y de entrega.</p>
+      <div id="bq-out"></div>
+    </div>
+    <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`,'lg');
+  bqPinta();
+}
+function bqPinta(){
+  const out=$('bq-out'); if(!out)return;
+  const bs=bloquesDatos();
+  if(!bs.length){out.innerHTML='<div class="empty"><div class="big">📦</div>Todavía no hay cheques capturados en esta obra.</div>';return;}
+  out.innerHTML=bs.map(b=>{
+    const r=b.reg;
+    return `<div class="card-bq" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        <b style="font-size:16px">Semana ${esc(b.sem)}</b>
+        ${r?'':'<span class="badge PENDIENTE" style="font-size:9.5px">SIN FECHAS</span>'}
+        <span style="margin-left:auto">
+          <button class="btn" style="padding:3px 12px;font-size:12px" onclick="openBloqueFechas('${b.sem}')">${r?'✎ Editar fechas':'📅 Capturar fechas'}</button>
+        </span>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <div class="stat"><div class="n">${b.cuantos}</div><div class="l">Cheques</div></div>
+        <div class="stat g"><div class="n">$${money(b.monto)}</div><div class="l">Monto del bloque</div></div>
+        <div class="stat a"><div class="n">${b.pendientes}</div><div class="l">Por entregar</div></div>
+        <div class="stat b"><div class="n">${b.entregados}</div><div class="l">Entregados</div></div>
+        ${b.finiquitos?`<div class="stat r"><div class="n">${b.finiquitos}</div><div class="l">Finiquitos</div></div>`:''}
+      </div>
+      <div class="kv"><b>Creado</b><span>${r&&r.fecha_creacion?fmtD(r.fecha_creacion):'<span style="color:var(--mut)">sin capturar</span>'}</span></div>
+      <div class="kv"><b>Entrega programada</b><span>${r&&r.fecha_entrega?fmtD(r.fecha_entrega):'<span style="color:var(--mut)">sin programar</span>'}</span></div>
+      ${r&&r.notas?`<div class="kv"><b>Notas</b><span>${esc(r.notas)}</span></div>`:''}
+      <div class="sect" style="margin-top:10px">Desglose por contratista</div>
+      ${b.desglose.length?`<table class="tb"><thead><tr><th>Contratista</th><th style="text-align:right">Cheques</th><th style="text-align:right">Monto</th></tr></thead><tbody>
+        ${b.desglose.map(d=>`<tr><td><b>${esc(d.contratista)}</b></td><td style="text-align:right">${d.cuantos}</td><td style="text-align:right">$${money(d.monto)}</td></tr>`).join('')}
+      </tbody></table>`:'<div class="kv"><b>—</b><span>Sin cheques vigentes en esta semana.</span></div>'}
+    </div>`;
+  }).join('');
+}
+function openBloqueFechas(sem){
+  const r=(BLOQUES||[]).find(x=>String(x.semana)===String(sem))||{};
+  modal2(`
+    <div class="m-head"><h2>📅 Bloque · Semana ${esc(sem)}</h2><button class="x" onclick="closeModal2()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px">Solo las fechas y las notas: las cantidades y los montos salen de los cheques y no se capturan.</p>
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div><label>Fecha de creación</label><input id="bq-f1" type="date" value="${r.fecha_creacion?String(r.fecha_creacion).slice(0,10):today()}"></div>
+        <div><label>Entrega programada</label><input id="bq-f2" type="date" value="${r.fecha_entrega?String(r.fecha_entrega).slice(0,10):''}"></div>
+      </div>
+      <div class="fld" style="margin-top:10px"><label>Notas (opcional)</label><input id="bq-notas" value="${esc(r.notas||'')}" placeholder="Referencia o comentario"></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal2()">Cancelar</button>
+      ${r.id?`<button class="btn danger" onclick="bqBorrar('${r.id}')">Quitar fechas</button>`:''}
+      <button class="btn dark" onclick="bqGuardar('${sem}')">Guardar</button>
+    </div>`,'sm');
+}
+async function bqGuardar(sem){
+  const fila={obra_id:OBRA.id, semana:Number(normSem(sem)),
+    fecha_creacion:$('bq-f1').value||today(), fecha_entrega:$('bq-f2').value||null,
+    notas:$('bq-notas').value.trim()||null, creado_por:USER.email, updated_at:new Date().toISOString()};
+  const {error}=await sb.from('bloques_cheques').upsert(fila,{onConflict:'obra_id,semana'});
+  if(error){toast('No se pudo guardar: '+error.message,'err');return;}
+  const {data}=await fetchAllRows(()=>sb.from('bloques_cheques').select('*').eq('obra_id',OBRA.id));
+  BLOQUES=data||[];
+  closeModal2(); bqPinta();
+  toast(`Bloque de la semana ${sem} guardado.`,'ok');
+}
+async function bqBorrar(id){
+  if(!confirm('¿Quitar las fechas de este bloque? Los cheques NO se tocan.'))return;
+  const {error}=await sb.from('bloques_cheques').delete().eq('id',id);
+  if(error){toast('No se pudo quitar: '+error.message,'err');return;}
+  BLOQUES=(BLOQUES||[]).filter(x=>x.id!==id);
+  closeModal2(); bqPinta();
+  toast('Fechas quitadas. El bloque sigue mostrándose con sus cheques.','ok');
+}
+/* ---------- CONTROL INTERNO SALARIAL (2026-08-27) ---------------------
+   Sueldo registrado ante el IMSS vs sueldo real. Solo VIP, y la tabla
+   sueldos_internos tiene su propia política RLS: quien no es VIP no
+   recibe las filas aunque pida la tabla directo a la API. */
+async function openSueldoInterno(id){
+  if(!esVip()){toast('Solo los usuarios con acceso total pueden ver el control interno salarial.','err');return;}
+  const w=WORKERS.find(x=>x.id===id); if(!w)return;
+  const si=sueldoInternoDe(id)||{};
+  modal2(`
+    <div class="m-head"><h2>🔒 Control interno salarial</h2><button class="x" onclick="closeModal2()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px"><b>${esc(fullName(w))}</b> · #${w.no_trab??'—'}<br>
+      Solo para medir. <b>No modifica</b> el sueldo del tabulador, ni la nómina, ni el ISR, ni el IMSS: ningún cálculo lee estos campos.</p>
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div><label>Sueldo registrado (IMSS)</label><input id="si-imss" type="number" step="0.01" min="0" value="${si.sueldo_imss!=null?si.sueldo_imss:''}" placeholder="0.00"></div>
+        <div><label>Sueldo real</label><input id="si-real" type="number" step="0.01" min="0" value="${si.sueldo_real!=null?si.sueldo_real:''}" placeholder="0.00"></div>
+      </div>
+      <div class="fld" style="margin-top:10px"><label>Notas (opcional)</label><input id="si-notas" value="${esc(si.notas||'')}" placeholder="Motivo o referencia"></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal2()">Cancelar</button>
+      ${(si.sueldo_imss!=null||si.sueldo_real!=null)?`<button class="btn danger" onclick="siBorrar('${id}')">Quitar registro</button>`:''}
+      <button class="btn dark" onclick="siGuardar('${id}')">Guardar</button>
+    </div>`,'sm');
+}
+async function siGuardar(id){
+  const w=WORKERS.find(x=>x.id===id); if(!w)return;
+  const num=v=>{const s=String(v||'').trim(); if(!s)return null; const n=Number(s); return isNaN(n)?null:Math.round(n*100)/100;};
+  const fila={trabajador_id:id,obra_id:w.obra_id,sueldo_imss:num($('si-imss').value),
+    sueldo_real:num($('si-real').value),notas:$('si-notas').value.trim()||null,
+    actualizado_por:USER.email,updated_at:new Date().toISOString()};
+  const {error}=await sb.from('sueldos_internos').upsert(fila,{onConflict:'trabajador_id'});
+  if(error){toast('No se pudo guardar: '+error.message,'err');return;}
+  const {data}=await fetchAllRows(()=>sb.from('sueldos_internos').select('*').eq('obra_id',OBRA.id));
+  SUELDOSINT=data||[];
+  closeModal2(); openDetail(id);
+  toast('Control interno salarial guardado.','ok');
+}
+async function siBorrar(id){
+  if(!confirm('¿Quitar el control interno salarial de este trabajador?'))return;
+  const {error}=await sb.from('sueldos_internos').delete().eq('trabajador_id',id);
+  if(error){toast('No se pudo quitar: '+error.message,'err');return;}
+  SUELDOSINT=(SUELDOSINT||[]).filter(x=>x.trabajador_id!==id);
+  closeModal2(); openDetail(id);
+  toast('Registro quitado.','ok');
+}
+/* ---------- DIFERENCIALES DE PROYECCIÓN (2026-08-27) ------------------
+   Monto extra por trabajador para UNA semana. Opcional: si nadie captura
+   nada, la proyección sale exactamente como antes. No toca el sueldo del
+   tabulador ni el cálculo de impuestos — solo se suma al presentar. */
+function openDiferenciales(){
+  const sem=normSem($('py-sem')?$('py-sem').value:semObra())||String(semObra());
+  const d1=$('py-d1')?$('py-d1').value:'', d2=$('py-d2')?$('py-d2').value:'';
+  const per=$('py-periodo')?$('py-periodo').value:'TODOS';
+  const {act,fins}=pyCandidatos(d1,d2,per);
+  const gente=[...act,...fins].sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+  if(!gente.length){toast('No hay trabajadores en esa semana.','err');return;}
+  modal2(`
+    <div class="m-head"><h2>➕ Diferenciales · Semana ${esc(sem)}</h2><button class="x" onclick="closeModal2()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Monto <b>extra</b> que se le suma a un trabajador <b>solo en esta semana</b>. Déjalo vacío o en cero para quitarlo. No modifica su sueldo del tabulador ni el cálculo de impuestos: únicamente se suma al monto de la proyección.</p>
+      <input id="df-q" placeholder="Buscar por nombre o número..." oninput="dfPinta()" autocomplete="off" style="margin-bottom:10px">
+      <div id="df-out" style="max-height:46vh;overflow:auto"></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal2()">Cancelar</button>
+      <span id="df-res" style="margin-right:auto;font-size:12px;color:var(--mut);align-self:center"></span>
+      <button class="btn dark" id="df-btn" onclick="dfGuardar()">Guardar diferenciales</button>
+    </div>`,'md');
+  window._DF={sem,gente};
+  dfPinta();
+}
+function dfPinta(){
+  const st=window._DF; if(!st)return;
+  const q=String(($('df-q')&&$('df-q').value)||'').toUpperCase().trim();
+  const vis=st.gente.filter(w=>!q||fullName(w).toUpperCase().includes(q)||String(w.no_trab||'').includes(q));
+  const val=w=>{const e=$('df-m-'+w.id); return e?e.value:(difDe(w.id,st.sem)||'');};
+  const cur={}; st.gente.forEach(w=>{const e=$('df-m-'+w.id); if(e)cur[w.id]=e.value;});
+  $('df-out').innerHTML = vis.length
+    ? `<div class="imp-row head" style="grid-template-columns:52px 1.7fr 1fr 1fr"><span>No.</span><span>Trabajador</span><span>Sueldo semanal</span><span>Diferencial</span></div>`+
+      vis.map(w=>`<div class="imp-row" style="grid-template-columns:52px 1.7fr 1fr 1fr">
+        <span>${w.no_trab??'—'}</span>
+        <span><b>${esc(fullName(w))}</b>${w.estatus==='BAJA'?' <span class="badge BAJA" style="font-size:9.5px">BAJA</span>':''}</span>
+        <span>$${money(w.estatus==='BAJA'?(w.monto_finiquito||0):(w.sal_semanal||0))}</span>
+        <span><input type="number" step="0.01" min="0" id="df-m-${w.id}" value="${cur[w.id]!==undefined?esc(cur[w.id]):esc(String(difDe(w.id,st.sem)||''))}"
+              placeholder="0.00" oninput="dfResumen()" style="padding:4px 8px;font-size:12.5px"></span>
+      </div>`).join('')
+    : '<div class="empty">Nadie coincide con esa búsqueda.</div>';
+  dfResumen();
+}
+function dfResumen(){
+  const st=window._DF; if(!st||!$('df-res'))return;
+  let n=0,t=0;
+  st.gente.forEach(w=>{const e=$('df-m-'+w.id); const m=e?Number(e.value)||0:difDe(w.id,st.sem);
+    if(m>0){n++;t+=m;}});
+  $('df-res').textContent=n?`${n} con diferencial · suman $${money(t)}`:'Sin diferenciales capturados';
+}
+async function dfGuardar(){
+  const st=window._DF; if(!st)return;
+  const btn=$('df-btn'); btn.innerHTML='<span class="spin"></span> Guardando...';
+  const alta=[], baja=[];
+  st.gente.forEach(w=>{
+    const e=$('df-m-'+w.id); if(!e)return;                 // fuera del filtro: no se toca
+    const m=Math.round((Number(e.value)||0)*100)/100;
+    const ya=difDe(w.id,st.sem);
+    if(m>0)      alta.push({obra_id:OBRA.id,trabajador_id:w.id,semana:Number(st.sem),monto:m,activo:true,creado_por:USER.email});
+    else if(ya>0)baja.push(w.id);                          // se capturó vacío o cero: se quita
+  });
+  let err=0;
+  if(alta.length){
+    const {error}=await sb.from('diferenciales')
+      .upsert(alta,{onConflict:'trabajador_id,semana'});   // el índice único permite corregir sin duplicar
+    if(error){err++;toast('No se pudieron guardar: '+error.message,'err');}
+  }
+  if(baja.length){
+    const {error}=await sb.from('diferenciales').delete()
+      .eq('semana',Number(st.sem)).in('trabajador_id',baja);
+    if(error)err++;
+  }
+  const {data}=await fetchAllRows(()=>sb.from('diferenciales').select('*').eq('obra_id',OBRA.id).eq('activo',true));
+  DIFS=data||[];
+  btn.innerHTML='Guardar diferenciales';
+  if(err)return;
+  closeModal2();
+  if(typeof pyPreview==='function')pyPreview();
+  toast(`Diferenciales de la semana ${st.sem}: ${alta.length} guardado(s)${baja.length?`, ${baja.length} quitado(s)`:''}.`,'ok');
 }
 function exportProyeccion(){
   const semN=$('py-sem').value||semObra(), sem='S'+semN, d1=$('py-d1').value, d2=$('py-d2').value, periodo=$('py-periodo').value;
@@ -6410,7 +6699,14 @@ function asGruposCuadrilla(lista){
     mapa.get(k).gente.push(w);
   });
   const out=[...mapa.entries()].sort((a,b)=>a[0].localeCompare(b[0],'es')).map(x=>x[1]);
-  out.forEach(g=>g.gente.sort((a,b)=>fullName(a).localeCompare(fullName(b),'es')));
+  /* ORDEN DENTRO DE LA CUADRILLA (2026-08-27): por NÚMERO DE TRABAJADOR, de menor
+     a mayor. Antes iba alfabético por apellidos, que no corresponde a nada físico;
+     el número sí es el que se usa para pasar lista y para cruzar contra nómina.
+     Los que no tienen número van al final, y entre ellos sí por nombre.
+     La misma regla vive en fn_lista_asistencia() (Script 56/59) para que el Excel
+     y la base no se contradigan. */
+  out.forEach(g=>g.gente.sort((a,b)=>
+    ((a.no_trab??9e9)-(b.no_trab??9e9)) || fullName(a).localeCompare(fullName(b),'es')));
   return out;
 }
 
@@ -6439,7 +6735,9 @@ function openCuadrillas(){
       ${cs.length?`<table class="tb"><thead><tr><th>Contratista</th><th>Cuadrilla</th><th>Cabeza</th><th style="text-align:right">Activos</th><th></th></tr></thead><tbody>
         ${cs.map(c=>`<tr><td><b>${esc(c.contratista)}</b></td><td>${esc(c.nombre)}</td>
           <td>${esc(cuadLider(c)||'—')}</td><td style="text-align:right">${cuenta(c.id)}</td>
-          <td style="text-align:right"><button class="btn" style="padding:3px 8px" onclick="borrarCuadrilla('${c.id}')">🗑</button></td></tr>`).join('')}
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn" style="padding:3px 8px" onclick="openEditCuadrilla('${c.id}')" title="Cambiar nombre, cabeza u orden">✎</button>
+            <button class="btn" style="padding:3px 8px" onclick="borrarCuadrilla('${c.id}')" title="Borrar">🗑</button></td></tr>`).join('')}
         </tbody></table>`:'<div class="empty"><div class="big">👷</div>Todavía no hay cuadrillas en esta obra.</div>'}
     </div>
     <div class="m-foot">
@@ -6458,6 +6756,48 @@ async function guardarCuadrilla(){
   CUADS=data||CUADS;
   toast(`Cuadrilla ${nom} de ${contr} creada.`,'ok');
   openCuadrillas();
+}
+/* Editar una cuadrilla: nombre, cabeza, orden y si sigue activa.
+   Cambiar el nombre NO desasigna a nadie: la gente apunta al id, no al texto. */
+function openEditCuadrilla(id){
+  const c=(CUADS||[]).find(x=>x.id===id); if(!c){toast('Esa cuadrilla ya no existe.','err');return;}
+  const gente=(WORKERS||[]).filter(w=>w.id_cuadrilla===id);
+  /* La cabeza se elige entre la gente de ESA cuadrilla, o entre los del mismo
+     contratista si aún no tiene a nadie asignado. */
+  const cands=(gente.length?gente:(WORKERS||[]).filter(w=>String(w.contratista||'').trim().toUpperCase()===String(c.contratista||'').trim().toUpperCase()))
+    .filter(w=>w.estatus!=='BAJA').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+  modal2(`
+    <div class="m-head"><h2>✎ ${esc(c.contratista)} · ${esc(c.nombre)}</h2><button class="x" onclick="closeModal2()">×</button></div>
+    <div class="m-body">
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div><label>Nombre de la cuadrilla</label><input id="ec-nom" value="${esc(c.nombre)}"></div>
+        <div><label>Orden en las listas</label><input id="ec-orden" type="number" min="1" value="${c.orden??''}" placeholder="1"></div>
+      </div>
+      <div class="fld" style="margin-top:10px"><label>Cabeza de la cuadrilla</label>
+        <select id="ec-lider"><option value="">— sin asignar —</option>
+          ${cands.map(w=>`<option value="${w.id}" ${w.id===c.lider_id?'selected':''}>#${w.no_trab??'—'} · ${esc(fullName(w))}</option>`).join('')}</select>
+        <div class="fhint">${gente.length?`Se elige entre los ${gente.length} de esta cuadrilla.`:`Todavía no hay nadie asignado: se listan los de ${esc(c.contratista)}.`}</div></div>
+      <div class="fld" style="margin-top:10px"><label>Estado</label>
+        <select id="ec-activa"><option value="1" ${c.activa!==false?'selected':''}>Activa</option><option value="0" ${c.activa===false?'selected':''}>Inactiva (no sale en listas ni en el alta)</option></select></div>
+      <div class="kv" style="margin-top:12px"><b>Gente asignada</b><span>${gente.length?gente.map(w=>`#${w.no_trab??'—'} ${esc(fullName(w))}`).join(' · '):'<span style="color:var(--mut)">nadie todavía</span>'}</span></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal2()">Cancelar</button>
+      <button class="btn dark" onclick="guardarEditCuadrilla('${id}')">Guardar cambios</button>
+    </div>`,'md');
+}
+async function guardarEditCuadrilla(id){
+  const nom=($('ec-nom').value||'').trim().toUpperCase();
+  if(!nom){toast('La cuadrilla necesita un nombre.','err');return;}
+  const fila={nombre:nom, lider_id:$('ec-lider').value||null,
+    orden:parseInt($('ec-orden').value)||null, activa:$('ec-activa').value==='1',
+    updated_at:new Date().toISOString()};
+  const {error}=await sb.from('cuadrillas').update(fila).eq('id',id);
+  if(error){toast(/ux_cuadrilla/.test(error.message)?`Ya hay otra cuadrilla con el nombre "${nom}" en ese contratista.`:'Error: '+error.message,'err');return;}
+  const {data}=await sb.from('cuadrillas').select('*').eq('obra_id',OBRA.id);
+  CUADS=data||CUADS;
+  closeModal2(); openCuadrillas();
+  toast('Cuadrilla actualizada.','ok');
 }
 async function borrarCuadrilla(id){
   const c=(CUADS||[]).find(x=>x.id===id); if(!c)return;
@@ -6804,7 +7144,7 @@ function openAsistencia(){
   modal(`
     <div class="m-head"><h2>📝 Listas de asistencia · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:14px">Genera el Excel con hojas de 10 trabajadores, más las hojas de <b>NUEVO INGRESO</b> en blanco que pidas, y el <b>directorio alfabético para vigilancia</b>. Incluye a los <b>activos</b> y a las <b>altas programadas</b> (pendientes que entran en la semana elegida). Encabeza con el registro patronal y SIROC de la obra${OBRA.registro_patronal?'':' — <b style="color:var(--red)">captúralos con el lápiz ✎ de la obra</b>'}.</p>
+      <p style="color:var(--mut);margin-bottom:14px">Genera el Excel con hojas de 10 trabajadores, más las hojas de <b>NUEVO INGRESO</b> en blanco que pidas, y el <b>directorio alfabético para vigilancia</b>. Incluye a los <b>activos</b> y a las <b>altas programadas</b> (pendientes que entran en la semana elegida). Cada hoja va <b>ordenada por número de trabajador</b> dentro de su cuadrilla.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
         <div><label>No. de semana</label><input id="as-sem" type="number" value="${semObra()}" oninput="semSincroniza('as-sem','as-d1','as-d2');asUpdateStat()"></div>
         <div><label>Del (lunes)</label><input id="as-d1" type="date" value="${d1}" onchange="asUpdateStat()"></div>
@@ -6832,6 +7172,10 @@ const AS={
   t:{font:{bold:true,sz:13,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'1F3864'}},alignment:{horizontal:'center',vertical:'center'}},
   lb:{font:{bold:true,sz:9,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'2F5496'}},alignment:{horizontal:'left',vertical:'center'}},
   lv:{font:{sz:9,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'2F5496'}},alignment:{horizontal:'left',vertical:'center'}},
+  /* Encabezado de la lista de asistencia, en grande: se lee de lejos y con la
+     hoja en la mano. Solo se usa en OBRA / PERÍODO / CUADRILLA. */
+  lb2:{font:{bold:true,sz:12,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'2F5496'}},alignment:{horizontal:'left',vertical:'center'}},
+  lv2:{font:{bold:true,sz:12,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'2F5496'}},alignment:{horizontal:'left',vertical:'center'}},
   h:{font:{bold:true,sz:9,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'2E75B6'}},alignment:{horizontal:'center',vertical:'center',wrapText:true},border:BORD},
   h2:{font:{bold:true,sz:7,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'2E75B6'}},alignment:{horizontal:'center',vertical:'center'},border:BORD},
   h3:{font:{sz:7,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'2E75B6'}},alignment:{horizontal:'center',vertical:'center'},border:BORD},
@@ -6855,17 +7199,17 @@ function asSheet(grupo,cfg,blanco){
   const rows=[],styles=[],hs=[];
   const dias=asDias(cfg.d1);
   const mrow=(arr)=>{while(arr.length<nc)arr.push('');return arr;};
-  rows.push(mrow(['LISTA DE ASISTENCIA DE OBRA'])); styles.push(AS.t); hs.push({hpt:22});
-  rows.push(mrow(['EMPRESA:','',cfg.emp,'','','','','','R. PATRONAL:','',cfg.rp])); styles.push([AS.lb,AS.lb,AS.lv,AS.lv,AS.lv,AS.lv,AS.lv,AS.lv,AS.lb,AS.lb,AS.lv,AS.lv,AS.lv,AS.lv,AS.lv,AS.lv].slice(0,nc)); hs.push({hpt:14});
-  rows.push(mrow(['OBRA:','',cfg.obra,'','','','','','NO. SIROC:','',cfg.siroc])); styles.push([AS.lb,AS.lb,AS.lv,AS.lv,AS.lv,AS.lv,AS.lv,AS.lv,AS.lb,AS.lb,AS.lv,AS.lv,AS.lv,AS.lv,AS.lv,AS.lv].slice(0,nc)); hs.push({hpt:14});
-  /* La CUADRILLA va en la misma franja del período, a la derecha: así el que
-     recibe la hoja ve de quién es sin tener que leer los nombres. Si no hay
-     cuadrilla (contratista que no las usa, u hoja en blanco), esa mitad queda
-     con el período a todo lo ancho, como siempre. */
+  /* ENCABEZADO (2026-08-27): se quitaron EMPRESA, R. PATRONAL y NO. SIROC —el que
+     recibe la hoja en obra no los usa y le robaban dos renglones al espacio útil.
+     Quedan solo OBRA, PERÍODO y CUADRILLA, cada uno en su propio renglón y a todo
+     lo ancho, con fuente más grande (AS.lb2/AS.lv2) para que se lean de lejos y
+     el nombre de la cuadrilla NUNCA se corte. */
+  rows.push(mrow(['LISTA DE ASISTENCIA DE OBRA'])); styles.push(AS.t); hs.push({hpt:26});
+  rows.push(mrow(['OBRA:','',cfg.obra])); styles.push([AS.lb2,AS.lb2].concat(new Array(nc-2).fill(AS.lv2))); hs.push({hpt:20});
+  rows.push(mrow(['PERÍODO:','',cfg.periodo])); styles.push([AS.lb2,AS.lb2].concat(new Array(nc-2).fill(AS.lv2))); hs.push({hpt:20});
   const gTxt=cfg.grupo?(cfg.grupo.contratista+(cfg.grupo.cuadrilla?' · '+cfg.grupo.cuadrilla:'')
     +(cfg.grupo.lider?'  —  CABEZA: '+cfg.grupo.lider:'')+(cfg.parte?'  ('+cfg.parte+')':'')):'';
-  rows.push(mrow(gTxt?['PERÍODO:','',cfg.periodo,'','','','','','CUADRILLA:','',gTxt]:['PERÍODO:','',cfg.periodo]));
-  styles.push([AS.lb,AS.lb,AS.lv,AS.lv,AS.lv,AS.lv,AS.lv,AS.lv,gTxt?AS.lb:AS.lv,gTxt?AS.lb:AS.lv,AS.lv,AS.lv,AS.lv,AS.lv,AS.lv,AS.lv].slice(0,nc)); hs.push({hpt:14});
+  rows.push(mrow(['CUADRILLA:','',gTxt||'—'])); styles.push([AS.lb2,AS.lb2].concat(new Array(nc-2).fill(AS.lv2))); hs.push({hpt:20});
   const head1=blanco?['NOMBRE COMPLETO','EMPRESA /\nCONTRATISTA','TELÉFONO']:['NO.\nTRAB.','NOMBRE COMPLETO','NSS'];
   dias.forEach(d=>{head1.push(d,'');});
   rows.push(mrow(head1.slice(0,nc))); styles.push(AS.h); hs.push({hpt:26});
@@ -6895,11 +7239,13 @@ function asSheet(grupo,cfg,blanco){
   }
   rows.push(mrow([blanco?'TOTAL DE TRABAJADORES: ______':'TOTAL DE TRABAJADORES: '+grupo.length])); styles.push(AS.f); hs.push({hpt:15});
   const last=nc-1;
+  /* Cada dato del encabezado ocupa su renglón completo: la etiqueta en A:B y el
+     valor de C hasta la última columna. Así la cuadrilla dispone de todo el ancho
+     de la hoja y no hay forma de que se corte, por largo que sea el nombre. */
   const merges=[{s:{r:0,c:0},e:{r:0,c:last}},
-    {s:{r:1,c:0},e:{r:1,c:1}},{s:{r:1,c:2},e:{r:1,c:7}},{s:{r:1,c:8},e:{r:1,c:9}},{s:{r:1,c:10},e:{r:1,c:last}},
-    {s:{r:2,c:0},e:{r:2,c:1}},{s:{r:2,c:2},e:{r:2,c:7}},{s:{r:2,c:8},e:{r:2,c:9}},{s:{r:2,c:10},e:{r:2,c:last}},
-    ...(gTxt?[{s:{r:3,c:0},e:{r:3,c:1}},{s:{r:3,c:2},e:{r:3,c:7}},{s:{r:3,c:8},e:{r:3,c:9}},{s:{r:3,c:10},e:{r:3,c:last}}]
-            :[{s:{r:3,c:0},e:{r:3,c:1}},{s:{r:3,c:2},e:{r:3,c:last}}]),
+    {s:{r:1,c:0},e:{r:1,c:1}},{s:{r:1,c:2},e:{r:1,c:last}},
+    {s:{r:2,c:0},e:{r:2,c:1}},{s:{r:2,c:2},e:{r:2,c:last}},
+    {s:{r:3,c:0},e:{r:3,c:1}},{s:{r:3,c:2},e:{r:3,c:last}},
     {s:{r:17,c:0},e:{r:17,c:last}}];
   for(let i=0;i<6;i++)merges.push({s:{r:4,c:base+i*2},e:{r:4,c:base+i*2+1}});
   for(let c=0;c<base;c++)merges.push({s:{r:4,c},e:{r:6,c}});
@@ -6930,10 +7276,8 @@ function exportAsistencia(){
   const grupos=asGruposCuadrilla(asActivosSemana(d1,d2));
   const act=grupos.flatMap(g=>g.gente);
   if(!act.length){toast('No hay trabajadores activos ni altas programadas para esa semana.','err');return;}
-  const empKey=(OBRA.tipo==='OFICINA')?'PLATINUM':'PLATINUM';
-  const emp=CFGEMP['empresa_'+empKey]||{razon:'COMERCIALIZADORA PLATINUM HIDALGUENSE'};
-  const cfg={emp:emp.razon||'COMERCIALIZADORA PLATINUM HIDALGUENSE',obra:OBRA.ubicacion||OBRA.nombre,
-    rp:OBRA.registro_patronal||'', siroc:OBRA.registro_siroc||'',
+  // El encabezado ya no lleva empresa, registro patronal ni SIROC.
+  const cfg={obra:OBRA.ubicacion||OBRA.nombre,
     periodo:`${rangoTexto(d1,d2)}   |   SEMANA ${sem}`, d1,
     h1:$('as-h1').value||'8:00', h2:$('as-h2').value||'17:00', h3:$('as-h3').value||'9:00', h4:$('as-h4').value||'13:00'};
   const wb=XLSX.utils.book_new(); const usados=new Set(); let hojas=0;
