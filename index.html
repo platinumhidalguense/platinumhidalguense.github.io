@@ -802,6 +802,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <button class="btn" onclick="openMovimientos(isoWeek())">📅 Movimientos</button>
         <button class="btn dark" onclick="openAsistencia()">📝 Listas de asistencia</button>
         <button class="btn" onclick="openProyeccion()">💰 Proyección de nómina</button>
+        <button class="btn" onclick="exportExpedientesGlobal()" title="Un Excel con una pestaña por trabajador activo (respeta el filtro de arriba)">📚 Exportar expedientes</button>
         <button class="btn" onclick="toggleSidebar()" title="Muestra u oculta el panel lateral con todas las herramientas">☰ Menú de herramientas</button>
       </div>
       <div class="tbl-card">
@@ -1458,7 +1459,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-27.3';
+const APP_VERSION='2026-08-28.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -3241,12 +3242,67 @@ function exportRequisicion(){
   closeModal();toast(`Requisición generada: ${crear.length} nuevas + ${verificar.length} por verificar.`,'ok');
 }
 
+/* ---------- PERIODICIDAD DE PAGO (2026-08-28) ------------------------
+   Hasta aquí TODO el motor daba por hecho la semana: 7 días clavados en
+   el cálculo, en el ISR, en el subsidio y en la cuota del INFONAVIT. En
+   obra eso está bien —se paga semanal—, pero la OFICINA es quincenal y
+   con la regla semanal se le retenía la mitad de lo que le toca.
+
+   A partir de aquí el periodo es un dato, no una constante:
+
+     dias   días naturales que cubre el pago (7 semanal, 15 quincenal).
+     lab    días trabajados dentro de ese periodo. De ahí sale el factor
+            de la falta: en la semana de obra son 6 días trabajados + el
+            séptimo día de descanso pagado (LFT art. 69), así que faltar
+            un día cuesta 7/6 de día de sueldo. En la quincena de sueldo
+            fijo el descuento es día por día (factor 1), que es como lo
+            hace NOI para el personal de oficina.
+
+   La quincena de 16 días (la segunda de los meses de 31) se pide con
+   {dias:16}; el factor no cambia porque es una razón, no un conteo.
+
+   OJO: el camino semanal queda idéntico al centavo — dias=7 y 7/6 son
+   exactamente los números que ya estaban. El motor sigue calibrado
+   contra NOI para obra; lo de oficina es proporcional a esa misma
+   fórmula, y hay que validarlo contra un recibo quincenal real de NOI
+   antes de darlo por bueno al centavo. */
+const PERIODOS={
+  SEMANAL  :{cve:'SEMANAL'  ,dias:7 ,lab:6 ,etiqueta:'semanal'  ,unidad:'SEMANA'  ,porAnio:52},
+  QUINCENAL:{cve:'QUINCENAL',dias:15,lab:15,etiqueta:'quincenal',unidad:'QUINCENA',porAnio:24}
+};
+function periodoPago(w){
+  return String((w&&w.periodo_pago)||'SEMANAL').toUpperCase()==='QUINCENAL'?'QUINCENAL':'SEMANAL';
+}
+/* El periodo de un trabajador, opcionalmente con otro número de días
+   (quincena de 16, semana partida por alta a media semana, etc.). */
+function perDe(w,dias){
+  const p=PERIODOS[periodoPago(w)]||PERIODOS.SEMANAL;
+  const d=Math.max(1,Math.round(Number(dias)||p.dias));
+  return {...p,dias:d,fFalta:p.dias/p.lab};
+}
+/* Lleva un monto capturado en una periodicidad a los días que se pagan.
+   Es proporcional a los días a propósito: la cuota del INFONAVIT sale de
+   (cuota bimestral ÷ días del bimestre) × días del periodo, así que
+   pasar de 7 a 15 días multiplicando por 15/7 da EXACTAMENTE la misma
+   cifra que recalcular la fórmula del SUA desde cero. Lo mismo vale para
+   FONACOT y para un préstamo pactado por día. */
+function montoDescuento(d,P){
+  const base=PERIODOS[String((d&&d.periodicidad)||'SEMANAL').toUpperCase()]||PERIODOS.SEMANAL;
+  const m=Number(d&&d.monto)||0;
+  if(base.dias===P.dias)return Math.round(m*100)/100;
+  return Math.round(m*P.dias/base.dias*100)/100;
+}
+
 /* ---------- DESCUENTOS ---------- */
-function descuentosDe(w,semStr){
+function descuentosDe(w,semStr,opts){
+  const P=perDe(w,(opts||{}).dias);
   const ds=DESC.filter(d=>d.trabajador_id===w.id&&d.activo&&(d.recurrente||d.semana===semStr));
   let total=0; const parts=[];
   ds.forEach(d=>{
-    let m=Number(d.monto)||0, tag='';
+    // Solo el descuento FIJO se lleva al periodo: es una cuota por tiempo.
+    // La incidencia ya se capturó como un monto de ESA semana/quincena, con
+    // el motor del periodo correcto — volver a prorratearla la duplicaría.
+    let m=d.recurrente?montoDescuento(d,P):(Number(d.monto)||0), tag='';
     if(d.recurrente){
       const ex=(d.excepciones||{})[semStr];
       if(ex==='SUSPENDER'){m=0;tag=' (SUSPENDIDO '+semStr+')';}
@@ -3255,20 +3311,22 @@ function descuentosDe(w,semStr){
     total+=m;
     parts.push(d.tipo+(d.motivo&&d.motivo!==d.tipo?': '+d.motivo:'')+tag);
   });
-  return {total:Math.round(total*100)/100,motivo:parts.join(' | '),ds};
+  return {total:Math.round(total*100)/100,motivo:parts.join(' | '),ds,periodo:P.cve,dias:P.dias};
 }
 function openDescuento(trabId){
   const w=WORKERS.find(x=>x.id===trabId); if(!w)return;
+  const P=perDe(w); window._DSPER=P;
   modal(`
     <div class="m-head"><h2>＋ Descuento fijo · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:14px">Se descuenta <b>en cada nómina</b> hasta que lo desactives (créditos Infonavit, Fonacot, préstamos). Con el botón <b>⏸/×2 Semana</b> de la ficha puedes suspender la retención una semana o retener doble para compensar. Las faltas de la semana se capturan con el botón 📉 Incidencias.</p>
+      <p style="color:var(--mut);margin-bottom:14px">Se descuenta <b>en cada nómina</b> hasta que lo desactives (créditos Infonavit, Fonacot, préstamos). Con el botón <b>⏸/×2 Semana</b> de la ficha puedes suspender la retención una semana o retener doble para compensar. Las faltas se capturan con el botón 📉 Incidencias.</p>
+      <div class="fhint" style="margin-bottom:10px">Este trabajador cobra <b>${P.etiqueta}</b> (${P.dias} días), así que el monto se captura <b>por ${P.unidad.toLowerCase()}</b>. Si más adelante cambia de periodo, la retención se ajusta sola.</div>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
         <div><label>Tipo</label><select id="ds-tipo"><option>INFONAVIT</option><option>FONACOT</option><option>PRESTAMO</option><option>OTRO</option></select></div>
         <div><label>Cuota MENSUAL del aviso ($)</label><input id="ds-mensual" type="number" step="0.01" min="0" oninput="dsCalc()"></div>
-        <div><label>Monto por SEMANA ($) *</label><input id="ds-monto" type="number" step="0.01" min="0"></div>
+        <div><label>Monto por ${P.unidad} ($) *</label><input id="ds-monto" type="number" step="0.01" min="0"></div>
       </div>
-      <div class="fhint" id="ds-hint" style="margin-top:6px">Si capturas la cuota mensual del aviso, la semanal se calcula sola: mensual ÷ días del mes en curso × 7 (fórmula SUA). Valida la primera retención contra la cédula del SUA.</div>
+      <div class="fhint" id="ds-hint" style="margin-top:6px">Si capturas la cuota mensual del aviso, la de la ${P.unidad.toLowerCase()} se calcula sola: (mensual×2 + seguro) ÷ días del bimestre × ${P.dias} (fórmula SUA). Valida la primera retención contra la cédula del SUA.</div>
       <div style="margin-top:12px"><label>Nota / no. de crédito</label><input id="ds-motivo" placeholder="No. CRÉDITO INFONAVIT 1234567890..."></div>
     </div>
     <div class="m-foot">
@@ -3283,8 +3341,12 @@ async function saveDescuento(trabId){
   if(mensual>0){const o=$('ds-motivo');if(!/MENSUAL/.test(o.value.toUpperCase()))o.value=(o.value?o.value+' | ':'')+'CUOTA MENSUAL $'+mensual.toFixed(2);}
   if(!monto||monto<=0){toast('Indica el monto del descuento.','err');return;}
   markWrite();
+  // Se guarda CON QUÉ PERIODICIDAD se capturó el monto. Sin este dato no se
+  // puede saber si $346.63 son de una semana o de una quincena, y al pagar
+  // se retendría de más o de menos.
   const {error}=await sb.from('descuentos').insert({trabajador_id:trabId,obra_id:w.obra_id,tipo:$('ds-tipo').value,
-    motivo:$('ds-motivo').value.trim().toUpperCase(),monto,recurrente:true,creado_por:USER.email});
+    motivo:$('ds-motivo').value.trim().toUpperCase(),monto,recurrente:true,creado_por:USER.email,
+    periodicidad:periodoPago(w),cuota_mensual:(mensual>0?mensual:null)});
   if(error){toast('Error: '+error.message,'err');return;}
   closeModal();toast('Descuento fijo registrado: se aplicará en cada proyección.','ok');
   await loadObraData(OBRA.id);
@@ -3345,7 +3407,7 @@ function incCalc(i){
   const f=parseFloat($('inc-f-'+i).value)||0;
   const premio=parseFloat(($('inc-p-'+i)||{}).value)||0;
   if(f>0){
-    const r=descuentoFaltasNOI(w,f,premio);
+    const r=descuentoFaltasNOI(w,f,premio);   // usa el periodo del trabajador (7 o 15 días)
     $('inc-m-'+i).value=r.monto.toFixed(2);
     $('inc-x-'+i).value=(f===1?'1 FALTA':f+' FALTAS')
       +` · NETO NOI −$${r.monto.toFixed(2)} (BRUTO −${r.dBruto.toFixed(2)}, ISR ${r.dIsr>=0?'−':'+'}${Math.abs(r.dIsr).toFixed(2)}, IMSS −${r.dImss.toFixed(2)}${r.conFaltas.premioAnulado?`, PREMIO ANULADO −${premio.toFixed(2)}`:''})`;
@@ -3370,7 +3432,8 @@ async function saveIncidencias(){
     if(m>0){
       const mot=($('inc-x-'+i).value.trim()||'INCIDENCIA').toUpperCase();
       inserts.push({trabajador_id:w.id,obra_id:w.obra_id,tipo:mot.includes('FALTA')?'FALTA':'INCIDENCIA',
-        motivo:mot,monto:m,recurrente:false,semana:sem,creado_por:USER.email});
+        motivo:mot,monto:m,recurrente:false,semana:sem,creado_por:USER.email,
+        periodicidad:periodoPago(w)});   // deja constancia de con qué periodo se calculó
     }
   });
   if(!inserts.length){toast('No capturaste ningún descuento (todas las filas en 0).','err');return;}
@@ -3395,15 +3458,20 @@ function retFilasDe(semStr){
   const filas=[];
   DESC.filter(d=>d.activo).forEach(d=>{
     const w=WORKERS.find(x=>x.id===d.trabajador_id); if(!w)return;
+    // el monto se lleva al periodo del trabajador: el mismo crédito retiene
+    // el doble en una quincena de oficina que en una semana de obra.
+    const P=perDe(w), mp=montoDescuento(d,P);
     if(d.recurrente){
       // el fijo cuenta desde la semana en que se capturó (si el registro trae fecha)
       if(d.created_at){const wc=isoWeek(new Date(d.created_at)); if(semN<wc)return;}
       const ex=(d.excepciones||{})[semStr];
       const estado=ex==='SUSPENDER'?'PAUSADO':ex==='DOBLE'?'DOBLE':'NORMAL';
-      const monto=ex==='SUSPENDER'?0:ex==='DOBLE'?Math.round((Number(d.monto)||0)*2*100)/100:(Number(d.monto)||0);
-      filas.push({w,d,origen:'FIJO',estado,monto});
+      const monto=ex==='SUSPENDER'?0:ex==='DOBLE'?Math.round(mp*2*100)/100:mp;
+      filas.push({w,d,origen:'FIJO',estado,monto,periodo:P.cve});
     }else if(d.semana===semStr){
-      filas.push({w,d,origen:'INCIDENCIA',estado:'—',monto:Number(d.monto)||0});
+      // una incidencia (faltas de ESA semana/quincena) ya viene calculada
+      // con el motor del periodo correcto: no se vuelve a prorratear.
+      filas.push({w,d,origen:'INCIDENCIA',estado:'—',monto:Number(d.monto)||0,periodo:P.cve});
     }
   });
   filas.sort((a,b)=>((a.w.no_trab||9e9)-(b.w.no_trab||9e9))||(a.origen>b.origen?1:-1));
@@ -3811,9 +3879,11 @@ function expVal(v,fmt){
   const t=String(v).trim();
   return t||EXP_VACIO;
 }
-function exportExpediente(id){
-  const w=WORKERS.find(x=>x.id===id);
-  if(!w){toast('No encontré a ese trabajador.','err');return;}
+/* Los campos del expediente de UN trabajador, en el orden en que van a
+   quedar en la hoja. Una cadena suelta abre sección; un arreglo es
+   [etiqueta, valor, formato]. Se saca aparte porque lo usan tanto el
+   expediente individual como el export global de la obra. */
+function expedienteCampos(w){
   const cu=cuadDe(w), si=sueldoInternoDe(w.id), d=w.docs||{};
   const vac=saldoVac(w), fh=fueraHoy(w);
   const chq=(CHEQUES||[]).filter(c=>c.trabajador_id===w.id&&!c.eliminado);
@@ -3867,8 +3937,9 @@ function exportExpediente(id){
     'SUELDO Y PAGO',
     ['Salario diario (SD)',w.sd,'money'],
     ['Salario diario integrado (SDI)',w.sdi,'money'],
-    ['Sueldo semanal',w.sal_semanal,'money'],
-    ['Periodo de pago',w.periodo_pago],
+    ['Sueldo por periodo ('+perDe(w).etiqueta+')',w.sal_semanal,'money'],
+    ['Periodo de pago',w.periodo_pago||'SEMANAL'],
+    ['Días que cubre el pago',perDe(w).dias],
     ['Forma de pago',w.forma_pago],
     ['Banco',w.banco],
     ['Cuenta',w.cuenta],
@@ -3878,7 +3949,9 @@ function exportExpediente(id){
     ['Fecha del movimiento IMSS',w.fecha_mov_imss,'fecha'],
     ['Registro patronal propio',w.registro_patronal],
     ['Prima de riesgo propia',w.prima_rt],
-    ['Créditos y descuentos activos',des.length?des.map(x=>`${x.tipo||'DESCUENTO'} $${money(x.monto)}`):null],
+    // el monto se muestra YA llevado al periodo del trabajador, que es lo que
+    // de verdad se le retiene en cada nómina
+    ['Créditos y descuentos activos',des.length?des.map(x=>`${x.tipo||'DESCUENTO'} $${money(x.recurrente?montoDescuento(x,perDe(w)):x.monto)}`):null],
     'BENEFICIARIO',
     ['Beneficiario',w.beneficiario],
     ['Parentesco',w.benef_parentesco],
@@ -3910,10 +3983,11 @@ function exportExpediente(id){
     ['Capturado por',w.creado_por],
     ['Última modificación',w.actualizado_por],
     ['Fecha de la última modificación',w.updated_at,'fecha'],
-    ['Exportado por',USER.email],
+    ['Exportado por',USER&&USER.email],
     ['Fecha de exportación',new Date().toLocaleString('es-MX')]);
-
-  const EX={
+  return F;
+}
+const EX={
     tit:{font:{bold:true,sz:14,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'1F3864'}},alignment:{horizontal:'center',vertical:'center'}},
     sub:{font:{sz:10,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'2F5496'}},alignment:{horizontal:'center',vertical:'center'}},
     sec:{font:{bold:true,sz:11,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'2E75B6'}},alignment:{vertical:'center'}},
@@ -3922,6 +3996,10 @@ function exportExpediente(id){
     /* Lo que falta se marca en ámbar: se ve de un vistazo qué hay que capturar. */
     vf :{font:{sz:10,italic:true,color:{rgb:'8A6D1A'},name:'Calibri'},fill:{fgColor:{rgb:'FFF7E6'}},border:BORD,alignment:{vertical:'center'}}
   };
+/* La hoja de UN trabajador. Devuelve también cuántos campos salieron
+   vacíos, que es lo que se le reporta al usuario al terminar. */
+function expedienteWS(w){
+  const F=expedienteCampos(w);
   const rows=[],styles=[],hs=[];
   rows.push(['EXPEDIENTE DEL TRABAJADOR','']); styles.push(EX.tit); hs.push({hpt:26});
   rows.push([fullName(w)+'   ·   No. '+expVal(w.no_trab),'']); styles.push(EX.sub); hs.push({hpt:18});
@@ -3938,11 +4016,58 @@ function exportExpediente(id){
   styles.forEach((st,r)=>{ if(st===EX.sec)merges.push({s:{r,c:0},e:{r,c:1}}); });
   const ws=buildSheet(rows,styles,[34,52],merges,hs);
   ws['!margins']={left:0.5,right:0.5,top:0.5,bottom:0.5,header:0.2,footer:0.2};
+  return {ws,faltan};
+}
+function exportExpediente(id){
+  const w=WORKERS.find(x=>x.id===id);
+  if(!w){toast('No encontré a ese trabajador.','err');return;}
+  const {ws,faltan}=expedienteWS(w);
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'EXPEDIENTE');
   const safe=fullName(w).replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+/g,'_').slice(0,60);
   dl(wb,`EXPEDIENTE_${w.no_trab??'SN'}_${safe}.xlsx`);
   toast(`Expediente de ${fullName(w)} exportado${faltan?` · ${faltan} campo(s) sin información`:' · completo'}.`,faltan?'':'ok');
+}
+
+/* ---------- EXPEDIENTES DE TODA LA OBRA (2026-08-28) ------------------
+   Un solo libro con una pestaña por trabajador. Lo pesado no es armar las
+   hojas sino nombrarlas: Excel no acepta \ / ? * [ ] : en el nombre de una
+   pestaña, lo corta a 31 caracteres y NO tolera dos pestañas que se llamen
+   igual. Cualquiera de las tres cosas revienta el archivo al abrirlo, y con
+   apellidos largos ("MARTÍNEZ DE LA CRUZ FRANCISCO JAVIER") las tres pasan
+   a la vez. Por eso el nombre se limpia, se corta y se numera si choca. */
+const HOJA_PROHIBIDO=/[\\\/\?\*\[\]:]/g;
+function expNombreHoja(nombre,usados){
+  let base=String(nombre||'').replace(HOJA_PROHIBIDO,' ').replace(/\s+/g,' ').trim();
+  base=base.replace(/^'+|'+$/g,'').trim();      // Excel tampoco lo quiere con apóstrofo en los extremos
+  if(!base)base='SIN NOMBRE';
+  base=base.slice(0,31).trim();
+  if(!usados.has(base.toUpperCase())){usados.add(base.toUpperCase());return base;}
+  for(let i=2;i<1000;i++){                       // homónimos: " 2", " 3", ...
+    const suf=' '+i, cand=(base.slice(0,31-suf.length).trim()+suf);
+    if(!usados.has(cand.toUpperCase())){usados.add(cand.toUpperCase());return cand;}
+  }
+  const ult=String(Date.now()).slice(-6);
+  usados.add(ult); return ult;
+}
+function exportExpedientesGlobal(){
+  if(!OBRA){toast('Abre una obra primero.','err');return;}
+  // Respeta el filtro que tengas puesto arriba (contratista, puesto, periodo):
+  // así el mismo botón saca toda la obra o nada más la oficina quincenal.
+  const gente=baseFiltered().filter(w=>w.estatus==='ACTIVO')
+    .sort((a,b)=>((a.no_trab??9e9)-(b.no_trab??9e9))||fullName(a).localeCompare(fullName(b),'es'));
+  if(!gente.length){toast('No hay trabajadores activos con el filtro actual.','err');return;}
+  if(!confirm(`¿Generar un Excel con ${gente.length} expediente(s) de ${OBRA.nombre}?\n\nUna pestaña por trabajador, con todos sus datos. Lo que no esté capturado sale como "${EXP_VACIO}".${gente.length>120?'\n\nSon muchas hojas: el archivo puede tardar y pesar bastante.':''}`))return;
+  const wb=XLSX.utils.book_new(), usados=new Set();
+  let faltan=0;
+  gente.forEach(w=>{
+    const r=expedienteWS(w);
+    faltan+=r.faltan;
+    XLSX.utils.book_append_sheet(wb,r.ws,expNombreHoja(fullName(w),usados));
+  });
+  const safeObra=String(OBRA.nombre||'OBRA').replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+/g,'_').slice(0,50);
+  dl(wb,`EXPEDIENTES_${safeObra}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast(`${gente.length} expediente(s) exportados · ${faltan} campo(s) sin información en total.`,'ok');
 }
 /* ---------- BLOQUES (LOTES) DE CHEQUES POR SEMANA (2026-08-27) --------
    Un bloque es "los cheques de esta obra en esta semana". No se guarda
@@ -8585,7 +8710,12 @@ function isrTarifa(base,factor,raw){ // factor 1=mensual, 7*12/365=semanal
   }
   return 0;
 }
+/* La tarifa mensual se proporciona a los días del periodo: 365/12 = 30.4167
+   días al mes, así que el factor es dias×12/365 (7 → semanal, 15 → quincenal).
+   Es la misma proporción con la que el SAT publica las tablas del Anexo 8. */
 const F_SEM=7*12/365;
+function factorISR(dias){return (Math.max(1,Number(dias)||7))*12/365;}
+function isrPeriodo(b,dias){return isrTarifa(b,factorISR(dias));}
 function isrSemanal(b){return isrTarifa(b,F_SEM);}
 function isrMensual(b,raw){return isrTarifa(b,1,raw);}
 /* --- INFONAVIT con seguro de daños ($15/bimestre, portal INFONAVIT) --- */
@@ -8593,24 +8723,30 @@ function diasBimestreActual(d=new Date()){
   const m=d.getMonth(); const b0=m-(m%2);
   return new Date(d.getFullYear(),b0+2,0).getDate()+new Date(d.getFullYear(),b0+1,0).getDate();
 }
-function cuotaSemanalInfonavit(mensual){
+/* Fórmula SUA: (cuota bimestral + seguro de daños) ÷ días del bimestre ×
+   días del periodo. Con 7 da la cuota semanal de obra; con 15, la quincenal
+   de oficina. Antes el 7 estaba clavado y a los quincenales se les retenía
+   media cuota. */
+function cuotaPeriodoInfonavit(mensual,dias){
   const f=FISC();
-  return Math.round((mensual*2+f.seg)/diasBimestreActual()*7*100)/100;
+  return Math.round((mensual*2+f.seg)/diasBimestreActual()*Math.max(1,Number(dias)||7)*100)/100;
 }
+function cuotaSemanalInfonavit(mensual){return cuotaPeriodoInfonavit(mensual,7);}
 /* --- CUOTAS IMSS/ISN (LSS arts. 25,71,106,107,147,168,211; CEAV 2026 4o ajuste) ---
    v36: el módulo "Costo patronal · simulador" se eliminó del sistema por
    petición del usuario. Esta función se conserva porque es la calculadora de
    cuotas IMSS del proyecto (parte del motor fiscal, calibrada contra la EBA),
    NO parte del simulador: se deja disponible para cálculos futuros. */
-function cuotasSemana(w,prima,diasCot){
+function cuotasSemana(w,prima,diasCot,diasPeriodo){
   const f=FISC(); const sbc=Math.min(Number(w.sdi)||Number(w.sd)||0, 25*f.uma);
-  const d=(diasCot==null?7:Math.max(0,diasCot)); const B=sbc*d; // REGLA IMSS: con ausentismo se cotizan 7−faltas días (LSS art. 31)
+  const dp=Math.max(1,Number(diasPeriodo)||perDe(w).dias);
+  const d=(diasCot==null?dp:Math.max(0,diasCot)); const B=sbc*d; // REGLA IMSS: con ausentismo se cotizan dias−faltas (LSS art. 31)
   const enUMA=sbc/f.uma;
   let ceav=f.ceav[f.ceav.length-1][1];
   if(Math.abs(sbc-f.sm)<0.01)ceav=f.ceav[0][1];
   else for(const [lim,t] of f.ceav.slice(1)){if(enUMA<=lim){ceav=t;break;}}
   const pat={
-    eym_fija:f.uma*7*0.2040, // la cuota fija EyM se paga los 7 días aunque haya ausentismo (LSS 31-I)
+    eym_fija:f.uma*dp*0.2040, // la cuota fija EyM se paga todos los días del periodo aunque haya ausentismo (LSS 31-I)
     eym_exc:Math.max(0,sbc-3*f.uma)*d*0.0110,
     dinero:B*0.0070, gmp:B*0.0105, iyv:B*0.0175, guarderias:B*0.0100,
     retiro:B*0.02, ceav:B*ceav/100, rt:B*(prima||0)/100, infonavit:B*0.05
@@ -8618,7 +8754,7 @@ function cuotasSemana(w,prima,diasCot){
   const obr={eym_exc:Math.max(0,sbc-3*f.uma)*d*0.0040, dinero:B*0.0025, gmp:B*0.00375, iyv:B*0.00625, ceav:B*0.01125};
   const r2=o=>Object.values(o).reduce((s,x)=>s+x,0);
   const bruto=(Number(w.sd)||0)*7;
-  return {sbc,ceavPct:ceav,pat,obr,totPat:r2(pat),totObr:r2(obr),isn:bruto*f.isn/100,isr:isrSemanal(bruto),bruto};
+  return {sbc,ceavPct:ceav,pat,obr,totPat:r2(pat),totObr:r2(obr),isn:bruto*f.isn/100,isr:isrPeriodo(bruto,dp),bruto,dias:dp};
 }
 /* --- PLANTILLA A UNA FECHA --- */
 function openPlantillaFecha(){
@@ -8964,62 +9100,74 @@ function openDefuncion(id){
 /* --- dsCalc bimestral (sustituye al mensual) --- */
 function dsCalc(){
   const m=parseFloat($('ds-mensual').value);
+  const P=window._DSPER||PERIODOS.SEMANAL;
   if(m>0){
-    const sem=cuotaSemanalInfonavit(m);
-    $('ds-monto').value=sem.toFixed(2);
-    $('ds-hint').innerHTML=`<b>Semanal: $${sem.toFixed(2)}</b> = (mensual×2 + $${FISC().seg} seguro de daños) ÷ ${diasBimestreActual()} días del bimestre × 7 — fórmula validada contra tu EBA (Cenobio $1,203.51 ✔). La 🔔 avisa al cambiar de bimestre.`;
+    const c=cuotaPeriodoInfonavit(m,P.dias);
+    $('ds-monto').value=c.toFixed(2);
+    $('ds-hint').innerHTML=`<b>Por ${P.unidad.toLowerCase()}: $${c.toFixed(2)}</b> = (mensual×2 + $${FISC().seg} seguro de daños) ÷ ${diasBimestreActual()} días del bimestre × ${P.dias} — fórmula validada contra tu EBA (Cenobio $1,203.51 ✔). La 🔔 avisa al cambiar de bimestre.`;
   }
 }
 
 
-/* ---------- v14: MOTOR DE NÓMINA SEMANAL CON FALTAS (calibrado a NOI) ----------
-   REGLA 1 (IMSS): cuota obrera sobre días COTIZADOS (7−faltas), no sobre 7 (LSS art. 31).
-   REGLA 2 (ISR): la falta y el 7º día proporcional se restan del BRUTO → nueva base gravable;
+/* ---------- v14: MOTOR DE NÓMINA CON FALTAS (calibrado a NOI) ----------
+   REGLA 1 (IMSS): cuota obrera sobre días COTIZADOS (días−faltas), no sobre el periodo completo (LSS art. 31).
+   REGLA 2 (ISR): la falta y el día de descanso proporcional se restan del BRUTO → nueva base gravable;
                   ISR y subsidio al empleo se calculan sobre esa base, NUNCA restando la falta al neto.
    REGLA 3 (PREMIOS): con faltas > 0, los premios de puntualidad/asistencia se anulan ANTES de la base.
    Subsidio al empleo 2026 (DOF 31/12/2025): 15.02% de la UMA mensual, tope de ingresos $11,492.66/mes;
-   solo acreditable contra el ISR (no se entrega en efectivo). Semanal = mensual × 7 ÷ 30.4. */
-function nominaSemanal(w,opts){
-  const o=opts||{}; const f=FISC();
-  const faltas=Math.max(0,Math.min(6,Math.round(Number(o.faltas)||0)));
+   solo acreditable contra el ISR (no se entrega en efectivo). Del periodo = mensual × días ÷ 30.4.
+
+   2026-08-28: los 7 días dejaron de estar clavados. El periodo sale de
+   perDe(w) — 7 para obra, 15 para la oficina quincenal — y con {dias:16}
+   se pide la quincena larga. Con periodo_pago SEMANAL los números son
+   los mismos de siempre, al centavo. */
+function nominaPeriodo(w,opts){
+  const o=opts||{}; const f=FISC(); const P=perDe(w,o.dias);
+  const faltas=Math.max(0,Math.min(P.dias-1,Math.round(Number(o.faltas)||0)));
   const sd=Number(w.sd)||0;
   const sbc=Math.min(Number(w.sdi)||sd*1.0493, 25*f.uma);
   // REGLA 3: premio anulado con cualquier falta
   const premioCapturado=Number(o.premios)||0;
   const premiosPag=faltas>0?0:premioCapturado;
-  // REGLA 2: base gravable reducida (falta + 7º día proporcional, factor 7/6)
-  const diasPag=Math.max(0,7-faltas*7/6);
+  // REGLA 2: base gravable reducida (falta + día de descanso proporcional).
+  // Semanal: factor 7/6 (6 trabajados + séptimo día). Quincenal de sueldo
+  // fijo: factor 1, el descuento es día por día.
+  const diasPag=Math.max(0,P.dias-faltas*P.fFalta);
   const bruto=Math.round((sd*diasPag+premiosPag)*100)/100;
   // REGLA 1 (criterio NOI, validado con cédula real de Alejandra Mercado S16):
   // la cuota obrera se deduce proporcional a los DÍAS PAGADOS (7 − faltas×7/6),
   // p. ej. 2 faltas → 4.6667 días → $39.09 con SDI 352.56 (NOI exacto).
-  // diasCot (7−faltas) se conserva para el SUA/afiliatorio.
-  const diasCot=7-faltas;
+  // diasCot (días−faltas) se conserva para el SUA/afiliatorio.
+  const diasCot=P.dias-faltas;
   const obrDia=Math.max(0,sbc-3*f.uma)*0.0040+sbc*(0.0025+0.00375+0.00625+0.01125);
   const imssObr=Math.round(obrDia*diasPag*100)/100;
   // ISR sobre la NUEVA base + subsidio al empleo
-  const isrBruto=Math.round(isrSemanal(bruto)*100)/100;
+  const isrBruto=Math.round(isrPeriodo(bruto,P.dias)*100)/100;
   const subPct=Number(f.subsidio_pct)||15.02, subTopeM=Number(f.subsidio_tope_mensual)||11492.66;
-  const topeSem=Math.round(subTopeM/30.4*7*100)/100;
+  const topeSem=Math.round(subTopeM/30.4*P.dias*100)/100;
   // v15: subsidio calibrado contra NOI (Semana 16, 18/07/2026) — NOI trunca la cuota
   // DIARIA del subsidio a 2 decimales antes de multiplicar por 7 (no redondea el total
   // semanal). Con esto, 38/52 recibos de la S16 quedan exactos al centavo vs NOI; los 14
   // restantes (SDI $387.40/$387.41 - AYUDANTE ALBAÑIL) quedan a $0.01, pendiente de otra
   // semana de datos para aislar ese residual. Ver CONCILIACION_NOI_SEMANA16.xlsx.
   const subDia=Math.floor(subPct/100*f.uma*100)/100;
-  const subSem=Math.round(subDia*7*100)/100; // = cuota diaria truncada × 7
+  const subSem=Math.round(subDia*P.dias*100)/100; // = cuota diaria truncada × días del periodo
   const subsidio=bruto<=topeSem?Math.min(subSem,isrBruto):0;
   const isr=Math.round((isrBruto-subsidio)*100)/100;
   const neto=Math.round((bruto-isr-imssObr)*100)/100;
-  return {faltas,diasPag:Math.round(diasPag*10000)/10000,diasCot,sd,sbc,bruto,
+  return {periodo:P.cve,dias:P.dias,etiqueta:P.etiqueta,
+          faltas,diasPag:Math.round(diasPag*10000)/10000,diasCot,sd,sbc,bruto,
           premioCapturado,premiosPag,premioAnulado:faltas>0&&premioCapturado>0,
           obrDia:Math.round(obrDia*10000)/10000,imssObr,isrBruto,subsidio,isr,neto};
 }
+/* Nombre viejo: lo usan el verificador NOI, el asistente y las 30 pruebas
+   del motor. Se conserva y ahora también respeta el periodo del trabajador. */
+function nominaSemanal(w,opts){return nominaPeriodo(w,opts);}
 /* Diferencia de NETO entre semana normal y semana con faltas — esto es lo que se descuenta
    en la proyección para cuadrar AL CENTAVO con el neto de NOI. */
-function descuentoFaltasNOI(w,faltas,premios){
-  const N=nominaSemanal(w,{faltas:0,premios:premios});
-  const F=nominaSemanal(w,{faltas:faltas,premios:premios});
+function descuentoFaltasNOI(w,faltas,premios,dias){
+  const N=nominaPeriodo(w,{faltas:0,premios:premios,dias});
+  const F=nominaPeriodo(w,{faltas:faltas,premios:premios,dias});
   // v16: el descuento se calcula contra el sal_semanal REAL registrado (que puede incluir
   // un complemento fuera de nómina, ej. Griselda Espinoza $155.45/semana por acuerdo del
   // jefe), NO contra el normal de fórmula (N.neto). Cualquier complemento fuera de nómina
@@ -9028,7 +9176,7 @@ function descuentoFaltasNOI(w,faltas,premios){
   // pura (F.neto), validado al centavo contra la Semana 16 real. Con esto, sal_semanal-monto
   // = F.neto = NOI, sin importar el complemento ni desfases de captura de unos centavos.
   const salReal=Number(w.sal_semanal)||N.neto;
-  return {monto:Math.round((salReal-F.neto)*100)/100,normal:N,conFaltas:F,
+  return {monto:Math.round((salReal-F.neto)*100)/100,normal:N,conFaltas:F,periodo:N.periodo,dias:N.dias,
     dBruto:Math.round((N.bruto-F.bruto)*100)/100,
     dIsr:Math.round((N.isr-F.isr)*100)/100,
     dImss:Math.round((N.imssObr-F.imssObr)*100)/100};
@@ -9299,7 +9447,8 @@ async function execTransferencia(){
       // copiar descuentos fijos activos (los créditos siguen aunque cambie de obra)
       const fijos=DESC.filter(d=>d.trabajador_id===w.id&&d.recurrente&&d.activo);
       for(const d of fijos){
-        await sb.from('descuentos').insert({trabajador_id:(nw&&nw.id)||null,obra_id:destId,tipo:d.tipo,motivo:d.motivo,monto:d.monto,recurrente:true,creado_por:USER.email});
+        await sb.from('descuentos').insert({trabajador_id:(nw&&nw.id)||null,obra_id:destId,tipo:d.tipo,motivo:d.motivo,monto:d.monto,recurrente:true,creado_por:USER.email,
+          periodicidad:d.periodicidad||'SEMANAL',cuota_mensual:d.cuota_mensual??null});
       }
       ok++;
     }
@@ -9664,12 +9813,22 @@ function computeAlertas(){
     {k:'CONTRV',icon:'🚨',txt:'Contratos determinados VENCIDOS',items:act.filter(w=>w.fecha_fin_contrato&&w.fecha_fin_contrato<hoy)},
     {k:'SM',icon:'⚖️',txt:'Activos con SD por DEBAJO del mínimo CONASAMI ($'+FISC().sm+')',items:act.filter(w=>(Number(w.sd)||0)>0&&(Number(w.sd)||0)<FISC().sm)},
     {k:'NUMDUP',icon:'🔢',txt:'Números de trabajador DUPLICADOS en esta obra',items:(function(){const m={};WORKERS.forEach(w=>{if(w.no_trab!=null)(m[w.no_trab]=m[w.no_trab]||[]).push(w);});return Object.values(m).filter(g=>g.length>1).flat();})()},
-    {k:'INFO',icon:'🏠',txt:'Cuotas INFONAVIT por recalcular al mes en curso',items:DESC.filter(d=>{
-      if(d.tipo!=='INFONAVIT'||!d.activo||!d.recurrente)return false;
-      const m=/CUOTA MENSUAL \$([\d.]+)/.exec(d.motivo||'');
-      if(!m)return false;
-      return Math.abs((Number(d.monto)||0)-cuotaSemanalInfonavit(parseFloat(m[1])))>1;
-    }).map(d=>{const w=WORKERS.find(x=>x.id===d.trabajador_id);return {nombre:(w?fullName(w):'')+' → debe ser $'+cuotaSemanalInfonavit(parseFloat(/CUOTA MENSUAL \$([\d.]+)/.exec(d.motivo)[1])).toFixed(2)};})}
+    /* La cuota esperada se calcula con los días del periodo de SU trabajador:
+       a un quincenal de oficina se le compara contra 15 días, no contra 7.
+       La cuota mensual sale de la columna nueva y, si el registro es viejo,
+       del texto del motivo (que es donde vivía antes). */
+    {k:'INFO',icon:'🏠',txt:'Cuotas INFONAVIT por recalcular al mes en curso',items:(function(){
+      const esperada=d=>{
+        if(d.tipo!=='INFONAVIT'||!d.activo||!d.recurrente)return null;
+        const men=Number(d.cuota_mensual)||parseFloat((/CUOTA MENSUAL \$([\d.]+)/.exec(d.motivo||'')||[])[1]);
+        if(!(men>0))return null;
+        const w=WORKERS.find(x=>x.id===d.trabajador_id);
+        return {w,esp:cuotaPeriodoInfonavit(men,perDe(w).dias)};
+      };
+      return DESC.map(d=>{const e=esperada(d);
+          return (e&&Math.abs((Number(d.monto)||0)-e.esp)>1)?{nombre:(e.w?fullName(e.w):'')+' → debe ser $'+e.esp.toFixed(2)}:null;})
+        .filter(Boolean);
+    })()}
   ].filter(a=>a.items.length);
 }
 function updateAlertas(){
