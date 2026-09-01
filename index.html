@@ -699,6 +699,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <button class="sb-item" id="vb-vac" onclick="setView('vac')"><span class="ic">🌴</span>Vacaciones y permisos</button>
         <button class="sb-item" id="vb-actas" onclick="setView('actas')"><span class="ic">📋</span>Actas</button>
         <button class="sb-item" id="vb-nom" onclick="setView('nom')"><span class="ic">🧠</span>NOM-035</button>
+        <button class="sb-item" id="vb-papeles" onclick="setView('papeles')"><span class="ic">📂</span>Control de papeles</button>
         <button class="sb-item" id="vb-anual" onclick="setView('anual')"><span class="ic">🪙</span>PTU / Aguinaldo</button>
       </details>
 
@@ -991,6 +992,41 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
             <th style="text-align:right">Importe</th><th>Banco</th><th>Cuenta</th><th>Estado</th><th>Tipo</th>
           </tr></thead>
           <tbody id="pg-v-tbody"><tr class="loading-row"><td colspan="9">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== VISTA CONTROL DE PAPELES (expedientes pendientes) ===== -->
+    <div id="view-papeles" class="hide">
+      <div class="stats" id="cp-stats"></div>
+      <div class="tbl-card" style="padding:14px 16px;margin-bottom:14px">
+        <div style="font-weight:800;color:var(--navy);margin-bottom:4px">📂 Registrar asistencia SIN papeles</div>
+        <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px">Para el que ya está viniendo a trabajar pero <b>todavía no entrega su documentación</b>. Cada vez que lo registres en una semana nueva, le sube el contador. Cuando entregue, márcalo y sale de la lista.</p>
+        <div class="grid" style="grid-template-columns:2fr 1.2fr .8fr auto;align-items:end;gap:10px">
+          <div><label>Nombre completo *</label><input id="cp-nom" placeholder="APELLIDO APELLIDO NOMBRE(S)" list="cp-sug" onkeydown="if(event.key==='Enter')cpRegistrar()"></div>
+          <div><label>Puesto</label><input id="cp-puesto" list="cp-puestos" placeholder="AYUDANTE GENERAL"></div>
+          <div><label>Semana</label><input id="cp-sem" type="number" min="1" max="53"></div>
+          <button class="btn gold" onclick="cpRegistrar()">＋ Registrar</button>
+        </div>
+        <datalist id="cp-sug"></datalist><datalist id="cp-puestos"></datalist>
+        <div class="fhint" style="margin-top:6px">Si el nombre se parece a uno que ya está en la lista, se toma como el mismo y te aviso cuántas semanas lleva.</div>
+      </div>
+      <div class="toolbar">
+        <div class="search"><input id="cp-q" placeholder="Buscar nombre o puesto..." oninput="renderPapeles()"></div>
+        <select id="cp-filtro" onchange="renderPapeles()">
+          <option value="PEND">Pendientes de entregar</option>
+          <option value="ENTREGADOS">Ya entregaron</option>
+          <option value="TODOS">Todos</option>
+        </select>
+        <button class="btn dark" onclick="exportListaNegra()">⬇ Exportar lista negra (Excel)</button>
+      </div>
+      <div class="tbl-card">
+        <table>
+          <thead><tr>
+            <th>Nombre completo</th><th>Puesto</th><th>Semana de ingreso</th>
+            <th>Última semana</th><th style="text-align:right">Semanas adeudadas</th><th>Estado</th><th></th>
+          </tr></thead>
+          <tbody id="cp-body"><tr class="loading-row"><td colspan="7">Cargando...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1459,7 +1495,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-28.1';
+const APP_VERSION='2026-08-28.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1500,7 +1536,8 @@ const VISTAS={
   actas:{ic:'📋',txt:'Actas'},
   nom  :{ic:'🧠',txt:'NOM-035'},
   anual:{ic:'🪙',txt:'PTU / Aguinaldo'},
-  audit:{ic:'🔎',txt:'Auditoría de pagos'}
+  audit:{ic:'🔎',txt:'Auditoría de pagos'},
+  papeles:{ic:'📂',txt:'Control de papeles'}
 };
 function setView(v){
   if(!VISTAS[v])v='trab';
@@ -1512,6 +1549,7 @@ function setView(v){
   });
   if(v==='pagos')renderPagosView();
   if(v==='audit')auCargar();
+  if(v==='papeles')cpCargar();
   renderCrumbs();
   cerrarCajonMovil();                         // en celular el cajón se cierra solo
   window.scrollTo({top:0,behavior:'smooth'});
@@ -2244,7 +2282,7 @@ function openDetail(id){
         const byW=x=>parseInt(String(x.semana||'').replace(/\D/g,''))||0;
         const ac=DOCSX.filter(x=>x.trabajador_id===w.id&&x.categoria==='ACUSE_IMSS');
         const re=DOCSX.filter(x=>x.trabajador_id===w.id&&(x.categoria==='RECIBO_NOMINA'||x.categoria==='CFDI_NOMINA')).sort((a,b)=>byW(a)-byW(b)||String(a.categoria).localeCompare(String(b.categoria)));
-        const item=x=>`<div class="kv"><b>${esc(x.subtipo||'DOC')} ${esc(x.semana)}</b><span>${esc(x.nombre_archivo)} · ${fmtD(x.fecha_doc||x.created_at)} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:8px" onclick="verDoc('${x.id}')">📄 Ver</button> <button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="anularDoc('${x.id}','${w.id}')" title="Quitar del expediente (queda rastro de quién y por qué)">🗑</button></span></div>`;
+        const item=x=>`<div class="kv"><b>${esc(x.subtipo||'DOC')} ${esc(x.semana)}</b><span>${esc(x.nombre_archivo)} · ${fmtD(x.fecha_doc||x.created_at)} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:8px" onclick="verDoc('${x.id}')">📄 Ver</button> <button class="btn" style="padding:2px 8px;font-size:11px" onclick="openRenombrarDoc('${x.id}','${w.id}')" title="Cambiar el nombre y el tipo de movimiento (ALTA, BAJA...)">✎</button> <button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="anularDoc('${x.id}','${w.id}')" title="Quitar del expediente (queda rastro de quién y por qué)">🗑</button></span></div>`;
         const falt=faltantesReciboDe(w);
         const faltHtml=falt.length
           ?`<div class="kv" style="background:var(--amber-bg)"><b style="color:var(--amber)">⚠ Faltan ${falt.length}</b><span>${falt.map(W=>'<span class="badge PENDIENTE" style="font-size:10px;margin:1px">S'+W+'</span>').join(' ')} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:6px" onclick="openPdfImport()">📎 Importar recibos</button></span></div>`
@@ -4716,20 +4754,86 @@ async function applyPdfImport(){
    (transferencia + cheque), y guarda cada pago en la tabla `pagos`.
    ============================================================ */
 /* Lee el PDF (texto de pdf.js): registros + encabezado (descripción/folio/fecha). */
+/* 2026-08-28 · BBVA cambió el formato del "Resumen general de grupo de Pago
+   de nómina" y el lector viejo dejó de reconocer un solo renglón. El PDF se
+   importaba como si fuera UN pago individual de $552,611.39 "(sin nombre)"
+   y encima salía RECHAZADO, porque el encabezado dice "Rechazadas 0" y el
+   lector de individuales solo buscaba la palabra "Rechaz". 228 pagos en uno.
+
+   ANTES:  28 Ago. 2026  *0152  NOMBRE            Exitoso  2,466.71 MXN
+   AHORA:  28/08/2026    •0152  NOMBRE        -   Exitoso  2,466.71 MXN
+   Cambiaron tres cosas: la fecha (dd/mm/aaaa), la viñeta de la cuenta
+   (• en vez de *) y una columna de concepto vacía que mete un "-" entre el
+   nombre y el estado.
+
+   NOMBRES EN DOS RENGLONES: los nombres largos se parten en la tabla
+   ("LUIS FERNANDO HERNANDEZ" / "ALTAMIRANO"). Como el texto de pdf.js se
+   arma uniendo los fragmentos en orden de lectura, las dos partes llegan
+   pegadas con un espacio; por eso el nombre se captura completo con un
+   cuantificador perezoso hasta el estado, en vez de renglón por renglón.
+
+   Se leen LOS DOS formatos: el archivo viejo tiene que seguir importándose. */
+const PG_ESTADOS='Exitoso|Exitosa|Rechazado|Rechazada|Devuelto|Devuelta|Cancelado|Cancelada|Pendiente|En\\s+proceso';
+function _pgEstado(s){
+  const x=String(s||'').trim();
+  if(/^(rechaz|devuel|cancel)/i.test(x))return 'RECHAZADO';
+  if(/^(pendiente|en\s+proceso)/i.test(x))return 'PENDIENTE';
+  return 'EXITOSO';
+}
+/* Limpia el nombre: quita la columna de concepto vacía ("-") y los espacios
+   de más que deja el pegado de renglones. */
+function _pgTitular(s){
+  return String(s||'').replace(/\s+/g,' ').replace(/(^|\s)[-–—]+(\s|$)/g,' ')
+    .replace(/\s+/g,' ').trim();
+}
+/* Un nombre de verdad: si trae una fecha, "MXN" o un número largo, es que la
+   expresión se comió el renglón siguiente y ese registro no se acepta. */
+function _pgTitularOk(n){
+  return n.length>=3&&/[A-ZÑÁÉÍÓÚ]{2}/i.test(n)&&!/\d{1,2}\/\d{1,2}\/\d{4}|MX[NP]|\d{3,}/i.test(n);
+}
 function parsePagoGlobal(t){
-  t=String(t||''); const records=[];
-  const rx=/(\d{1,2})\s+([A-Za-zÁÉÍÓÚáéíóú]{3,4})\.?\s+(\d{4})\s+\*(\d{2,6})\s+(.+?)\s+(Exitoso|Rechazado)\s+([\d,]+\.\d{2})\s*MXN/gi;
+  t=' '+String(t||'').replace(/\s+/g,' ')+' ';
+  const hallazgos=[];
+  const cae=(ini,fin,y,mo,d,mask,nombre,estado,imp)=>{
+    if(!(mo>=0&&mo<=11)||!(d>=1&&d<=31))return;
+    const nom=_pgTitular(nombre); if(!_pgTitularOk(nom))return;
+    hallazgos.push({ini,fin,r:{day:d,mes:mo,year:y,mask:String(mask),titular:nom,
+      estado:_pgEstado(estado),importe:parseFloat(String(imp).replace(/,/g,''))}});
+  };
+  // FORMATO NUEVO: 28/08/2026 •9396 ARTURO VILLALOBOS MARTINEZ - Exitoso 2,400.26 MXN
+  const rxNuevo=new RegExp('(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})\\s+[•*·∙●-]?\\s*(\\d{2,6})\\s+'+
+    '(.{2,140}?)\\s+('+PG_ESTADOS+')\\s+([\\d,]+\\.\\d{2})\\s*MX[NP]','gi');
+  // FORMATO ANTERIOR: 28 Ago. 2026 *0152 NOMBRE Exitoso 2,466.71 MXN
+  const rxViejo=new RegExp('(\\d{1,2})\\s+([A-Za-zÁÉÍÓÚáéíóú]{3,4})\\.?\\s+(\\d{4})\\s+'+
+    '[•*·]\\s*(\\d{2,6})\\s+(.{2,140}?)\\s+('+PG_ESTADOS+')\\s+([\\d,]+\\.\\d{2})\\s*MX[NP]','gi');
   let m;
-  while((m=rx.exec(t))){
-    const mes=_MABREV[m[2].toUpperCase().slice(0,3)]; if(mes==null)continue;
-    records.push({day:+m[1],mes,year:+m[3],mask:m[4],titular:m[5].replace(/\s+/g,' ').trim(),
-      estado:/rech/i.test(m[6])?'RECHAZADO':'EXITOSO',importe:parseFloat(m[7].replace(/,/g,''))});
+  while((m=rxNuevo.exec(t)))cae(m.index,m.index+m[0].length,+m[3],+m[2]-1,+m[1],m[4],m[5],m[6],m[7]);
+  while((m=rxViejo.exec(t))){
+    const mo=_MABREV[m[2].toUpperCase().slice(0,3)];
+    if(mo!=null)cae(m.index,m.index+m[0].length,+m[3],mo,+m[1],m[4],m[5],m[6],m[7]);
   }
-  const d=t.match(/\bNOMINA[A-Z0-9]{2,}\b/i);
+  /* Si un PDF trajera los dos formatos, un renglón podría casar dos veces. Se
+     descarta por TRASLAPE de posiciones, no por contenido: dos pagos iguales al
+     mismo trabajador el mismo día (sueldo y finiquito, por ejemplo) son
+     legítimos y tienen que sobrevivir. */
+  hallazgos.sort((a,b)=>a.ini-b.ini);
+  const records=[]; let hasta=-1;
+  hallazgos.forEach(h=>{ if(h.ini>=hasta){records.push(h.r);hasta=h.fin;} });
+
+  const gp=t.match(/Nombre del grupo de pago\s+(.{3,60}?)\s+(?:Tipo de pago|Tipo de procesamiento|Datos de)/i);
+  const d=gp?gp[1].trim():(t.match(/\bNOMINA[A-Z0-9]{2,}\b/i)||[''])[0];
   const f=t.match(/\b([0-9A-F]{32})\b/);
   const fc=t.match(/(\d{1,2})\s+de\s+([A-Za-zÁÉÍÓÚáéíóú]+)\s+de\s+(\d{4})/i);
   let fecha=null; if(fc){const mo=_MABREV[fc[2].toUpperCase().slice(0,3)]; if(mo!=null)fecha={y:+fc[3],m:mo,d:+fc[1]};}
-  return {records,descripcion:d?d[0]:'',folio:f?f[1]:'',fecha};
+  /* El propio PDF dice cuántos registros trae y cuánto suman. Se devuelven para
+     poder avisar si el lector se quedó corto: en una dispersión de 228 renglones
+     un formato que cambia a media página se pasa de largo sin que nadie lo note,
+     y eso significa gente marcada como NO pagada. */
+  const nReg=t.match(/N[uú]mero de registros\s+(\d+)/i);
+  const tot=t.match(/Importe total\s+([\d,]+\.\d{2})/i);
+  return {records,descripcion:d||'',folio:f?f[1]:'',fecha,
+    esperados:nReg?+nReg[1]:null,
+    totalEsperado:tot?parseFloat(tot[1].replace(/,/g,'')):null};
 }
 /* Lee un comprobante de pago INDIVIDUAL (1 solo pago) de BBVA, en dos formatos:
    (A) "Dispersión de Nómina en Tiempo Real" (mismo banco, el nombre viene concatenado
@@ -4740,7 +4844,11 @@ function parsePagoIndividual(t){
   t=' '+String(t||'').replace(/\s+/g,' ')+' ';
   const im=t.match(/([\d,]+\.\d{2})\s*MX[PN]/i); if(!im)return null;
   const importe=parseFloat(im[1].replace(/,/g,''));
-  const estado=/(rechaz|devuel|cancel|no aplicad|fallid|no procesad)/i.test(t)?'RECHAZADO':'EXITOSO';
+  /* "Rechazadas 0" del resumen NO es un rechazo: es el contador del encabezado.
+     Se quitan los contadores antes de buscar la palabra, si no cualquier pago
+     global que caiga aquí por error sale marcado RECHAZADO. */
+  const tEstado=t.replace(/\b(Exitosas?|Rechazadas?|Devueltas?|Canceladas?)\s*:?\s*\d+/gi,' ');
+  const estado=/(rechaz|devuel|cancel|no aplicad|fallid|no procesad)/i.test(tEstado)?'RECHAZADO':'EXITOSO';
   let banco='BBVA';
   const bm=t.match(/Nombre banco destino:\s*([A-ZÑÁÉÍÓÚ][A-ZÑÁÉÍÓÚ .]+?)\s+(?:Fecha|Concepto|Referencia|$)/);
   if(bm)banco=bm[1].replace(/\s+/g,' ').trim().slice(0,24);
@@ -4876,7 +4984,7 @@ async function pgParse(inp){
   const files=inp.files?[...inp.files]:[]; if(!files.length)return;
   if(!window.pdfjsLib){toast('La librería de PDF no cargó. Revisa tu internet y reabre la app.','err');return;}
   $('pg-out').innerHTML=skeletonRows(6,'26px 1.5fr 1fr 1fr .9fr','Leyendo '+files.length+' comprobante(s) de pago...');
-  const rows=[]; let sugFecha=null;
+  const rows=[]; let sugFecha=null; const avisosPg=[];
   const yaHash=async h=>{try{const {data}=await sb.from('pagos').select('id').eq('hash',h).limit(1);return !!(data&&data.length);}catch(e){return false;}};
   for(const file of files){
     let txt='',hash='';
@@ -4893,6 +5001,14 @@ async function pgParse(inp){
           wId:w?w.id:null,sel:(!!w&&r.estado==='EXITOSO'&&!ya),already:false});
       });
       if(g.fecha&&!sugFecha)sugFecha=g.fecha;
+      /* El PDF dice cuántos son y cuánto suman: si no cuadra, se avisa fuerte.
+         Un renglón que el lector no reconoce es un trabajador que aparece como
+         NO pagado, y eso no se puede quedar callado. */
+      const sumaLeida=Math.round(g.records.reduce((s,r)=>s+(Number(r.importe)||0),0)*100)/100;
+      if(g.esperados!=null&&g.records.length!==g.esperados)
+        avisosPg.push(`⚠ ${file.name}: el PDF dice ${g.esperados} registro(s) y solo se leyeron ${g.records.length}. NO lo registres hasta revisar.`);
+      else if(g.totalEsperado!=null&&Math.abs(sumaLeida-g.totalEsperado)>0.01)
+        avisosPg.push(`⚠ ${file.name}: el PDF suma $${money(g.totalEsperado)} y lo leído suma $${money(sumaLeida)}.`);
     }else{
       const ind=parsePagoIndividual(txt);
       if(ind){
@@ -4935,7 +5051,7 @@ async function pgParse(inp){
   }
   if(!rows.filter(r=>!r.error).length){$('pg-out').innerHTML='<div class="empty">No encontré pagos en el/los PDF. ¿Es el reporte de BBVA (global) o un comprobante individual (dispersión / interbancario)?</div>';$('pg-btn').classList.add('hide');return;}
   if(sugFecha&&$('pg-sem')&&!$('pg-sem').value.trim()){const wk=isoWeekDe(OBRA,new Date(sugFecha.y,sugFecha.m,sugFecha.d,12,0,0));if(wk>0)$('pg-sem').value='S'+wk;}
-  PAGOIMP={rows};
+  PAGOIMP={rows,avisos:avisosPg};
   pgRender();
 }
 function pgRender(){
@@ -4947,7 +5063,12 @@ function pgRender(){
   const nRech=valid.filter(r=>r.estado==='RECHAZADO').length;
   const bancos=[...new Set(valid.map(r=>r.banco).filter(Boolean))];
   const nInd=valid.filter(r=>r.individual).length;
-  $('pg-head').innerHTML=(valid.some(r=>r.porIA)?IA_BANNER:'')+`<div style="background:var(--blue-bg,#eef3fb);border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.7">
+  const avisos=(PAGOIMP.avisos||[]).length
+    ?`<div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.7;margin-bottom:8px">
+       ${PAGOIMP.avisos.map(a=>`<div><b>${esc(a)}</b></div>`).join('')}
+       <div style="color:var(--mut);font-size:11px">El PDF trae escrito cuántos pagos son y cuánto suman; lo leído no cuadra con eso.</div>
+     </div>`:'';
+  $('pg-head').innerHTML=(valid.some(r=>r.porIA)?IA_BANNER:'')+avisos+`<div style="background:var(--blue-bg,#eef3fb);border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.7">
     <b>${valid.length} pago(s)</b> · total $${money(suma)}${nInd?` · ${nInd} individual(es)`:''}${bancos.length?` · banco(s): ${esc(bancos.join(', '))}`:''}</div>`;
   let nDup=0;
   const body=PAGOIMP.rows.map((r,i)=>{
@@ -6048,6 +6169,229 @@ async function verDoc(docId){
   const {data,error}=await sb.storage.from('expedientes').createSignedUrl(d.archivo,3600);
   if(error||!data){toast('No se pudo abrir el documento: '+(error?error.message:''),'err');return;}
   window.open(data.signedUrl,'_blank');
+}
+/* ============================================================
+   CONTROL DE PAPELES — expedientes pendientes (Script 61, 2026-08-28)
+   La gente de nuevo ingreso empieza a asistir antes de entregar sus
+   documentos. Como todavía no está dada de alta no existe en
+   `trabajadores`, así que no salía en ningún control y se acumulaba
+   semana tras semana sin que nadie llevara la cuenta.
+
+   El CONTADOR LO LLEVA LA BASE, no esta pantalla: registrar_pendiente()
+   solo sube el número si la semana es POSTERIOR a la última registrada.
+   Si se hace desde dos computadoras a la vez, o si alguien le da dos
+   veces al botón el mismo día, el número no se infla.
+   ============================================================ */
+let PAPELES=[];
+async function cpCargar(){
+  if(!OBRA)return;
+  const b=$('cp-body'); if(b)b.innerHTML='<tr class="loading-row"><td colspan="7">Cargando...</td></tr>';
+  const {data,error}=await sb.from('control_expedientes_pendientes').select('*').eq('obra_id',OBRA.id);
+  if(error){
+    if(b)b.innerHTML=`<tr><td colspan="7"><div class="empty"><div class="big">📂</div>No pude leer el control de papeles.<br><span style="font-size:12.5px">${/relation|does not exist/i.test(error.message||'')?'Falta correr el <b>Script 61</b> en Supabase.':esc(error.message)}</span></div></td></tr>`;
+    return;
+  }
+  PAPELES=data||[];
+  if($('cp-sem')&&!$('cp-sem').value)$('cp-sem').value=isoWeek();
+  const sug=$('cp-sug');
+  if(sug)sug.innerHTML=PAPELES.filter(r=>!r.entregado).map(r=>`<option value="${esc(r.nombre_completo)}">`).join('');
+  const pu=$('cp-puestos');
+  if(pu)pu.innerHTML=catalogoPuestos().map(p=>`<option value="${esc(p)}">`).join('');
+  renderPapeles();
+}
+function renderPapeles(){
+  const q=(($('cp-q')||{}).value||'').trim().toUpperCase();
+  const f=(($('cp-filtro')||{}).value)||'PEND';
+  const pend=PAPELES.filter(r=>!r.entregado);
+  const s=$('cp-stats');
+  if(s){
+    const graves=pend.filter(r=>(r.semanas_adeudadas||0)>=3).length;
+    const sem=pend.reduce((a,r)=>a+(Number(r.semanas_adeudadas)||0),0);
+    s.innerHTML=`
+      <div class="stat a"><div class="n">${pend.length}</div><div class="l">Deben papeles</div></div>
+      <div class="stat r"><div class="n">${graves}</div><div class="l">Con 3+ semanas</div></div>
+      <div class="stat"><div class="n">${sem}</div><div class="l">Semanas acumuladas</div></div>
+      <div class="stat g"><div class="n">${PAPELES.length-pend.length}</div><div class="l">Ya entregaron</div></div>`;
+  }
+  let lista=f==='PEND'?pend:(f==='ENTREGADOS'?PAPELES.filter(r=>r.entregado):PAPELES.slice());
+  if(q)lista=lista.filter(r=>[r.nombre_completo,r.puesto].join(' ').toUpperCase().includes(q));
+  lista.sort((a,b)=>(b.semanas_adeudadas||0)-(a.semanas_adeudadas||0)
+    ||String(a.nombre_completo).localeCompare(String(b.nombre_completo),'es'));
+  const b=$('cp-body'); if(!b)return;
+  if(!lista.length){
+    b.innerHTML=`<tr><td colspan="7"><div class="empty"><div class="big">📂</div>${
+      f==='ENTREGADOS'?'Todavía nadie de esta lista ha entregado sus papeles.'
+      :'Nadie debe papeles ahorita.'}<br><span style="font-size:12.5px">Registra arriba a quien esté asistiendo sin entregar su documentación.</span></div></td></tr>`;
+    return;
+  }
+  b.innerHTML=lista.map(r=>{
+    const n=Number(r.semanas_adeudadas)||0;
+    const col=n>=3?'var(--red)':(n===2?'var(--amber)':'var(--txt)');
+    return `<tr>
+      <td><b>${esc(r.nombre_completo)}</b></td>
+      <td>${esc(r.puesto||'—')}</td>
+      <td>${esc(r.semana_ingreso||'—')}</td>
+      <td>${esc(r.ultima_semana_registrada||'—')}</td>
+      <td style="text-align:right;font-weight:800;color:${col}">${n}</td>
+      <td>${r.entregado?`<span class="badge ACTIVO">ENTREGÓ</span>`:`<span class="badge PENDIENTE">DEBE</span>`}</td>
+      <td style="white-space:nowrap">${r.entregado
+        ? `<button class="btn" style="padding:2px 9px;font-size:11px" onclick="cpEntregado('${r.id}',false)">↩ Reabrir</button>`
+        : `<button class="btn dark" style="padding:2px 9px;font-size:11px" onclick="cpEntregado('${r.id}',true)">✔ Ya entregó</button>`}
+        <button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="cpQuitar('${r.id}')" title="Quitar de la lista">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+async function cpRegistrar(){
+  if(!OBRA){toast('Abre una obra primero.','err');return;}
+  const nom=($('cp-nom').value||'').replace(/\s+/g,' ').trim().toUpperCase();
+  const puesto=($('cp-puesto').value||'').trim().toUpperCase();
+  const semN=parseInt($('cp-sem').value)||isoWeek();
+  if(nom.length<3){toast('Escribe el nombre completo.','err');return;}
+  markWrite();
+  const {data,error}=await sb.rpc('registrar_pendiente',
+    {p_obra:OBRA.id,p_nombre:nom,p_puesto:puesto||null,p_semana:'S'+semN,p_usuario:USER.email});
+  if(error){
+    toast(/function .*registrar_pendiente/i.test(error.message||'')
+      ?'Falta correr el Script 61 en Supabase.':'Error: '+error.message,'err');
+    return;
+  }
+  const r=data&&data.fila?data.fila:null;
+  const n=r?Number(r.semanas_adeudadas)||1:1;
+  $('cp-nom').value=''; $('cp-puesto').value='';
+  await cpCargar();
+  $('cp-nom').focus();
+  if(!r){toast('Registrado.','ok');return;}
+  if(data.nuevo){ toast(`Registrado: ${r.nombre_completo} · 1ª semana sin papeles.`,'ok'); return; }
+  if(n>=2){
+    // La alerta es un modal a propósito: un toast se va solo y esto es
+    // justo lo que nadie estaba viendo.
+    modal(`
+      <div class="m-head" style="background:var(--amber-bg)"><h2>⚠️ ¡CUIDADO!</h2><button class="x" onclick="closeModal()">×</button></div>
+      <div class="m-body">
+        <p style="font-size:15px;line-height:1.7">Este trabajador ya lleva <b style="color:var(--red);font-size:20px">${n}</b> semana(s) asistiendo <b>sin entregar documentación</b>.</p>
+        <div class="kv"><b>Nombre</b><span><b>${esc(r.nombre_completo)}</b></span></div>
+        <div class="kv"><b>Puesto</b><span>${esc(r.puesto||'sin capturar')}</span></div>
+        <div class="kv"><b>Ingresó en la semana</b><span><b>${esc(r.semana_ingreso||'—')}</b></span></div>
+        <div class="kv"><b>Última vez registrado</b><span>${esc(r.ultima_semana_registrada||'—')}</span></div>
+        ${data.coincidencia_exacta?'':`<div class="kv" style="background:var(--amber-bg)"><b>Ojo</b><span>Lo capturaste como <b>${esc(nom)}</b> y lo ligué al que ya estaba: <b>${esc(r.nombre_completo)}</b>. Si no es la misma persona, quita el renglón y vuelve a capturarlo con el nombre completo.</span></div>`}
+      </div>
+      <div class="m-foot">
+        <button class="btn" onclick="closeModal()">Entendido</button>
+        <button class="btn dark" onclick="closeModal();cpEntregado('${r.id}',true)">✔ Ya entregó sus papeles</button>
+      </div>`,'sm');
+  }else{
+    toast(`${r.nombre_completo}: ya estaba registrado en ${r.ultima_semana_registrada||'la misma semana'}. No se subió el contador.`,'');
+  }
+}
+async function cpEntregado(id,val){
+  const r=PAPELES.find(x=>x.id===id);
+  if(val&&r&&!confirm(`¿${r.nombre_completo} ya entregó toda su documentación?\n\nSale de la lista y deja de contar semanas.`))return;
+  markWrite();
+  const {error}=await sb.from('control_expedientes_pendientes')
+    .update({entregado:val,fecha_entrega:val?today():null,actualizado_por:USER.email}).eq('id',id);
+  if(error){toast('Error: '+error.message,'err');return;}
+  toast(val?'Marcado como entregado.':'Regresó a la lista de pendientes.','ok');
+  await cpCargar();
+}
+async function cpQuitar(id){
+  const r=PAPELES.find(x=>x.id===id); if(!r)return;
+  if(!confirm(`¿Quitar a ${r.nombre_completo} de la lista?\n\nEsto SÍ borra el renglón (no es un trabajador dado de alta, es una nota de control).`))return;
+  markWrite();
+  const {error}=await sb.from('control_expedientes_pendientes').delete().eq('id',id);
+  if(error){toast('Error: '+error.message,'err');return;}
+  toast('Quitado de la lista.','ok');
+  await cpCargar();
+}
+function exportListaNegra(){
+  const lista=PAPELES.filter(r=>!r.entregado)
+    .sort((a,b)=>(b.semanas_adeudadas||0)-(a.semanas_adeudadas||0)
+      ||String(a.nombre_completo).localeCompare(String(b.nombre_completo),'es'));
+  if(!lista.length){toast('No hay nadie pendiente de entregar papeles.','err');return;}
+  const rows=[],styles=[],hs=[];
+  rows.push(['CONTROL DE EXPEDIENTES PENDIENTES','','','']); styles.push(ST.title); hs.push({hpt:26});
+  rows.push([`${OBRA.nombre} · ${lista.length} trabajador(es) sin entregar documentación · ${new Date().toLocaleDateString('es-MX')}`,'','','']);
+  styles.push(ST.sub); hs.push({hpt:18});
+  rows.push(['NOMBRE COMPLETO','PUESTO','SEMANA DE INGRESO','SEMANAS ADEUDADAS']);
+  styles.push(ST.head); hs.push({hpt:24});
+  lista.forEach(r=>{
+    const n=Number(r.semanas_adeudadas)||0;
+    rows.push([r.nombre_completo,r.puesto||'Sin información',r.semana_ingreso||'Sin información',n]);
+    // 3 semanas o más se marcan en rojo: es lo que hay que resolver primero
+    const rojo=n>=3?{font:{bold:true,color:{rgb:'C00000'}}}:{};
+    styles.push([{...ST.cell,...rojo},ST.cell,ST.cellC,{...ST.cellC,...rojo,font:{...(rojo.font||{}),bold:true}}]);
+    hs.push(null);
+  });
+  rows.push(['TOTAL','','',lista.reduce((s,r)=>s+(Number(r.semanas_adeudadas)||0),0)]);
+  styles.push([ST.total,ST.total,ST.total,ST.total]); hs.push({hpt:20});
+  const merges=[{s:{r:0,c:0},e:{r:0,c:3}},{s:{r:1,c:0},e:{r:1,c:3}},
+    {s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:2}}];
+  const ws=buildSheet(rows,styles,[38,24,18,20],merges,hs);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'PENDIENTES');
+  dl(wb,`EXPEDIENTES_PENDIENTES_${String(OBRA.nombre||'').replace(/[^A-Za-z0-9]+/g,'_').slice(0,40)}_${today()}.xlsx`);
+  toast(`Lista exportada: ${lista.length} pendiente(s).`,'ok');
+}
+
+/* ---------- RENOMBRAR UN DOCUMENTO DEL EXPEDIENTE (2026-08-28) ---------
+   Los acuses del IMSS entran con el nombre que trae el archivo del IDSE, y
+   cuando un mismo trabajador tiene alta y baja las dos filas se ven casi
+   iguales: hay que abrir cada PDF para saber cuál es cuál. Aquí se puede
+   corregir el nombre y, en los acuses, el TIPO DE MOVIMIENTO, que es la
+   etiqueta en negritas que se ve en la ficha.
+   El archivo en Storage NO se toca: solo cambia cómo se llama en la base.
+   Así ningún enlace ni respaldo se rompe. */
+const SUBTIPOS_IMSS=['ALTA','REINGRESO','BAJA','MODIFICACION SALARIAL','OTRO'];
+function openRenombrarDoc(docId,wId){
+  const d=DOCSX.find(x=>x.id===docId); if(!d){toast('No encontré ese documento.','err');return;}
+  const esImss=String(d.categoria||'')==='ACUSE_IMSS';
+  const actual=String(d.subtipo||'').toUpperCase();
+  modal(`
+    <div class="m-head"><h2>✎ Renombrar documento</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px">Cambia cómo se llama este documento <b>en la base</b>. El archivo guardado no se mueve ni se vuelve a subir, así que no se rompe ningún enlace.</p>
+      <div class="kv"><b>Categoría</b><span>${esc(d.categoria||'—')}${d.semana?' · '+esc(d.semana):''} · ${fmtD(d.fecha_doc||d.created_at)}</span></div>
+      <div class="kv"><b>Subido por</b><span>${esc(d.subido_por||'—')}</span></div>
+      <div style="margin-top:12px"><label>Nombre del documento *</label>
+        <input id="rd-nom" maxlength="120" value="${esc(d.nombre_archivo||'')}">
+        <div class="fhint">Máximo 120 caracteres. Ponle el sufijo que te sirva para distinguirlo: ALTA, BAJA, REINGRESO...</div></div>
+      ${esImss?`<div style="margin-top:12px"><label>Tipo de movimiento</label>
+        <select id="rd-sub">${SUBTIPOS_IMSS.map(s=>`<option ${actual===s?'selected':''}>${s}</option>`).join('')}
+          ${SUBTIPOS_IMSS.includes(actual)||!actual?'':`<option selected>${esc(actual)}</option>`}</select>
+        <div class="fhint">Es la etiqueta en negritas de la ficha. <b>Solo cambia el nombre del acuse</b>: no modifica el movimiento IMSS del trabajador ni su fecha de alta o baja.</div></div>`:''}
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        ${['ALTA','BAJA','REINGRESO','MODIFICACIÓN'].map(s=>`<button class="btn" style="padding:3px 10px;font-size:11.5px" onclick="rdSufijo('${s}')">+ ${s}</button>`).join('')}
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn dark" onclick="guardarRenombreDoc('${docId}','${wId}')">💾 Guardar nombre</button>
+    </div>`,'sm');
+}
+/* Agrega el sufijo al final, sin repetirlo si ya está. */
+function rdSufijo(s){
+  const i=$('rd-nom'); if(!i)return;
+  const base=i.value.replace(/\.pdf$/i,'').trim();
+  if(new RegExp('(^|[^A-ZÁÉÍÓÚ])'+s+'([^A-ZÁÉÍÓÚ]|$)','i').test(base)){i.focus();return;}
+  const ext=/\.pdf$/i.test(i.value)?'.pdf':'';
+  i.value=(base+' — '+s+ext).slice(0,120);
+  i.focus();
+}
+async function guardarRenombreDoc(docId,wId){
+  const d=DOCSX.find(x=>x.id===docId); if(!d)return;
+  const nom=($('rd-nom').value||'').trim().slice(0,120);
+  if(!nom){toast('El documento necesita un nombre.','err');return;}
+  const upd={nombre_archivo:nom};
+  const sel=$('rd-sub'); if(sel&&sel.value&&sel.value!==d.subtipo)upd.subtipo=sel.value;
+  if(nom===d.nombre_archivo&&!upd.subtipo){closeModal();return;}
+  markWrite();
+  const {error}=await sb.from('documentos').update(upd).eq('id',docId);
+  if(error){toast('Error: '+error.message,'err');return;}
+  // se refleja de inmediato, sin esperar a la recarga
+  d.nombre_archivo=nom; if(upd.subtipo)d.subtipo=upd.subtipo;
+  closeModal();
+  toast('Documento renombrado.','ok');
+  await loadObraData(OBRA.id);
+  if(wId)openDetail(wId);
 }
 /* ---------- v31: anular documento del expediente (con rastro) ---------- */
 async function anularDoc(docId,wId){
