@@ -1003,7 +1003,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <div style="font-weight:800;color:var(--navy);margin-bottom:4px">📂 Registrar asistencia SIN papeles</div>
         <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px">Para el que ya está viniendo a trabajar pero <b>todavía no entrega su documentación</b>. Cada vez que lo registres en una semana nueva, le sube el contador. Cuando entregue, márcalo y sale de la lista.</p>
         <div class="grid" style="grid-template-columns:2fr 1.2fr .8fr auto;align-items:end;gap:10px">
-          <div><label>Nombre completo *</label><input id="cp-nom" placeholder="APELLIDO APELLIDO NOMBRE(S)" list="cp-sug" onkeydown="if(event.key==='Enter')cpRegistrar()"></div>
+          <div><label>Nombre completo *</label><input id="cp-nom" placeholder="APELLIDO APELLIDO NOMBRE(S)" list="cp-sug" onblur="cpChecaAlta()" oninput="cpLimpiaAviso()" onkeydown="if(event.key==='Enter')cpRegistrar()"><div class="fhint" id="cp-aviso"></div></div>
           <div><label>Puesto</label><input id="cp-puesto" list="cp-puestos" placeholder="AYUDANTE GENERAL"></div>
           <div><label>Semana</label><input id="cp-sem" type="number" min="1" max="53"></div>
           <button class="btn gold" onclick="cpRegistrar()">＋ Registrar</button>
@@ -1495,7 +1495,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-28.2';
+const APP_VERSION='2026-08-28.3';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2932,11 +2932,18 @@ async function saveWorker(id){
   }
   // v.4: si faltan las columnas del Script 42 (registro patronal/prima propios),
   // reintenta sin ellas para no bloquear el guardado y avisa que corran el script.
-  if(error&&/registro_patronal|prima_rt|benef_parentesco|benef_telefono|benef_porcentaje/i.test(error.message||'')&&/column|does not exist|schema cache|could not find/i.test(error.message||'')){
+  if(error&&/registro_patronal|prima_rt|benef_parentesco|benef_telefono|benef_porcentaje|id_cuadrilla/i.test(error.message||'')&&/column|does not exist|schema cache|could not find/i.test(error.message||'')){
+    /* 2026-08-28: se agregó id_cuadrilla a la lista. Si faltaba el Script 56, el
+       alta con cuadrilla fallaba ENTERA y el trabajador no se creaba; ahora se
+       guarda sin cuadrilla y se avisa qué script falta, en vez de perder el alta. */
     const w2={...w}; delete w2.registro_patronal; delete w2.prima_rt; delete w2.benef_parentesco; delete w2.benef_telefono; delete w2.benef_porcentaje;
+    const perdioCuad=/id_cuadrilla/i.test(error.message||'')&&w2.id_cuadrilla;
+    if(perdioCuad)delete w2.id_cuadrilla;
     if(id)({error}=await sb.from('trabajadores').update(w2).eq('id',id));
     else ({error}=await sb.from('trabajadores').insert(w2));
-    if(!error)toast('Guardado, pero algunos campos nuevos (registro patronal/prima o datos del beneficiario) NO se aplicaron: falta correr el Script 42 o 47 en Supabase.','err');
+    if(!error)toast(perdioCuad
+      ?'Guardado, pero SIN CUADRILLA: falta correr el Script 56 en Supabase. Vuelve a asignársela después de correrlo.'
+      :'Guardado, pero algunos campos nuevos (registro patronal/prima o datos del beneficiario) NO se aplicaron: falta correr el Script 42 o 47 en Supabase.','err');
   }
   if(error){$('save-btn').textContent='💾 Guardar';toast('Error al guardar: '+error.message,'err');return;}
   closeModal();toast(msg,'ok');
@@ -6241,12 +6248,89 @@ function renderPapeles(){
     </tr>`;
   }).join('');
 }
+/* ---------- ¿ESTE YA ESTÁ DADO DE ALTA? (2026-08-28) ------------------
+   El control de papeles es la ANTESALA: gente que ya viene a trabajar
+   pero todavía no está en el padrón. Si alguien ya está en
+   `trabajadores`, no tiene nada que hacer aquí — pero el capturista no se
+   sabe de memoria a los 200 y lo vuelve a anotar.
+
+   La búsqueda se hace en la base (buscar_trabajador_parecido, Script 62)
+   con el mismo criterio de parecido del control de papeles: exacto, otro
+   orden de apellidos, un apellido de menos, y errores de dedo si hay
+   pg_trgm. Si la función no está todavía, se busca en la gente ya
+   cargada de la obra, para no dejar la validación sin red.
+
+   Una BAJA no bloquea: esa persona sí puede volver a entrar y hay que
+   llevarle el control otra vez. */
+function cpLimpiaAviso(){
+  const a=$('cp-aviso'); if(a){a.innerHTML='';a.removeAttribute('style');}
+  const i=$('cp-nom'); if(i)i.classList.remove('err');
+  window._CPYA=null;
+}
+function _cpLocal(nom){
+  const w=(WORKERS||[]).find(x=>_pgNameEq(fullName(x),nom))
+       ||(WORKERS||[]).find(x=>_pgOverlap(fullName(x),nom)>=0.8);
+  if(!w)return {encontrado:false};
+  return {encontrado:true,nombre:fullName(w),no_trab:w.no_trab,
+    puesto:w.puesto||'sin puesto',estatus:w.estatus||'',
+    bloquea:String(w.estatus||'').toUpperCase()!=='BAJA',
+    exacto:_pgNameEq(fullName(w),nom)};
+}
+async function cpBuscaAlta(nom){
+  if(!OBRA||!nom||nom.length<3)return {encontrado:false};
+  try{
+    const {data,error}=await sb.rpc('buscar_trabajador_parecido',{p_obra:OBRA.id,p_nombre:nom});
+    if(error)throw error;
+    return data||{encontrado:false};
+  }catch(e){
+    return _cpLocal(nom);   // sin el Script 62, al menos se revisa lo cargado
+  }
+}
+async function cpChecaAlta(){
+  const nom=($('cp-nom').value||'').replace(/\s+/g,' ').trim().toUpperCase();
+  cpLimpiaAviso();
+  if(nom.length<3)return null;
+  const r=await cpBuscaAlta(nom);
+  window._CPYA=r&&r.encontrado?r:null;
+  const a=$('cp-aviso');
+  if(!r||!r.encontrado){
+    if(a){a.style.color='var(--green)';a.textContent='✔ No está dado de alta — se puede registrar.';}
+    return null;
+  }
+  const msg=`Trabajador ya registrado. Número: ${r.no_trab??'sin número'} - Puesto: ${r.puesto||'sin puesto'}`;
+  if($('cp-nom'))$('cp-nom').classList.toggle('err',!!r.bloquea);
+  if(a){
+    a.style.color=r.bloquea?'var(--red)':'var(--amber)';
+    a.innerHTML=r.bloquea
+      ?`<b>⛔ ${esc(msg)}</b>${r.exacto?'':` · lo encontré como <b>${esc(r.nombre)}</b>`}`
+      :`<b>⚠ ${esc(r.nombre)} está de BAJA</b> (número ${r.no_trab??'—'}). Si volvió a entrar, sí se registra aquí.`;
+  }
+  return r;
+}
 async function cpRegistrar(){
   if(!OBRA){toast('Abre una obra primero.','err');return;}
   const nom=($('cp-nom').value||'').replace(/\s+/g,' ').trim().toUpperCase();
   const puesto=($('cp-puesto').value||'').trim().toUpperCase();
   const semN=parseInt($('cp-sem').value)||isoWeek();
   if(nom.length<3){toast('Escribe el nombre completo.','err');return;}
+  /* Se vuelve a revisar aquí, no solo en el onblur: con Enter el campo nunca
+     pierde el foco y la validación se saltaría. */
+  const ya=await cpChecaAlta();
+  if(ya&&ya.bloquea){
+    modal(`
+      <div class="m-head" style="background:var(--amber-bg)"><h2>⛔ Trabajador ya registrado</h2><button class="x" onclick="closeModal()">×</button></div>
+      <div class="m-body">
+        <p style="font-size:15px;line-height:1.7"><b>Trabajador ya registrado. Número: ${esc(String(ya.no_trab??'sin número'))} - Puesto: ${esc(ya.puesto||'sin puesto')}</b></p>
+        <p style="color:var(--mut);font-size:12.5px">Esta pantalla es solo para quien <b>todavía no está dado de alta</b>. ${esc(ya.nombre)} ya está en el padrón de ${esc(OBRA.nombre)} como <b>${esc(ya.estatus||'—')}</b>, así que no se anota aquí.</p>
+        ${ya.exacto?'':`<div class="kv" style="background:var(--amber-bg)"><b>Ojo</b><span>Lo capturaste como <b>${esc(nom)}</b> y en el padrón está como <b>${esc(ya.nombre)}</b>. Si de verdad son dos personas distintas, corrige el nombre para que no se confundan.</span></div>`}
+      </div>
+      <div class="m-foot">
+        <button class="btn" onclick="closeModal()">Entendido</button>
+        ${ya.id?`<button class="btn dark" onclick="closeModal();openDetail('${ya.id}')">👤 Ver su ficha</button>`:''}
+      </div>`,'sm');
+    toast(`Trabajador ya registrado. Número: ${ya.no_trab??'sin número'} - Puesto: ${ya.puesto||'sin puesto'}`,'err');
+    return;
+  }
   markWrite();
   const {data,error}=await sb.rpc('registrar_pendiente',
     {p_obra:OBRA.id,p_nombre:nom,p_puesto:puesto||null,p_semana:'S'+semN,p_usuario:USER.email});
@@ -6257,7 +6341,7 @@ async function cpRegistrar(){
   }
   const r=data&&data.fila?data.fila:null;
   const n=r?Number(r.semanas_adeudadas)||1:1;
-  $('cp-nom').value=''; $('cp-puesto').value='';
+  $('cp-nom').value=''; $('cp-puesto').value=''; cpLimpiaAviso();
   await cpCargar();
   $('cp-nom').focus();
   if(!r){toast('Registrado.','ok');return;}
@@ -7738,17 +7822,29 @@ function icOrfanosJSON(){return JSON.stringify({contratista:IMPCU&&IMPCU.contrat
 
 /* ---------- LISTAS DE ASISTENCIA + DIRECTORIO ---------- */
 /* Trabajadores que van en la lista de asistencia de la semana d1..d2:
-   los ACTIVOS, MÁS los PENDIENTES cuya fecha de alta cae dentro de esa semana
-   (los "programados" que la base activará al cambio de semana — p. ej. quien se
-   registró jue/vie y entra el lunes). Así, al generar las listas el sábado para
-   la semana siguiente, esos altas programadas YA aparecen. Excluye a los que ya
-   están de baja antes de que empiece la semana. Ordena por número. */
+   los ACTIVOS, MÁS los PENDIENTES que YA ENTRARON (su fecha de alta es de esa
+   semana o de antes). Excluye a los que ya están de baja antes de que empiece
+   la semana, y a los PROGRAMADOS de semanas futuras (su alta es posterior al
+   domingo: todavía no se presentan). Ordena por número.
+
+   BUG CORREGIDO (2026-08-28) — antes la condición era
+       fecha_alta >= d1 && fecha_alta <= d2
+   o sea que un PENDIENTE solo salía en la lista de la semana EXACTA en que se
+   le capturó el alta. A la semana siguiente desaparecía.
+   Y quien se da de alta sin CURP, RFC, NSS, teléfono o correo queda PENDIENTE
+   —que es justamente el nuevo ingreso—, así que el que lleva tres semanas yendo
+   a la obra sin entregar papeles no aparecía en ninguna lista para firmar.
+   Ese era el reporte de "asigné la cuadrilla y no sale en la lista": no tenía
+   que ver con la cuadrilla (cuadDe() y el LEFT JOIN de fn_lista_asistencia ya
+   contemplaban a los que no tienen), sino con el estatus.
+   Ahora la regla es la que se usa en obra: si ya entró y no está de baja, va en
+   la lista. La misma corrección quedó en fn_lista_asistencia() (Script 62). */
 function asActivosSemana(d1,d2){
   return WORKERS.filter(w=>{
     if(w.fecha_baja&&d1&&w.fecha_baja<d1)return false;                 // ya de baja antes de la semana
     if(w.estatus==='ACTIVO')return true;                              // activo de planta
-    // programado: pendiente cuya ALTA cae dentro de la semana que se genera
-    if(w.estatus==='PENDIENTE'&&w.fecha_alta&&d1&&d2&&w.fecha_alta>=d1&&w.fecha_alta<=d2)return true;
+    // pendiente que ya entró: su alta es de esta semana o de antes
+    if(w.estatus==='PENDIENTE'&&w.fecha_alta&&d2&&w.fecha_alta<=d2)return true;
     return false;
   }).sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
 }
@@ -7762,7 +7858,7 @@ function asUpdateStat(){
   const d1=$('as-d1')?$('as-d1').value:'', d2=$('as-d2')?$('as-d2').value:'';
   const lst=asActivosSemana(d1,d2), pend=lst.filter(w=>w.estatus==='PENDIENTE').length;
   if($('as-stat-n'))$('as-stat-n').textContent=lst.length;
-  if($('as-stat-l'))$('as-stat-l').innerHTML=`En la lista de esa semana → ${Math.max(1,Math.ceil(lst.length/10))} hojas${pend?` · incluye <b>${pend}</b> alta(s) programada(s)`:''}`;
+  if($('as-stat-l'))$('as-stat-l').innerHTML=`En la lista de esa semana → ${Math.max(1,Math.ceil(lst.length/10))} hojas${pend?` · incluye <b>${pend}</b> sin expediente completo (ya están asistiendo)`:''}`;
 }
 function openAsistencia(){
   const [d1,d2]=weekBounds();
@@ -7790,7 +7886,8 @@ function openAsistencia(){
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn" onclick="openRevisarFirmas()">🖊️ Revisar firmas (foto)</button>
-      <button class="btn" onclick="exportDirectorio()">👮 Solo directorio</button>
+      <button class="btn" onclick="exportDirectorioExcel()">📗 Directorio (Excel)</button>
+      <button class="btn" onclick="exportDirectorio()">👮 Directorio para imprimir</button>
       <button class="btn dark" onclick="exportAsistencia()">⬇ Generar listas + directorio</button>
     </div>`,'md');
 }
@@ -7948,8 +8045,10 @@ function exportAsistencia(){
     XLSX.utils.book_append_sheet(wb,asSheet([],cfg,true),hojaNombre(`NUEVO INGRESO ${i+1}`,usados));
   dl(wb,`LISTA_DE_ASISTENCIA_SEMANA_${sem}.xlsx`);
   const nCu=grupos.filter(g=>g.cuadrilla).length;
-  toast(`Listas generadas: ${hojas} hojas (${grupos.length} grupo(s)${nCu?`, ${nCu} con cuadrilla`:''}) + ${extra} de nuevo ingreso. Imprimir HORIZONTAL. Generando directorio...`,'ok');
-  setTimeout(exportDirectorio,600);
+  const nPend=act.filter(w=>w.estatus==='PENDIENTE').length;
+  toast(`Listas generadas: ${hojas} hojas (${grupos.length} grupo(s)${nCu?`, ${nCu} con cuadrilla`:''}) + ${extra} de nuevo ingreso${nPend?` · incluye ${nPend} sin expediente completo`:''}. Imprimir HORIZONTAL. Generando directorio...`,'ok');
+  setTimeout(exportDirectorioExcel,600);
+  setTimeout(exportDirectorio,1400);
 }
 function exportDirectorio(){
   const sem=$('as-sem')?($('as-sem').value||semObra()):semObra();
@@ -7989,6 +8088,56 @@ function exportDirectorio(){
   if(!win){toast('Permite ventanas emergentes para generar el directorio.','err');return;}
   win.document.write(html);win.document.close();
   toast(`Directorio generado: ${act.length} activos en orden alfabético. Guárdalo como PDF.`,'ok');
+}
+
+/* ---------- DIRECTORIO EN EXCEL (2026-08-28) ---------------------------
+   El directorio impreso de vigilancia (arriba) solo trae nombre y número.
+   Este es la versión de trabajo: NOMBRE, NÚMERO, PUESTO y CUADRILLA, para
+   ubicar a alguien sin tener que abrir la plataforma.
+
+   El nombre va por APELLIDOS primero —que es como lo arma fullName() y como
+   se busca en obra— y toda la hoja va alfabética por esos apellidos. Quien
+   no trae cuadrilla NO se queda con la celda vacía: dice "Sin cuadrilla",
+   para que se distinga de un dato que faltó capturar. */
+const DIR_SIN_CUADRILLA='Sin cuadrilla';
+function dirFilas(lista){
+  return (lista||[]).map(w=>{
+    const c=cuadDe(w);
+    return {w, nombre:fullName(w), no:w.no_trab, puesto:w.puesto||'',
+            cuadrilla:c&&String(c.nombre||'').trim()?c.nombre:DIR_SIN_CUADRILLA};
+  }).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base'}));
+}
+function exportDirectorioExcel(){
+  const sem=$('as-sem')?($('as-sem').value||semObra()):semObra();
+  const d1=$('as-d1')?$('as-d1').value:'', d2=$('as-d2')?$('as-d2').value:'';
+  // mismo padrón que las listas de asistencia, para que no haya dos verdades
+  const base=(d1&&d2)?asActivosSemana(d1,d2):WORKERS.filter(w=>w.estatus==='ACTIVO');
+  const filas=dirFilas(base);
+  if(!filas.length){toast('No hay trabajadores activos para el directorio.','err');return;}
+  const rows=[],styles=[],hs=[];
+  rows.push(['DIRECTORIO DE TRABAJADORES','','','']); styles.push(ST.title); hs.push({hpt:26});
+  rows.push([`${OBRA.nombre}${OBRA.ubicacion?' · '+OBRA.ubicacion:''} · Semana ${sem} · ${filas.length} trabajador(es)`,'','','']);
+  styles.push(ST.sub); hs.push({hpt:18});
+  rows.push(['NOMBRE COMPLETO','NO. TRABAJADOR','PUESTO','CUADRILLA']);
+  styles.push(ST.head); hs.push({hpt:24});
+  filas.forEach(f=>{
+    rows.push([f.nombre, f.no??'—', f.puesto||'—', f.cuadrilla]);
+    // el que no tiene cuadrilla se ve de un vistazo, sin tener que leer
+    const sc=f.cuadrilla===DIR_SIN_CUADRILLA
+      ? {...ST.cell,font:{sz:10,name:'Calibri',italic:true,color:{rgb:'8A6D1A'}},fill:{fgColor:{rgb:'FFF7E6'}}}
+      : ST.cell;
+    styles.push([ST.cell,ST.cellC,ST.cell,sc]); hs.push(null);
+  });
+  const merges=[{s:{r:0,c:0},e:{r:0,c:3}},{s:{r:1,c:0},e:{r:1,c:3}}];
+  const ws=buildSheet(rows,styles,[38,14,26,26],merges,hs);
+  ws['!margins']={left:0.4,right:0.4,top:0.5,bottom:0.4,header:0.2,footer:0.2};
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:2,c:0},e:{r:rows.length-1,c:3}})};
+  ws['!freeze']={xSplit:0,ySplit:3};
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'DIRECTORIO');
+  dl(wb,`DIRECTORIO_SEMANA_${sem}.xlsx`);
+  const sinCu=filas.filter(f=>f.cuadrilla===DIR_SIN_CUADRILLA).length;
+  toast(`Directorio en Excel: ${filas.length} trabajador(es)${sinCu?` · ${sinCu} sin cuadrilla asignada`:''}.`,'ok');
 }
 
 /* ---------- REVISAR FIRMAS DE LISTA ESCANEADA (v.10) ----------
