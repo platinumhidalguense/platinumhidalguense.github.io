@@ -1479,6 +1479,9 @@ async function loadObraData(id){
   if($('flt-puesto'))$('flt-puesto').innerHTML='<option value="">Puesto: todos</option>'+pus.map(s=>`<option ${s===curP?'selected':''}>${esc(s)}</option>`).join('');
   renderStats();renderTable();renderChqStats();renderCheques();
   await sincronizarContratistas();
+  // el estado del recálculo automático del INFONAVIT (Script 63): la
+  // campanita solo avisa si el bimestre en curso NO se ha aplicado
+  await cargarRecalcInfonavit();
   updateAlertas();
   renderVacViews();renderActasView();renderNomView();renderAnualView();renderPagosView();
 }
@@ -1495,7 +1498,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-08-28.3';
+const APP_VERSION='2026-09-01.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -3360,38 +3363,63 @@ function descuentosDe(w,semStr,opts){
 }
 function openDescuento(trabId){
   const w=WORKERS.find(x=>x.id===trabId); if(!w)return;
-  const P=perDe(w); window._DSPER=P;
+  const P=perDe(w); window._DSPER=P; window._DSW=w;
   modal(`
     <div class="m-head"><h2>＋ Descuento fijo · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <p style="color:var(--mut);margin-bottom:14px">Se descuenta <b>en cada nómina</b> hasta que lo desactives (créditos Infonavit, Fonacot, préstamos). Con el botón <b>⏸/×2 Semana</b> de la ficha puedes suspender la retención una semana o retener doble para compensar. Las faltas se capturan con el botón 📉 Incidencias.</p>
       <div class="fhint" style="margin-bottom:10px">Este trabajador cobra <b>${P.etiqueta}</b> (${P.dias} días), así que el monto se captura <b>por ${P.unidad.toLowerCase()}</b>. Si más adelante cambia de periodo, la retención se ajusta sola.</div>
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
-        <div><label>Tipo</label><select id="ds-tipo"><option>INFONAVIT</option><option>FONACOT</option><option>PRESTAMO</option><option>OTRO</option></select></div>
-        <div><label>Cuota MENSUAL del aviso ($)</label><input id="ds-mensual" type="number" step="0.01" min="0" oninput="dsCalc()"></div>
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div><label>Tipo</label><select id="ds-tipo" onchange="dsModalidad()"><option>INFONAVIT</option><option>FONACOT</option><option>PRESTAMO</option><option>OTRO</option></select></div>
+        <div id="ds-mod-wrap"><label>Modalidad del aviso</label>
+          <select id="ds-mod" onchange="dsModalidad()">
+            <option value="CUOTA_FIJA">CUOTA FIJA (pesos al mes)</option>
+            <option value="VSM_UMI">VECES UMA / VSM</option>
+            <option value="PORCENTAJE">PORCENTAJE del salario</option>
+          </select></div>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:10px">
+        <div><label id="ds-lbl-factor">Cuota MENSUAL del aviso ($)</label><input id="ds-mensual" type="number" step="0.0001" min="0" oninput="dsCalc()"></div>
         <div><label>Monto por ${P.unidad} ($) *</label><input id="ds-monto" type="number" step="0.01" min="0"></div>
       </div>
       <div class="fhint" id="ds-hint" style="margin-top:6px">Si capturas la cuota mensual del aviso, la de la ${P.unidad.toLowerCase()} se calcula sola: (mensual×2 + seguro) ÷ días del bimestre × ${P.dias} (fórmula SUA). Valida la primera retención contra la cédula del SUA.</div>
+      <div class="fhint" style="margin-top:6px;color:var(--navy)">🏠 <b>La modalidad y el factor son lo que hace posible el recálculo automático</b> de cada bimestre. Cópialos tal cual del aviso de retención del INFONAVIT.</div>
       <div style="margin-top:12px"><label>Nota / no. de crédito</label><input id="ds-motivo" placeholder="No. CRÉDITO INFONAVIT 1234567890..."></div>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn dark" onclick="saveDescuento('${trabId}')">💾 Guardar descuento</button>
     </div>`,'md');
+  dsModalidad();
 }
 async function saveDescuento(trabId){
   const w=WORKERS.find(x=>x.id===trabId);
   const monto=parseFloat($('ds-monto').value);
-  const mensual=parseFloat($('ds-mensual').value);
+  const factor=parseFloat($('ds-mensual').value);
+  const tipo=$('ds-tipo').value;
+  const mod=tipo==='INFONAVIT'?(($('ds-mod')||{}).value||'CUOTA_FIJA'):'CUOTA_FIJA';
+  const mensual=factor>0?dsMensualEquivalente(mod,factor,w):0;
   if(mensual>0){const o=$('ds-motivo');if(!/MENSUAL/.test(o.value.toUpperCase()))o.value=(o.value?o.value+' | ':'')+'CUOTA MENSUAL $'+mensual.toFixed(2);}
   if(!monto||monto<=0){toast('Indica el monto del descuento.','err');return;}
   markWrite();
-  // Se guarda CON QUÉ PERIODICIDAD se capturó el monto. Sin este dato no se
-  // puede saber si $346.63 son de una semana o de una quincena, y al pagar
-  // se retendría de más o de menos.
-  const {error}=await sb.from('descuentos').insert({trabajador_id:trabId,obra_id:w.obra_id,tipo:$('ds-tipo').value,
+  /* Se guarda:
+     · la PERIODICIDAD con la que se capturó el monto (Script 60): sin ese
+       dato no se sabe si $346.63 son de una semana o de una quincena.
+     · la MODALIDAD y el FACTOR (Script 63): son lo que le permite al cron
+       bimestral recalcular esta retención sola. Sin ellos, el crédito se
+       queda congelado en la cifra del bimestre en que se capturó. */
+  const fila={trabajador_id:trabId,obra_id:w.obra_id,tipo,
     motivo:$('ds-motivo').value.trim().toUpperCase(),monto,recurrente:true,creado_por:USER.email,
-    periodicidad:periodoPago(w),cuota_mensual:(mensual>0?mensual:null)});
+    periodicidad:periodoPago(w),cuota_mensual:(mensual>0?Math.round(mensual*100)/100:null),
+    modalidad:mod,factor:(factor>0?factor:null),
+    recalculo_auto:(tipo==='INFONAVIT'&&factor>0)};
+  let {error}=await sb.from('descuentos').insert(fila);
+  if(error&&/modalidad|factor|recalculo_auto/i.test(error.message||'')&&/column|does not exist|schema cache|could not find/i.test(error.message||'')){
+    // sin el Script 63 se guarda igual, pero este crédito no se recalculará solo
+    const f2={...fila}; delete f2.modalidad; delete f2.factor; delete f2.recalculo_auto;
+    ({error}=await sb.from('descuentos').insert(f2));
+    if(!error)toast('Guardado, pero SIN recálculo automático: falta correr el Script 63 en Supabase.','err');
+  }
   if(error){toast('Error: '+error.message,'err');return;}
   closeModal();toast('Descuento fijo registrado: se aplicará en cada proyección.','ok');
   await loadObraData(OBRA.id);
@@ -3535,6 +3563,7 @@ function openCalendarioRet(){
         <button class="btn" onclick="crNav(-1)" title="Semana anterior">‹</button>
         <button class="btn" onclick="crNav(1)" title="Semana siguiente">›</button>
       </div>
+      <div id="cr-recalc" style="margin-top:2px;margin-bottom:10px">${recalcBadge()}</div>
       <div id="cr-strip" style="margin-top:12px"></div>
       <div id="cr-body" style="margin-top:12px"></div>
     </div>
@@ -3543,6 +3572,8 @@ function openCalendarioRet(){
       <button class="btn dark" onclick="exportCalendarioRet()">⬇ Exportar registro de la semana (Excel)</button>
     </div>`,'lg');
   renderCalRet();
+  // si todavía no se había consultado, se pinta cuando llegue
+  if(RECALCINF===undefined)cargarRecalcInfonavit().then(()=>{const e=$('cr-recalc');if(e)e.innerHTML=recalcBadge();});
 }
 function crNav(delta){
   $('cr-sem').value=(parseInt($('cr-sem').value)||isoWeek())+delta;
@@ -9590,15 +9621,78 @@ function openDefuncion(id){
   <p>Conforme al artículo 115 de la LFT, dichas cantidades se entregarán a los beneficiarios designados${w.beneficiario?` — designación registrada: <b>${esc(w.beneficiario)}</b> —`:''} previa declaración del Tribunal competente. Documento informativo para el trámite correspondiente.</p>
   <div class="firmas"><div><b>POR LA EMPRESA</b></div><div><b>RECIBÍ (BENEFICIARIO)</b></div></div>`,'Defunción '+fullName(w));
 }
+/* ---------- RECÁLCULO BIMESTRAL DEL INFONAVIT (2026-09-01) -------------
+   El cálculo y la aplicación viven en la base (Script 63): un cron corre
+   el día 1 de cada bimestre y actualiza las retenciones solo. Aquí NO se
+   recalcula nada — solo se lee la bitácora para poder decir cuándo fue la
+   última vez, que es lo único que Recursos Humanos necesita saber.
+   Si se calculara también aquí habría dos verdades para el mismo número,
+   y eso ya salió caro dos veces en este proyecto. */
+let RECALCINF;                       // undefined = todavía no se consulta
+const MESES_BIM=['ENE-FEB','MAR-ABR','MAY-JUN','JUL-AGO','SEP-OCT','NOV-DIC'];
+function bimestreActual(d=new Date()){
+  return MESES_BIM[Math.floor(d.getMonth()/2)]+' '+d.getFullYear();
+}
+async function cargarRecalcInfonavit(){
+  try{
+    const {data,error}=await sb.from('v_ultimo_recalculo_infonavit').select('*').maybeSingle();
+    RECALCINF=error?null:(data||null);
+  }catch(e){ RECALCINF=null; }        // sin el Script 63 la vista no existe
+  return RECALCINF;
+}
+/* La etiqueta que se ve en el módulo de retenciones. */
+function recalcBadge(){
+  const r=RECALCINF;
+  if(r===undefined)return '<span style="color:var(--mut);font-size:11.5px">Consultando el último recálculo…</span>';
+  if(!r)return `<span style="color:var(--mut);font-size:11.5px" title="Falta correr el Script 63 en Supabase">⚙ El recálculo automático del INFONAVIT no está instalado</span>`;
+  if(r.resultado==='ERROR')
+    return `<span style="color:var(--red);font-size:11.5px;font-weight:700" title="${esc(String(r.mensaje||''))}">⚠ El último recálculo automático FALLÓ (${fmtD(r.created_at)})</span>`;
+  const alDia=!!r.es_bimestre_actual;
+  return `<span style="color:${alDia?'var(--green)':'var(--amber)'};font-size:11.5px;font-weight:600"
+     title="${esc(r.mensaje||'')} · ${r.afectados} de ${r.revisados} crédito(s) ajustados">
+     ${alDia?'✔':'⏳'} Último recálculo automático aplicado: ${fmtD(r.created_at)} · bimestre ${esc(r.bimestre||'—')}
+     ${r.afectados?` · ${r.afectados} crédito(s) ajustados`:' · sin cambios'}</span>`;
+}
 /* --- dsCalc bimestral (sustituye al mensual) --- */
+/* La modalidad solo aplica al INFONAVIT: para lo demás se esconde y se
+   captura el monto directo, como siempre. */
+function dsModalidad(){
+  const esInf=($('ds-tipo')||{}).value==='INFONAVIT';
+  const wrap=$('ds-mod-wrap'); if(wrap)wrap.style.display=esInf?'':'none';
+  const mod=esInf?(($('ds-mod')||{}).value||'CUOTA_FIJA'):'CUOTA_FIJA';
+  const lbl=$('ds-lbl-factor');
+  if(lbl)lbl.textContent=!esInf?'Cuota MENSUAL ($)'
+    :mod==='VSM_UMI'?'Factor: veces la UMA'
+    :mod==='PORCENTAJE'?'Factor: % del salario'
+    :'Cuota MENSUAL del aviso ($)';
+  dsCalc();
+}
+/* Misma fórmula que infonavit_retencion() del Script 63. Aquí solo para
+   que el capturista vea el número al momento; quien manda es la base. */
+function dsMensualEquivalente(mod,factor,w){
+  const f=FISC(), x=Number(factor)||0;
+  if(x<=0)return 0;
+  if(mod==='VSM_UMI')return x*f.uma*30.4;
+  if(mod==='PORCENTAJE'){const sdi=Number(w&&(w.sdi||w.sd))||0;return sdi*30.4*x/100;}
+  return x;
+}
 function dsCalc(){
-  const m=parseFloat($('ds-mensual').value);
   const P=window._DSPER||PERIODOS.SEMANAL;
-  if(m>0){
-    const c=cuotaPeriodoInfonavit(m,P.dias);
-    $('ds-monto').value=c.toFixed(2);
-    $('ds-hint').innerHTML=`<b>Por ${P.unidad.toLowerCase()}: $${c.toFixed(2)}</b> = (mensual×2 + $${FISC().seg} seguro de daños) ÷ ${diasBimestreActual()} días del bimestre × ${P.dias} — fórmula validada contra tu EBA (Cenobio $1,203.51 ✔). La 🔔 avisa al cambiar de bimestre.`;
+  const w=window._DSW||null;
+  const esInf=($('ds-tipo')||{}).value==='INFONAVIT';
+  const mod=esInf?(($('ds-mod')||{}).value||'CUOTA_FIJA'):'CUOTA_FIJA';
+  const factor=parseFloat($('ds-mensual').value);
+  if(!(factor>0))return;
+  const men=dsMensualEquivalente(mod,factor,w);
+  if(!(men>0)){
+    if(mod==='PORCENTAJE')$('ds-hint').innerHTML='<b>Falta el SDI del trabajador</b> para poder calcular un crédito por porcentaje. Captúraselo en su ficha.';
+    return;
   }
+  const c=cuotaPeriodoInfonavit(men,P.dias);
+  $('ds-monto').value=c.toFixed(2);
+  const comoSale=mod==='VSM_UMI'?`${factor} × UMA $${FISC().uma} × 30.4 = $${money(men)} al mes, y de ahí `
+    :mod==='PORCENTAJE'?`${factor}% del salario mensual integrado = $${money(men)} al mes, y de ahí `:'';
+  $('ds-hint').innerHTML=`<b>Por ${P.unidad.toLowerCase()}: $${c.toFixed(2)}</b> = ${comoSale}(mensual×2 + $${FISC().seg} seguro de daños) ÷ ${diasBimestreActual()} días del bimestre × ${P.dias} — fórmula validada contra tu EBA (Cenobio $1,203.51 ✔). <b>Cada bimestre se recalcula solo.</b>`;
 }
 
 
@@ -10306,21 +10400,22 @@ function computeAlertas(){
     {k:'CONTRV',icon:'🚨',txt:'Contratos determinados VENCIDOS',items:act.filter(w=>w.fecha_fin_contrato&&w.fecha_fin_contrato<hoy)},
     {k:'SM',icon:'⚖️',txt:'Activos con SD por DEBAJO del mínimo CONASAMI ($'+FISC().sm+')',items:act.filter(w=>(Number(w.sd)||0)>0&&(Number(w.sd)||0)<FISC().sm)},
     {k:'NUMDUP',icon:'🔢',txt:'Números de trabajador DUPLICADOS en esta obra',items:(function(){const m={};WORKERS.forEach(w=>{if(w.no_trab!=null)(m[w.no_trab]=m[w.no_trab]||[]).push(w);});return Object.values(m).filter(g=>g.length>1).flat();})()},
-    /* La cuota esperada se calcula con los días del periodo de SU trabajador:
-       a un quincenal de oficina se le compara contra 15 días, no contra 7.
-       La cuota mensual sale de la columna nueva y, si el registro es viejo,
-       del texto del motivo (que es donde vivía antes). */
-    {k:'INFO',icon:'🏠',txt:'Cuotas INFONAVIT por recalcular al mes en curso',items:(function(){
-      const esperada=d=>{
-        if(d.tipo!=='INFONAVIT'||!d.activo||!d.recurrente)return null;
-        const men=Number(d.cuota_mensual)||parseFloat((/CUOTA MENSUAL \$([\d.]+)/.exec(d.motivo||'')||[])[1]);
-        if(!(men>0))return null;
-        const w=WORKERS.find(x=>x.id===d.trabajador_id);
-        return {w,esp:cuotaPeriodoInfonavit(men,perDe(w).dias)};
-      };
-      return DESC.map(d=>{const e=esperada(d);
-          return (e&&Math.abs((Number(d.monto)||0)-e.esp)>1)?{nombre:(e.w?fullName(e.w):'')+' → debe ser $'+e.esp.toFixed(2)}:null;})
-        .filter(Boolean);
+    /* 2026-09-01: se quitó la alerta "cuotas INFONAVIT por recalcular". Solo
+       avisaba; el recálculo lo aplica ahora el cron bimestral del Script 63.
+       En su lugar queda una alerta que SÍ significa algo: que el bimestre en
+       curso todavía NO se recalculó. Si el cron corrió, esto no aparece. */
+    {k:'INFOAUTO',icon:'🏠',txt:'El recálculo bimestral del INFONAVIT no se ha aplicado en este bimestre',
+     items:(function(){
+      if(!(DESC||[]).some(d=>String(d.tipo||'').toUpperCase()==='INFONAVIT'&&d.activo&&d.recurrente))return [];
+      // OJO: RECALCINF es un `let` de nivel superior, NO vive en window
+      const r=RECALCINF;
+      if(r===undefined)return [];                    // todavía no se consulta
+      if(r&&r.es_bimestre_actual&&r.resultado==='OK')return [];
+      return [{nombre:r
+        ? (r.resultado==='ERROR'
+            ? `El último intento FALLÓ (${fmtD(r.created_at)}): ${String(r.mensaje||'').slice(0,90)}`
+            : `El último fue del bimestre ${r.bimestre||'—'}; el de ${bimestreActual()} está pendiente`)
+        : 'Nunca se ha corrido. Falta correr el Script 63 en Supabase.'}];
     })()}
   ].filter(a=>a.items.length);
 }
