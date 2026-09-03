@@ -1073,12 +1073,34 @@ let sb=null, USER=null, OBRAS=[], OBRA=null, WORKERS=[], CHEQUES=[], DESC=[], DO
 let DIFS=[], BLOQUES=[], SUELDOSINT=[], ES_VIP=false;
 /* Supabase corta cada consulta a 1000 filas. Con cientos de trabajadores y miles
    de recibos/cheques eso deja fuera muchos registros (por eso "solo salían los
-   últimos recibos"). fetchAllRows pagina con .range() hasta traerlos TODOS. */
-async function fetchAllRows(makeQuery){
-  const CH=1000; let from=0, all=[];
+   últimos recibos"). fetchAllRows pagina con .range() hasta traerlos TODOS.
+
+   BUG CORREGIDO (2026-09-02) — LAS PÁGINAS SE COMÍAN FILAS.
+   Esto paginaba SIN "order by", y ahí está la trampa: PostgreSQL NO garantiza
+   que dos consultas con LIMIT/OFFSET devuelvan las filas en el mismo orden si
+   no se lo pides. Basta que entre la página 1 y la 2 alguien inserte, o que el
+   planeador cambie de recorrido, para que una fila que ya salió en la 1 vuelva
+   a salir en la 2 — y entonces OTRA nunca aparece.
+   Por eso un acuse quedaba guardado en la base (al volver a subirlo avisaba
+   "duplicado", porque esa consulta va dirigida por hash) pero la ficha del
+   trabajador decía "sin acuses importados": la fila nunca llegaba a DOCSX.
+   Con `order by id` el orden es estable y ninguna página se salta nada. */
+async function fetchAllRows(makeQuery,orden){
+  const col=orden||'id';
+  const CH=1000; let from=0, all=[], sinOrden=false;
   for(;;){
-    const {data,error}=await makeQuery().range(from,from+CH-1);
-    if(error)return {data:all,error};
+    let q=makeQuery();
+    if(!sinOrden)q=q.order(col,{ascending:true});
+    const {data,error}=await q.range(from,from+CH-1);
+    if(error){
+      // si la tabla no tuviera esa columna, se reintenta sin ordenar en vez de
+      // quedarse sin datos (pero entonces sí puede saltarse filas: se avisa)
+      if(!sinOrden&&/column|does not exist|42703/i.test(error.message||'')){
+        console.warn('fetchAllRows: no se pudo ordenar por "'+col+'"; la paginación puede saltarse filas.');
+        sinOrden=true; from=0; all=[]; continue;
+      }
+      return {data:all,error};
+    }
     all=all.concat(data||[]);
     if(!data||data.length<CH)break;
     from+=CH;
@@ -1498,7 +1520,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-01.1';
+const APP_VERSION='2026-09-02.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2219,6 +2241,42 @@ function abrirTrabajadorVecino(id,dir){
   openDetail(ids[j]);
 }
 /* ---------- detalle ---------- */
+/* ---------- DOCUMENTOS DE LA FICHA (2026-09-02) ------------------------
+   Se sacó a su propia función para poder volver a pintar SOLO este pedazo
+   cuando llega la consulta dirigida del trabajador (ver refrescaDocsDe). */
+function fichaDocsHTML(w){
+  const byW=x=>parseInt(String(x.semana||'').replace(/\D/g,''))||0;
+  const ac=DOCSX.filter(x=>x.trabajador_id===w.id&&x.categoria==='ACUSE_IMSS');
+  const re=DOCSX.filter(x=>x.trabajador_id===w.id&&(x.categoria==='RECIBO_NOMINA'||x.categoria==='CFDI_NOMINA')).sort((a,b)=>byW(a)-byW(b)||String(a.categoria).localeCompare(String(b.categoria)));
+  const item=x=>`<div class="kv"><b>${esc(x.subtipo||'DOC')} ${esc(x.semana)}</b><span>${esc(x.nombre_archivo)} · ${fmtD(x.fecha_doc||x.created_at)} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:8px" onclick="verDoc('${x.id}')">📄 Ver</button> <button class="btn" style="padding:2px 8px;font-size:11px" onclick="openRenombrarDoc('${x.id}','${w.id}')" title="Cambiar el nombre y el tipo de movimiento (ALTA, BAJA...)">✎</button> <button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="anularDoc('${x.id}','${w.id}')" title="Quitar del expediente (queda rastro de quién y por qué)">🗑</button></span></div>`;
+  const falt=faltantesReciboDe(w);
+  const faltHtml=falt.length
+    ?`<div class="kv" style="background:var(--amber-bg)"><b style="color:var(--amber)">⚠ Faltan ${falt.length}</b><span>${falt.map(W=>'<span class="badge PENDIENTE" style="font-size:10px;margin:1px">S'+W+'</span>').join(' ')} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:6px" onclick="openPdfImport()">📎 Importar recibos</button></span></div>`
+    :(re.length?`<div class="kv"><b style="color:var(--green)">✔ Completos</b><span>No falta ningún recibo de nómina (semanas cerradas).</span></div>`:'');
+  const reList=re.length?re.map(item).join(''):'<div class="kv"><b>—</b><span>Sin recibos archivados.</span></div>';
+  const reWrap=re.length>8?`<div style="max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:4px">${reList}</div>`:reList;
+  return `<div class="sect">Acuses IMSS (${ac.length})</div>${ac.length?ac.map(item).join(''):'<div class="kv"><b>—</b><span>Sin acuses archivados. Súbelos con 📎 Importar PDFs.</span></div>'}
+        <div class="sect">Recibos de nómina (${re.length})</div>${faltHtml}${reWrap}`;
+}
+/* Trae los documentos de UN trabajador directo de la base, filtrando en el
+   servidor con .eq('trabajador_id', id). Es una red de seguridad: aunque la
+   carga masiva de la obra fallara o se quedara corta, la ficha SIEMPRE
+   muestra lo que de verdad hay archivado de esa persona. Además es barato
+   —son unas cuantas filas, no miles— y no toca ningún límite de paginación.
+   Lo que llegue se mezcla en DOCSX para que el resto de la app también lo vea. */
+async function refrescaDocsDe(id){
+  if(!id||!sb)return 0;
+  const {data,error}=await fetchAllRows(()=>sb.from('documentos').select('*')
+    .eq('trabajador_id',id).eq('anulado',false));
+  if(error||!data)return 0;
+  const conocidos=new Set((DOCSX||[]).map(d=>d.id));
+  const nuevos=data.filter(d=>!conocidos.has(d.id));
+  if(nuevos.length)DOCSX=(DOCSX||[]).concat(nuevos);
+  // los que ya estaban se actualizan por si cambió el nombre o el subtipo
+  const porId=new Map(data.map(d=>[d.id,d]));
+  (DOCSX||[]).forEach((d,i)=>{ if(porId.has(d.id))DOCSX[i]=porId.get(d.id); });
+  return nuevos.length;
+}
 function openDetail(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
   const d=w.docs||{};
@@ -2281,20 +2339,7 @@ function openDetail(id){
         ${(si.sueldo_imss!=null&&si.sueldo_real!=null)?`<div class="kv"><b>Diferencia</b><span><b style="color:${dif>0?'var(--amber)':'var(--txt)'}">${dif>=0?'+':''}$${money(dif)}</b>${si.sueldo_imss>0?` · el real es ${Math.round((Number(si.sueldo_real)/Number(si.sueldo_imss))*100)}% del registrado`:''}</span></div>`:''}
         <div class="kv"><b></b><span><button class="btn" style="padding:3px 12px;font-size:12px" onclick="openSueldoInterno('${w.id}')">✎ Editar control interno</button>${si.actualizado_por?` <span style="color:var(--mut);font-size:11px;margin-left:8px">Última edición: ${esc(si.actualizado_por)}</span>`:''}</span></div>`;
       })()}
-      ${(function(){
-        const byW=x=>parseInt(String(x.semana||'').replace(/\D/g,''))||0;
-        const ac=DOCSX.filter(x=>x.trabajador_id===w.id&&x.categoria==='ACUSE_IMSS');
-        const re=DOCSX.filter(x=>x.trabajador_id===w.id&&(x.categoria==='RECIBO_NOMINA'||x.categoria==='CFDI_NOMINA')).sort((a,b)=>byW(a)-byW(b)||String(a.categoria).localeCompare(String(b.categoria)));
-        const item=x=>`<div class="kv"><b>${esc(x.subtipo||'DOC')} ${esc(x.semana)}</b><span>${esc(x.nombre_archivo)} · ${fmtD(x.fecha_doc||x.created_at)} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:8px" onclick="verDoc('${x.id}')">📄 Ver</button> <button class="btn" style="padding:2px 8px;font-size:11px" onclick="openRenombrarDoc('${x.id}','${w.id}')" title="Cambiar el nombre y el tipo de movimiento (ALTA, BAJA...)">✎</button> <button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="anularDoc('${x.id}','${w.id}')" title="Quitar del expediente (queda rastro de quién y por qué)">🗑</button></span></div>`;
-        const falt=faltantesReciboDe(w);
-        const faltHtml=falt.length
-          ?`<div class="kv" style="background:var(--amber-bg)"><b style="color:var(--amber)">⚠ Faltan ${falt.length}</b><span>${falt.map(W=>'<span class="badge PENDIENTE" style="font-size:10px;margin:1px">S'+W+'</span>').join(' ')} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:6px" onclick="openPdfImport()">📎 Importar recibos</button></span></div>`
-          :(re.length?`<div class="kv"><b style="color:var(--green)">✔ Completos</b><span>No falta ningún recibo de nómina (semanas cerradas).</span></div>`:'');
-        const reList=re.length?re.map(item).join(''):'<div class="kv"><b>—</b><span>Sin recibos archivados.</span></div>';
-        const reWrap=re.length>8?`<div style="max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:4px">${reList}</div>`:reList;
-        return `<div class="sect">Acuses IMSS (${ac.length})</div>${ac.length?ac.map(item).join(''):'<div class="kv"><b>—</b><span>Sin acuses archivados. Súbelos con 📎 Importar PDFs.</span></div>'}
-        <div class="sect">Recibos de nómina (${re.length})</div>${faltHtml}${reWrap}`;
-      })()}
+      <div id="fd-docs">${fichaDocsHTML(w)}</div>
       <div class="sect">Documentación (${docsOk(w)}/${DOCS.length} entregados)</div>
       ${DOCS.map(k=>`<div class="kv"><b>${k}</b><span>${d[k]==='ENTREGADO'?'✅ ENTREGADO':(d[k]==='NO APLICA'?'➖ NO APLICA':'⬜ PENDIENTE')}</span></div>`).join('')}
       ${kv('Carpeta en Drive',w.drive_link?`<a href="${esc(w.drive_link)}" target="_blank">${esc(w.drive_link)}</a>`:'')}
@@ -2320,6 +2365,16 @@ function openDetail(id){
       <button class="btn dark" onclick="openForm('${w.id}')">✎ Modificar</button>
       ${esAdmin()?`<button class="btn danger" style="background:#7a1414;border-color:#7a1414" onclick="openEliminarTrabajador('${w.id}')">🗑 Eliminar (papelera)</button>`:''}
     </div>`);
+  /* Consulta dirigida de SUS documentos, filtrando en el servidor. Si trae
+     algo que la carga masiva no tenía, se vuelve a pintar solo esa sección.
+     Se comprueba que la ficha siga abierta y sea la misma persona: si el
+     usuario ya se movió a otra, no se le repinta encima. */
+  refrescaDocsDe(id).then(n=>{
+    if(!n)return;
+    const cont=$('fd-docs');
+    if(cont&&document.querySelector(`#modals [onclick*="openForm('${id}')"]`))
+      cont.innerHTML=fichaDocsHTML(w);
+  }).catch(()=>{});
 }
 /* v20: eliminar = mover a la papelera (eliminado=true). Solo visible/permitido
    para el administrador (esAdmin()). Pide escribir el nombre EXACTO para evitar
@@ -9633,11 +9688,19 @@ const MESES_BIM=['ENE-FEB','MAR-ABR','MAY-JUN','JUL-AGO','SEP-OCT','NOV-DIC'];
 function bimestreActual(d=new Date()){
   return MESES_BIM[Math.floor(d.getMonth()/2)]+' '+d.getFullYear();
 }
+/* Hay TRES estados distintos y confundirlos manda a buscar el problema
+   donde no está:
+     null         → la vista no existe: falta correr el Script 63.
+     {nunca:true} → el script SÍ está, pero el recálculo todavía no se ha
+                    aplicado ni una vez. Es lo que pasa justo después de
+                    correr el script: al final solo hace una SIMULACIÓN,
+                    que a propósito no escribe en la bitácora.
+     {…fila}      → ya corrió; la fila dice cuándo y de qué bimestre. */
 async function cargarRecalcInfonavit(){
   try{
     const {data,error}=await sb.from('v_ultimo_recalculo_infonavit').select('*').maybeSingle();
-    RECALCINF=error?null:(data||null);
-  }catch(e){ RECALCINF=null; }        // sin el Script 63 la vista no existe
+    RECALCINF=error?null:(data||{nunca:true});
+  }catch(e){ RECALCINF=null; }
   return RECALCINF;
 }
 /* La etiqueta que se ve en el módulo de retenciones. */
@@ -9645,6 +9708,9 @@ function recalcBadge(){
   const r=RECALCINF;
   if(r===undefined)return '<span style="color:var(--mut);font-size:11.5px">Consultando el último recálculo…</span>';
   if(!r)return `<span style="color:var(--mut);font-size:11.5px" title="Falta correr el Script 63 en Supabase">⚙ El recálculo automático del INFONAVIT no está instalado</span>`;
+  if(r.nunca)return `<span style="color:var(--amber);font-size:11.5px;font-weight:600"
+     title="Corre en el editor SQL de Supabase:  select recalcular_creditos_infonavit();">
+     ⏳ Instalado, pero todavía no se aplica ninguna vez · córrelo con <b>select recalcular_creditos_infonavit();</b></span>`;
   if(r.resultado==='ERROR')
     return `<span style="color:var(--red);font-size:11.5px;font-weight:700" title="${esc(String(r.mensaje||''))}">⚠ El último recálculo automático FALLÓ (${fmtD(r.created_at)})</span>`;
   const alDia=!!r.es_bimestre_actual;
@@ -10411,11 +10477,13 @@ function computeAlertas(){
       const r=RECALCINF;
       if(r===undefined)return [];                    // todavía no se consulta
       if(r&&r.es_bimestre_actual&&r.resultado==='OK')return [];
-      return [{nombre:r
-        ? (r.resultado==='ERROR'
+      return [{nombre:!r
+        ? 'Falta correr el Script 63 en Supabase.'
+        : r.nunca
+          ? 'El Script 63 ya está instalado, pero el recálculo no se ha aplicado ni una vez. Córrelo en el editor SQL de Supabase con:  select recalcular_creditos_infonavit();'
+          : r.resultado==='ERROR'
             ? `El último intento FALLÓ (${fmtD(r.created_at)}): ${String(r.mensaje||'').slice(0,90)}`
-            : `El último fue del bimestre ${r.bimestre||'—'}; el de ${bimestreActual()} está pendiente`)
-        : 'Nunca se ha corrido. Falta correr el Script 63 en Supabase.'}];
+            : `El último fue del bimestre ${r.bimestre||'—'}; el de ${bimestreActual()} está pendiente`}];
     })()}
   ].filter(a=>a.items.length);
 }
