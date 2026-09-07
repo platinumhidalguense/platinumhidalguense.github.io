@@ -1016,8 +1016,10 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <select id="cp-filtro" onchange="renderPapeles()">
           <option value="PEND">Pendientes de entregar</option>
           <option value="ENTREGADOS">Ya entregaron</option>
+          <option value="IDOS">Ya no se presentaron</option>
           <option value="TODOS">Todos</option>
         </select>
+        <button class="btn" onclick="cpConciliar()" title="Revisa quién de esta lista ya está dado de alta en el padrón">🔗 Conciliar con el padrón</button>
         <button class="btn dark" onclick="exportListaNegra()">⬇ Exportar lista negra (Excel)</button>
       </div>
       <div class="tbl-card">
@@ -1520,7 +1522,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-02.2';
+const APP_VERSION='2026-09-04.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -3006,6 +3008,48 @@ async function saveWorker(id){
   if(error){$('save-btn').textContent='💾 Guardar';toast('Error al guardar: '+error.message,'err');return;}
   closeModal();toast(msg,'ok');
   await loadObraData(OBRA.id);refreshCounts();
+  // Alta NUEVA: ¿esta persona ya venía en el control de papeles?
+  if(!id)await cpAvisaAlta(fullName(w));
+}
+/* ---------- ¿EL QUE ACABO DE DAR DE ALTA VENÍA EN PAPELES? -------------
+   El control de papeles es la antesala del padrón, así que dar de alta a
+   alguien es justo el momento en que su renglón deja de tener sentido.
+   Antes nadie se acordaba de ir a cerrarlo y seguía sumando semanas.
+
+   Se avisa DESPUÉS de guardar, no antes: el alta no se bloquea ni se
+   condiciona a esto. Y no se cierra solo — un nombre parecido no es una
+   prueba, así que se pregunta. */
+async function cpAvisaAlta(nombre){
+  if(!OBRA||!nombre)return;
+  let r=null;
+  try{
+    const {data,error}=await sb.rpc('buscar_pendiente_parecido',{p_obra:OBRA.id,p_nombre:nombre});
+    if(error)throw error;
+    r=data;
+  }catch(e){ return; }   // sin el Script 65 el alta sigue funcionando igual
+  if(!r||!r.encontrado||!r.fila)return;
+  const f=r.fila, n=Number(f.semanas_adeudadas)||0;
+  modal(`
+    <div class="m-head" style="background:var(--amber-bg)"><h2>📂 Ya venía en el control de papeles</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="font-size:15px;line-height:1.7"><b>${esc(f.nombre_completo)}</b> llevaba <b style="color:var(--red);font-size:20px">${n}</b> semana(s) asistiendo sin entregar documentación.</p>
+      <p style="color:var(--mut);font-size:12.5px">Como ya quedó dado de alta, ese renglón deja de tener sentido: si no se cierra, va a seguir contando semanas en la lista de pendientes.</p>
+      <div class="kv"><b>Ingresó en la semana</b><span><b>${esc(f.semana_ingreso||'—')}</b></span></div>
+      <div class="kv"><b>Última vez registrado</b><span>${esc(f.ultima_semana_registrada||'—')}</span></div>
+      ${r.exacto?'':`<div class="kv" style="background:var(--amber-bg)"><b>Ojo</b><span>En el control de papeles está como <b>${esc(f.nombre_completo)}</b> y lo diste de alta como <b>${esc(nombre)}</b>. Si son dos personas distintas, no lo cierres.</span></div>`}
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">No es la misma persona</button>
+      <button class="btn dark" onclick="closeModal();cpCerrarPorAlta('${f.id}')">✔ Sí, cerrar su renglón</button>
+    </div>`,'sm');
+}
+async function cpCerrarPorAlta(id){
+  markWrite();
+  const {error}=await sb.rpc('marcar_estado_pendiente',
+    {p_id:id,p_estado:'ENTREGADO',p_semana:null,p_usuario:USER.email});
+  if(error){toast('Error: '+error.message,'err');return;}
+  toast('Cerrado en el control de papeles: ya quedó dado de alta.','ok');
+  if(typeof PAPELES!=='undefined'&&VIEW==='papeles')await cpCargar();
 }
 async function doActivar(id){
   const w=WORKERS.find(x=>x.id===id);
@@ -6392,10 +6436,25 @@ async function cpCargar(){
   if(pu)pu.innerHTML=catalogoPuestos().map(p=>`<option value="${esc(p)}">`).join('');
   renderPapeles();
 }
+/* El estado manda; `entregado` se conserva por compatibilidad con lo que
+   se guardó antes del Script 65 y con la app vieja de quien no haya
+   recargado todavía. */
+function cpEstado(r){
+  const e=String(r&&r.estado||'').toUpperCase();
+  if(e==='ENTREGADO'||e==='NO_SE_PRESENTO'||e==='PENDIENTE')return e;
+  return r&&r.entregado?'ENTREGADO':'PENDIENTE';
+}
+const CP_BADGE={
+  PENDIENTE     :['PENDIENTE','DEBE'],
+  ENTREGADO     :['ACTIVO','ENTREGÓ'],
+  NO_SE_PRESENTO:['BAJA','NO SE PRESENTÓ']
+};
 function renderPapeles(){
   const q=(($('cp-q')||{}).value||'').trim().toUpperCase();
   const f=(($('cp-filtro')||{}).value)||'PEND';
-  const pend=PAPELES.filter(r=>!r.entregado);
+  const pend =PAPELES.filter(r=>cpEstado(r)==='PENDIENTE');
+  const idos =PAPELES.filter(r=>cpEstado(r)==='NO_SE_PRESENTO');
+  const entr =PAPELES.filter(r=>cpEstado(r)==='ENTREGADO');
   const s=$('cp-stats');
   if(s){
     const graves=pend.filter(r=>(r.semanas_adeudadas||0)>=3).length;
@@ -6404,9 +6463,13 @@ function renderPapeles(){
       <div class="stat a"><div class="n">${pend.length}</div><div class="l">Deben papeles</div></div>
       <div class="stat r"><div class="n">${graves}</div><div class="l">Con 3+ semanas</div></div>
       <div class="stat"><div class="n">${sem}</div><div class="l">Semanas acumuladas</div></div>
-      <div class="stat g"><div class="n">${PAPELES.length-pend.length}</div><div class="l">Ya entregaron</div></div>`;
+      <div class="stat"><div class="n">${idos.length}</div><div class="l">Ya no se presentaron</div></div>
+      <div class="stat g"><div class="n">${entr.length}</div><div class="l">Ya entregaron</div></div>`;
   }
-  let lista=f==='PEND'?pend:(f==='ENTREGADOS'?PAPELES.filter(r=>r.entregado):PAPELES.slice());
+  let lista=f==='PEND'?pend
+          :f==='ENTREGADOS'?entr
+          :f==='IDOS'?idos
+          :PAPELES.slice();
   if(q)lista=lista.filter(r=>[r.nombre_completo,r.puesto].join(' ').toUpperCase().includes(q));
   lista.sort((a,b)=>(b.semanas_adeudadas||0)-(a.semanas_adeudadas||0)
     ||String(a.nombre_completo).localeCompare(String(b.nombre_completo),'es'));
@@ -6414,25 +6477,112 @@ function renderPapeles(){
   if(!lista.length){
     b.innerHTML=`<tr><td colspan="7"><div class="empty"><div class="big">📂</div>${
       f==='ENTREGADOS'?'Todavía nadie de esta lista ha entregado sus papeles.'
+      :f==='IDOS'?'Nadie está marcado como que dejó de presentarse.'
       :'Nadie debe papeles ahorita.'}<br><span style="font-size:12.5px">Registra arriba a quien esté asistiendo sin entregar su documentación.</span></div></td></tr>`;
     return;
   }
+  const semAct=isoWeek();
   b.innerHTML=lista.map(r=>{
     const n=Number(r.semanas_adeudadas)||0;
-    const col=n>=3?'var(--red)':(n===2?'var(--amber)':'var(--txt)');
-    return `<tr>
-      <td><b>${esc(r.nombre_completo)}</b></td>
+    const est=cpEstado(r);
+    const col=est!=='PENDIENTE'?'var(--mut)':(n>=3?'var(--red)':(n===2?'var(--amber)':'var(--txt)'));
+    const [cls,txt]=CP_BADGE[est];
+    /* Si ya se le registró esta semana, el botón se deshabilita: darle no
+       haría nada (la base no sube el contador dos veces en la misma
+       semana) y dejarlo activo hace creer que sí sirvió. */
+    const yaEsta=norm_sem(r.ultima_semana_registrada)===semAct;
+    const bot=est==='ENTREGADO'
+      ? `<button class="btn" style="padding:2px 9px;font-size:11px" onclick="cpMarcar('${r.id}','PENDIENTE')" title="Regresarlo a la lista de pendientes">↩ Reabrir</button>`
+      : `<button class="btn gold" style="padding:2px 8px;font-size:11px"
+           onclick="cpSumarSemana('${r.id}')" ${yaEsta?'disabled':''}
+           title="${yaEsta?'Ya se le registró la semana '+semAct:'Otra semana sin entregar papeles (semana '+semAct+'), sin volver a escribir el nombre'}">＋1 semana</button>
+         <button class="btn dark" style="padding:2px 8px;font-size:11px" onclick="cpMarcar('${r.id}','ENTREGADO')" title="Ya entregó su documentación: sale de la lista">✔ Ya entregó</button>
+         ${est==='NO_SE_PRESENTO'
+            ? ''
+            : `<button class="btn" style="padding:2px 8px;font-size:11px" onclick="cpMarcar('${r.id}','NO_SE_PRESENTO')" title="Dejó de venir sin entregar: congela el contador sin borrar el renglón">🚫 No se presentó</button>`}`;
+    const nota=est==='NO_SE_PRESENTO'&&r.semana_no_presentado
+      ? `<div style="font-size:11px;color:var(--mut)">dejó de venir en ${esc(r.semana_no_presentado)}</div>`:'';
+    return `<tr data-cp="${r.id}" data-estado="${est}">
+      <td><b>${esc(r.nombre_completo)}</b>${nota}</td>
       <td>${esc(r.puesto||'—')}</td>
       <td>${esc(r.semana_ingreso||'—')}</td>
       <td>${esc(r.ultima_semana_registrada||'—')}</td>
       <td style="text-align:right;font-weight:800;color:${col}">${n}</td>
-      <td>${r.entregado?`<span class="badge ACTIVO">ENTREGÓ</span>`:`<span class="badge PENDIENTE">DEBE</span>`}</td>
-      <td style="white-space:nowrap">${r.entregado
-        ? `<button class="btn" style="padding:2px 9px;font-size:11px" onclick="cpEntregado('${r.id}',false)">↩ Reabrir</button>`
-        : `<button class="btn dark" style="padding:2px 9px;font-size:11px" onclick="cpEntregado('${r.id}',true)">✔ Ya entregó</button>`}
+      <td><span class="badge ${cls}">${txt}</span></td>
+      <td style="white-space:nowrap">${bot}
         <button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="cpQuitar('${r.id}')" title="Quitar de la lista">🗑</button></td>
     </tr>`;
   }).join('');
+}
+function norm_sem(s){const m=String(s==null?'':s).match(/\d+/);return m?parseInt(m[0],10):null;}
+
+/* ---------- los botones de cada renglón (2026-09-04) -------------------
+   Todo esto existe por una sola razón: antes, para subirle el contador a
+   alguien había que volver a teclear su nombre completo arriba. Con 30
+   pendientes eso es media hora de captura y errores de dedo que abren
+   renglones duplicados. Ahora la semana se registra por `id`.
+
+   El contador lo sigue llevando la BASE (sumar_semana_pendiente), no esta
+   pantalla: si dos personas le dan al botón el mismo día, o si alguien lo
+   presiona dos veces, el número no se infla. */
+async function cpSumarSemana(id){
+  const r=PAPELES.find(x=>x.id===id); if(!r)return;
+  const sem=isoWeek();
+  markWrite();
+  const {data,error}=await sb.rpc('sumar_semana_pendiente',
+    {p_id:id,p_semana:'S'+sem,p_usuario:USER.email});
+  if(error){
+    toast(/function .*sumar_semana_pendiente/i.test(error.message||'')
+      ?'Falta correr el Script 65 en Supabase.':'Error: '+error.message,'err');
+    return;
+  }
+  await cpCargar();
+  const fila=data&&data.fila?data.fila:null;
+  const n=fila?Number(fila.semanas_adeudadas)||0:0;
+  if(!data.subio){
+    toast(`${r.nombre_completo}: ya se le había registrado la semana ${fila&&fila.ultima_semana_registrada||'S'+sem}. El contador no se movió.`,'');
+    return;
+  }
+  if(data.reabrio)toast(`${r.nombre_completo} volvió a la lista de pendientes.`,'');
+  if(n>=2)cpAlerta(fila,n);
+  else toast(`${r.nombre_completo}: ${n} semana sin papeles.`,'ok');
+}
+function cpAlerta(r,n){
+  modal(`
+    <div class="m-head" style="background:var(--amber-bg)"><h2>⚠️ ¡CUIDADO!</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="font-size:15px;line-height:1.7">Este trabajador ya lleva <b style="color:var(--red);font-size:20px">${n}</b> semana(s) asistiendo <b>sin entregar documentación</b>.</p>
+      <div class="kv"><b>Nombre</b><span><b>${esc(r.nombre_completo)}</b></span></div>
+      <div class="kv"><b>Puesto</b><span>${esc(r.puesto||'sin capturar')}</span></div>
+      <div class="kv"><b>Ingresó en la semana</b><span><b>${esc(r.semana_ingreso||'—')}</b></span></div>
+      <div class="kv"><b>Última vez registrado</b><span>${esc(r.ultima_semana_registrada||'—')}</span></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Entendido</button>
+      <button class="btn" onclick="closeModal();cpMarcar('${r.id}','NO_SE_PRESENTO')">🚫 Ya no se presentó</button>
+      <button class="btn dark" onclick="closeModal();cpMarcar('${r.id}','ENTREGADO')">✔ Ya entregó sus papeles</button>
+    </div>`,'sm');
+}
+async function cpMarcar(id,estado){
+  const r=PAPELES.find(x=>x.id===id); if(!r)return;
+  if(estado==='ENTREGADO'&&!confirm(`¿${r.nombre_completo} ya entregó toda su documentación?\n\nSale de la lista y deja de contar semanas.`))return;
+  if(estado==='NO_SE_PRESENTO'&&!confirm(`¿${r.nombre_completo} dejó de presentarse?\n\nEl contador se queda en ${Number(r.semanas_adeudadas)||0} y deja de subir. NO se borra: si regresa, se reabre solo al registrarle otra semana.`))return;
+  markWrite();
+  const {error}=await sb.rpc('marcar_estado_pendiente',
+    {p_id:id,p_estado:estado,p_semana:'S'+isoWeek(),p_usuario:USER.email});
+  if(error){
+    /* Sin el Script 65 todavía se puede marcar lo de siempre, para no
+       dejar la pantalla inservible mientras lo corren. */
+    if(/function .*marcar_estado_pendiente/i.test(error.message||'')){
+      if(estado==='NO_SE_PRESENTO'){toast('Falta correr el Script 65 en Supabase para poder marcar que ya no se presentó.','err');return;}
+      return cpEntregado(id,estado==='ENTREGADO');
+    }
+    toast('Error: '+error.message,'err');return;
+  }
+  toast(estado==='ENTREGADO'?'Marcado como entregado.'
+       :estado==='NO_SE_PRESENTO'?'Marcado: dejó de presentarse. El contador quedó congelado.'
+       :'Regresó a la lista de pendientes.','ok');
+  await cpCargar();
 }
 /* ---------- ¿ESTE YA ESTÁ DADO DE ALTA? (2026-08-28) ------------------
    El control de papeles es la ANTESALA: gente que ya viene a trabajar
@@ -6561,6 +6711,81 @@ async function cpEntregado(id,val){
     .update({entregado:val,fecha_entrega:val?today():null,actualizado_por:USER.email}).eq('id',id);
   if(error){toast('Error: '+error.message,'err');return;}
   toast(val?'Marcado como entregado.':'Regresó a la lista de pendientes.','ok');
+  await cpCargar();
+}
+/* ---------- CONCILIACIÓN CON EL PADRÓN (2026-09-04) --------------------
+   La antesala y el padrón no se hablaban: cuando por fin se daba de alta
+   a alguien, su renglón del control de papeles se quedaba contando
+   semanas para siempre y había que acordarse de ir a cerrarlo a mano.
+
+   Se hace en la BASE (conciliar_papeles, Script 65) y no aquí, por dos
+   razones: usa el mismo criterio de parecido que todo lo demás — una
+   sola definición de "es la misma persona" — y respeta la RLS, así que
+   cada quien concilia contra las obras que puede ver.
+
+   NO cierra nada solo: propone y el capturista confirma. Un nombre
+   parecido no es una prueba, y cerrar el renglón equivocado borra el
+   historial de semanas de alguien que sí debe papeles. */
+async function cpConciliar(){
+  if(!OBRA){toast('Abre una obra primero.','err');return;}
+  const {data,error}=await sb.rpc('conciliar_papeles',{p_obra:OBRA.id});
+  if(error){
+    toast(/function .*conciliar_papeles/i.test(error.message||'')
+      ?'Falta correr el Script 65 en Supabase.':'Error: '+error.message,'err');
+    return;
+  }
+  const l=data||[];
+  if(!l.length){
+    modal(`
+      <div class="m-head"><h2>🔗 Conciliación con el padrón</h2><button class="x" onclick="closeModal()">×</button></div>
+      <div class="m-body"><div class="empty"><div class="big">✔</div>Todo cuadra.<br><span style="font-size:12.5px">Nadie de la lista de papeles está dado de alta todavía en ${esc(OBRA.nombre)}.</span></div></div>
+      <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`,'sm');
+    return;
+  }
+  window._CPCONC=l;
+  modal(`
+    <div class="m-head" style="background:var(--amber-bg)"><h2>🔗 ${l.length} ya está${l.length>1?'n':''} dado${l.length>1?'s':''} de alta</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Est${l.length>1?'as personas siguen':'a persona sigue'} contando semanas en el control de papeles, pero ya aparece${l.length>1?'n':''} en el padrón de <b>${esc(OBRA.nombre)}</b>. Revisa que sí sean la misma persona y ciérral${l.length>1?'as':'a'}.</p>
+      <table style="width:100%;font-size:12.5px">
+        <thead><tr><th style="text-align:left">En papeles</th><th style="text-align:left">En el padrón</th><th style="text-align:right">Sem.</th><th></th></tr></thead>
+        <tbody id="cp-conc-body">${l.map(x=>`
+          <tr data-conc="${x.id}">
+            <td><b>${esc(x.nombre_completo)}</b><div style="font-size:11px;color:var(--mut)">${esc(x.puesto||'sin puesto')}</div></td>
+            <td>${esc(x.trab_nombre)}<div style="font-size:11px;color:var(--mut)">Nº ${x.trab_numero??'—'} · ${esc(x.trab_estatus||'—')}${x.exacto?'':' · <b style="color:var(--amber)">nombre escrito distinto</b>'}</div></td>
+            <td style="text-align:right;font-weight:800">${x.semanas_adeudadas}</td>
+            <td style="text-align:right;white-space:nowrap">
+              <button class="btn dark" style="padding:2px 8px;font-size:11px" onclick="cpCerrarConc('${x.id}')">✔ Cerrar</button>
+            </td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Después</button>
+      <button class="btn gold" onclick="cpCerrarTodasConc()">✔ Cerrar ${l.length>1?'las '+l.length:'el renglón'} (ya entregaron)</button>
+    </div>`,'md');
+}
+async function cpCerrarConc(id,calla){
+  markWrite();
+  const {error}=await sb.rpc('marcar_estado_pendiente',
+    {p_id:id,p_estado:'ENTREGADO',p_semana:null,p_usuario:USER.email});
+  if(error){if(!calla)toast('Error: '+error.message,'err');return false;}
+  const tr=document.querySelector(`tr[data-conc="${id}"]`);
+  if(tr)tr.remove();
+  if(!calla){toast('Cerrado: ya está dado de alta.','ok');await cpCargar();}
+  return true;
+}
+async function cpCerrarTodasConc(){
+  const l=window._CPCONC||[];
+  if(!l.length)return;
+  const dudosas=l.filter(x=>!x.exacto).length;
+  if(!confirm(`¿Cerrar ${l.length} renglón(es) del control de papeles?\n\n`
+    +`Se marcan como ENTREGADO porque ya están dados de alta.`
+    +(dudosas?`\n\n⚠ OJO: ${dudosas} de ellos tienen el nombre escrito distinto en el padrón. Si alguno no es la misma persona, ciérralos uno por uno.`:'')))return;
+  let n=0;
+  for(const x of l){ if(await cpCerrarConc(x.id,true))n++; }
+  closeModal();
+  toast(`${n} renglón(es) cerrado(s): ya estaban dados de alta.`,'ok');
   await cpCargar();
 }
 async function cpQuitar(id){
