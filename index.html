@@ -1522,7 +1522,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-04.1';
+const APP_VERSION='2026-09-04.3';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -8252,8 +8252,17 @@ function icOrfanosJSON(){return JSON.stringify({contratista:IMPCU&&IMPCU.contrat
    la lista. La misma corrección quedó en fn_lista_asistencia() (Script 62). */
 function asActivosSemana(d1,d2){
   return WORKERS.filter(w=>{
-    if(w.fecha_baja&&d1&&w.fecha_baja<d1)return false;                 // ya de baja antes de la semana
-    if(w.estatus==='ACTIVO')return true;                              // activo de planta
+    /* EL ESTATUS MANDA. Un ACTIVO va en la lista SIEMPRE.
+       Aquí había un filtro por fecha_baja ANTES de mirar el estatus:
+           if(w.fecha_baja && d1 && w.fecha_baja < d1) return false;
+       y dejaba fuera a TODOS LOS REINGRESOS. doReactivar() conserva a
+       propósito la fecha_baja anterior para el historial y solo marca
+       fecha_reingreso, así que el reingresado quedaba ACTIVO, yendo a la
+       obra todos los días, y sin aparecer en ninguna lista para firmar.
+       Ese filtro tampoco servía para nada más: un BAJA cae de todos modos
+       en el `return false` del final. Ver bug de PEDRO TIRSO TIRSO
+       (04/09/2026) y test_reingreso_listas.mjs. */
+    if(w.estatus==='ACTIVO')return true;                              // activo de planta (incluye reingresos)
     // pendiente que ya entró: su alta es de esta semana o de antes
     if(w.estatus==='PENDIENTE'&&w.fecha_alta&&d2&&w.fecha_alta<=d2)return true;
     return false;
@@ -8265,11 +8274,28 @@ function asActivosSemana(d1,d2){
 function asOrdenados(d1,d2){
   return asGruposCuadrilla(asActivosSemana(d1,d2)).flatMap(g=>g.gente);
 }
+/* RED DE SEGURIDAD (04/09/2026). La regla es "todo ACTIVO va en la lista".
+   Aquí se comprueba en pantalla, cada vez: si algún ACTIVO del padrón no
+   quedó en la lista, se dice quién y por qué, en rojo. El bug de PEDRO
+   TIRSO TIRSO estuvo semanas sin que nadie lo notara porque el número de
+   arriba SÍ cuadraba consigo mismo; lo que faltaba era compararlo contra
+   el padrón. */
+function asFaltantes(lst){
+  const dentro=new Set(lst.map(w=>w.id));
+  return (WORKERS||[]).filter(w=>w.estatus==='ACTIVO'&&!dentro.has(w.id));
+}
 function asUpdateStat(){
   const d1=$('as-d1')?$('as-d1').value:'', d2=$('as-d2')?$('as-d2').value:'';
   const lst=asActivosSemana(d1,d2), pend=lst.filter(w=>w.estatus==='PENDIENTE').length;
   if($('as-stat-n'))$('as-stat-n').textContent=lst.length;
   if($('as-stat-l'))$('as-stat-l').innerHTML=`En la lista de esa semana → ${Math.max(1,Math.ceil(lst.length/10))} hojas${pend?` · incluye <b>${pend}</b> sin expediente completo (ya están asistiendo)`:''}`;
+  const av=$('as-alerta'); if(!av)return;
+  const falta=asFaltantes(lst);
+  if(!falta.length){ av.innerHTML=''; av.style.display='none'; return; }
+  av.style.display='';
+  av.innerHTML=`<div class="kv" style="background:var(--red-bg,#fde8e8)"><b style="color:var(--red)">⚠ ${falta.length} ACTIVO(S) FUERA DE LA LISTA</b>
+    <span>${falta.slice(0,8).map(w=>`<b>${esc(fullName(w))}</b>${w.no_trab?' (Nº '+w.no_trab+')':''}`).join(' · ')}${falta.length>8?` y ${falta.length-8} más`:''}.
+    Todo ACTIVO debe salir en la lista. Avísale a quien lleva el sistema.</span></div>`;
 }
 function openAsistencia(){
   const [d1,d2]=weekBounds();
@@ -8293,6 +8319,7 @@ function openAsistencia(){
       <div style="display:flex;gap:10px;margin-top:16px">
         <div class="stat g" style="flex:1"><div class="n" id="as-stat-n">${lst.length}</div><div class="l" id="as-stat-l">En la lista de esa semana → ${Math.max(1,Math.ceil(lst.length/10))} hojas</div></div>
       </div>
+      <div id="as-alerta" style="margin-top:10px;display:none"></div>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
@@ -8301,6 +8328,7 @@ function openAsistencia(){
       <button class="btn" onclick="exportDirectorio()">👮 Directorio para imprimir</button>
       <button class="btn dark" onclick="exportAsistencia()">⬇ Generar listas + directorio</button>
     </div>`,'md');
+  asUpdateStat();   // deja armada la comprobación de "ningún ACTIVO se quedó fuera"
 }
 const AS={
   t:{font:{bold:true,sz:13,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'1F3864'}},alignment:{horizontal:'center',vertical:'center'}},
@@ -9400,21 +9428,90 @@ document.addEventListener('click',e=>{if(!e.target.closest('.menu'))document.que
 
 
 /* ---------- MÓDULO ANUAL: PTU (arts. 117-131 LFT) Y AGUINALDO (art. 87 LFT) ---------- */
-function diasEnAnio(w,anio){
-  if(!w.fecha_alta)return 0;
-  const ini=w.fecha_alta>`${anio}-01-01`?w.fecha_alta:`${anio}-01-01`;
-  let fin=`${anio}-12-31`;
-  if(w.fecha_baja&&w.fecha_baja<fin)fin=w.fecha_baja;
-  if(w.fecha_alta>`${anio}-12-31`)return 0;
-  if(fin<ini)return 0;
-  const d=Math.round((new Date(fin+'T12:00')-new Date(ini+'T12:00'))/86400000)+1;
-  return Math.min(365,Math.max(0,d));
+/* ---------- DÍAS TRABAJADOS EN EL AÑO (arts. 87 y 123 LFT) -------------
+   BUG CORREGIDO (04/09/2026). Antes esto era un solo tramo y se cortaba en
+   la fecha_baja:
+       let fin = `${anio}-12-31`;
+       if (w.fecha_baja && w.fecha_baja < fin) fin = w.fecha_baja;
+   Como el REINGRESO conserva a propósito la fecha_baja anterior (es su
+   historial; ver doReactivar), a un reingresado se le truncaba el año en
+   una baja que ya no estaba vigente y se le borraban todos los días
+   trabajados DESPUÉS de volver. A quien salió el 15 de junio y regresó el
+   1 de julio se le contaba enero–junio y se le tiraba julio–diciembre.
+
+   POR QUÉ SE SUMAN LOS DOS TRAMOS — la ley habla de TIEMPO TRABAJADO EN EL
+   AÑO, no de antigüedad:
+
+     Art. 87 LFT, 2º párrafo (aguinaldo):
+       "...tendrán derecho a que se les pague la parte proporcional del
+        mismo, CONFORME AL TIEMPO QUE HUBIEREN TRABAJADO, cualquiera que
+        fuere éste."
+     Art. 123 LFT (PTU):
+       "...tomando en consideración el NÚMERO DE DÍAS TRABAJADOS por cada
+        uno EN EL AÑO..."
+     Art. 127 fr. VII LFT (PTU de eventuales):
+       "...cuando hayan trabajado SESENTA DÍAS DURANTE EL AÑO, por lo menos."
+
+   Ese último importa mucho: quien trabajó 40 días antes de la baja y 40
+   después del reingreso lleva 80 en el año y SÍ participa del reparto. Con
+   el error se le contaban 40 y se le negaba un derecho.
+
+   LA DISTINCIÓN QUE HAY QUE RESPETAR: la ANTIGÜEDAD sí se reinicia con el
+   reingreso —la relación laboral anterior terminó—, y por eso vacaciones y
+   prima vacacional usan iniAntig(). Los DÍAS TRABAJADOS EN EL AÑO, no: son
+   los que de verdad se trabajaron, vengan de uno o de dos tramos.
+
+   `hasta` acota el corte (para una PROVISIÓN contable se corta hoy, no a
+   fin de año). Si se omite, el año completo. */
+function _diasEntre(a,b){
+  return Math.round((new Date(b+'T12:00')-new Date(a+'T12:00'))/86400000)+1;
 }
+function tramosEnAnio(w,anio,hasta){
+  const ene1=`${anio}-01-01`, dic31=`${anio}-12-31`;
+  const tope=(hasta&&hasta<dic31)?hasta:dic31;
+  const alta=w&&w.fecha_alta?String(w.fecha_alta):null;
+  if(!alta||alta>dic31)return {dias:0,tramos:[],aviso:null};
+  const baja=w.fecha_baja?String(w.fecha_baja):null;
+  const rei =w.fecha_reingreso?String(w.fecha_reingreso):null;
+  let crudos, aviso=null;
+  if(rei&&baja&&baja<rei){
+    // Caso normal de reingreso: la baja es la ANTERIOR. Dos tramos.
+    crudos=[[alta,baja,'1er periodo'],[rei,tope,'tras el reingreso']];
+  }else if(rei&&baja){
+    /* Le volvieron a dar de baja DESPUÉS de reingresar. La primera baja se
+       perdió: `fecha_baja` es una sola columna y doBaja la sobrescribe, así
+       que no se sabe cuándo terminó el primer tramo. Se cuenta corrido y se
+       avisa, porque inventar un hueco sería inventar días que no sabemos.
+       Art. 18 LFT: en caso de duda, lo más favorable al trabajador. */
+    crudos=[[alta,baja,'alta a baja']]; aviso='NO_SE_CONOCE_LA_BAJA_ANTERIOR';
+  }else if(rei){
+    crudos=[[alta,tope,'alta a la fecha']]; aviso='REINGRESO_SIN_BAJA_REGISTRADA';
+  }else{
+    crudos=[[alta,baja||tope,baja?'alta a baja':'alta a la fecha']];
+  }
+  const tramos=[];
+  crudos.forEach(([a,b,etq])=>{
+    const i=a>ene1?a:ene1, f=(b&&b<tope)?b:tope;   // recortado al año y al corte
+    if(!f||f<i)return;
+    const d=_diasEntre(i,f);
+    if(d>0)tramos.push({ini:i,fin:f,dias:d,etiqueta:etq});
+  });
+  /* Tope: el año no puede dar más de 365 días de proporción. Se divide entre
+     365 fijos, que es la convención de nómina en México y hace que un año
+     completo dé exactamente los 15 días del art. 87. */
+  const suma=tramos.reduce((s,t)=>s+t.dias,0);
+  return {dias:Math.min(365,Math.max(0,suma)),tramos,aviso};
+}
+function diasEnAnio(w,anio,hasta){return tramosEnAnio(w,anio,hasta).dias;}
 function renderAnualView(){
   if(!$('anual-cards'))return;
   const anio=new Date().getFullYear();
   const act=WORKERS.filter(w=>w.estatus==='ACTIVO');
-  const prov=act.reduce((s,w)=>s+(Number(w.sd)||0)*15*(diasEnAnio(w,anio)/365),0);
+  /* La tarjeta dice "corte hoy" y ahora de verdad corta hoy. Antes pasaba
+     el año completo, así que una provisión de septiembre ya traía dentro
+     octubre, noviembre y diciembre: no era lo devengado, era el cierre
+     proyectado. Una provisión contable es lo ACUMULADO a la fecha. */
+  const prov=act.reduce((s,w)=>s+(Number(w.sd)||0)*15*(diasEnAnio(w,anio,today())/365),0);
   const p=CFGEMP['ptu_ultimo']||null;
   $('anual-cards').innerHTML=`
     <div class="stat b" style="min-width:280px"><div class="n">$${money(prov)}</div><div class="l">Provisión de aguinaldo ${anio} (activos, 15 días, corte hoy)</div></div>
@@ -9456,9 +9553,16 @@ async function ptuCargar(){
     if(error){toast('Error: '+error.message,'err');return;}
     lista=data||[];
   }
+  /* Los días salen de tramosEnAnio, que SUMA el periodo anterior a la baja y
+     el posterior al reingreso (art. 123: "número de días trabajados por cada
+     uno EN EL AÑO"). Aquí eso no es solo dinero: el art. 127 fr. VII exige 60
+     días en el año para que un eventual participe, y antes, al truncar en la
+     baja vieja, alguien con 40 + 40 días aparecía con 40 y quedaba EXCLUIDO
+     del reparto. Se le negaba un derecho, no se le pagaba de menos. */
   const rows=lista.map(w=>{
-    const dias=diasEnAnio(w,anio);
-    return {w,dias,sal:Math.round((Number(w.sd)||0)*dias*100)/100,incluir:dias>=60};
+    const t=tramosEnAnio(w,anio);
+    return {w,dias:t.dias,tramos:t.tramos,aviso:t.aviso,
+      sal:Math.round((Number(w.sd)||0)*t.dias*100)/100,incluir:t.dias>=60};
   }).filter(r=>r.dias>0).sort((a,b)=>(a.w.no_trab||9e9)-(b.w.no_trab||9e9));
   if(!rows.length){toast('Nadie tiene días trabajados en '+anio+'.','err');return;}
   window._PTUR=rows;
@@ -9466,7 +9570,9 @@ async function ptuCargar(){
     <div class="imp-row head" style="grid-template-columns:26px 1.8fr .6fr .7fr .9fr .9fr"><span></span><span>Trabajador</span><span>SD</span><span>Días ${anio}</span><span>Salario devengado</span><span>Estatus</span></div>
     ${rows.map((r,i)=>`<div class="imp-row" style="grid-template-columns:26px 1.8fr .6fr .7fr .9fr .9fr">
       <span><input type="checkbox" style="width:auto" ${r.incluir?'checked':''} onchange="window._PTUR[${i}].incluir=this.checked"></span>
-      <span><b>${esc(fullName(r.w))}</b>${r.dias<60?' <span style="color:var(--amber);font-size:10.5px">&lt;60 días (art. 127)</span>':''}</span>
+      <span><b>${esc(fullName(r.w))}</b>${r.dias<60?' <span style="color:var(--amber);font-size:10.5px">&lt;60 días (art. 127)</span>':''}${
+        r.tramos.length>1?`<div style="font-size:10.5px;color:var(--mut)">${r.tramos.map(t=>`${t.etiqueta}: ${t.dias} d`).join(' + ')} = <b>${r.dias}</b> días en ${anio}</div>`:''}${
+        r.aviso?`<div style="font-size:10.5px;color:var(--amber)">⚠ ${r.aviso==='NO_SE_CONOCE_LA_BAJA_ANTERIOR'?'reingresó y volvió a causar baja: no se conserva la baja anterior, los días van corridos. Ajústalos si hace falta.':'reingreso sin baja registrada: los días van corridos desde el alta. Ajústalos si hace falta.'}</div>`:''}</span>
       <span>$${money(r.w.sd)}</span>
       <input type="number" min="0" max="365" value="${r.dias}" oninput="window._PTUR[${i}].dias=parseInt(this.value)||0;window._PTUR[${i}].sal=Math.round((Number(window._PTUR[${i}].w.sd)||0)*(parseInt(this.value)||0)*100)/100">
       <span>$${money(r.sal)}</span>
@@ -9557,22 +9663,32 @@ function agCalcular(){
   let lista=WORKERS.filter(w=>w.estatus==='ACTIVO');
   if($('ag-alcance').value==='TODOS')lista=WORKERS.filter(w=>w.estatus!=='PENDIENTE');
   const rows=lista.map(w=>{
-    const dias=diasEnAnio(w,anio);
-    const monto=Math.round((Number(w.sd)||0)*diasAg*(dias/365)*100)/100;
-    return {w,dias,monto};
+    const t=tramosEnAnio(w,anio);
+    const monto=Math.round((Number(w.sd)||0)*diasAg*(t.dias/365)*100)/100;
+    return {w,dias:t.dias,tramos:t.tramos,aviso:t.aviso,monto};
   }).filter(r=>r.dias>0).sort((a,b)=>(a.w.no_trab||9e9)-(b.w.no_trab||9e9));
   if(!rows.length){toast('Nadie tiene días en '+anio+'.','err');return;}
   const total=rows.reduce((s,r)=>s+r.monto,0);
   window._AGC={anio,diasAg,rows,total};
+  /* A quien reingresó en el año se le muestra DE DÓNDE salen sus días. Si
+     además se le pagó finiquito en la baja anterior, ese finiquito ya debió
+     traer el aguinaldo proporcional del primer tramo (art. 87, 2º párrafo),
+     así que se avisa para no pagarlo dos veces. NO se descuenta solo: el
+     monto del finiquito es un total y no consta qué parte era aguinaldo. */
+  const conTramos=rows.filter(r=>r.tramos.length>1||r.aviso);
   $('ag-tabla').innerHTML=`
     <div class="imp-row head" style="grid-template-columns:.5fr 2fr .7fr .8fr .9fr"><span>No.</span><span>Trabajador</span><span>SD</span><span>Días ${anio}</span><span>Aguinaldo</span></div>
     ${rows.map(r=>`<div class="imp-row" style="grid-template-columns:.5fr 2fr .7fr .8fr .9fr">
-      <span>${r.w.no_trab??''}</span><span><b>${esc(fullName(r.w))}</b> <span class="badge ${r.w.estatus}" style="font-size:9.5px">${r.w.estatus}</span></span>
+      <span>${r.w.no_trab??''}</span><span><b>${esc(fullName(r.w))}</b> <span class="badge ${r.w.estatus}" style="font-size:9.5px">${r.w.estatus}</span>${
+        r.tramos.length>1?`<div style="font-size:10.5px;color:var(--mut)">${r.tramos.map(t=>`${t.etiqueta}: ${fmtD(t.ini)} a ${fmtD(t.fin)} = <b>${t.dias}</b> d`).join(' · ')}${
+          r.w.monto_finiquito?` · <b style="color:var(--amber)">se le pagó finiquito de $${money(r.w.monto_finiquito)}: revisa si ya traía el aguinaldo del 1er periodo</b>`:''}</div>`:''}${
+        r.aviso?`<div style="font-size:10.5px;color:var(--amber)">⚠ ${r.aviso==='NO_SE_CONOCE_LA_BAJA_ANTERIOR'?'reingresó y volvió a causar baja: no se conserva la fecha de la baja anterior, así que los días van corridos. Verifícalos.':'tiene reingreso sin baja registrada: los días van corridos desde el alta. Verifícalos.'}</div>`:''}</span>
       <span>$${money(r.w.sd)}</span><span>${r.dias}</span><span><b>$${money(r.monto)}</b></span>
     </div>`).join('')}`;
   $('ag-tot').innerHTML=`<div class="stats">
     <div class="stat g"><div class="n">$${money(total)}</div><div class="l">Total aguinaldo ${anio} (${rows.length} trabajadores, ${diasAg} días)</div></div>
-    <div class="stat a"><div class="n">20 DIC</div><div class="l">Fecha límite de pago (art. 87)</div></div></div>`;
+    <div class="stat a"><div class="n">20 DIC</div><div class="l">Fecha límite de pago (art. 87)</div></div>
+    ${conTramos.length?`<div class="stat b"><div class="n">${conTramos.length}</div><div class="l">Con reingreso en ${anio}: revisa el desglose</div></div>`:''}</div>`;
   $('ag-exp').classList.remove('hide');
 }
 function agExportar(){
