@@ -3440,6 +3440,15 @@ function montoDescuento(d,P){
   return Math.round(m*P.dias/base.dias*100)/100;
 }
 
+function montoDobleDescuento(d,w,P,semStr){
+  const normal=montoDescuento(d,P);
+  if(String(d&&d.tipo||'').toUpperCase()==='INFONAVIT'){
+    const exacto=retencionInfonavitDesdeAviso(d,w,P.dias*2,fechaFinSemanaISO(semStr));
+    if(exacto!=null)return exacto;
+  }
+  return redondearCentavos(normal*2);
+}
+
 /* ---------- DESCUENTOS ---------- */
 function descuentosDe(w,semStr,opts){
   const P=perDe(w,(opts||{}).dias);
@@ -3453,7 +3462,7 @@ function descuentosDe(w,semStr,opts){
     if(d.recurrente){
       const ex=(d.excepciones||{})[semStr];
       if(ex==='SUSPENDER'){m=0;tag=' (SUSPENDIDO '+semStr+')';}
-      else if(ex==='DOBLE'){m=Math.round(m*2*100)/100;tag=' (DOBLE '+semStr+')';}
+      else if(ex==='DOBLE'){m=montoDobleDescuento(d,w,P,semStr);tag=' (DOBLE '+semStr+')';}
     }
     total+=m;
     parts.push(d.tipo+(d.motivo&&d.motivo!==d.tipo?': '+d.motivo:'')+tag);
@@ -3638,7 +3647,7 @@ function retFilasDe(semStr){
       if(d.created_at){const wc=isoWeek(new Date(d.created_at)); if(semN<wc)return;}
       const ex=(d.excepciones||{})[semStr];
       const estado=ex==='SUSPENDER'?'PAUSADO':ex==='DOBLE'?'DOBLE':'NORMAL';
-      const monto=ex==='SUSPENDER'?0:ex==='DOBLE'?Math.round(mp*2*100)/100:mp;
+      const monto=ex==='SUSPENDER'?0:ex==='DOBLE'?montoDobleDescuento(d,w,P,semStr):mp;
       filas.push({w,d,origen:'FIJO',estado,monto,periodo:P.cve});
     }else if(d.semana===semStr){
       // una incidencia (faltas de ESA semana/quincena) ya viene calculada
@@ -9710,7 +9719,8 @@ function agExportar(){
 
 
 /* ================= V10: FISCAL 2026, COSTOS, BAJAS LEGALES, VERIFICADOR ================= */
-function FISC(){const f=CFGEMP['fiscal']||{};return {sm:f.sm||315.04,uma:f.uma||117.31,isn:(f.isn!=null?f.isn:3.0),seg:(f.seguro_danos_bim!=null?f.seguro_danos_bim:15),ceav:f.ceav||[[1,3.150],[1.5,3.68],[2.0,4.85],[2.5,5.56],[3.0,6.03],[3.5,6.36],[4.0,6.61],[99,7.51]]};}
+function FISC(){const f=CFGEMP['fiscal']||{};return {anio:Number(f.anio)||new Date().getFullYear(),sm:f.sm||315.04,uma:f.uma||117.31,umi:f.umi||100.81,isn:(f.isn!=null?f.isn:3.0),seg:(f.seguro_danos_bim!=null?f.seguro_danos_bim:15),ceav:f.ceav||[[1,3.150],[1.5,3.68],[2.0,4.85],[2.5,5.56],[3.0,6.03],[3.5,6.36],[4.0,6.61],[99,7.51]]};}
+function redondearCentavos(v){return Math.round((Number(v)||0)*100+Number.EPSILON)/100;}
 function catalogoPuestos(){
   const c=CFGEMP['catalogo_puestos'];
   // v13: LISTA CERRADA — los puestos con typo ya NO se cuelan al selector.
@@ -9735,23 +9745,45 @@ function isrTarifa(base,factor,raw){ // factor 1=mensual, 7*12/365=semanal
    Es la misma proporción con la que el SAT publica las tablas del Anexo 8. */
 const F_SEM=7*12/365;
 function factorISR(dias){return (Math.max(1,Number(dias)||7))*12/365;}
-function isrPeriodo(b,dias){return isrTarifa(b,factorISR(dias));}
+function isrPeriodo(b,dias,raw){return isrTarifa(b,factorISR(dias),raw);}
 function isrSemanal(b){return isrTarifa(b,F_SEM);}
 function isrMensual(b,raw){return isrTarifa(b,1,raw);}
 /* --- INFONAVIT con seguro de daños ($15/bimestre, portal INFONAVIT) --- */
 function diasBimestreActual(d=new Date()){
+  if(!(d instanceof Date))d=new Date(String(d).slice(0,10)+'T12:00:00');
   const m=d.getMonth(); const b0=m-(m%2);
   return new Date(d.getFullYear(),b0+2,0).getDate()+new Date(d.getFullYear(),b0+1,0).getDate();
+}
+function fechaFinSemanaISO(semStr,anio=FISC().anio){
+  const sem=Math.max(1,Math.min(53,parseInt(String(semStr||'').replace(/\D/g,''))||isoWeek()));
+  const jan4=new Date(Date.UTC(Number(anio)||new Date().getFullYear(),0,4));
+  const domingo=new Date(jan4);
+  domingo.setUTCDate(jan4.getUTCDate()-((jan4.getUTCDay()||7)-1)+(sem-1)*7+6);
+  return new Date(domingo.getUTCFullYear(),domingo.getUTCMonth(),domingo.getUTCDate(),12);
 }
 /* Fórmula SUA: (cuota bimestral + seguro de daños) ÷ días del bimestre ×
    días del periodo. Con 7 da la cuota semanal de obra; con 15, la quincenal
    de oficina. Antes el 7 estaba clavado y a los quincenales se les retenía
    media cuota. */
-function cuotaPeriodoInfonavit(mensual,dias){
+function cuotaPeriodoInfonavit(mensual,dias,fecha){
   const f=FISC();
-  return Math.round((mensual*2+f.seg)/diasBimestreActual()*Math.max(1,Number(dias)||7)*100)/100;
+  const dp=Math.max(0,Number(dias)||0), db=diasBimestreActual(fecha||new Date());
+  return redondearCentavos(((Number(mensual)||0)*2+f.seg)/db*dp);
 }
-function cuotaSemanalInfonavit(mensual){return cuotaPeriodoInfonavit(mensual,7);}
+function cuotaSemanalInfonavit(mensual,fecha){return cuotaPeriodoInfonavit(mensual,7,fecha);}
+function retencionInfonavitDesdeAviso(d,w,dias,fecha){
+  const factor=Number(d&&d.factor), dp=Math.max(0,Number(dias)||0);
+  if(!(factor>0)||!(dp>0))return null;
+  const f=FISC(), db=diasBimestreActual(fecha||new Date());
+  const mod=String(d.modalidad||'CUOTA_FIJA').toUpperCase();
+  const seguro=f.seg/db*dp;
+  if(mod==='PORCENTAJE'){
+    const sdi=Number(w&&(w.sdi||w.sd))||0;
+    return sdi>0?redondearCentavos(sdi*factor/100*dp+seguro):null;
+  }
+  const mensual=mod==='VSM_UMI'?factor*f.umi:factor;
+  return redondearCentavos(mensual*2/db*dp+seguro);
+}
 /* --- CUOTAS IMSS/ISN (LSS arts. 25,71,106,107,147,168,211; CEAV 2026 4o ajuste) ---
    v36: el módulo "Costo patronal · simulador" se eliminó del sistema por
    petición del usuario. Esta función se conserva porque es la calculadora de
@@ -10169,7 +10201,7 @@ function dsModalidad(){
   const mod=esInf?(($('ds-mod')||{}).value||'CUOTA_FIJA'):'CUOTA_FIJA';
   const lbl=$('ds-lbl-factor');
   if(lbl)lbl.textContent=!esInf?'Cuota MENSUAL ($)'
-    :mod==='VSM_UMI'?'Factor: veces la UMA'
+    :mod==='VSM_UMI'?'Factor: veces la UMI'
     :mod==='PORCENTAJE'?'Factor: % del salario'
     :'Cuota MENSUAL del aviso ($)';
   dsCalc();
@@ -10179,7 +10211,7 @@ function dsModalidad(){
 function dsMensualEquivalente(mod,factor,w){
   const f=FISC(), x=Number(factor)||0;
   if(x<=0)return 0;
-  if(mod==='VSM_UMI')return x*f.uma*30.4;
+  if(mod==='VSM_UMI')return x*f.umi;
   if(mod==='PORCENTAJE'){const sdi=Number(w&&(w.sdi||w.sd))||0;return sdi*30.4*x/100;}
   return x;
 }
@@ -10195,10 +10227,12 @@ function dsCalc(){
     if(mod==='PORCENTAJE')$('ds-hint').innerHTML='<b>Falta el SDI del trabajador</b> para poder calcular un crédito por porcentaje. Captúraselo en su ficha.';
     return;
   }
-  const c=cuotaPeriodoInfonavit(men,P.dias);
+  const c=mod==='PORCENTAJE'
+    ?retencionInfonavitDesdeAviso({modalidad:mod,factor},w,P.dias,new Date())
+    :cuotaPeriodoInfonavit(men,P.dias,new Date());
   $('ds-monto').value=c.toFixed(2);
-  const comoSale=mod==='VSM_UMI'?`${factor} × UMA $${FISC().uma} × 30.4 = $${money(men)} al mes, y de ahí `
-    :mod==='PORCENTAJE'?`${factor}% del salario mensual integrado = $${money(men)} al mes, y de ahí `:'';
+  const comoSale=mod==='VSM_UMI'?`${factor} × UMI $${FISC().umi} = $${money(men)} mensuales, y de ahí `
+    :mod==='PORCENTAJE'?`${factor}% × SDI × ${P.dias} días, más seguro proporcional = `:'';
   $('ds-hint').innerHTML=`<b>Por ${P.unidad.toLowerCase()}: $${c.toFixed(2)}</b> = ${comoSale}(mensual×2 + $${FISC().seg} seguro de daños) ÷ ${diasBimestreActual()} días del bimestre × ${P.dias} — fórmula validada contra tu EBA (Cenobio $1,203.51 ✔). <b>Cada bimestre se recalcula solo.</b>`;
 }
 
@@ -10236,7 +10270,8 @@ function nominaPeriodo(w,opts){
   const obrDia=Math.max(0,sbc-3*f.uma)*0.0040+sbc*(0.0025+0.00375+0.00625+0.01125);
   const imssObr=Math.round(obrDia*diasPag*100)/100;
   // ISR sobre la NUEVA base + subsidio al empleo
-  const isrBruto=Math.round(isrPeriodo(bruto,P.dias)*100)/100;
+  const isrBrutoRaw=isrPeriodo(bruto,P.dias,true);
+  const isrBruto=redondearCentavos(isrBrutoRaw);
   const subPct=Number(f.subsidio_pct)||15.02, subTopeM=Number(f.subsidio_tope_mensual)||11492.66;
   const topeSem=Math.round(subTopeM/30.4*P.dias*100)/100;
   // v15: subsidio calibrado contra NOI (Semana 16, 18/07/2026) — NOI trunca la cuota
@@ -10247,8 +10282,12 @@ function nominaPeriodo(w,opts){
   const subDia=Math.floor(subPct/100*f.uma*100)/100;
   const subSem=Math.round(subDia*P.dias*100)/100; // = cuota diaria truncada × días del periodo
   const subsidio=bruto<=topeSem?Math.min(subSem,isrBruto):0;
-  const isr=Math.round((isrBruto-subsidio)*100)/100;
-  const neto=Math.round((bruto-isr-imssObr)*100)/100;
+  // NOI 11 conserva los decimales internos cuando acredita subsidio y corta a
+  // centavos el ISR neto. Sin subsidio se mantiene el redondeo normal.
+  const isr=subsidio>0&&isrBrutoRaw>subsidio
+    ?Math.floor((isrBrutoRaw-subsidio)*100+1e-9)/100
+    :redondearCentavos(isrBruto-subsidio);
+  const neto=redondearCentavos(bruto-isr-imssObr);
   return {periodo:P.cve,dias:P.dias,etiqueta:P.etiqueta,
           faltas,diasPag:Math.round(diasPag*10000)/10000,diasCot,sd,sbc,bruto,
           premioCapturado,premiosPag,premioAnulado:faltas>0&&premioCapturado>0,
@@ -10403,7 +10442,7 @@ function openExcepcion(id){
   modal(`
     <div class="m-head"><h2>⏸/×2 Excepción semanal · ${esc(d.tipo)} de ${esc(w?fullName(w):'')}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:12px">Cuota semanal normal: <b>$${money(d.monto)}</b>. <b>⏸ Suspender</b> = esa semana NO se retiene. <b>×2 Doble</b> = esa semana se retienen <b>$${money(Math.round(d.monto*2*100)/100)}</b> (p. ej. para compensar una semana suspendida). Solo afecta la semana elegida; las demás siguen normal y la proyección lo refleja automáticamente.</p>
+      <p style="color:var(--mut);margin-bottom:12px">Cuota semanal normal: <b>$${money(d.monto)}</b>. <b>⏸ Suspender</b> = esa semana NO se retiene. <b>×2 Doble</b> recalcula los 14 días desde el aviso y redondea una sola vez (p. ej. para compensar una semana suspendida). Solo afecta la semana elegida; las demás siguen normal y la proyección lo refleja automáticamente.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr">
         <div><label>Semana</label><input id="ex-sem" type="number" value="${isoWeek()}"></div>
         <div><label>Acción</label><select id="ex-acc"><option value="SUSPENDER">⏸ Suspender (no retener)</option><option value="DOBLE">×2 Retener doble</option><option value="NORMAL">Quitar excepción (retener normal)</option></select></div>
@@ -10425,7 +10464,8 @@ async function saveExcepcion(id){
   const {error}=await sb.from('descuentos').update({excepciones:ex}).eq('id',id);
   if(error){toast('Error: '+error.message,'err');return;}
   closeModal();
-  toast(acc==='NORMAL'?`Excepción de ${sem} eliminada: se retiene normal.`:acc==='SUSPENDER'?`Retención SUSPENDIDA en ${sem}: no se descuenta esa semana.`:`Retención DOBLE en ${sem}: $${money(Math.round(d.monto*2*100)/100)}.`,'ok');
+  const w=WORKERS.find(x=>x.id===d.trabajador_id), P=perDe(w);
+  toast(acc==='NORMAL'?`Excepción de ${sem} eliminada: se retiene normal.`:acc==='SUSPENDER'?`Retención SUSPENDIDA en ${sem}: no se descuenta esa semana.`:`Retención DOBLE en ${sem}: $${money(montoDobleDescuento(d,w,P,sem))}.`,'ok');
   await loadObraData(OBRA.id);
 }
 
@@ -11554,12 +11594,14 @@ async function generarRenunciaDoc(id){
 function diasVacaciones(anios){if(anios<1)return 0;if(anios<=5)return 12+2*(anios-1);return 22+2*Math.floor((anios-6)/5);}
 function openPrestaciones(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
+  const tieneInfo=(typeof DESC!=='undefined'?DESC:[]).some(d=>d.trabajador_id===w.id&&d.activo&&d.recurrente&&String(d.tipo).toUpperCase()==='INFONAVIT');
   modal(`
     <div class="m-head"><h2>🧮 Prestaciones de ley · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
         <div><label>Fecha de cálculo / baja</label><input id="pr-fecha" type="date" value="${today()}" oninput="calcPrestaciones('${id}')"></div>
-        ${fld('pr-dias','Días trabajados sin pagar',0,{type:'number',extra:`oninput="calcPrestaciones('${id}')" min="0"`})}
+        ${fld('pr-dias','Días trabajados sin pagar',0,{type:'number',extra:`oninput="if($('pr-info-dias'))$('pr-info-dias').value=this.value;calcPrestaciones('${id}')" min="0"`})}
+        ${fld('pr-info-dias','Días INFONAVIT no retenidos',0,{type:'number',extra:`oninput="calcPrestaciones('${id}')" min="0" ${tieneInfo?'':'disabled'}`})}
         <div><label>¿Despido injustificado?</label><select id="pr-despido" onchange="calcPrestaciones('${id}')"><option value="NO">No (renuncia/término)</option><option value="SI">Sí (indemnización)</option></select></div>
       </div>
       <div class="grid" style="grid-template-columns:1fr 2fr;margin-top:8px;align-items:end">
@@ -11567,7 +11609,7 @@ function openPrestaciones(id){
         <div style="font-size:11.5px;color:var(--mut);padding-bottom:8px">Si lo capturas, el <b>cheque</b> de finiquito usará EXACTAMENTE ese monto (lo que factura NOI) y te muestro la diferencia contra el cálculo del modelo. Déjalo vacío para usar el del modelo.</div>
       </div>
       <div id="pr-out" style="margin-top:16px"></div>
-      <p style="font-size:11.5px;color:var(--mut);margin-top:10px">Cálculo conforme a LFT vigente: aguinaldo 15 días (art. 87), vacaciones desde 12 días (art. 76), prima vacacional 25% (art. 80), indemnización 3 meses + 20 días/año con salario integrado (arts. 48-50) y prima de antigüedad 12 días/año con tope de 2 salarios mínimos (art. 162). Si el trabajador tiene <b>crédito INFONAVIT activo</b>, se descuenta la amortización proporcional a los días trabajados sin pagar (cuota diaria = cuota semanal ÷ 7). Verificar con contador y contra la cédula del SUA antes de pagar.</p>
+      <p style="font-size:11.5px;color:var(--mut);margin-top:10px">Cálculo conforme a LFT vigente: aguinaldo 15 días (art. 87), vacaciones desde 12 días (art. 76), prima vacacional 25% (art. 80), indemnización 3 meses + 20 días/año con salario integrado (arts. 48-50) y prima de antigüedad 12 días/año con tope de 2 salarios mínimos (art. 162). Si existe <b>crédito INFONAVIT activo</b>, captura los días del periodo de baja que todavía no tuvieron retención; el motor recalcula esos días desde el aviso, sin dividir una cuota semanal ya redondeada. Verificar el corte contra la cédula del SUA antes de pagar.</p>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cerrar</button>
@@ -11630,12 +11672,13 @@ function calcPrestaciones(id){
   // ÷ 7 (la semanal ya trae mensual×2 + $15 seguro / días del bimestre). El
   // contador debe validar el corte de días contra la cédula del SUA.
   const infoDesc=(typeof DESC!=='undefined'?DESC:[]).find(d=>d.trabajador_id===w.id&&d.activo&&d.recurrente&&String(d.tipo).toUpperCase()==='INFONAVIT');
-  if(infoDesc&&diasPend>0){
-    const semanal=Number(infoDesc.monto)||0;
-    const infoPropRaw=semanal/7*diasPend;
-    const infoProp=Math.round(infoPropRaw*100)/100;
+  const diasInfo=parseInt($('pr-info-dias')?$('pr-info-dias').value:diasPend)||0;
+  if(infoDesc&&diasInfo>0){
+    const infoExacta=retencionInfonavitDesdeAviso(infoDesc,w,diasInfo,fin);
+    const Pinfo=perDe(w), cuotaPeriodo=montoDescuento(infoDesc,Pinfo);
+    const infoProp=infoExacta==null?redondearCentavos(cuotaPeriodo/Pinfo.dias*diasInfo):infoExacta;
     if(infoProp>0){
-      rows.push([`Retención INFONAVIT proporcional (${diasPend} día(s) × $${money(semanal/7)}/día)`,`−$${money(infoProp)}`]);
+      rows.push([`Retención INFONAVIT (${diasInfo} día(s) no retenidos; redondeo único)`,`−$${money(infoProp)}`]);
       total-=infoProp;
     }
   }
@@ -11643,7 +11686,7 @@ function calcPrestaciones(id){
   // arriba): 499.9978 → 499.99. El +1e-6 solo absorbe el error de punto flotante
   // para que un .XX exacto no pierda el último centavo. (Config previa al ajuste
   // del 03/ago; para cuadrar con NOI usa el campo "Finiquito según NOI".)
-  const modeloTotal=Math.floor(total*100+1e-6)/100;
+  const modeloTotal=redondearCentavos(total);
   // "Finiquito según NOI" (opcional): si se captura, MANDA sobre el modelo, y el
   // cheque saldrá con ese monto exacto (lo que factura NOI). El modelo se sigue
   // mostrando para comparar el centavo.
