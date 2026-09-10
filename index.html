@@ -186,14 +186,36 @@ label{font-size:11.5px;font-weight:600;color:var(--mut);text-transform:uppercase
 .user-chip{font-size:12.5px;color:var(--topbar-mut);background:rgba(255,255,255,.08);padding:6px 12px;border-radius:20px}
 .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:6px;padding:6px 12px;font-size:12.5px}
 .btn-ghost:hover{background:rgba(255,255,255,.12)}
-.obra-bar{background:var(--card);border-bottom:1px solid var(--border);padding:0 20px;display:flex;gap:2px;overflow-x:auto}
-.obra-tab{border:none;background:none;padding:13px 16px 11px;font-size:13.5px;font-weight:600;color:var(--mut);border-bottom:2.5px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:8px}
-.obra-tab:hover{color:var(--txt)}
-.obra-tab.on{color:var(--brand-txt);border-bottom-color:var(--gold)}
+.empresa-nav{background:var(--card);border-bottom:1px solid var(--border);box-shadow:0 5px 18px rgba(20,33,61,.055)}
+.empresa-row{padding:11px 20px 10px;display:flex;align-items:center;gap:16px;min-height:66px}
+.empresa-caption{min-width:205px;line-height:1.25}
+.empresa-caption small{display:block;color:var(--mut);font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;margin-bottom:3px}
+.empresa-caption strong{display:block;color:var(--txt);font-family:'Montserrat','Segoe UI',sans-serif;font-size:13px}
+.empresa-selector{display:flex;gap:8px;align-items:stretch;overflow-x:auto;padding:1px;flex:1}
+.empresa-btn{border:1px solid var(--border);background:var(--bg);color:var(--mut);border-radius:11px;padding:8px 12px;min-width:190px;display:grid;grid-template-columns:32px 1fr auto;align-items:center;gap:9px;text-align:left;transition:all var(--fast) ease}
+.empresa-btn:hover{border-color:var(--navy);color:var(--txt);transform:translateY(-1px)}
+.empresa-btn.on{background:linear-gradient(145deg,var(--navy),var(--navy2));border-color:var(--navy);color:#fff;box-shadow:0 7px 18px rgba(20,33,61,.16)}
+.empresa-mark{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:var(--card);color:var(--brand-txt);font-family:'Montserrat','Segoe UI',sans-serif;font-weight:900;font-size:13px;border:1px solid var(--border)}
+.empresa-btn.on .empresa-mark{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.2);color:var(--gold)}
+.empresa-copy b{display:block;font-size:12.5px;line-height:1.2}.empresa-copy small{display:block;font-size:10.5px;opacity:.72;margin-top:2px}
+.empresa-count{font-size:10.5px;font-weight:800;border-radius:12px;padding:2px 7px;background:var(--card);border:1px solid var(--border);white-space:nowrap}
+.empresa-btn.on .empresa-count{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.18)}
+.obra-bar{background:var(--card);border-top:1px solid var(--line);padding:0 20px;display:flex;gap:2px;overflow-x:auto}
+.obra-tab{border:none;background:none;padding:12px 14px 10px;font-size:13px;font-weight:650;color:var(--mut);border-bottom:2.5px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:7px}
+.obra-tab:hover{color:var(--txt);background:var(--hover)}
+.obra-tab.on{color:var(--brand-txt);border-bottom-color:var(--gold);background:linear-gradient(180deg,transparent,var(--hover))}
 .obra-tab .cnt{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:1px 8px;font-size:11px;color:var(--mut)}
 .obra-tab.on .cnt{background:var(--navy);color:#fff;border-color:var(--navy)}
 .obra-edit{border:none;background:none;color:var(--mut);font-size:13px;padding:0 4px}
 .obra-edit:hover{color:var(--brand-txt)}
+.centro-meta{min-height:32px;padding:6px 20px 7px;display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;background:var(--bg);border-top:1px solid var(--line);font-size:11.5px;color:var(--mut)}
+.centro-meta b{color:var(--txt)}
+.centro-tipo{font-size:9.5px;font-weight:900;letter-spacing:.7px;color:var(--brand-txt);background:var(--card);border:1px solid var(--border);border-radius:10px;padding:2px 8px}
+@media(max-width:760px){
+  .empresa-row{padding:9px 12px;display:block}.empresa-caption{min-width:0;margin-bottom:8px}
+  .empresa-selector{width:100%}.empresa-btn{min-width:170px;padding:7px 9px}
+  .obra-bar{padding:0 12px}.centro-meta{padding:6px 12px}.centro-meta .meta-ubic{display:none}
+}
 .view-bar{display:flex;gap:8px;margin-bottom:14px}
 .view-btn{border:1px solid var(--border);background:var(--card);border-radius:20px;padding:7px 18px;font-size:13px;font-weight:600;color:var(--mut)}
 .view-btn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
@@ -781,7 +803,14 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
       </div>
     </header>
 
-    <div class="obra-bar" id="obra-bar"></div>
+    <section class="empresa-nav" aria-label="Empresa y centro de trabajo">
+      <div class="empresa-row">
+        <div class="empresa-caption"><small>Empresa operativa</small><strong id="empresa-nombre">Selecciona una empresa</strong></div>
+        <div class="empresa-selector" id="empresa-selector" role="tablist" aria-label="Empresas"></div>
+      </div>
+      <div class="obra-bar" id="obra-bar" role="tablist" aria-label="Centros de trabajo"></div>
+      <div class="centro-meta" id="centro-meta"></div>
+    </section>
 
   <div class="wrap">
 
@@ -1067,8 +1096,12 @@ const CONFIG_KEY = "";
 const DOCS = ["SOLICITUD DE EMPLEO","INE","CONSTANCIA DE SITUACION (RFC)","NSS (documento)","ACTA DE NACIMIENTO","CURP (documento)","COMPROBANTE DE DOMICILIO"];
 const BANCOS = {"012":"BBVA","127":"AZTECA","002":"BANAMEX","014":"SANTANDER","072":"BANORTE","021":"HSBC","137":"BANCOPPEL","030":"BAJIO","036":"INBURSA","058":"BANREGIO","044":"SCOTIABANK","646":"STP","722":"MERCADO PAGO","638":"NU MEXICO","661":"KLAR","166":"BANCO DEL BIENESTAR"};
 const RX = {curp:/^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/, rfc:/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{2,3}$/, nss:/^\d{11}$/, clabe:/^\d{18}$/, cp:/^\d{5}$/, tel:/^\d{10}$/, mail:/^[^\s@]+@[^\s@]+\.[^\s@]+$/};
+const EMPRESAS=Object.freeze({
+  PLATINUM:{codigo:'PLATINUM',corto:'PLATINUM',nombre:'Comercializadora PLATINUM Hidalguense',marca:'P'},
+  JIRE:{codigo:'JIRE',corto:'Grupo JIRE',nombre:'Grupo Comercial JIRE S.A. de C.V.',marca:'J'}
+});
 
-let sb=null, USER=null, OBRAS=[], OBRA=null, WORKERS=[], CHEQUES=[], DESC=[], DOCSX=[], VAC=[], ACTAS=[], NOM=[], PAGOS=[], PRIMAS=[], CUADS=[], VIEW='trab';
+let sb=null, USER=null, OBRAS=[], OBRA=null, EMPRESA_ACTIVA='PLATINUM', WORKERS=[], CHEQUES=[], DESC=[], DOCSX=[], VAC=[], ACTAS=[], NOM=[], PAGOS=[], PRIMAS=[], CUADS=[], VIEW='trab';
 /* Script 59: diferenciales de proyección, bloques de cheques y control interno
    salarial. SUELDOSINT solo trae filas si el usuario es VIP — lo decide la RLS
    de la base, no la app. */
@@ -1147,6 +1180,16 @@ const fullName=w=>[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolea
 const money=v=>v==null||v===''?'':Number(v).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtD=v=>{if(!v)return'';const[y,m,d]=String(v).slice(0,10).split('-');return `${d}/${m}/${y}`;};
 const today=()=>new Date().toISOString().slice(0,10);
+/* Empresa legal del centro: usa la columna normalizada de Supabase. El respaldo
+   por nombre permite abrir el frontend antes de ejecutar la migración 68. */
+function empresaDeObra(o){
+  const c=String(o&&o.empresa_codigo||'').toUpperCase();
+  if(EMPRESAS[c])return c;
+  const n=String(o&&o.nombre||'').trim().toUpperCase();
+  return (n==='JIRE'||n==='VILLAS DE LAS TORRES')?'JIRE':'PLATINUM';
+}
+function empresaDeTrabajador(w){return empresaDeObra(OBRAS.find(o=>o.id===(w&&w.obra_id))||OBRA);}
+function obrasEmpresa(codigo=EMPRESA_ACTIVA){return OBRAS.filter(o=>o.activa!==false&&empresaDeObra(o)===codigo);}
 /* v34: fechas en formato DD/MM/AAAA (día primero) para captura y ficha */
 const isoADMY=v=>{if(!v)return'';const[y,m,d]=String(v).slice(0,10).split('-');return (y&&m&&d)?`${d}/${m}/${y}`:'';};
 const dmyAiso=v=>{const s=String(v||'').trim();const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return null;
@@ -1279,13 +1322,20 @@ async function enterApp(){
   const {data,error}=await sb.from('obras').select('*').order('orden');
   if(error){toast('Error al cargar obras: '+error.message,'err');return;}
   OBRAS=data;
+  try{const guardada=localStorage.getItem('platinum_empresa_activa');if(EMPRESAS[guardada])EMPRESA_ACTIVA=guardada;}catch(e){}
+  if(!obrasEmpresa().length&&OBRAS.length)EMPRESA_ACTIVA=empresaDeObra(OBRAS[0]);
+  const obraInicial=(function(){
+    const disponibles=obrasEmpresa();let id='';
+    try{id=localStorage.getItem('platinum_obra_'+EMPRESA_ACTIVA)||'';}catch(e){}
+    return disponibles.find(o=>o.id===id)||disponibles[0]||OBRAS[0];
+  })();
   renderObraBar();
   await loadConfig();
   chequearVersion();
   setInterval(chequearVersionEnVivo,10*60*1000);
   await cargarContratistas();
   if($('btn-papelera'))$('btn-papelera').classList.toggle('hide',!esAdmin());
-  await selectObra(OBRAS[0].id);
+  if(obraInicial)await selectObra(obraInicial.id);
   startRealtime();
 }
 
@@ -1326,25 +1376,53 @@ function rtQueue(){
 }
 async function softRefresh(notify=true){
   const {data:ob}=await sb.from('obras').select('*').order('orden');
-  if(ob){OBRAS=ob;OBRA=OBRAS.find(o=>o.id===OBRA.id)||OBRAS[0];renderObraBar();}
-  await loadObraData(OBRA.id);
+  if(ob){
+    const actualId=OBRA&&OBRA.id;OBRAS=ob;
+    OBRA=OBRAS.find(o=>o.id===actualId)||obrasEmpresa()[0]||OBRAS[0]||null;
+    if(OBRA)EMPRESA_ACTIVA=empresaDeObra(OBRA);
+    renderObraBar();
+  }
+  if(OBRA)await loadObraData(OBRA.id);
   if(notify)toast('🔄 Información actualizada por otro usuario.');
 }
 
 /* ---------- obras ---------- */
+function renderEmpresaSelector(){
+  const box=$('empresa-selector'),titulo=$('empresa-nombre');if(!box)return;
+  const actual=EMPRESAS[EMPRESA_ACTIVA]||EMPRESAS.PLATINUM;
+  if(titulo)titulo.textContent=actual.nombre;
+  box.innerHTML=Object.values(EMPRESAS).map(e=>{
+    const centros=obrasEmpresa(e.codigo).length;
+    return `<button class="empresa-btn ${e.codigo===EMPRESA_ACTIVA?'on':''}" role="tab" aria-selected="${e.codigo===EMPRESA_ACTIVA}" onclick="selectEmpresa('${e.codigo}')">
+      <span class="empresa-mark">${e.marca}</span><span class="empresa-copy"><b>${esc(e.corto)}</b><small>${esc(e.nombre)}</small></span><span class="empresa-count">${centros} centro${centros===1?'':'s'}</span>
+    </button>`;
+  }).join('');
+}
+function renderCentroMeta(){
+  const el=$('centro-meta');if(!el)return;
+  if(!OBRA||empresaDeObra(OBRA)!==EMPRESA_ACTIVA){el.innerHTML='';return;}
+  const siroc=OBRA.tipo==='OFICINA'?'No aplica':(OBRA.registro_siroc||'Sin capturar');
+  el.innerHTML=`<span class="centro-tipo">${esc(OBRA.tipo||'OBRA')}</span><span><b>${esc(OBRA.nombre)}</b></span>
+    <span>Registro patronal: <b>${esc(OBRA.registro_patronal||'Sin capturar')}</b></span>
+    <span>SIROC: <b>${esc(siroc)}</b></span>${OBRA.ubicacion?`<span class="meta-ubic">Ubicación: <b>${esc(OBRA.ubicacion)}</b></span>`:''}`;
+}
 function renderObraBar(){
-  $('obra-bar').innerHTML=`<button class="obra-tab" style="color:var(--gold)" onclick="openNuevaObra()" title="Agregar obra">➕</button>`+OBRAS.map(o=>`
-    <button class="obra-tab ${OBRA&&o.id===OBRA.id?'on':''}" onclick="selectObra('${o.id}')">
-      ${esc(o.nombre)} <span class="cnt" id="cnt-${o.id}"></span>
+  renderEmpresaSelector();
+  const obras=obrasEmpresa();
+  $('obra-bar').innerHTML=(esAdmin()?`<button class="obra-tab" style="color:var(--gold)" onclick="openNuevaObra()" title="Agregar centro a ${esc(EMPRESAS[EMPRESA_ACTIVA].corto)}">➕ Centro</button>`:'')+obras.map(o=>`
+    <button class="obra-tab ${OBRA&&o.id===OBRA.id?'on':''}" role="tab" aria-selected="${!!(OBRA&&o.id===OBRA.id)}" onclick="selectObra('${o.id}')">
+      ${o.tipo==='OFICINA'?'🏢':'🏗'} ${esc(o.nombre)} <span class="cnt" id="cnt-${o.id}"></span>
       ${esAdmin()?`<span class="obra-edit" title="Editar obra (solo administrador)" onclick="event.stopPropagation();openEditObra('${o.id}')">✎</span>`:''}
     </button>`).join('');
+  renderCentroMeta();
   refreshCounts();
   renderCrumbs();
 }
 async function refreshCounts(){
-  const {data}=await sb.from('trabajadores').select('obra_id,estatus').eq('eliminado',false);
+  const obras=obrasEmpresa(),ids=obras.map(o=>o.id);if(!ids.length)return;
+  const {data}=await fetchAllRows(()=>sb.from('trabajadores').select('obra_id,estatus').in('obra_id',ids).eq('eliminado',false));
   if(!data)return;
-  OBRAS.forEach(o=>{const el=$('cnt-'+o.id);if(el)el.textContent=data.filter(w=>w.obra_id===o.id&&w.estatus==='ACTIVO').length;});
+  obras.forEach(o=>{const el=$('cnt-'+o.id);if(el)el.textContent=data.filter(w=>w.obra_id===o.id&&w.estatus==='ACTIVO').length;});
 }
 /* v.3: editar / eliminar obra — SOLO administrador. Editar incluye el TIPO de
    centro de trabajo (OBRA u OFICINA); las OFICINAS no usan SIROC. Eliminar pasa
@@ -1360,6 +1438,7 @@ function openEditObra(id){
       <div class="grid" style="grid-template-columns:1fr 1fr">
         <div class="c2" style="grid-column:span 2"><label>Nombre *</label><input id="eo-nombre" value="${esc(o.nombre||'')}"></div>
         <div class="c2" style="grid-column:span 2"><label>Ubicación (aparece en la requisición)</label><input id="eo-ubic" value="${esc(o.ubicacion||'')}"></div>
+        <div><label>Empresa propietaria</label><select id="eo-empresa">${Object.values(EMPRESAS).map(e=>`<option value="${e.codigo}" ${empresaDeObra(o)===e.codigo?'selected':''}>${esc(e.nombre)}</option>`).join('')}</select></div>
         <div><label>Tipo de centro de trabajo</label><select id="eo-tipo" onchange="eoTipoUI()">
           <option value="OBRA" ${((o.tipo||'OBRA')==='OBRA')?'selected':''}>OBRA</option>
           <option value="OFICINA" ${o.tipo==='OFICINA'?'selected':''}>OFICINA</option></select></div>
@@ -1392,7 +1471,7 @@ async function saveEditObra(id){
   const tipo=$('eo-tipo').value;
   const upd={
     nombre:n.toUpperCase(), ubicacion:$('eo-ubic').value.trim().toUpperCase(),
-    tipo, fecha_inicio:fi||null,
+    empresa_codigo:$('eo-empresa').value, tipo, fecha_inicio:fi||null,
     registro_patronal:$('eo-rp').value.trim().toUpperCase(),
     prima_rt:$('eo-prima').value!==''?parseFloat($('eo-prima').value):null,
     // las oficinas no usan SIROC: se guarda vacío
@@ -1402,6 +1481,10 @@ async function saveEditObra(id){
   const {error}=await sb.from('obras').update(upd).eq('id',id);
   if(error){toast('No se pudo actualizar la obra: '+error.message,'err');return;}
   Object.assign(o,upd); if(OBRA&&OBRA.id===id)Object.assign(OBRA,upd);
+  if(OBRA&&OBRA.id===id){
+    EMPRESA_ACTIVA=upd.empresa_codigo;
+    try{localStorage.setItem('platinum_empresa_activa',EMPRESA_ACTIVA);localStorage.setItem('platinum_obra_'+EMPRESA_ACTIVA,id);}catch(e){}
+  }
   closeModal(); renderObraBar(); toast('Centro de trabajo actualizado.','ok');
 }
 async function askDeleteObra(id){
@@ -1456,14 +1539,28 @@ async function execDeleteObra(id){
   closeModal();
   const {data}=await sb.from('obras').select('*').order('orden');
   OBRAS=data||OBRAS.filter(x=>x.id!==id);
-  if(OBRA&&OBRA.id===id)OBRA=OBRAS[0]||null;
+  if(OBRA&&OBRA.id===id)OBRA=obrasEmpresa()[0]||OBRAS[0]||null;
+  if(OBRA)EMPRESA_ACTIVA=empresaDeObra(OBRA);
   renderObraBar(); if(OBRA)selectObra(OBRA.id);
   toast(`Obra "${o.nombre}" eliminada.`,'ok');
 }
 async function selectObra(id){
-  OBRA=OBRAS.find(o=>o.id===id);
+  const nueva=OBRAS.find(o=>o.id===id);if(!nueva)return;
+  OBRA=nueva;EMPRESA_ACTIVA=empresaDeObra(nueva);
+  try{localStorage.setItem('platinum_empresa_activa',EMPRESA_ACTIVA);localStorage.setItem('platinum_obra_'+EMPRESA_ACTIVA,id);}catch(e){}
   renderObraBar();
   await loadObraData(id);
+}
+async function selectEmpresa(codigo){
+  if(!EMPRESAS[codigo])return;
+  const disponibles=obrasEmpresa(codigo);
+  if(!disponibles.length){toast('Esta empresa todavía no tiene centros de trabajo.','err');return;}
+  EMPRESA_ACTIVA=codigo;
+  try{localStorage.setItem('platinum_empresa_activa',codigo);}catch(e){}
+  if(OBRA&&empresaDeObra(OBRA)===codigo){renderObraBar();return;}
+  let id='';try{id=localStorage.getItem('platinum_obra_'+codigo)||'';}catch(e){}
+  const destino=disponibles.find(o=>o.id===id)||disponibles[0];
+  await selectObra(destino.id);
 }
 async function loadObraData(id){
   /* v36: esqueletos mientras llegan los datos — la pantalla no se queda en
@@ -1522,7 +1619,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-04.3';
+const APP_VERSION='2026-09-10.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1586,8 +1683,11 @@ function renderCrumbs(){
   const c=$('crumbs'); if(!c)return;
   const v=VISTAS[VIEW]||VISTAS.trab;
   const obra=(OBRA&&OBRA.nombre)||'—';
+  const empresa=(EMPRESAS[EMPRESA_ACTIVA]||EMPRESAS.PLATINUM).corto;
   c.innerHTML=`
     <span class="c-i hide-sm"><a href="#" onclick="setView('trab');return false" title="Inicio">🏠 Inicio</a></span>
+    <span class="sep hide-sm">›</span>
+    <span class="c-i hide-sm"><a href="#" onclick="document.querySelector('.empresa-nav').scrollIntoView({behavior:'smooth',block:'nearest'});return false" title="Cambiar de empresa">🏢 ${esc(empresa)}</a></span>
     <span class="sep hide-sm">›</span>
     <span class="c-i"><a href="#" onclick="document.querySelector('.obra-bar').scrollIntoView({behavior:'smooth',block:'nearest'});return false" title="Cambiar de obra">🏗 ${esc(obra)}</a></span>
     <span class="sep">›</span>
@@ -2475,12 +2575,13 @@ function openForm(id){
   const d=(w&&w.docs)||{};
   const nextNo=Math.max(0,...WORKERS.map(x=>x.no_trab||0))+1;
   const cuentaCrear=w?String(w.cuenta).toUpperCase()==='CREAR':true;
+  const obrasAlta=obrasEmpresa(empresaDeObra(OBRA));
   modal(`
     <div class="m-head"><h2>${w?'Modificar · '+esc(fullName(w)):'Nueva alta · '+esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <div class="sect">Obra y puesto</div>
       <div class="grid">
-        <div class="c2"><label>Obra</label><select id="f-obra_id">${OBRAS.map(o=>`<option value="${o.id}" ${(w?w.obra_id:OBRA.id)===o.id?'selected':''}>${esc(o.nombre)}</option>`).join('')}</select></div>
+        <div class="c2"><label>Centro de trabajo · ${esc(EMPRESAS[EMPRESA_ACTIVA].corto)}</label><select id="f-obra_id">${obrasAlta.map(o=>`<option value="${o.id}" ${(w?w.obra_id:OBRA.id)===o.id?'selected':''}>${esc(o.nombre)}</option>`).join('')}</select><div class="fhint">Para cambiar de razón social usa “Transferir” y genera la baja/reingreso correspondiente.</div></div>
         ${fld('contratista','Contratista',w?w.contratista:'',{list:'dl-contr',extra:'oninput="cuadRefresca()"'})}
         <div><label>Cuadrilla <span style="color:var(--mut);font-weight:400">(opcional)</span></label>
           <select id="f-id_cuadrilla"></select>
@@ -9112,7 +9213,7 @@ function generarActaDoc(actaId){
   const a=ACTAS.find(x=>x.id===actaId); if(!a)return;
   const w=WORKERS.find(x=>x.id===a.trabajador_id);
   const cc=cartaCfg();
-  const empKey=(w&&w.contratista==='JIRE')?'JIRE':'PLATINUM';
+  const empKey=empresaDeTrabajador(w);
   const e=CFGEMP['empresa_'+empKey]||{razon:'COMERCIALIZADORA PLATINUM HIDALGUENSE'};
   const fmtL=d=>{const x=new Date(d+'T12:00');return `${x.getDate()} de ${MES[x.getMonth()].toLowerCase()} de ${x.getFullYear()}`;};
   const F=v=>v&&String(v).trim()?esc(String(v).trim()):'<span style="background:#fff3b0">____________</span>';
@@ -9876,12 +9977,14 @@ function exportPlantillaFecha(){
 }
 /* --- NUEVA OBRA --- */
 function openNuevaObra(){
+  if(!esAdmin()){toast('Solo el administrador puede crear centros de trabajo.','err');return;}
   modal(`
     <div class="m-head"><h2>➕ Nueva obra / centro de trabajo</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <div class="grid" style="grid-template-columns:1fr 1fr">
         <div class="c2" style="grid-column:span 2"><label>Nombre *</label><input id="no-nombre" placeholder="OBRA BIENESTAR TIZAYUCA"></div>
         <div class="c2" style="grid-column:span 2"><label>Ubicación</label><input id="no-ubic"></div>
+        <div><label>Empresa propietaria</label><select id="no-empresa">${Object.values(EMPRESAS).map(e=>`<option value="${e.codigo}" ${EMPRESA_ACTIVA===e.codigo?'selected':''}>${esc(e.nombre)}</option>`).join('')}</select></div>
         <div><label>Tipo</label><select id="no-tipo"><option>OBRA</option><option>OFICINA</option></select></div>
         <div><label>Registro patronal IMSS</label><input id="no-rp"></div>
         <div><label>Registro SIROC</label><input id="no-siroc"></div>
@@ -9892,16 +9995,19 @@ function openNuevaObra(){
     <button class="btn dark" onclick="saveNuevaObra()">💾 Crear obra</button></div>`,'md');
 }
 async function saveNuevaObra(){
+  if(!esAdmin()){toast('Solo el administrador puede crear centros de trabajo.','err');return;}
   const n=$('no-nombre').value.trim().toUpperCase();
   if(!n){toast('Ponle nombre a la obra.','err');return;}
+  const empresa=$('no-empresa').value;
   markWrite();
-  const {error}=await sb.from('obras').insert({nombre:n,ubicacion:$('no-ubic').value.trim().toUpperCase(),tipo:$('no-tipo').value,
+  const {data:creada,error}=await sb.from('obras').insert({nombre:n,ubicacion:$('no-ubic').value.trim().toUpperCase(),empresa_codigo:empresa,tipo:$('no-tipo').value,
     registro_patronal:$('no-rp').value.trim().toUpperCase(),registro_siroc:$('no-siroc').value.trim().toUpperCase(),
-    prima_rt:$('no-prima').value?parseFloat($('no-prima').value):null,orden:OBRAS.length+1});
+    prima_rt:$('no-prima').value?parseFloat($('no-prima').value):null,orden:OBRAS.length+1}).select().single();
   if(error){toast('Error: '+error.message,'err');return;}
   closeModal();toast('Obra creada.','ok');
   const {data}=await sb.from('obras').select('*').order('orden');
-  OBRAS=data||OBRAS;renderObraBar();
+  OBRAS=data||OBRAS;EMPRESA_ACTIVA=empresa;
+  if(creada)await selectObra(creada.id);else renderObraBar();
 }
 /* --- VERIFICADOR DE NÚMEROS VS REPORTE NOI (PDF) --- */
 function openVerificadorNOI(){
@@ -10090,7 +10196,7 @@ function generarSeparacionDoc(id){
 }
 function bajaDocBase(w){
   const cc=cartaCfg();
-  const e=CFGEMP['empresa_'+((w.contratista==='JIRE')?'JIRE':'PLATINUM')]||{razon:'COMERCIALIZADORA PLATINUM HIDALGUENSE'};
+  const e=CFGEMP['empresa_'+empresaDeTrabajador(w)]||{razon:'COMERCIALIZADORA PLATINUM HIDALGUENSE'};
   const fmtL=d=>{const x=new Date((d||today())+'T12:00');return `${x.getDate()} de ${MES[x.getMonth()].toLowerCase()} de ${x.getFullYear()}`;};
   return {cc,e,fmtL,EMP:`&ldquo;<b>${esc(e.razon)}</b>&rdquo; ${esc(cc.sufijo)}`};
 }
@@ -10490,14 +10596,14 @@ function isoWeekDe(obra,d=new Date()){
 function openTransferencia(preId){
   const cands=WORKERS.filter(w=>w.estatus==='ACTIVO').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
   if(!cands.length){toast('No hay activos en esta obra.','err');return;}
-  const dests=OBRAS.filter(o=>o.id!==OBRA.id);
+  const dests=OBRAS.filter(o=>o.id!==OBRA.id&&o.activa!==false);
   if(!dests.length){toast('No hay otra obra registrada. Crea la obra destino con ➕ en la barra de obras.','err');return;}
   window._TR=cands;
   modal(`
     <div class="m-head"><h2>🔁 Transferir trabajadores · desde ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <div class="grid" style="grid-template-columns:1.2fr 1.6fr 160px">
-        <div><label>Obra destino <span style="color:var(--red)">*</span></label><select id="tr-dest" style="border-color:var(--accent)"><option value="">— Elige la obra destino —</option>${dests.map(o=>`<option value="${o.id}">${esc(o.nombre)}${o.tipo==='OFICINA'?' · oficina':''}</option>`).join('')}</select></div>
+        <div><label>Centro destino <span style="color:var(--red)">*</span></label><select id="tr-dest" style="border-color:var(--accent)" onchange="trModoUI()"><option value="">— Elige el centro destino —</option>${dests.map(o=>`<option value="${o.id}">${esc(EMPRESAS[empresaDeObra(o)].corto)} · ${esc(o.nombre)}${o.tipo==='OFICINA'?' · oficina':''}</option>`).join('')}</select></div>
         <div><label>Modo</label><select id="tr-modo" onchange="trModoUI()">
           <option value="A">Cambio de obra — MISMA antigüedad y expediente (sin baja)</option>
           <option value="B">Baja con finiquito + reingreso — antigüedad DESDE CERO</option>
@@ -10526,15 +10632,19 @@ function openTransferencia(preId){
   trModoUI();
 }
 function trModoUI(){
-  const m=$('tr-modo').value;
+  const dest=OBRAS.find(o=>o.id===($('tr-dest')&&$('tr-dest').value));
+  const cambiaEmpresa=!!(dest&&empresaDeObra(dest)!==empresaDeObra(OBRA));
+  const sel=$('tr-modo'),opDirecto=sel&&sel.options[0];if(opDirecto)opDirecto.disabled=cambiaEmpresa;
+  if(cambiaEmpresa&&sel.value==='A')sel.value='B';
+  const m=sel.value;
   const conBaja=m!=='A';
   document.querySelectorAll('.tr-fin').forEach(x=>x.classList.toggle('hide',!conBaja));
   $('tr-chq-wrap').classList.toggle('hide',!conBaja);
-  $('tr-hint').innerHTML=m==='A'
+  $('tr-hint').innerHTML=(cambiaEmpresa?'<div style="color:var(--amber);margin-bottom:5px"><b>Cambio de razón social:</b> requiere baja y reingreso; el traslado directo quedó bloqueado para proteger la separación laboral y documental.</div>':'')+(m==='A'
     ?'<b>Cambio de obra:</b> conserva su expediente, historial, antigüedad y descuentos; recibe número nuevo consecutivo en la obra destino. Si la obra destino tiene otro registro patronal, se marca 🆕 para que las contadoras presenten el alta IMSS.'
     :(m==='B'
       ?'<b>Baja + reingreso (antigüedad desde cero):</b> se da de BAJA en esta obra (motivo TÉRMINO DE CONTRATO U OBRA, con el finiquito que captures y su cheque) y se crea de nuevo en la obra destino con fecha de alta = fecha efectiva. Vuelve a generarse su documentación (renuncia/finiquito desde su ficha de baja). Los descuentos fijos activos (INFONAVIT/FONACOT) se copian al nuevo registro.'
-      :'<b>Baja + reingreso (conserva antigüedad):</b> igual que el anterior, pero el nuevo registro conserva la fecha de alta ORIGINAL — vacaciones, aguinaldo y prima siguen contando desde su ingreso real. Los descuentos fijos activos se copian al nuevo registro.');
+      :'<b>Baja + reingreso (conserva antigüedad):</b> igual que el anterior, pero el nuevo registro conserva la fecha de alta ORIGINAL — vacaciones, aguinaldo y prima siguen contando desde su ingreso real. Los descuentos fijos activos se copian al nuevo registro.'));
 }
 function trFiltra(){
   const q=($('tr-q').value||'').toUpperCase();
@@ -10544,6 +10654,9 @@ async function execTransferencia(){
   const destId=$('tr-dest').value, dest=OBRAS.find(o=>o.id===destId);
   if(!dest){toast('Elige la obra destino.','err');return;}
   const modo=$('tr-modo').value, f=$('tr-fecha').value||today();
+  if(empresaDeObra(dest)!==empresaDeObra(OBRA)&&modo==='A'){
+    toast('Entre empresas distintas se requiere baja y reingreso; el cambio directo no está permitido.','err');return;
+  }
   const sel=window._TR.map((w,i)=>({w,chk:$('tr-'+i)&&$('tr-'+i).checked,fin:parseFloat(($('tr-f-'+i)||{}).value)||0})).filter(x=>x.chk);
   if(!sel.length){toast('Marca al menos un trabajador.','err');return;}
   if(modo!=='A'&&sel.some(x=>!(x.fin>0))&&!confirm(`${sel.filter(x=>!(x.fin>0)).length} seleccionado(s) SIN monto de finiquito capturado — su baja quedará sin finiquito. ¿Continuar?`))return;
@@ -11003,7 +11116,7 @@ function openAlertas(){
 /* ---------- CONTRATO INDIVIDUAL DE TRABAJO (LFT) ---------- */
 function openContrato(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
-  const empDefault=(w.contratista==='JIRE')?'JIRE':'PLATINUM';
+  const empDefault=empresaDeTrabajador(w);
   const e=CFGEMP['empresa_'+empDefault]||{razon:'',rfc:'',representante:'',domicilio:''};
   modal(`
     <div class="m-head"><h2>📄 Contrato individual · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
@@ -11205,7 +11318,7 @@ function renunciaPagesHTML(w,o){
 }
 function renunciaOpts(w,monto,fecha){
   const cc=cartaCfg();
-  const e=CFGEMP['empresa_'+((w.contratista==='JIRE')?'JIRE':'PLATINUM')]||{razon:'COMERCIALIZADORA PLATINUM HIDALGUENSE'};
+  const e=CFGEMP['empresa_'+empresaDeTrabajador(w)]||{razon:'COMERCIALIZADORA PLATINUM HIDALGUENSE'};
   const f=fecha||w.fecha_baja||today();   // MISMA fecha en carta y recibo (sin fechas distintas)
   return {razon:(e.razon||'').toUpperCase(),sufijo:cc.sufijo,dest:cc.dest,f1:f,f2:f,monto,lugar:cc.lugar};
 }
@@ -11535,7 +11648,7 @@ function exportFaltanRecibos(){
 function openRenuncia(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
   const cc=cartaCfg();
-  const empDefault=(w.contratista==='JIRE')?'JIRE':'PLATINUM';
+  const empDefault=empresaDeTrabajador(w);
   const e=CFGEMP['empresa_'+empDefault]||{razon:'COMERCIALIZADORA PLATINUM HIDALGUENSE'};
   modal(`
     <div class="m-head"><h2>📄 Renuncia y finiquito · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
@@ -11686,10 +11799,9 @@ function calcPrestaciones(id){
       total-=infoProp;
     }
   }
-  // El total se muestra TAL CUAL sale, TRUNCADO a 2 decimales (NO redondea hacia
-  // arriba): 499.9978 → 499.99. El +1e-6 solo absorbe el error de punto flotante
-  // para que un .XX exacto no pierda el último centavo. (Config previa al ajuste
-  // del 03/ago; para cuadrar con NOI usa el campo "Finiquito según NOI".)
+  // Los conceptos conservan su precisión interna y el total se redondea una sola
+  // vez al final. Las cantidades visibles de cada renglón son informativas: sumar
+  // esos renglones ya redondeados puede diferir un centavo del total del modelo.
   const modeloTotal=redondearCentavos(total);
   // "Finiquito según NOI" (opcional): si se captura, MANDA sobre el modelo, y el
   // cheque saldrá con ese monto exacto (lo que factura NOI). El modelo se sigue
@@ -11701,7 +11813,7 @@ function calcPrestaciones(id){
   $('pr-out').innerHTML=rows.map(r=>`<div class="kv"><b>${r[0]}</b><span>${r[1]}</span></div>`).join('')+
     `<div class="kv franja-total"><b>TOTAL ${noiV!=null?'(modelo)':''}</b><span>$${money(modeloTotal)}</span></div>`+
     (noiV!=null?`<div class="kv" style="background:var(--green-bg);color:var(--txt);font-weight:800;padding:10px 8px"><b>✔ FINIQUITO NOI (este va al cheque)</b><span>$${money(noiV)}${dif?` · dif ${dif>0?'+':''}$${money(Math.abs(dif))} vs modelo`:' · idéntico al modelo'}</span></div>`:'')+
-    `<div style="font-size:11px;color:var(--mut);margin-top:4px">${noiV!=null?'El cheque de finiquito saldrá con el <b>monto de NOI</b> capturado arriba (es lo que se factura).':'El total se muestra <b>tal cual sale</b>, a 2 decimales <b>sin redondear hacia arriba</b> (ej. 499.9978 → 499.99). Si NOI te arroja otro centavo, captúralo en “Finiquito según NOI” y el cheque saldrá con ese monto.'}</div>`;
+    `<div style="font-size:11px;color:var(--mut);margin-top:4px">${noiV!=null?'El cheque de finiquito saldrá con el <b>monto de NOI</b> capturado arriba (es lo que se factura).':'El modelo conserva los decimales internos de cada concepto y <b>redondea el total una sola vez al final</b>. Por eso sumar manualmente los renglones ya mostrados a 2 decimales puede variar un centavo. Si el detalle emitido por NOI arroja otro monto, captúralo en “Finiquito según NOI” y ese importe saldrá en el cheque.'}</div>`;
 }
 function usarEnBaja(id){
   const t=PR_TOTAL;
