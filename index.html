@@ -11606,7 +11606,7 @@ function openPrestaciones(id){
     <div class="m-body">
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
         <div><label>Fecha de cálculo / baja</label><input id="pr-fecha" type="date" value="${today()}" oninput="calcPrestaciones('${id}')"></div>
-        ${fld('pr-dias','Días trabajados sin pagar',0,{type:'number',extra:`oninput="if($('pr-info-dias'))$('pr-info-dias').value=this.value;calcPrestaciones('${id}')" min="0"`})}
+        ${fld('pr-dias','Días trabajados sin pagar',0,{type:'number',extra:`oninput="if($('f-pr-info-dias'))$('f-pr-info-dias').value=this.value;calcPrestaciones('${id}')" min="0"`})}
         ${fld('pr-info-dias','Días INFONAVIT no retenidos',0,{type:'number',extra:`oninput="calcPrestaciones('${id}')" min="0" ${tieneInfo?'':'disabled'}`})}
         <div><label>¿Despido injustificado?</label><select id="pr-despido" onchange="calcPrestaciones('${id}')"><option value="NO">No (renuncia/término)</option><option value="SI">Sí (indemnización)</option></select></div>
       </div>
@@ -11672,13 +11672,11 @@ function calcPrestaciones(id){
   rows.push(['Retención de ISR (Anexo 8, gravado $'+money(gravado)+')',`−$${money(isrFin)}`]);
   total-=isrFin;
   // v33: RETENCIÓN PROPORCIONAL DE INFONAVIT (si el trabajador tiene crédito activo).
-  // Ley: al darse de baja, la amortización se retiene proporcional a los días
-  // efectivamente trabajados del bimestre; aquí sobre los "días trabajados sin
-  // pagar" (los que la nómina normal aún no cubrió). Cuota diaria = cuota semanal
-  // ÷ 7 (la semanal ya trae mensual×2 + $15 seguro / días del bimestre). El
-  // contador debe validar el corte de días contra la cédula del SUA.
+  // El número de días se captura aparte y sí modifica el finiquito; también se
+  // sincroniza con los días trabajados sin pagar como ayuda, pero puede ajustarse.
+  // El contador debe validar el corte de días contra la cédula del SUA.
   const infoDesc=(typeof DESC!=='undefined'?DESC:[]).find(d=>d.trabajador_id===w.id&&d.activo&&d.recurrente&&String(d.tipo).toUpperCase()==='INFONAVIT');
-  const diasInfo=parseInt($('pr-info-dias')?$('pr-info-dias').value:diasPend)||0;
+  const diasInfo=parseInt($('f-pr-info-dias')?$('f-pr-info-dias').value:diasPend)||0;
   if(infoDesc&&diasInfo>0){
     const infoExacta=retencionInfonavitDesdeAviso(infoDesc,w,diasInfo,fin);
     const Pinfo=perDe(w), cuotaPeriodo=montoDescuento(infoDesc,Pinfo);
