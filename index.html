@@ -3922,6 +3922,7 @@ function pyPreview(){
   const sem='S'+($('py-sem').value||semObra());
   const {act,fins}=pyCandidatos($('py-d1').value,$('py-d2').value,$('py-periodo').value);
   const tS=act.reduce((s,w)=>s+(Number(w.sal_semanal)||0),0);
+  const tDif=act.reduce((s,w)=>s+difDe(w.id,sem),0);
   const tD=act.reduce((s,w)=>s+descuentosDe(w,sem).total,0);
   const tF=fins.reduce((s,w)=>s+(Number(w.monto_finiquito)||0),0);
   const nDesc=act.filter(w=>descuentosDe(w,sem).total>0).length;
@@ -3945,19 +3946,20 @@ function pyPreview(){
   $('py-prev').innerHTML=`
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <div class="stat g" style="flex:1"><div class="n">${act.length}</div><div class="l">Activos · $${money(tS)}</div></div>
+      <div class="stat b" style="flex:1"><div class="n">$${money(tDif)}</div><div class="l">Previsión social</div></div>
       <div class="stat a" style="flex:1"><div class="n">${nDesc}</div><div class="l">Con descuento · −$${money(tD)}</div></div>
       <div class="stat r" style="flex:1"><div class="n">${fins.length}</div><div class="l">Finiquitos (cheque) · $${money(tF)}</div></div>
-      <div class="stat b" style="flex:1"><div class="n">$${money(tS-tD+tF)}</div><div class="l">Total general (neto)</div></div>
+      <div class="stat b" style="flex:1"><div class="n">$${money(tS+tDif-tD+tF)}</div><div class="l">Total general (neto)</div></div>
     </div>${desglose}`;
   $('py-btn').disabled=!(act.length+fins.length);
 }
 /* ---------- v12: núcleo compartido de proyección (con fórmulas vivas) ---------- */
 function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
-  /* MONTO = sueldo base + DIFERENCIAL de la semana − retenciones (Bloque 1).
-     El diferencial es un extra capturado a mano para esa semana; no forma parte
-     del sueldo, así que no toca el tabulador ni el cálculo de ISR/IMSS. */
+  /* MONTO TOTAL = SUELDO NÓMINA + PREVISIÓN SOCIAL − RETENCIONES.
+     El diferencial se muestra separado como PREVISIÓN SOCIAL para que Excel
+     no lo oculte dentro del monto y contabilidad pueda conciliar ambos pagos. */
   const dsInfo=w=>{const d=descuentosDe(w,sem), dif=difDe(w.id,sem);
-    return {ret:d.total, dif, neto:Math.max(0,(Number(w.sal_semanal)||0)+dif-d.total)};};
+    return {ret:d.total, dif, neto:redondearCentavos(Math.max(0,(Number(w.sal_semanal)||0)+dif-d.total))};};
   // v12.1: SOLO cuentan datos reales — cuenta con 6+ dígitos, CLABE con 10+ dígitos.
   const digitos=v=>String(v??'').replace(/\D/g,'');
   const ctaOk=w=>{const c=String(w.cuenta??'').trim();return (c&&c.toUpperCase()!=='CREAR'&&digitos(c).length>=6)?c:'';};
@@ -3969,76 +3971,78 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
   const transf=act.filter(w=>tieneCta(w)&&(w.forma_pago||'TRANSFERENCIA')==='TRANSFERENCIA').sort(cmp);
   const chqAct=act.filter(w=>tieneCta(w)&&w.forma_pago==='CHEQUE');
   const sinCta=act.filter(w=>!tieneCta(w)).sort(cmp);
-  // dif viaja en cada renglón: la fórmula de Excel lo necesita para no borrarlo.
+  // dif viaja en cada renglón y tiene su propia columna en el Excel.
   const chequeRows=[...fins.map(w=>({w,ret:0,dif:0,imp:Number(w.monto_finiquito)||0,fin:true})),...chqAct.map(w=>{const x=dsInfo(w);return {w,ret:x.ret,dif:x.dif,imp:x.neto,fin:false};})].sort((a,b)=>cmp(a.w,b.w));
   const rows=[],styles=[],hs=[],secRows=[],fx=[];
   rows.push([titulo]); styles.push(ST.title); hs.push({hpt:26});
   rows.push([sub]); styles.push(ST.sub); hs.push({hpt:18});
-  rows.push(['NO. DE\nTRABAJADOR',colB==='OBRA'?'OBRA':'CONTRATISTA','NOMBRE COMPLETO','CLABE INTERBANCARIA','CUENTA','BANCO','RETENCIÓN\n(CRÉDITOS/FALTAS)','MONTO','FORMA DE PAGO']); styles.push(ST.head); hs.push({hpt:28});
-  const rowSt=[ST.cellC,ST.cellC,ST.cell,ST.cell,ST.cellC,ST.cellC,ST.money,ST.money,ST.cellC];
-  const finSt=[ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.finMoney,ST.fin];
+  rows.push(['NO. DE\nTRABAJADOR',colB==='OBRA'?'OBRA':'CONTRATISTA','NOMBRE COMPLETO','CLABE INTERBANCARIA','CUENTA','BANCO','SUELDO NÓMINA\n/ FINIQUITO','PREVISIÓN\nSOCIAL','RETENCIÓN\n(CRÉDITOS/FALTAS)','MONTO\nTOTAL','FORMA DE PAGO']); styles.push(ST.head); hs.push({hpt:32});
+  const rowSt=[ST.cellC,ST.cellC,ST.cell,ST.cell,ST.cellC,ST.cellC,ST.money,ST.money,ST.money,ST.money,ST.cellC];
+  const finSt=[ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.finMoney,ST.finMoney,ST.finMoney,ST.finMoney,ST.fin];
   const penSt=rowSt.map(x=>({...x,fill:{fgColor:{rgb:'FFF3D6'}}}));
-  let tT=0,tC=0,tP=0,tR=0,trRange=null,chRange=null,pendRange=null;
+  let tT=0,tC=0,tP=0,tR=0,tNom=0,tDif=0,trRange=null,chRange=null,pendRange=null;
   const xr=()=>rows.length+1;
   secRows.push(rows.length);
   rows.push([`◆  TRANSFERENCIA BANCARIA  —  ${transf.length} trabajadores`]); styles.push(ST.sect2); hs.push({hpt:18});
   if(transf.length){const a=xr();
-    transf.forEach(w=>{const x=dsInfo(w);tT+=x.neto;tR+=x.ret;
+    transf.forEach(w=>{const x=dsInfo(w), sueldo=Number(w.sal_semanal)||0;tT+=x.neto;tR+=x.ret;tNom+=sueldo;tDif+=x.dif;
       const r=xr();
-      rows.push([w.no_trab??'',bVal(w),fullName(w),clOk(w)?'/'+clOk(w):'—',ctaOk(w)||'—',w.banco||'BBVA',x.ret||'',x.neto,'TRANSFERENCIA']);
-      // OJO: la base de la fórmula lleva el diferencial. Si se dejara el sueldo
-      // pelón, Excel recalcularía H = base − retención y lo borraría.
-      if(x.ret>0)fx.push({r,base:(Number(w.sal_semanal)||0)+x.dif});
+      rows.push([w.no_trab??'',bVal(w),fullName(w),clOk(w)?'/'+clOk(w):'—',ctaOk(w)||'—',w.banco||'BBVA',sueldo,x.dif||'',x.ret||'',x.neto,'TRANSFERENCIA']);
+      fx.push({r});
       styles.push(rowSt);hs.push(null);});
     trRange=[a,xr()-1];}
   if(chequeRows.length){
     secRows.push(rows.length);
     rows.push([`◆  CHEQUE / FINIQUITO  —  ${chequeRows.length} trabajadores`]); styles.push({...ST.sect,fill:{fgColor:{rgb:'FCE4D6'}},font:{bold:true,sz:10.5,color:{rgb:'B3261E'},name:'Calibri'}}); hs.push({hpt:18});
     const a=xr();
-    chequeRows.forEach(x=>{tC+=x.imp;tR+=x.ret;
+    chequeRows.forEach(x=>{const sueldo=x.fin?x.imp:(Number(x.w.sal_semanal)||0);tC+=x.imp;tR+=x.ret;tNom+=sueldo;tDif+=x.dif||0;
       const r=xr();
-      rows.push([x.w.no_trab??'',bVal(x.w),fullName(x.w),clOk(x.w)?'/'+clOk(x.w):'—',ctaOk(x.w)||'—',x.w.banco||'—',x.ret||'',x.imp||'','CHEQUE']);
-      if(!x.fin&&x.ret>0)fx.push({r,base:(Number(x.w.sal_semanal)||0)+(x.dif||0)});
+      rows.push([x.w.no_trab??'',bVal(x.w),fullName(x.w),clOk(x.w)?'/'+clOk(x.w):'—',ctaOk(x.w)||'—',x.w.banco||'—',sueldo,x.dif||'',x.ret||'',x.imp||'','CHEQUE']);
+      if(!x.fin)fx.push({r});
       styles.push(finSt);hs.push(null);});
     chRange=[a,xr()-1];}
   if(sinCta.length){
     secRows.push(rows.length);
     rows.push([`◆  SIN CUENTA NI CLABE — PENDIENTE  —  ${sinCta.length} trabajadores  (PAGO CON CHEQUE)`]); styles.push(ST.sect); hs.push({hpt:18});
     const a=xr();
-    sinCta.forEach(w=>{const x=dsInfo(w);tP+=x.neto;tR+=x.ret;
+    sinCta.forEach(w=>{const x=dsInfo(w), sueldo=Number(w.sal_semanal)||0;tP+=x.neto;tR+=x.ret;tNom+=sueldo;tDif+=x.dif;
       const r=xr();
-      rows.push([w.no_trab??'',bVal(w),fullName(w),'—','—',w.banco||'—',x.ret||'',x.neto,'CHEQUE']);
-      if(x.ret>0)fx.push({r,base:(Number(w.sal_semanal)||0)+x.dif});
+      rows.push([w.no_trab??'',bVal(w),fullName(w),'—','—',w.banco||'—',sueldo,x.dif||'',x.ret||'',x.neto,'CHEQUE']);
+      fx.push({r});
       styles.push(penSt);hs.push(null);});
     pendRange=[a,xr()-1];}
-  const total=tT+tC+tP, nTot=transf.length+chequeRows.length+sinCta.length;
+  tT=redondearCentavos(tT);tC=redondearCentavos(tC);tP=redondearCentavos(tP);
+  tR=redondearCentavos(tR);tNom=redondearCentavos(tNom);tDif=redondearCentavos(tDif);
+  const total=redondearCentavos(tT+tC+tP), nTot=transf.length+chequeRows.length+sinCta.length;
   const firstData=5, lastData=rows.length, rTot=rows.length+1, rT2=rows.length+2, rT3=rows.length+3;
-  rows.push([`TOTAL TRABAJADORES: ${nTot}`,'',`Transf. ${transf.length}  |  Cheque ${chequeRows.length}  |  Pendientes ${sinCta.length} (pagan con cheque)`,'','','',tR,total,'']);
-  styles.push([ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.totalMoney,ST.totalMoney,ST.total]); hs.push({hpt:20});
-  rows.push(['TOTAL TRANSFERENCIA:','',tT,'TOTAL CHEQUE (INCLUYE PENDIENTES):','',Math.round((tC+tP)*100)/100,'TOTAL RETENCIONES:','',tR]);
-  styles.push([ST.total,ST.total,ST.totalMoney,ST.total,ST.total,ST.totalMoney,ST.total,ST.total,ST.totalMoney]); hs.push({hpt:20});
-  rows.push(['TOTAL GENERAL A DISPERSAR:','','','','','','',total,'']);
-  styles.push([{...ST.total,alignment:{horizontal:'right',vertical:'center'}},ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.totalMoney,ST.total]); hs.push({hpt:22});
+  rows.push([`TOTAL TRABAJADORES: ${nTot}`,'',`Transf. ${transf.length}  |  Cheque ${chequeRows.length}  |  Pendientes ${sinCta.length} (pagan con cheque)`,'','','',tNom,tDif,tR,total,'']);
+  styles.push([ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.totalMoney,ST.totalMoney,ST.totalMoney,ST.totalMoney,ST.total]); hs.push({hpt:20});
+  rows.push(['TOTAL TRANSFERENCIA:','',tT,'TOTAL CHEQUE (INCLUYE PENDIENTES):','',Math.round((tC+tP)*100)/100,'TOTAL RETENCIONES:','',tR,'','']);
+  styles.push([ST.total,ST.total,ST.totalMoney,ST.total,ST.total,ST.totalMoney,ST.total,ST.total,ST.totalMoney,ST.total,ST.total]); hs.push({hpt:20});
+  rows.push(['TOTAL GENERAL A DISPERSAR:','','','','','','','','',total,'']);
+  styles.push([{...ST.total,alignment:{horizontal:'right',vertical:'center'}},ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.totalMoney,ST.total]); hs.push({hpt:22});
   rows.push([pie]); styles.push(ST.sub); hs.push({hpt:15});
-  const merges=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}},...secRows.map(r=>({s:{r,c:0},e:{r,c:8}})),
+  const merges=[{s:{r:0,c:0},e:{r:0,c:10}},{s:{r:1,c:0},e:{r:1,c:10}},...secRows.map(r=>({s:{r,c:0},e:{r,c:10}})),
     {s:{r:rT2-1,c:0},e:{r:rT2-1,c:1}},{s:{r:rT2-1,c:3},e:{r:rT2-1,c:4}},{s:{r:rT2-1,c:6},e:{r:rT2-1,c:7}},
-    {s:{r:rT3-1,c:0},e:{r:rT3-1,c:6}},
-    {s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:8}}];
-  const ws=buildSheet(rows,styles,[11,13,36,23,15,11,14,12,15],merges,hs);
+    {s:{r:rT3-1,c:0},e:{r:rT3-1,c:8}},
+    {s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:10}}];
+  const ws=buildSheet(rows,styles,[11,13,34,23,15,11,15,15,14,15,15],merges,hs);
   // FÓRMULAS VIVAS
   const F=(addr,f)=>{if(ws[addr]){ws[addr].t='n';ws[addr].f=f;}};
-  // por trabajador con descuentos: MONTO = semanal − retención (edita la retención y el monto y los totales se recalculan)
-  fx.forEach(x=>F('H'+x.r,`ROUND(${x.base.toFixed(2)}-G${x.r},2)`));
+  // Por trabajador: MONTO TOTAL = SUELDO NÓMINA + PREVISIÓN SOCIAL − RETENCIÓN.
+  fx.forEach(x=>F('J'+x.r,`ROUND(G${x.r}+H${x.r}-I${x.r},2)`));
   F('G'+rTot,`SUM(G${firstData}:G${lastData})`);
   F('H'+rTot,`SUM(H${firstData}:H${lastData})`);
-  if(trRange)F('C'+rT2,`SUM(H${trRange[0]}:H${trRange[1]})`);
+  F('I'+rTot,`SUM(I${firstData}:I${lastData})`);
+  F('J'+rTot,`SUM(J${firstData}:J${lastData})`);
+  if(trRange)F('C'+rT2,`SUM(J${trRange[0]}:J${trRange[1]})`);
   const fCheq=[];
-  if(chRange)fCheq.push(`SUM(H${chRange[0]}:H${chRange[1]})`);
-  if(pendRange)fCheq.push(`SUM(H${pendRange[0]}:H${pendRange[1]})`);
+  if(chRange)fCheq.push(`SUM(J${chRange[0]}:J${chRange[1]})`);
+  if(pendRange)fCheq.push(`SUM(J${pendRange[0]}:J${pendRange[1]})`);
   if(fCheq.length)F('F'+rT2,fCheq.join('+'));
-  F('I'+rT2,'G'+rTot);
-  F('H'+rT3,'H'+rTot);
-  return {ws,tT,tC,tP,tR,total,nTot};
+  F('I'+rT2,'I'+rTot);
+  F('J'+rT3,'J'+rTot);
+  return {ws,tT,tC,tP,tR,tNom,tDif,total,nTot};
 }
 /* ---------- EXPEDIENTE INDIVIDUAL A EXCEL (2026-08-27) ----------------
    Todo lo que la plataforma sabe de UN trabajador, en vertical: columna A
@@ -4608,11 +4612,12 @@ function exportProyeccion(){
 /* ---------- v12: proyección por contratista (todas las obras) ---------- */
 async function openProyContratista(){
   const [d1,d2]=weekBounds();
-  const [{data:tw,error:e1},{data:ds,error:e2}]=await Promise.all([
-    sb.from('trabajadores').select('*').eq('eliminado',false),
-    sb.from('descuentos').select('*').eq('activo',true)]);
-  if(e1||e2){toast('Error al cargar: '+String((e1||e2).message),'err');return;}
-  window._PC=tw||[]; window._PCDESC=ds||[];
+  const [{data:tw,error:e1},{data:ds,error:e2},{data:df,error:e3}]=await Promise.all([
+    fetchAllRows(()=>sb.from('trabajadores').select('*').eq('eliminado',false)),
+    fetchAllRows(()=>sb.from('descuentos').select('*').eq('activo',true)),
+    fetchAllRows(()=>sb.from('diferenciales').select('*').eq('activo',true))]);
+  if(e1||e2||e3){toast('Error al cargar: '+String((e1||e2||e3).message),'err');return;}
+  window._PC=tw||[]; window._PCDESC=ds||[]; window._PCDIFS=df||[];
   const cts=[...new Set(window._PC.filter(w=>w.estatus!=='BAJA'&&String(w.contratista||'').trim()).map(w=>String(w.contratista).trim()))].sort();
   window._PCCT=cts;
   modal(`
@@ -4642,7 +4647,8 @@ async function exportProyContratista(){
   const cts=(window._PCCT||[]).filter((c,i)=>$('pc-ct-'+i)&&$('pc-ct-'+i).checked);
   if(!cts.length){toast('No hay contratistas seleccionados.','err');return;}
   const emp=CFGEMP['empresa_PLATINUM']||{razon:'Comercializadora Platinum Hidalguense',rfc:''};
-  const _D=DESC; DESC=window._PCDESC||_D; // descuentos de TODAS las obras para las retenciones
+  const _D=DESC, _DF=DIFS;
+  DESC=window._PCDESC||_D; DIFS=window._PCDIFS||_DF; // retenciones y diferenciales de TODAS las obras
   let n=0;
   try{
     for(const ct of cts){
@@ -4667,7 +4673,7 @@ async function exportProyContratista(){
       await dl(wb,`PROYECCION_${ct.replace(/[^A-ZÑ0-9]+/gi,'_')}_SEMANA${semN}.xlsx`);
       n++;
     }
-  }finally{DESC=_D;}
+  }finally{DESC=_D;DIFS=_DF;}
   closeModal();
   toast(n?`${n} proyección(es) generadas — un Excel por contratista, con fórmulas en los totales.`:'Ningún contratista con personal en ese filtro.',n?'ok':'err');
 }
