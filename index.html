@@ -103,7 +103,7 @@
   /* --- medidas / movimiento --- */
   --radius:12px;
   --sidebar-w:270px;       /* ancho del panel lateral en escritorio */
-  --content-max:1560px;    /* tope de ancho en monitores gigantes */
+  --content-max:none;      /* usar todo el monitor, incluso pantallas 4K/55 pulgadas */
   --topbar-h:56px;
   --fast:.15s; --ease:cubic-bezier(.2,.7,.3,1);
   --shadow-sm:0 1px 2px rgba(20,33,61,.06);
@@ -525,20 +525,32 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
   transition:background var(--fast) ease,border-color var(--fast) ease,color var(--fast) ease}
 .icon-btn:hover{border-color:var(--navy);color:var(--brand-txt);background:var(--hover)}
 
-/* ---------- CONTENIDO: fluido, con tope en pantallas gigantes ---------- */
-.wrap{width:100%;max-width:var(--content-max);margin:0 auto;padding:clamp(12px,1.4vw,22px) clamp(12px,1.6vw,26px)}
+/* ---------- CONTENIDO: fluido, sin franjas vacías en monitores grandes ---------- */
+.wrap{width:100%;max-width:var(--content-max);margin:0;padding:clamp(12px,1.4vw,22px) clamp(12px,1vw,32px)}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(clamp(150px,13vw,210px),1fr));gap:10px;margin-bottom:14px}
 .stat{min-width:0}
 .stat .n{font-size:clamp(17px,1.35vw,23px);overflow-wrap:anywhere}
 .tbl-card{max-height:calc(100vh - var(--topbar-h) - 250px)}
+/* La tabla principal reparte las 14 columnas dentro del ancho disponible.
+   En portátiles conserva un mínimo compacto; sólo aparece desplazamiento
+   horizontal cuando físicamente no caben, principalmente en tablet/móvil. */
+.trab-table{width:100%;min-width:980px;table-layout:fixed}
+.trab-table th,.trab-table td{padding-left:clamp(5px,.55vw,12px);padding-right:clamp(5px,.55vw,12px);overflow:hidden;text-overflow:ellipsis}
+.trab-table th:nth-child(1){width:4%}.trab-table th:nth-child(2){width:15%}
+.trab-table th:nth-child(3){width:7%}.trab-table th:nth-child(4){width:11%}
+.trab-table th:nth-child(5),.trab-table th:nth-child(6),.trab-table th:nth-child(7),
+.trab-table th:nth-child(8),.trab-table th:nth-child(9){width:6%}
+.trab-table th:nth-child(10){width:7%}.trab-table th:nth-child(11){width:8%}
+.trab-table th:nth-child(12){width:6%}.trab-table th:nth-child(13){width:7%}
+.trab-table th:nth-child(14){width:5%}
 /* Encabezados de tabla pegados aunque la tabla sea larguísima */
 thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 /* Ultrawide: más aire alrededor de la columna de contenido */
 @media(min-width:1800px){
   :root{--sidebar-w:300px}
-  .wrap{padding-left:clamp(26px,3vw,64px);padding-right:clamp(26px,3vw,64px)}
+  .wrap{padding-left:clamp(20px,1vw,36px);padding-right:clamp(20px,1vw,36px)}
 }
-@media(min-width:2400px){:root{--content-max:1760px}}
+@media(min-width:2400px){:root{--sidebar-w:320px}.trab-table{font-size:clamp(13px,.42vw,16px)}}
 
 /* ---------- TABLET / MÓVIL: el panel se vuelve cajón ---------- */
 @media(max-width:1024px){
@@ -838,7 +850,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <button class="btn" onclick="toggleSidebar()" title="Muestra u oculta el panel lateral con todas las herramientas">☰ Menú de herramientas</button>
       </div>
       <div class="tbl-card">
-        <table>
+        <table class="trab-table">
           <thead><tr>
             <th onclick="setSort('no_trab')">No.</th>
             <th onclick="setSort('nombre')">Nombre completo</th>
@@ -1188,7 +1200,7 @@ function empresaDeObra(o){
   const c=String(o&&o.empresa_codigo||'').toUpperCase();
   if(EMPRESAS[c])return c;
   const n=String(o&&o.nombre||'').trim().toUpperCase();
-  return (n==='JIRE'||n==='VILLAS DE LAS TORRES')?'JIRE':'PLATINUM';
+  return (n==='OBRA BANCOMER'||n.includes('JIRE'))?'JIRE':'PLATINUM';
 }
 function empresaDeTrabajador(w){return empresaDeObra(OBRAS.find(o=>o.id===(w&&w.obra_id))||OBRA);}
 function obrasEmpresa(codigo=EMPRESA_ACTIVA){return OBRAS.filter(o=>o.activa!==false&&empresaDeObra(o)===codigo);}
@@ -1622,7 +1634,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-10.2';
+const APP_VERSION='2026-09-11.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2325,18 +2337,18 @@ function renderTable(){
   $('tbody').innerHTML=rows.map(w=>`
     <tr onclick="openDetail('${w.id}')">
       <td>${w.no_trab??''}</td>
-      <td><b>${esc(fullName(w))}</b></td>
-      <td>${esc(w.contratista)}</td>
-      <td>${esc(w.puesto)}</td>
+      <td title="${esc(fullName(w))}"><b>${esc(fullName(w))}</b></td>
+      <td title="${esc(w.contratista)}">${esc(w.contratista)}</td>
+      <td title="${esc(w.puesto)}">${esc(w.puesto)}</td>
       <td><span class="badge ${w.estatus}">${w.estatus}</span>${(w.fecha_alta&&w.fecha_alta>=new Date(Date.now()-14*86400000).toISOString().slice(0,10)&&String(w.movimiento_imss||'SIN MOVIMIENTO')==='SIN MOVIMIENTO')?' <span class="badge PENDIENTE" title="Nuevo ingreso: avisar a contadoras para alta IMSS">🆕 IMSS</span>':''}</td>
       <td><span class="badge ${w.periodo_pago||'SEMANAL'}">${w.periodo_pago==='QUINCENAL'?'QUINCENAL':'SEMANAL'}</span></td>
       <td>${fmtD(w.fecha_alta)}</td>
       <td>${w.fecha_baja?'<span style="color:var(--red)">'+fmtD(w.fecha_baja)+'</span>':'—'}</td>
       <td>${w.fecha_reingreso?'<span style="color:var(--green)">'+fmtD(w.fecha_reingreso)+'</span>':'—'}</td>
       <td>$${money(w.sal_semanal)}</td>
-      <td>${String(w.cuenta).toUpperCase()==='CREAR'?'<b style="color:var(--amber)">CREAR</b>':esc(w.cuenta)}</td>
-      <td>${esc(w.banco)}</td>
-      <td>${esc(w.telefono)}</td>
+      <td title="${esc(w.cuenta)}">${String(w.cuenta).toUpperCase()==='CREAR'?'<b style="color:var(--amber)">CREAR</b>':esc(w.cuenta)}</td>
+      <td title="${esc(w.banco)}">${esc(w.banco)}</td>
+      <td title="${esc(w.telefono)}">${esc(w.telefono)}</td>
       <td><span class="docs-pill ${docsOk(w)===DOCS.length?'ok':''}">${docsOk(w)}/${DOCS.length}</span></td>
     </tr>`).join('');
 }
