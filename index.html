@@ -192,11 +192,12 @@ label{font-size:11.5px;font-weight:600;color:var(--mut);text-transform:uppercase
 .empresa-caption small{display:block;color:var(--mut);font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;margin-bottom:3px}
 .empresa-caption strong{display:block;color:var(--txt);font-family:'Montserrat','Segoe UI',sans-serif;font-size:13px}
 .empresa-selector{display:flex;gap:8px;align-items:stretch;overflow-x:auto;padding:1px;flex:1}
-.empresa-btn{border:1px solid var(--border);background:var(--bg);color:var(--mut);border-radius:11px;padding:8px 12px;min-width:190px;display:grid;grid-template-columns:32px 1fr auto;align-items:center;gap:9px;text-align:left;transition:all var(--fast) ease}
+.empresa-btn{border:1px solid var(--border);background:var(--bg);color:var(--mut);border-radius:11px;padding:8px 12px;min-width:238px;display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:9px;text-align:left;transition:all var(--fast) ease}
 .empresa-btn:hover{border-color:var(--navy);color:var(--txt);transform:translateY(-1px)}
 .empresa-btn.on{background:linear-gradient(145deg,var(--navy),var(--navy2));border-color:var(--navy);color:#fff;box-shadow:0 7px 18px rgba(20,33,61,.16)}
-.empresa-mark{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:var(--card);color:var(--brand-txt);font-family:'Montserrat','Segoe UI',sans-serif;font-weight:900;font-size:13px;border:1px solid var(--border)}
-.empresa-btn.on .empresa-mark{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.2);color:var(--gold)}
+.empresa-mark{width:64px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--border);overflow:hidden;padding:3px}
+.empresa-mark img{width:100%;height:100%;object-fit:contain;display:block}
+.empresa-btn.on .empresa-mark{border-color:rgba(255,255,255,.35);box-shadow:0 2px 8px rgba(0,0,0,.18)}
 .empresa-copy b{display:block;font-size:12.5px;line-height:1.2}.empresa-copy small{display:block;font-size:10.5px;opacity:.72;margin-top:2px}
 .empresa-count{font-size:10.5px;font-weight:800;border-radius:12px;padding:2px 7px;background:var(--card);border:1px solid var(--border);white-space:nowrap}
 .empresa-btn.on .empresa-count{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.18)}
@@ -442,7 +443,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
 }
 .sb-head{display:flex;align-items:center;gap:11px;padding:14px 16px 12px;border-bottom:1px solid var(--sidebar-br);flex:0 0 auto}
 .sb-head .tt{font-family:'Montserrat','Segoe UI',sans-serif;font-weight:800;font-size:13.5px;letter-spacing:.4px;line-height:1.25}
-.sb-head .tt small{display:block;font-weight:600;font-size:10.5px;color:var(--sidebar-mut);letter-spacing:.6px;text-transform:uppercase;margin-top:2px}
+.sb-head .tt small{display:block;font-weight:600;font-size:9.5px;color:var(--sidebar-mut);letter-spacing:.2px;margin-top:2px;max-width:130px;line-height:1.25}
 .sb-nav{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;padding:10px 10px 18px;scrollbar-width:thin}
 .sb-nav::-webkit-scrollbar{width:8px}
 .sb-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:8px}
@@ -693,7 +694,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 <div id="scr-login" class="gate hide">
   <div class="gate-card">
     <div class="brand"><div class="brand-badge">P</div><h1>PLATINUM · Base de Trabajadores</h1></div>
-    <div class="gate-sub">Comercializadora Platinum Hidalguense · Constructora JIRE</div>
+    <div class="gate-sub">Comercializadora PLATINUM Hidalguense · Grupo Comercial JIRE S.A. de C.V.</div>
     <div id="login-err" class="gate-err hide"></div>
     <div class="fld"><label>Correo electrónico</label><input id="lg-email" type="email" autocomplete="username" placeholder="tu@correo.com"></div>
     <div class="fld"><label>Contraseña</label><input id="lg-pass" type="password" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
@@ -707,7 +708,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
   <aside class="sidebar" id="sidebar">
     <div class="sb-head">
       <span id="sb-logo"></span>
-      <div class="tt">Base de<small>Trabajadores</small></div>
+      <div class="tt">PLATINUM OS<small id="sb-company">Gestión empresarial</small></div>
       <button class="sb-close" onclick="toggleSidebar(false)" title="Cerrar menú">×</button>
     </div>
 
@@ -772,6 +773,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <summary>Administración</summary>
         <button class="sb-item" onclick="sbGo(openContratistas)"><span class="ic">🪪</span>Contratistas / REPSE</button>
         <button class="sb-item" onclick="sbGo(()=>openHistorial(null))"><span class="ic">🕘</span>Historial de cambios</button>
+        <button class="sb-item" onclick="sbGo(openBitacoraNomina)"><span class="ic">🛡️</span>Bitácora de nómina</button>
         <button class="sb-item" onclick="sbGo(openTransferencia)"><span class="ic">🔁</span>Transferir de obra</button>
         <button class="sb-item" onclick="sbGo(openEditContratistas)"><span class="ic">👷</span>Editar contratistas</button>
         <button class="sb-item" onclick="sbGo(openAutorrellenar)"><span class="ic">🪄</span>Autorrellenar desde CURP</button>
@@ -1391,12 +1393,13 @@ function renderEmpresaSelector(){
   const box=$('empresa-selector'),titulo=$('empresa-nombre');if(!box)return;
   const actual=EMPRESAS[EMPRESA_ACTIVA]||EMPRESAS.PLATINUM;
   if(titulo)titulo.textContent=actual.nombre;
-  box.innerHTML=Object.values(EMPRESAS).map(e=>{
+  box.innerHTML=Object.values(EMPRESAS).filter(e=>obrasEmpresa(e.codigo).length||esVip()).map(e=>{
     const centros=obrasEmpresa(e.codigo).length;
     return `<button class="empresa-btn ${e.codigo===EMPRESA_ACTIVA?'on':''}" role="tab" aria-selected="${e.codigo===EMPRESA_ACTIVA}" onclick="selectEmpresa('${e.codigo}')">
-      <span class="empresa-mark">${e.marca}</span><span class="empresa-copy"><b>${esc(e.corto)}</b><small>${esc(e.nombre)}</small></span><span class="empresa-count">${centros} centro${centros===1?'':'s'}</span>
+      <span class="empresa-mark"><img src="${logoEmpresa(e.codigo)}" alt="Logo ${esc(e.corto)}"></span><span class="empresa-copy"><b>${esc(e.corto)}</b><small>${esc(e.nombre)}</small></span><span class="empresa-count">${centros} centro${centros===1?'':'s'}</span>
     </button>`;
   }).join('');
+  pintarLogo(EMPRESA_ACTIVA);
 }
 function renderCentroMeta(){
   const el=$('centro-meta');if(!el)return;
@@ -1619,7 +1622,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-10.1';
+const APP_VERSION='2026-09-10.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2175,7 +2178,7 @@ function toggleTema(){
    en cualquier pantalla. Si se prefiere el archivo original, pega su
    data-URI en LOGO_PLATINUM_IMG y se usará ese, mezclado con
    mix-blend-mode (multiply en claro / screen en oscuro) para integrarlo. */
-const LOGO_PLATINUM_IMG=''; // ej. "data:image/jpeg;base64,...."
+const LOGO_PLATINUM_IMG='data:image/jpeg;base64,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6dGPpCP8aAJR8BvFZz/o0Y+riuN8ReH7zwxqklhfoqXEYBIU54NdaPjt4vUHN/GeO8I6/nXI+IfEV74p1N7/AFCRZbpgAzKu3gdKAM2iiigAooooAKKKKACiiigAooooARqKGooAWiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigArtvgx/yUrRvrJ/6LauJrtvgx/yUrRvrJ/6LagDjrr/AI+pv99v51FUt1/x9Tf77fzqKgAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooARqKGooAWiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigArtvgx/yUrRvrJ/6LauJrtvgx/yUrRvrJ/6LagDjrr/j6m/32/nUVS3X/H1N/vt/OoqACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigBGooaigBaKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACu2+DH/JStH+sn/otq4mui+H2vweF/F9hqlyGaCAuWC9eUI/rQBhXJ/wBJmz/fb+dRU+VxJNI4BAdiwB7ZNMoAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAEaihqKAFooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKCM0UUAKST169aSiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooARqKKKAP//Z';
 const LOGO_PLATINUM_SVG=`
 <svg class="logo-mark" viewBox="0 0 454 280" role="img" aria-label="PLATINUM">
   <g class="ink">
@@ -2200,11 +2203,20 @@ const LOGO_PLATINUM_SVG=`
   <text class="bar-txt" x="227" y="161" text-anchor="middle"
         font-family="Montserrat,Segoe UI,Arial,sans-serif" font-size="31" font-weight="600" letter-spacing="8">PLATINUM</text>
 </svg>`;
-function pintarLogo(){
+function logoEmpresa(codigo=EMPRESA_ACTIVA){
+  return codigo==='JIRE'?LOGO_JIRE:LOGO_PLATINUM_IMG;
+}
+function razonSocialEmpresa(codigo=EMPRESA_ACTIVA){
+  const base=EMPRESAS[codigo]||EMPRESAS.PLATINUM;
+  return (CFGEMP['empresa_'+codigo]||{}).razon||base.nombre;
+}
+function pintarLogo(codigo=EMPRESA_ACTIVA){
   const el=$('sb-logo'); if(!el)return;
-  el.innerHTML=LOGO_PLATINUM_IMG
-    ? `<img class="logo-img" src="${LOGO_PLATINUM_IMG}" alt="PLATINUM">`
-    : LOGO_PLATINUM_SVG;
+  const jire=codigo==='JIRE';
+  el.innerHTML=jire
+    ? `<img class="logo-img" src="${LOGO_JIRE}" alt="Grupo Comercial JIRE">`
+    : (LOGO_PLATINUM_IMG?`<img class="logo-img" src="${LOGO_PLATINUM_IMG}" alt="PLATINUM">`:LOGO_PLATINUM_SVG);
+  const nombre=$('sb-company');if(nombre)nombre.textContent=razonSocialEmpresa(codigo);
 }
 
 /* ============================================================
@@ -3202,6 +3214,46 @@ async function openHistorial(trabId){
     <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`);
   renderHist();
 }
+async function openBitacoraNomina(){
+  if(!OBRA)return;
+  const {data,error}=await sb.from('auditoria_calculos_nomina').select('*')
+    .eq('obra_id',OBRA.id).order('created_at',{ascending:false}).limit(500);
+  if(error){toast('No se pudo abrir la bitácora: '+error.message,'err');return;}
+  window._AUDNOM=data||[];
+  const tipos=[...new Set(window._AUDNOM.map(x=>x.tipo_calculo))].sort();
+  modal(`
+    <div class="m-head"><h2>🛡️ Bitácora inmutable · ${esc(OBRA.nombre)}</h2>
+      <select id="audnom-tipo" onchange="renderBitacoraNomina()" style="width:auto;max-width:250px;margin-left:10px">
+        <option value="">Todos los eventos</option>${tipos.map(t=>`<option>${esc(t)}</option>`).join('')}
+      </select>
+      <button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p style="color:var(--mut);margin-bottom:12px">Registro sellado de cálculos, finiquitos y archivos Excel. No puede editarse ni borrarse desde la plataforma.</p>
+      <div id="audnom-body"></div>
+    </div>
+    <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button><button class="btn dark" onclick="exportBitacoraNomina()">⬇ Exportar bitácora</button></div>`,'xl');
+  renderBitacoraNomina();
+}
+function renderBitacoraNomina(){
+  const tipo=$('audnom-tipo')?$('audnom-tipo').value:'';
+  const data=(window._AUDNOM||[]).filter(x=>!tipo||x.tipo_calculo===tipo);
+  $('audnom-body').innerHTML=data.length?`<div class="tbl-wrap"><table><thead><tr><th>Fecha</th><th>Evento</th><th>Trabajador</th><th>Modelo</th><th>Aplicado</th><th>Ajuste NOI</th><th>Usuario</th><th>Huella</th></tr></thead><tbody>${data.map(x=>`<tr>
+    <td>${new Date(x.created_at).toLocaleString('es-MX')}</td><td><span class="badge">${esc(x.tipo_calculo)}</span><br><small>${esc(x.periodo||'')}</small></td>
+    <td>${x.trabajador_numero??''} ${esc(x.trabajador_nombre||'')}</td><td>${x.monto_modelo==null?'—':'$'+money(x.monto_modelo)}</td>
+    <td>${x.monto_aplicado==null?'—':'$'+money(x.monto_aplicado)}</td><td>${x.ajuste_noi==null?'—':'$'+money(x.ajuste_noi)}</td>
+    <td>${esc(x.actor_email||'')}</td><td><code title="${esc(x.huella_sha256)}">${esc(String(x.huella_sha256||'').slice(0,12))}…</code></td>
+  </tr>`).join('')}</tbody></table></div>`:'<div class="empty">Todavía no hay eventos con este filtro.</div>';
+}
+async function exportBitacoraNomina(){
+  const data=window._AUDNOM||[];if(!data.length){toast('No hay eventos para exportar.','err');return;}
+  const rows=[['FECHA','EVENTO','PERIODO','NO. TRAB.','TRABAJADOR','MODELO','APLICADO','AJUSTE NOI','USUARIO','VERSIÓN','HUELLA SHA-256']];
+  data.forEach(x=>rows.push([new Date(x.created_at).toLocaleString('es-MX'),x.tipo_calculo,x.periodo,x.trabajador_numero??'',x.trabajador_nombre,
+    x.monto_modelo??'',x.monto_aplicado??'',x.ajuste_noi??'',x.actor_email,x.formula_version,x.huella_sha256]));
+  const styles=[ST.head,...data.map(()=>[ST.cell,ST.cell,ST.cell,ST.cellC,ST.cell,ST.money,ST.money,ST.money,ST.cell,ST.cell,ST.cell])];
+  const ws=buildSheet(rows,styles,[20,22,22,11,32,14,14,14,28,28,66]);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'BITACORA');
+  wb.__auditObraIds=[OBRA.id];await dl(wb,`BITACORA_NOMINA_${OBRA.nombre.replace(/[^A-ZÑ0-9]+/gi,'_')}_${today()}.xlsx`);
+}
 const CAMPOS_BANCO=['cuenta','clabe','banco','num_tarjeta'];
 function histCambiaBanco(h){
   if(!h.datos_antes||!h.datos_despues)return false;
@@ -3388,11 +3440,104 @@ function buildSheet(rows,styles,widths,merges,rowHeights){
   return ws;
 }
 function dlPlain(wb,name){XLSX.writeFile(wb,name);}
+const MOTOR_NOMINA_VERSION='NOI-11.00.18/PLATINUM-2026-09-10.2';
+const _xmlEsc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function _dataUriBytes(uri){
+  const m=String(uri||'').match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/i);
+  if(!m)throw new Error('Logo corporativo inválido');
+  const bin=atob(m[2]),out=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);
+  return {ext:m[1].toLowerCase()==='png'?'png':'jpeg',bytes:out};
+}
+function empresaHoja(wb,nombre){
+  const explicita=wb.__empresaPorHoja&&wb.__empresaPorHoja[nombre];
+  if(EMPRESAS[explicita])return explicita;
+  const obra=OBRAS.find(o=>nombre===o.nombre.slice(0,31).replace(/[\\\/\?\*\[\]:]/g,' ')||nombre.includes(o.nombre.slice(0,20)));
+  return obra?empresaDeObra(obra):EMPRESA_ACTIVA;
+}
+function _agregaRelacion(xml,id,tipo,target){
+  const rel=`<Relationship Id="${id}" Type="${tipo}" Target="${target}"/>`;
+  return xml.replace('</Relationships>',rel+'</Relationships>');
+}
+function _siguienteRid(xml){
+  let n=0;for(const m of xml.matchAll(/Id="rId(\d+)"/g))n=Math.max(n,Number(m[1])||0);
+  return 'rId'+(n+1);
+}
+/* xlsx-js-style conserva el control de estilos. JSZip únicamente añade al OOXML
+   final el dibujo con el logo y el encabezado legal; no recalcula ni reescribe
+   celdas, fórmulas, anchos o combinaciones. */
+async function aplicarMarcaCorporativaXlsx(zip,wb){
+  let ct=await zip.file('[Content_Types].xml').async('string');
+  if(!/Extension="png"/i.test(ct))ct=ct.replace('</Types>','<Default Extension="png" ContentType="image/png"/></Types>');
+  if(!/Extension="jpeg"/i.test(ct))ct=ct.replace('</Types>','<Default Extension="jpeg" ContentType="image/jpeg"/></Types>');
+  for(let idx=0;idx<wb.SheetNames.length;idx++){
+    const nombre=wb.SheetNames[idx],codigo=empresaHoja(wb,nombre);
+    const razon=razonSocialEmpresa(codigo),logo=_dataUriBytes(logoEmpresa(codigo));
+    const num=idx+1,sheetPath=`xl/worksheets/sheet${num}.xml`,sheetFile=zip.file(sheetPath);
+    if(!sheetFile)continue;
+    const dibujo=`drawingMarca${num}.xml`,media=`marcaEmpresa${num}.${logo.ext}`;
+    const ctPart=`/xl/drawings/${dibujo}`;
+    if(!ct.includes(`PartName="${ctPart}"`))ct=ct.replace('</Types>',`<Override PartName="${ctPart}" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>`);
+    zip.file(`xl/media/${media}`,logo.bytes);
+
+    const ws=wb.Sheets[nombre]||{},ref=ws['!ref']?XLSX.utils.decode_range(ws['!ref']):{e:{c:3}};
+    const titulo=(ws['!merges']||[]).some(m=>m.s.r===0&&m.s.c===0&&m.e.c>=3);
+    const col=titulo?0:Math.max(0,ref.e.c+1);
+    const alto=codigo==='JIRE'?620000:880000;
+    const drawingXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><xdr:oneCellAnchor><xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>90000</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>45000</xdr:rowOff></xdr:from><xdr:ext cx="1420000" cy="${alto}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="1" name="Logo ${_xmlEsc(razon)}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1420000" cy="${alto}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:ln><a:noFill/></a:ln></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>`;
+    zip.file(`xl/drawings/${dibujo}`,drawingXml);
+    zip.file(`xl/drawings/_rels/${dibujo}.rels`,`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${media}"/></Relationships>`);
+
+    const relPath=`xl/worksheets/_rels/sheet${num}.xml.rels`;
+    let rels=zip.file(relPath)?await zip.file(relPath).async('string'):'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+    const rid=_siguienteRid(rels);
+    rels=_agregaRelacion(rels,rid,'http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing',`../drawings/${dibujo}`);
+    zip.file(relPath,rels);
+
+    let xml=await sheetFile.async('string');
+    if(!/xmlns:r=/.test(xml))xml=xml.replace('<worksheet ','<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ');
+    const encabezado=`<headerFooter><oddHeader>&amp;C&amp;&quot;Calibri,Bold&quot;&amp;12${_xmlEsc(razon)}</oddHeader><oddFooter>&amp;LPLATINUM OS&amp;R&amp;D</oddFooter></headerFooter>`;
+    if(/<headerFooter[\s>]/.test(xml))xml=xml.replace(/<headerFooter[\s\S]*?<\/headerFooter>/,encabezado);
+    else{
+      const pos=xml.search(/<(rowBreaks|colBreaks|customProperties|cellWatches|ignoredErrors|smartTags|drawing|legacyDrawing|picture|oleObjects|controls|webPublishItems|tableParts|extLst)[ \/>]/);
+      xml=pos>=0?xml.slice(0,pos)+encabezado+xml.slice(pos):xml.replace('</worksheet>',encabezado+'</worksheet>');
+    }
+    const dibujoTag=`<drawing r:id="${rid}"/>`;
+    const pos=xml.search(/<(legacyDrawing|legacyDrawingHF|picture|oleObjects|controls|webPublishItems|tableParts|extLst)[ \/>]/);
+    xml=pos>=0?xml.slice(0,pos)+dibujoTag+xml.slice(pos):xml.replace('</worksheet>',dibujoTag+'</worksheet>');
+    zip.file(sheetPath,xml);
+  }
+  zip.file('[Content_Types].xml',ct);
+}
+function _uuid(){
+  if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0,v=c==='x'?r:(r&3|8);return v.toString(16);});
+}
+async function registrarBitacoraNomina(registros,{silencioso=true,loteId=null}={}){
+  if(!sb||!USER||!registros||!registros.length)return false;
+  const lote=loteId||_uuid(),filas=registros.map(r=>({
+    lote_id:lote,obra_id:r.obra_id||OBRA.id,empresa_codigo:r.empresa_codigo||empresaDeObra(OBRAS.find(o=>o.id===(r.obra_id||OBRA.id))||OBRA),
+    trabajador_id:r.trabajador_id||null,trabajador_numero:r.trabajador_numero??null,trabajador_nombre:r.trabajador_nombre||'',
+    tipo_calculo:r.tipo_calculo,periodo:r.periodo||'',formula_version:r.formula_version||MOTOR_NOMINA_VERSION,
+    entradas:r.entradas||{},resultado:r.resultado||{},monto_modelo:r.monto_modelo??null,monto_aplicado:r.monto_aplicado??null,
+    ajuste_noi:r.ajuste_noi??null,actor_id:USER.id,actor_email:USER.email||''
+  }));
+  for(let i=0;i<filas.length;i+=200){
+    const {error}=await sb.from('auditoria_calculos_nomina').insert(filas.slice(i,i+200));
+    if(error){console.warn('Bitácora de nómina:',error.message);if(!silencioso)toast('El cálculo se realizó, pero no pudo registrarse en bitácora: '+error.message,'err');return false;}
+  }
+  return true;
+}
+async function registrarExportacion(wb,name){
+  const ids=[...new Set((wb.__auditObraIds&&wb.__auditObraIds.length?wb.__auditObraIds:[OBRA&&OBRA.id]).filter(Boolean))];
+  return registrarBitacoraNomina(ids.map(id=>({obra_id:id,tipo_calculo:'EXPORTACION_EXCEL',periodo:name,
+    entradas:{archivo:name,hojas:wb.SheetNames},resultado:{empresa:empresaDeObra(OBRAS.find(o=>o.id===id)||OBRA),hojas:wb.SheetNames.length}})));
+}
 /* Descarga con impresión lista: graba ORIENTACIÓN HORIZONTAL + AJUSTAR AL ANCHO
    en TODAS las hojas del libro (Excel y Google Sheets lo respetan al imprimir). */
 async function dl(wb,name){
   try{
-    if(!window.JSZip){dlPlain(wb,name);return;}
+    if(!window.JSZip){dlPlain(wb,name);await registrarExportacion(wb,name);toast('Excel generado sin incrustar logo: falta el componente JSZip.','err');return;}
     const data=XLSX.write(wb,{type:'array',bookType:'xlsx'});
     const zip=await JSZip.loadAsync(data);
     const files=Object.keys(zip.files).filter(f=>/^xl\/worksheets\/sheet\d+\.xml$/.test(f));
@@ -3413,11 +3558,13 @@ async function dl(wb,name){
       }
       zip.file(f,xml);
     }
+    await aplicarMarcaCorporativaXlsx(zip,wb);
     const out=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const a=document.createElement('a');a.href=URL.createObjectURL(out);a.download=name;
     document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(a.href),5000);
-  }catch(e){dlPlain(wb,name);}
+    await registrarExportacion(wb,name);
+  }catch(e){console.error(e);dlPlain(wb,name);await registrarExportacion(wb,name);toast('Excel generado, pero no fue posible incrustar la marca corporativa.','err');}
 }
 
 /* ---------- REQUISICIÓN DE TARJETAS (con VERIFICAR) ---------- */
@@ -4061,6 +4208,7 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
      no lo oculte dentro del monto y contabilidad pueda conciliar ambos pagos. */
   const dsInfo=w=>{const d=descuentosDe(w,sem), dif=difDe(w.id,sem);
     return {ret:d.total, dif, neto:redondearCentavos(Math.max(0,(Number(w.sal_semanal)||0)+dif-d.total))};};
+  const empCodigo=w=>typeof empresaDeTrabajador==='function'?empresaDeTrabajador(w):'PLATINUM';
   // v12.1: SOLO cuentan datos reales — cuenta con 6+ dígitos, CLABE con 10+ dígitos.
   const digitos=v=>String(v??'').replace(/\D/g,'');
   const ctaOk=w=>{const c=String(w.cuenta??'').trim();return (c&&c.toUpperCase()!=='CREAR'&&digitos(c).length>=6)?c:'';};
@@ -4143,7 +4291,17 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
   if(fCheq.length)F('F'+rT2,fCheq.join('+'));
   F('I'+rT2,'I'+rTot);
   F('J'+rT3,'J'+rTot);
-  return {ws,tT,tC,tP,tR,tNom,tDif,total,nTot};
+  const auditoria=[
+    ...act.map(w=>{const x=dsInfo(w),sueldo=redondearCentavos(Number(w.sal_semanal)||0);return {
+      obra_id:w.obra_id,empresa_codigo:empCodigo(w),trabajador_id:w.id,trabajador_numero:w.no_trab,trabajador_nombre:fullName(w),
+      tipo_calculo:'PROYECCION_NOMINA',periodo:sem,entradas:{sueldo_nomina:sueldo,prevision_social:x.dif,retenciones:x.ret,forma_pago:w.forma_pago||'TRANSFERENCIA'},
+      resultado:{neto:x.neto},monto_modelo:x.neto,monto_aplicado:x.neto,ajuste_noi:0
+    };}),
+    ...fins.map(w=>({obra_id:w.obra_id,empresa_codigo:empCodigo(w),trabajador_id:w.id,trabajador_numero:w.no_trab,trabajador_nombre:fullName(w),
+      tipo_calculo:'FINIQUITO_EN_PROYECCION',periodo:sem,entradas:{fecha_baja:w.fecha_baja||null,origen:'monto_finiquito_guardado'},
+      resultado:{forma_pago:'CHEQUE',neto:redondearCentavos(Number(w.monto_finiquito)||0)},monto_modelo:null,monto_aplicado:redondearCentavos(Number(w.monto_finiquito)||0),ajuste_noi:null}))
+  ];
+  return {ws,tT,tC,tP,tR,tNom,tDif,total,nTot,auditoria};
 }
 /* ---------- EXPEDIENTE INDIVIDUAL A EXCEL (2026-08-27) ----------------
    Todo lo que la plataforma sabe de UN trabajador, en vertical: columna A
@@ -4693,10 +4851,11 @@ async function dfGuardar(){
   try{ if(typeof pyPreview==='function'&&$('py-prev'))pyPreview(); }catch(e){}
   toast(`Diferenciales de la semana ${st.sem}: ${alta.length} guardado(s)${baja.length?`, ${baja.length} quitado(s)`:''}.`,'ok');
 }
-function exportProyeccion(){
+async function exportProyeccion(){
   const semN=$('py-sem').value||semObra(), sem='S'+semN, d1=$('py-d1').value, d2=$('py-d2').value, periodo=$('py-periodo').value;
   const {act,fins}=pyCandidatos(d1,d2,periodo);
-  const emp=CFGEMP['empresa_PLATINUM']||{razon:'Comercializadora Platinum Hidalguense',rfc:''};
+  const codigo=empresaDeObra(OBRA);
+  const emp=CFGEMP['empresa_'+codigo]||{razon:EMPRESAS[codigo].nombre,rfc:''};
   const tag=periodo==='TODOS'?'':(periodo==='QUINCENAL'?'  (QUINCENAL)':'');
   const r=buildProyWS({
     titulo:`PROYECCIÓN DE NÓMINA  —  SEMANA ${semN}  |  ${rangoTexto(d1,d2)}${tag}`,
@@ -4707,24 +4866,28 @@ function exportProyeccion(){
   XLSX.utils.book_append_sheet(wb,r.ws,`SEMANA ${semN}`);
   const det=buildRetDetalleWS(act,sem,'CONTRATISTA');
   if(det)XLSX.utils.book_append_sheet(wb,det,'RETENCIONES');
-  dl(wb,`PROYECCION_NOMINA_SEMANA${semN}${periodo==='QUINCENAL'?'_QUINCENAL':''}.xlsx`);
+  wb.__empresaPorHoja={};wb.SheetNames.forEach(n=>wb.__empresaPorHoja[n]=codigo);wb.__auditObraIds=[OBRA.id];
+  await registrarBitacoraNomina(r.auditoria,{silencioso:false});
+  await dl(wb,`PROYECCION_NOMINA_${codigo}_SEMANA${semN}${periodo==='QUINCENAL'?'_QUINCENAL':''}.xlsx`);
   closeModal();toast(`Proyección S${semN}: ${r.nTot} trabajadores · retenciones $${money(r.tR)} · total $${money(r.total)}${det?' · incluye hoja RETENCIONES con el desglose por trabajador y motivo':''}.`,'ok');
 }
 /* ---------- v12: proyección por contratista (todas las obras) ---------- */
 async function openProyContratista(){
   const [d1,d2]=weekBounds();
+  const ids=obrasEmpresa().map(o=>o.id);
+  if(!ids.length){toast('Esta empresa no tiene centros de trabajo disponibles.','err');return;}
   const [{data:tw,error:e1},{data:ds,error:e2},{data:df,error:e3}]=await Promise.all([
-    fetchAllRows(()=>sb.from('trabajadores').select('*').eq('eliminado',false)),
-    fetchAllRows(()=>sb.from('descuentos').select('*').eq('activo',true)),
-    fetchAllRows(()=>sb.from('diferenciales').select('*').eq('activo',true))]);
+    fetchAllRows(()=>sb.from('trabajadores').select('*').in('obra_id',ids).eq('eliminado',false)),
+    fetchAllRows(()=>sb.from('descuentos').select('*').in('obra_id',ids).eq('activo',true)),
+    fetchAllRows(()=>sb.from('diferenciales').select('*').in('obra_id',ids).eq('activo',true))]);
   if(e1||e2||e3){toast('Error al cargar: '+String((e1||e2||e3).message),'err');return;}
   window._PC=tw||[]; window._PCDESC=ds||[]; window._PCDIFS=df||[];
   const cts=[...new Set(window._PC.filter(w=>w.estatus!=='BAJA'&&String(w.contratista||'').trim()).map(w=>String(w.contratista).trim()))].sort();
   window._PCCT=cts;
   modal(`
-    <div class="m-head"><h2>👷 Proyección por contratista · todas las obras</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-head"><h2>👷 Proyección por contratista · ${esc(EMPRESAS[EMPRESA_ACTIVA].corto)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:12px">Genera <b>un Excel por contratista</b> con SOLO su gente de <b>todas las obras</b> (columna OBRA en lugar de contratista), con finiquitos de la semana en rojo, retenciones y <b>fórmulas en los totales</b>. Ideal para el envío de los jueves. El navegador descargará varios archivos: acepta si pide permiso.</p>
+      <p style="color:var(--mut);margin-bottom:12px">Genera <b>un Excel por contratista</b> con SOLO su gente de los centros de <b>${esc(razonSocialEmpresa(EMPRESA_ACTIVA))}</b> (columna OBRA en lugar de contratista), con finiquitos, retenciones, previsión social y fórmulas en los totales. Nunca mezcla razones sociales.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
         <div><label>No. de semana</label><input id="pc-sem" type="number" value="${isoWeek()}" oninput="semSincroniza('pc-sem','pc-d1','pc-d2')"></div>
         <div><label>Del día</label><input id="pc-d1" type="date" value="${d1}"></div>
@@ -4747,7 +4910,8 @@ async function exportProyContratista(){
   const semN=$('pc-sem').value||isoWeek(), sem='S'+semN, d1=$('pc-d1').value, d2=$('pc-d2').value, periodo=$('pc-periodo').value;
   const cts=(window._PCCT||[]).filter((c,i)=>$('pc-ct-'+i)&&$('pc-ct-'+i).checked);
   if(!cts.length){toast('No hay contratistas seleccionados.','err');return;}
-  const emp=CFGEMP['empresa_PLATINUM']||{razon:'Comercializadora Platinum Hidalguense',rfc:''};
+  const codigo=EMPRESA_ACTIVA;
+  const emp=CFGEMP['empresa_'+codigo]||{razon:EMPRESAS[codigo].nombre,rfc:''};
   const _D=DESC, _DF=DIFS;
   DESC=window._PCDESC||_D; DIFS=window._PCDIFS||_DF; // retenciones y diferenciales de TODAS las obras
   let n=0;
@@ -4771,7 +4935,10 @@ async function exportProyContratista(){
         const det=buildRetDetalleWS(a,sem,'OBRA');
         if(det)XLSX.utils.book_append_sheet(wb,det,'RETENCIONES');
       }finally{WORKERS=_W;}
-      await dl(wb,`PROYECCION_${ct.replace(/[^A-ZÑ0-9]+/gi,'_')}_SEMANA${semN}.xlsx`);
+      wb.__empresaPorHoja={};wb.SheetNames.forEach(nm=>wb.__empresaPorHoja[nm]=codigo);
+      wb.__auditObraIds=[...new Set([...a,...f].map(w=>w.obra_id))];
+      await registrarBitacoraNomina(r.auditoria,{silencioso:false});
+      await dl(wb,`PROYECCION_${codigo}_${ct.replace(/[^A-ZÑ0-9]+/gi,'_')}_SEMANA${semN}.xlsx`);
       n++;
     }
   }finally{DESC=_D;DIFS=_DF;}
@@ -10141,6 +10308,14 @@ async function doBaja(id){
       nombre:fullName(w),puesto:w.puesto,curp:w.curp,semana:'S'+semBaja,
       periodo:periodoCorto(semBaja),importe:fin,tipo_pago:'FINIQUITO',estatus:'PENDIENTE',observaciones:cat,creado_por:USER.email});
   }
+  const previo=globalThis._PR_AUDIT&&globalThis._PR_AUDIT.trabajador_id===id?globalThis._PR_AUDIT:null;
+  const modelo=previo?previo.monto_modelo:null,aplicado=fin==null?0:redondearCentavos(fin);
+  await registrarBitacoraNomina([previo?{...previo,tipo_calculo:'FINIQUITO_APLICADO',periodo:f,monto_aplicado:aplicado,
+    ajuste_noi:modelo==null?null:redondearCentavos(aplicado-modelo),resultado:{...previo.resultado,monto_aplicado:aplicado,motivo_baja:cat,cheque_pendiente:conCheque}}
+    :{obra_id:w.obra_id,empresa_codigo:empresaDeTrabajador(w),trabajador_id:w.id,trabajador_numero:w.no_trab,trabajador_nombre:fullName(w),
+      tipo_calculo:'FINIQUITO_APLICADO',periodo:f,entradas:{origen:'captura_directa',motivo_baja:cat},resultado:{monto_aplicado:aplicado,cheque_pendiente:conCheque},
+      monto_modelo:null,monto_aplicado:aplicado,ajuste_noi:null}],{silencioso:false});
+  globalThis._PR_AUDIT=null;
   closeModal();toast('Baja por '+cat+' registrada. Generando documento...','ok');
   await loadObraData(OBRA.id);refreshCounts();
   setTimeout(()=>generarBajaDoc(id),400);
@@ -11766,6 +11941,7 @@ function calcPrestaciones(id){
     ['Prima vacacional 25%',`$${money(primaVac)}`]
   ];
   let total=salarioPend+aguinaldo+vacProp+primaVac;
+  let indemnizacion={tres_meses:0,veinte_dias:0,prima_antiguedad:0};
   if($('pr-despido').value==='SI'){
     const tresMeses=sdi*90;
     const veinteDias=sdi*20*Math.max(anios,dias/365.25);
@@ -11776,6 +11952,7 @@ function calcPrestaciones(id){
     rows.push(['20 días por año (SDI)',`$${money(veinteDias)}`]);
     rows.push(['Prima de antigüedad (12 días/año, tope 2 SM*)',`$${money(primaAnt)}`]);
     total+=tresMeses+veinteDias+primaAnt;
+    indemnizacion={tres_meses:tresMeses,veinte_dias:veinteDias,prima_antiguedad:primaAnt};
   }
   // ISR del finiquito (método contadoras: aguinaldo exento hasta 30 UMA, prima vac. exenta hasta 15 UMA, vacaciones gravadas, tarifa MENSUAL Anexo 8)
   const f26=FISC();
@@ -11790,6 +11967,7 @@ function calcPrestaciones(id){
   // El contador debe validar el corte de días contra la cédula del SUA.
   const infoDesc=(typeof DESC!=='undefined'?DESC:[]).find(d=>d.trabajador_id===w.id&&d.activo&&d.recurrente&&String(d.tipo).toUpperCase()==='INFONAVIT');
   const diasInfo=parseInt($('f-pr-info-dias')?$('f-pr-info-dias').value:diasPend)||0;
+  let infoAplicado=0,infoOrigen=infoDesc?'SIN_DIAS':'SIN_CREDITO';
   if(infoDesc&&diasInfo>0){
     const infoExacta=retencionInfonavitDesdeAviso(infoDesc,w,diasInfo,fin);
     const Pinfo=perDe(w), cuotaPeriodo=montoDescuento(infoDesc,Pinfo);
@@ -11797,6 +11975,7 @@ function calcPrestaciones(id){
     if(infoProp>0){
       rows.push([`Retención INFONAVIT (${diasInfo} día(s) no retenidos; redondeo único)`,`−$${money(infoProp)}`]);
       total-=infoProp;
+      infoAplicado=infoProp;infoOrigen=infoExacta==null?'PRORRATEO_PERIODO':'AVISO_CREDITO';
     }
   }
   // Los conceptos conservan su precisión interna y el total se redondea una sola
@@ -11810,6 +11989,17 @@ function calcPrestaciones(id){
   const noiV=(noiRaw!==''&&!isNaN(parseFloat(noiRaw)))?Math.round(parseFloat(noiRaw)*100)/100:null;
   PR_TOTAL=(noiV!=null)?noiV:modeloTotal;
   const dif=(noiV!=null)?Math.round((noiV-modeloTotal)*100)/100:0;
+  globalThis._PR_AUDIT={
+    obra_id:w.obra_id,empresa_codigo:(typeof empresaDeTrabajador==='function'?empresaDeTrabajador(w):'PLATINUM'),trabajador_id:w.id,trabajador_numero:w.no_trab,
+    trabajador_nombre:(typeof fullName==='function'?fullName(w):[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolean).join(' ')),
+    tipo_calculo:'FINIQUITO_CALCULADO',periodo:f,
+    entradas:{fecha_antiguedad:iniAntig(w),fecha_calculo:f,sd,sdi,dias_inclusivos:dias,anios,dias_anio:diasAnio,dias_aguinaldo:diasAgAnio,
+      dias_vacaciones_tabla:diasVacAct,dias_salario_pendiente:diasPend,dias_infonavit_no_retenidos:diasInfo,
+      credito_infonavit_id:infoDesc?infoDesc.id:null,origen_infonavit:infoOrigen,despido_injustificado:$('pr-despido').value==='SI',noi_manual:noiV},
+    resultado:{salarios_pendientes:salarioPend,aguinaldo, vacaciones:vacProp,prima_vacacional:primaVac,isr:isrFin,
+      infonavit:infoAplicado,indemnizacion,modelo_total:modeloTotal,aplicado:PR_TOTAL},
+    monto_modelo:modeloTotal,monto_aplicado:PR_TOTAL,ajuste_noi:dif
+  };
   $('pr-out').innerHTML=rows.map(r=>`<div class="kv"><b>${r[0]}</b><span>${r[1]}</span></div>`).join('')+
     `<div class="kv franja-total"><b>TOTAL ${noiV!=null?'(modelo)':''}</b><span>$${money(modeloTotal)}</span></div>`+
     (noiV!=null?`<div class="kv" style="background:var(--green-bg);color:var(--txt);font-weight:800;padding:10px 8px"><b>✔ FINIQUITO NOI (este va al cheque)</b><span>$${money(noiV)}${dif?` · dif ${dif>0?'+':''}$${money(Math.abs(dif))} vs modelo`:' · idéntico al modelo'}</span></div>`:'')+
@@ -12074,7 +12264,7 @@ function cfDataBar(ref,colorHex){
 }
 async function dlDashboardXlsx(wb,name,porHoja){
   try{
-    if(!window.JSZip){dlPlain(wb,name);return;}
+    if(!window.JSZip){dlPlain(wb,name);await registrarExportacion(wb,name);return;}
     const data=XLSX.write(wb,{type:'array',bookType:'xlsx'});
     const zip=await JSZip.loadAsync(data);
     for(let idx=0;idx<wb.SheetNames.length;idx++){
@@ -12112,11 +12302,13 @@ async function dlDashboardXlsx(wb,name,porHoja){
       }
       zip.file(f,xml);
     }
+    await aplicarMarcaCorporativaXlsx(zip,wb);
     const out=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const a=document.createElement('a');a.href=URL.createObjectURL(out);a.download=name;
     document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(a.href),5000);
-  }catch(e){console.error(e);dlPlain(wb,name);}
+    await registrarExportacion(wb,name);
+  }catch(e){console.error(e);dlPlain(wb,name);await registrarExportacion(wb,name);toast('Reporte generado, pero no fue posible incrustar la marca corporativa.','err');}
 }
 function exportReporteEjecutivo(){
   const {tw,ch,ds}=window._DASH; if(!tw)return;
@@ -12283,7 +12475,10 @@ async function exportRespaldo(porCorreo){
   const {data:hist}=await sb.from('historial').select('fecha,accion,trabajador_nombre,usuario').order('fecha',{ascending:false}).limit(500);
   if(hist)XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['FECHA','ACCION','TRABAJADOR','USUARIO'],...hist.map(h=>[new Date(h.fecha).toLocaleString('es-MX'),h.accion,h.trabajador_nombre,h.usuario])]),'HISTORIAL RECIENTE');
   const f=new Date(),name=`RESPALDO_BASE_TRABAJADORES_${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}-${String(f.getDate()).padStart(2,'0')}.xlsx`;
-  dlPlain(wb,name); // el respaldo se queda sin ajuste de impresión (es de consulta, no de imprimir)
+  wb.__empresaPorHoja={};
+  OBRAS.forEach(o=>{wb.__empresaPorHoja[o.nombre.slice(0,31).replace(/[\\\/\?\*\[\]:]/g,' ')]=empresaDeObra(o);});
+  wb.__auditObraIds=OBRAS.map(o=>o.id);
+  await dl(wb,name);
   toast(`Respaldo descargado: ${data.length} trabajadores y ${chqAll?chqAll.length:0} cheques.`,'ok');
   if(porCorreo){
     setTimeout(()=>{
