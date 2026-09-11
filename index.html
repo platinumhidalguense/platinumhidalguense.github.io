@@ -1639,7 +1639,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-11.2';
+const APP_VERSION='2026-09-11.3';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -12651,6 +12651,58 @@ function ctrlNumero(v){
   if(/^-?\d{1,3}(\.\d{3})+,\d{1,2}$/.test(s))s=s.replace(/\./g,'').replace(',','.');
   else s=s.replace(/,/g,'');const n=Number(s);return isFinite(n)?n:null;
 }
+function ctrlPuntajeColNOI(tipo,h){
+  if(!h)return 0;
+  if(tipo==='no'){
+    if(/^(CLAVE|NUMERO|NMERO|NOTRAB|NUMTRAB|NUMEROTRABAJADOR|NMEROTRABAJADOR|CLAVETRABAJADOR|CLAVEEMPLEADO|NUMEMPLEADO)$/.test(h))return 60;
+    if(h==='IDTRABAJADOR'||h==='NOEMPLEADO')return 55;
+    if((h.includes('TRABAJ')||h.includes('EMPLEAD'))&&(h.includes('NUM')||h.startsWith('NO')||h.includes('CLAVE')))return 45;
+  }
+  if(tipo==='neto'){
+    if(/^(NETOPAGADO|TOTALNETO)$/.test(h))return h==='NETOPAGADO'?70:66;if(h==='NETOAPAGAR')return 68;
+    if(h==='IMPORTENETO'||h==='NETO')return 64;if(h==='LIQUIDOAPAGAR'||h==='TOTALAPAGAR')return 58;
+    if(h==='MONTO'||h==='IMPORTE')return 35;
+  }
+  if(tipo==='nombre'){
+    if(/^(NOMBREDELTRABAJADOR|NOMBRETRABAJADOR|NOMBRECOMPLETO)$/.test(h))return 35;
+    if(/^(NOMBRE|TRABAJADOR|EMPLEADO)$/.test(h))return 30;
+  }
+  if(tipo==='tipo'&&/^(TIPO|TIPOPAGO|TIPOCALCULO|CONCEPTO)$/.test(h))return 15;
+  return 0;
+}
+function ctrlDetectarLayoutNOI(matriz){
+  let mejor=null;
+  for(let f=0;f<Math.min(matriz.length,120);f++){
+    const hs=(matriz[f]||[]).map(ctrlNormHdr);let no=-1,neto=-1,nombre=-1,tipo=-1,pNo=0,pNeto=0,pNom=0,pTipo=0;
+    hs.forEach((h,c)=>{const a=ctrlPuntajeColNOI('no',h),b=ctrlPuntajeColNOI('neto',h),d=ctrlPuntajeColNOI('nombre',h),e=ctrlPuntajeColNOI('tipo',h);
+      if(a>pNo){pNo=a;no=c;}if(b>pNeto){pNeto=b;neto=c;}if(d>pNom){pNom=d;nombre=c;}if(e>pTipo){pTipo=e;tipo=c;}});
+    if(no>=0&&neto>=0){const puntaje=pNo+pNeto+pNom+pTipo;if(!mejor||puntaje>mejor.puntaje)mejor={fila:f,no,neto,nombre,tipo,puntaje};}
+  }
+  return mejor;
+}
+function ctrlExtraerFilasNOI(matriz,layout,hoja){
+  const filas=[];
+  for(let f=layout.fila+1;f<matriz.length;f++){
+    const r=matriz[f]||[],s=String(r[layout.no]??'').trim().replace(/\s/g,'');
+    if(!/^\d+(?:\.0+)?$/.test(s))continue;
+    const no=Math.trunc(Number(s)),m=ctrlNumero(r[layout.neto]);if(!no||m==null)continue;
+    filas.push({no,m:redondearCentavos(m),nombre:layout.nombre>=0?String(r[layout.nombre]||'').trim():'',tipo:layout.tipo>=0&&/FINIQ/i.test(String(r[layout.tipo]))?'FINIQUITO':'NOMINA',hoja,fila:f+1});
+  }
+  return filas;
+}
+function ctrlTextoLayoutNOI(hojas){
+  const lineas=[];
+  hojas.forEach(h=>{lineas.push(`HOJA: ${h.nombre}`);h.matriz.slice(0,120).forEach((r,i)=>lineas.push(`FILA ${i+1}: `+(r||[]).slice(0,40).map((v,c)=>`C${c+1}=${String(v??'').replace(/[\t\r\n]+/g,' ').slice(0,100)}`).join('\t')));});
+  return lineas.join('\n').slice(0,58000);
+}
+async function ctrlLayoutNOIConIA(hojas){
+  const j=await iaLlamar(IA_FN.extract,{tipo:'reporte_nomina_noi',texto:ctrlTextoLayoutNOI(hojas),pista:'Ubica exclusivamente la fila de encabezados y las columnas de clave/número del trabajador, nombre y neto pagado. Los índices FILA y C son 1-based.'});
+  if(!(j&&j.ok)||j.error)throw new Error(j&&j.error?j.error:'Gemini no pudo reconocer la estructura.');
+  const h=hojas.find(x=>ctrlNormHdr(x.nombre)===ctrlNormHdr(j.hoja))||hojas[0];
+  const layout={fila:Number(j.fila_encabezado)-1,no:Number(j.columna_clave)-1,neto:Number(j.columna_neto)-1,nombre:j.columna_nombre==null?-1:Number(j.columna_nombre)-1,tipo:j.columna_tipo==null?-1:Number(j.columna_tipo)-1,puntaje:0,porIA:true};
+  if(!Number.isInteger(layout.fila)||layout.fila<0||layout.fila>=h.matriz.length||!Number.isInteger(layout.no)||layout.no<0||!Number.isInteger(layout.neto)||layout.neto<0)throw new Error('Gemini no devolvió coordenadas válidas.');
+  return {hoja:h,layout};
+}
 async function ctrlOpenConciliacion(id){
   const {data:c,error}=await sb.from(CTRL_TABLAS.cierres).select('*').eq('id',id).eq('obra_id',OBRA.id).single();
   if(error){toast(ctrlFaltaScript(error),'err');return;}window._CTRL_CIERRE=c;window._CTRLNOI=null;
@@ -12671,26 +12723,26 @@ function ctrlRenderConciliacion(rows){
 async function ctrlLeerArchivoNOI(inp){
   const file=inp.files&&inp.files[0];if(!file)return;
   try{
-    const buf=await file.arrayBuffer(),wb=XLSX.read(buf,{type:'array'}),raw=[];
-    wb.SheetNames.forEach(n=>raw.push(...XLSX.utils.sheet_to_json(wb.Sheets[n],{defval:'',raw:true})));
-    if(!raw.length)throw new Error('El archivo no contiene filas.');
-    const keys=[...new Set(raw.flatMap(Object.keys))],nk=keys.map(k=>[k,ctrlNormHdr(k)]);
-    const kNo=(nk.find(x=>/^(NUMERO|NOTRAB|NUMTRAB|NUMEROTRABAJADOR|CLAVETRABAJADOR|CLAVEEMPLEADO)$/.test(x[1]))||[])[0];
-    const kMonto=(nk.find(x=>/^(NETO|NETOPAGADO|TOTALNETO|NETOAPAGAR|IMPORTENETO|MONTO)$/.test(x[1]))||[])[0];
-    const kNom=(nk.find(x=>/^(NOMBRE|NOMBRECOMPLETO|TRABAJADOR|EMPLEADO)$/.test(x[1]))||[])[0];
-    const kTipo=(nk.find(x=>/^(TIPO|TIPOPAGO|CONCEPTO)$/.test(x[1]))||[])[0];
-    if(!kNo||!kMonto)throw new Error('No identifiqué las columnas de número de trabajador y neto. Usa encabezados “Número trabajador” y “Neto”.');
-    const noi=new Map();
-    raw.forEach(r=>{const no=parseInt(String(r[kNo]).replace(/\D/g,'')),m=ctrlNumero(r[kMonto]);if(no&&m!=null)noi.set(no,{m:redondearCentavos(m),nombre:kNom?r[kNom]:'',tipo:kTipo&&/FINIQ/i.test(String(r[kTipo]))?'FINIQUITO':'NOMINA'});});
+    const buf=await file.arrayBuffer(),wb=XLSX.read(buf,{type:'array'});
+    const hojas=wb.SheetNames.map(nombre=>({nombre,matriz:XLSX.utils.sheet_to_json(wb.Sheets[nombre],{header:1,defval:'',raw:true,blankrows:true})}));
+    if(!hojas.some(h=>h.matriz.length))throw new Error('El archivo no contiene filas.');
+    let detectadas=hojas.map(hoja=>({hoja,layout:ctrlDetectarLayoutNOI(hoja.matriz)})).filter(x=>x.layout),porIA=false;
+    let leidas=detectadas.flatMap(x=>ctrlExtraerFilasNOI(x.hoja.matriz,x.layout,x.hoja.nombre));
+    if(!detectadas.length||!leidas.length){detectadas=[await ctrlLayoutNOIConIA(hojas)];porIA=true;leidas=detectadas.flatMap(x=>ctrlExtraerFilasNOI(x.hoja.matriz,x.layout,x.hoja.nombre));}
+    if(!leidas.length)throw new Error('Se localizaron encabezados, pero no se encontraron trabajadores con un neto válido.');
+    const noi=new Map(),conflictos=[];
+    leidas.forEach(r=>{const anterior=noi.get(r.no);if(!anterior)noi.set(r.no,r);else if(anterior.m!==r.m)conflictos.push(`#${r.no} (${anterior.m} y ${r.m})`);});
+    if(conflictos.length)throw new Error('El reporte repite trabajadores con netos distintos: '+conflictos.slice(0,8).join(', ')+'. Revisa el archivo antes de importarlo.');
     const exp=(window._CTRL_CIERRE.snapshot&&window._CTRL_CIERRE.snapshot.items)||[],out=[],usados=new Set();
     exp.forEach(x=>{const n=noi.get(Number(x.numero));if(n)usados.add(Number(x.numero));out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:x.trabajador_id,
       trabajador_numero:x.numero,trabajador_nombre:x.nombre,tipo_calculo:x.tipo||'NOMINA',monto_platinum:x.monto,monto_noi:n?n.m:null,
-      detalle:{sueldo_nomina:x.sueldo_nomina||0,prevision_social:x.prevision_social||0,retenciones:x.retenciones||0,archivo:file.name,hoja_detectada:true},importado_por_email:USER.email||''});});
+      detalle:{sueldo_nomina:x.sueldo_nomina||0,prevision_social:x.prevision_social||0,retenciones:x.retenciones||0,archivo:file.name,hojas:detectadas.map(d=>d.hoja.nombre),lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
     noi.forEach((n,no)=>{if(!usados.has(no))out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:null,trabajador_numero:no,trabajador_nombre:String(n.nombre||'NO EN SNAPSHOT'),
-      tipo_calculo:n.tipo,monto_platinum:null,monto_noi:n.m,detalle:{archivo:file.name},importado_por_email:USER.email||''});});
-    window._CTRLNOI={rows:out,file,hash:await ctrlSha(buf)};
+      tipo_calculo:n.tipo,monto_platinum:null,monto_noi:n.m,detalle:{archivo:file.name,hoja:n.hoja,fila:n.fila,lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
+    window._CTRLNOI={rows:out,file,hash:await ctrlSha(buf),lector:porIA?'IA_LAYOUT':'AUTOMATICO',registrosNOI:noi.size};
     const prev=out.map(x=>({...x,diferencia:redondearCentavos((x.monto_platinum||0)-(x.monto_noi||0)),estatus:x.monto_platinum==null?'SIN_PLATINUM':x.monto_noi==null?'SIN_NOI':redondearCentavos(x.monto_platinum-x.monto_noi)===0?'COINCIDE':'DIFERENCIA'}));
-    $('noi-preview').innerHTML=`<div style="margin-bottom:8px"><button class="btn dark" id="noi-save" onclick="ctrlGuardarNOI()">💾 Guardar conciliación</button> <b>${esc(file.name)}</b></div>`+ctrlRenderConciliacion(prev);
+    const resumen=`<div style="background:var(--blue-bg);border:1px solid var(--border);border-radius:9px;padding:9px 12px;margin-bottom:10px;font-size:12px"><b>Lectura validada:</b> ${noi.size} trabajador(es) · ${detectadas.map(d=>`${esc(d.hoja.nombre)}, encabezados fila ${d.layout.fila+1}`).join(' · ')}</div>`;
+    $('noi-preview').innerHTML=(porIA?IA_BANNER:'')+resumen+`<div style="margin-bottom:8px"><button class="btn dark" id="noi-save" onclick="ctrlGuardarNOI()">💾 Guardar conciliación</button> <b>${esc(file.name)}</b></div>`+ctrlRenderConciliacion(prev);
   }catch(e){toast('No se pudo leer NOI: '+e.message,'err');}
 }
 async function ctrlGuardarNOI(){
