@@ -1643,7 +1643,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-11.5';
+const APP_VERSION='2026-09-11.6';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2384,16 +2384,20 @@ function abrirTrabajadorVecino(id,dir){
 function fichaDocsHTML(w){
   const byW=x=>parseInt(String(x.semana||'').replace(/\D/g,''))||0;
   const ac=DOCSX.filter(x=>x.trabajador_id===w.id&&x.categoria==='ACUSE_IMSS');
-  const re=DOCSX.filter(x=>x.trabajador_id===w.id&&(x.categoria==='RECIBO_NOMINA'||x.categoria==='CFDI_NOMINA')).sort((a,b)=>byW(a)-byW(b)||String(a.categoria).localeCompare(String(b.categoria)));
+  const re=DOCSX.filter(x=>x.trabajador_id===w.id&&esReciboPdf(x)).sort((a,b)=>byW(a)-byW(b));
+  const cf=DOCSX.filter(x=>x.trabajador_id===w.id&&esCfdiXml(x)).sort((a,b)=>byW(a)-byW(b));
   const item=x=>`<div class="kv"><b>${esc(x.subtipo||'DOC')} ${esc(x.semana)}</b><span>${esc(x.nombre_archivo)} · ${fmtD(x.fecha_doc||x.created_at)} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:8px" onclick="verDoc('${x.id}')">📄 Ver</button> <button class="btn" style="padding:2px 8px;font-size:11px" onclick="openRenombrarDoc('${x.id}','${w.id}')" title="Cambiar el nombre y el tipo de movimiento (ALTA, BAJA...)">✎</button> <button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="anularDoc('${x.id}','${w.id}')" title="Quitar del expediente (queda rastro de quién y por qué)">🗑</button></span></div>`;
   const falt=faltantesReciboDe(w);
   const faltHtml=falt.length
     ?`<div class="kv" style="background:var(--amber-bg)"><b style="color:var(--amber)">⚠ Faltan ${falt.length}</b><span>${falt.map(W=>'<span class="badge PENDIENTE" style="font-size:10px;margin:1px">S'+W+'</span>').join(' ')} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:6px" onclick="openPdfImport()">📎 Importar recibos</button></span></div>`
     :(re.length?`<div class="kv"><b style="color:var(--green)">✔ Completos</b><span>No falta ningún recibo de nómina (semanas cerradas).</span></div>`:'');
-  const reList=re.length?re.map(item).join(''):'<div class="kv"><b>—</b><span>Sin recibos archivados.</span></div>';
+  const reList=re.length?re.map(item).join(''):'<div class="kv"><b>—</b><span>Sin representaciones PDF archivadas.</span></div>';
   const reWrap=re.length>8?`<div style="max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:4px">${reList}</div>`:reList;
+  const cfList=cf.length?cf.map(item).join(''):'<div class="kv"><b>—</b><span>Sin XML fiscales archivados.</span></div>';
+  const cfWrap=cf.length>8?`<div style="max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:4px">${cfList}</div>`:cfList;
   return `<div class="sect">Acuses IMSS (${ac.length})</div>${ac.length?ac.map(item).join(''):'<div class="kv"><b>—</b><span>Sin acuses archivados. Súbelos con 📎 Importar PDFs.</span></div>'}
-        <div class="sect">Recibos de nómina (${re.length})</div>${faltHtml}${reWrap}`;
+        <div class="sect">Recibos de nómina PDF (${re.length})</div>${faltHtml}${reWrap}
+        <div class="sect">CFDI de nómina XML (${cf.length})</div>${cfWrap}`;
 }
 /* Trae los documentos de UN trabajador directo de la base, filtrando en el
    servidor con .eq('trabajador_id', id). Es una red de seguridad: aunque la
@@ -5421,7 +5425,7 @@ async function applyPdfImport(){
     const {error:e1}=await sb.storage.from('expedientes').upload(path,new Blob([x.bytes],{type:'application/pdf'}));
     if(e1){fail++;continue;}
     const fila={trabajador_id:x.ownerId,obra_id:w?w.obra_id:OBRA.id,categoria:cat,
-      subtipo:cat==='ACUSE_IMSS'?subX:'RECIBO',semana:((cat==='RECIBO_NOMINA'&&x.sem)||sem),fecha_doc:fdX,archivo:path,nombre_archivo:nombreX.slice(0,120),subido_por:USER.email,hash:x.hash||''};
+      subtipo:cat==='ACUSE_IMSS'?subX:'RECIBO',semana:(cat==='RECIBO_NOMINA'?(sem||x.sem||''):sem),fecha_doc:fdX,archivo:path,nombre_archivo:nombreX.slice(0,120),subido_por:USER.email,hash:x.hash||'',mime_type:'application/pdf'};
     let {error:e2}=await sb.from('documentos').insert(fila);
     if(e2&&/hash/i.test(e2.message||'')){delete fila.hash;({error:e2}=await sb.from('documentos').insert(fila));} // si falta el Script 33, archiva sin huella
     if(e2){fail++;continue;}
@@ -6813,92 +6817,129 @@ async function chequeFolioAviso(){
     if(sinJust>0)toast(`⚠ Hay ${sinJust} folio(s) de cheque saltado(s) sin justificar. Revisa "Control de folios".`,'err');
   }catch(e){/* si falta el Script 46 u otra cosa, no molesta */}
 }
-/* ============================================================
-   CONCILIACIÓN TOTAL — control absoluto de cada salida de dinero.
-   Por trabajador + semana cruza (SOLO LECTURA, no toca el motor):
-   • ESPERADO: neto que arroja el motor de nómina (nominaSemanal, base sin faltas).
-   • CHEQUE(S): capturados en CUALQUIER estatus (los CANCELADO no suman).
-   • TRANSFERENCIA(S): pagos importados (los EXITOSO suman; rechazados se marcan).
-   • CFDI: si está timbrado (monto tomado del nombre del XML archivado).
-   Banderas: doble pago, pago sin CFDI, CFDI sin pago, pago≠CFDI, pago>esperado,
-   transferencia rechazada.
-   ============================================================ */
-function concBuild(){
-  const map=new Map(); const key=(tid,ns)=>tid+'|'+ns;
-  const getRow=(w,ns)=>{const k=key(w.id,ns);let o=map.get(k);if(!o){o={w,sem:ns,chq:[],pag:[],cfdi:[]};map.set(k,o);}return o;};
-  (CHEQUES||[]).filter(c=>!c.eliminado&&c.trabajador_id).forEach(c=>{const w=WORKERS.find(x=>x.id===c.trabajador_id);if(w)getRow(w,normSem(c.semana)).chq.push(c);});
-  (PAGOS||[]).filter(p=>p.trabajador_id).forEach(p=>{const w=WORKERS.find(x=>x.id===p.trabajador_id);if(w)getRow(w,normSem(p.semana)).pag.push(p);});
-  const _amt=d=>{const m=String(d.nombre_archivo||'').match(/\$([\d,]+(?:\.\d+)?)/);return m?parseFloat(m[1].replace(/,/g,'')):null;};
-  (DOCSX||[]).filter(d=>!d.anulado&&d.categoria==='CFDI_NOMINA'&&d.trabajador_id).forEach(d=>{const w=WORKERS.find(x=>x.id===d.trabajador_id);if(w)getRow(w,normSem(d.semana)).cfdi.push({amt:_amt(d)});});
-  const rows=[...map.values()].filter(o=>o.sem);
-  rows.forEach(o=>{
-    let esp=0; try{esp=Number((nominaSemanal(o.w)||{}).neto)||0;}catch(e){esp=Number(o.w.sal_semanal)||0;}
-    o.esp=esp;
-    o.pagCheque=o.chq.filter(c=>String(c.estatus||'').toUpperCase()!=='CANCELADO'&&c.importe!=null&&c.importe!=='').reduce((s,c)=>s+(Number(c.importe)||0),0);
-    o.pagTransf=o.pag.filter(p=>String(p.estado||'').toUpperCase()==='EXITOSO').reduce((s,p)=>s+(Number(p.importe)||0),0);
-    o.pagado=o.pagCheque+o.pagTransf;
-    o.hasCFDI=o.cfdi.length>0;
-    o.cfdiAmt=o.cfdi.reduce((s,c)=>s+(Number(c.amt)||0),0);
-    const chqAct=o.chq.some(c=>String(c.estatus||'').toUpperCase()!=='CANCELADO'&&c.importe);
-    const transfOk=o.pag.some(p=>String(p.estado||'').toUpperCase()==='EXITOSO');
-    const flags=[];
-    if(chqAct&&transfOk)flags.push('DOBLE PAGO');
-    if(o.pagado>0.005&&!o.hasCFDI)flags.push('SIN CFDI');
-    if(o.hasCFDI&&o.pagado<0.005)flags.push('CFDI SIN PAGO');
-    if(o.hasCFDI&&o.cfdiAmt>0&&o.pagado>0.005&&Math.abs(o.pagado-o.cfdiAmt)>1)flags.push('PAGO≠CFDI');
-    if(o.esp>0&&o.pagado>o.esp+1)flags.push('PAGO>ESPERADO');
-    if(o.pagado<0.005&&o.pag.some(p=>String(p.estado||'').toUpperCase()==='RECHAZADO'))flags.push('TRANSF. RECHAZADA');
-    o.flags=flags; o.no=o.w.no_trab;
+/* CONCILIACIÓN TOTAL por una semana cerrada. El esperado sale del snapshot
+   inmutable del cierre/NOI; no se recalcula hoy con datos que pudieron cambiar. */
+function concSemanaDefault(){
+  const cs=(CIERRES||[]).filter(c=>c.estado!=='CANCELADO'&&Number(c.semana)>0);
+  return String(cs.length?Math.max(...cs.map(c=>Number(c.semana))):parseInt(normSem(semObra()))||isoWeekDe(OBRA,new Date()));
+}
+async function concFuentesSemana(ns){
+  const n=parseInt(normSem(ns))||0;if(!n)throw new Error('Semana inválida');
+  const [{data:ch,error:ech},{data:pg,error:epg},{data:cc,error:ecc},{data:cn,error:ecn},docRpc]=await Promise.all([
+    fetchAllRows(()=>sb.from('cheques').select('*').eq('obra_id',OBRA.id)),
+    fetchAllRows(()=>sb.from('pagos').select('*').eq('obra_id',OBRA.id)),
+    fetchAllRows(()=>sb.from('control_cierres_nomina').select('*').eq('obra_id',OBRA.id).eq('semana',n).neq('estado','CANCELADO')),
+    fetchAllRows(()=>sb.from('control_conciliacion_noi').select('*').eq('obra_id',OBRA.id)),
+    sb.rpc('conciliacion_documental_semana',{p_obra:OBRA.id,p_semana:n})
+  ]);
+  if(ech||epg||ecc||ecn)throw new Error((ech||epg||ecc||ecn).message);
+  CHEQUES=(ch||[]).filter(c=>!c.eliminado);PAGOS=pg||[];
+  CIERRES=(CIERRES||[]).filter(c=>!(c.obra_id===OBRA.id&&Number(c.semana)===n)).concat(cc||[]);
+  CTRLNOI=cn||[];
+  if(!docRpc.error)return docRpc.data||[];
+  /* Compatibilidad durante el despliegue: si aún falta la migración 80,
+     consulta los documentos paginados y filtrados por la obra. */
+  const {data:docs,error:ed}=await fetchAllRows(()=>sb.from('documentos')
+    .select('trabajador_id,categoria,semana,nombre_archivo,created_at')
+    .eq('obra_id',OBRA.id).eq('anulado',false).in('categoria',RECIBO_CATS));
+  if(ed)throw new Error(ed.message);
+  const m=new Map();
+  (docs||[]).filter(d=>normSem(d.semana)===String(n)).forEach(d=>{
+    let x=m.get(d.trabajador_id);if(!x){x={trabajador_id:d.trabajador_id,recibos_pdf:0,cfdi_xml:0,cfdi_total:0,ultimo_documento:d.created_at};m.set(d.trabajador_id,x);}
+    if(String(d.categoria).toUpperCase()==='RECIBO_NOMINA')x.recibos_pdf++;
+    if(String(d.categoria).toUpperCase()==='CFDI_NOMINA'){
+      x.cfdi_xml++;const z=String(d.nombre_archivo||'').match(/\$\s*([\d,]+(?:\.\d+)?)/);x.cfdi_total+=z?Number(z[1].replace(/,/g,'')):0;
+    }
   });
-  rows.sort((a,b)=>((b.flags.length>0)-(a.flags.length>0))||((parseInt(b.sem)||0)-(parseInt(a.sem)||0))||((a.no||9e9)-(b.no||9e9)));
-  window._CONC=rows; concRender();
+  return [...m.values()];
+}
+async function concBuild(){
+  const ns=normSem($('conc-sem')?$('conc-sem').value:concSemanaDefault());
+  if(!ns){toast('Indica una semana válida.','err');return;}
+  const out=$('conc-out');if(out)out.innerHTML=skeletonRows(8,'1.4fr .8fr .8fr .8fr .8fr .8fr 1.5fr','Conciliando cierre, pagos y comprobantes...');
+  const btn=$('conc-refresh');if(btn)btn.disabled=true;
+  try{
+    const docs=await concFuentesSemana(ns), dm=new Map((docs||[]).map(x=>[x.trabajador_id,x]));
+    const map=new Map(), getRow=w=>{let o=map.get(w.id);if(!o){o={w,sem:ns,chq:[],pag:[],esp:0,tipos:new Set()};map.set(w.id,o);}return o;};
+    ctrlEsperadosPagoSemana(ns).forEach(e=>{const o=getRow(e.w);o.esp+=Number(e.monto)||0;o.tipos.add(e.tipo||'NOMINA');});
+    (CHEQUES||[]).filter(c=>!c.eliminado&&c.trabajador_id&&normSem(c.semana)===ns&&String(c.estatus||'').toUpperCase()!=='CANCELADO')
+      .forEach(c=>{const w=WORKERS.find(x=>x.id===c.trabajador_id);if(w)getRow(w).chq.push(c);});
+    (PAGOS||[]).filter(p=>p.trabajador_id&&normSem(p.semana)===ns)
+      .forEach(p=>{const w=WORKERS.find(x=>x.id===p.trabajador_id);if(w)getRow(w).pag.push(p);});
+    dm.forEach((d,tid)=>{const w=WORKERS.find(x=>x.id===tid);if(w)getRow(w);});
+    const rows=[...map.values()];
+    rows.forEach(o=>{
+      const d=dm.get(o.w.id)||{};
+      const chqPag=o.chq.filter(c=>['EXPEDIDO','ENTREGADO'].includes(String(c.estatus||'').toUpperCase()));
+      const chqPend=o.chq.filter(c=>String(c.estatus||'').toUpperCase()==='PENDIENTE');
+      const transfOk=o.pag.filter(p=>String(p.estado||'').toUpperCase()==='EXITOSO');
+      o.pagCheque=chqPag.reduce((s,c)=>s+(Number(c.importe)||0),0);
+      o.chequePendiente=chqPend.reduce((s,c)=>s+(Number(c.importe)||0),0);
+      o.pagTransf=transfOk.reduce((s,p)=>s+(Number(p.importe)||0),0);o.pagado=o.pagCheque+o.pagTransf;
+      o.pdfN=Number(d.recibos_pdf)||0;o.xmlN=Number(d.cfdi_xml)||0;o.cfdiAmt=Number(d.cfdi_total)||0;
+      o.info=[];o.flags=[];
+      if(chqPag.length&&transfOk.length)o.flags.push('DOBLE PAGO');
+      if(o.esp>0.005&&o.pagado<0.005)o.flags.push(chqPend.length?'CHEQUE SIN EXPEDIR':'SIN PAGO');
+      if(o.pagado>0.005&&!o.pdfN&&!o.xmlN)o.flags.push('SIN COMPROBANTE');
+      if((o.pdfN||o.xmlN)&&o.pagado<0.005&&!chqPend.length)o.flags.push('COMPROBANTE SIN PAGO');
+      if(o.xmlN&&o.cfdiAmt>0&&o.pagado>0.005&&Math.abs(o.pagado-o.cfdiAmt)>0.01)o.flags.push('PAGO≠CFDI XML');
+      if(o.esp>0&&o.pagado>o.esp+0.01)o.flags.push('PAGO>ESPERADO');
+      if(o.pagado<0.005&&o.pag.some(p=>String(p.estado||'').toUpperCase()==='RECHAZADO'))o.flags.push('TRANSF. RECHAZADA');
+      if(o.pdfN&&!o.xmlN)o.info.push('PDF CARGADO · XML PENDIENTE');
+      if(o.xmlN&&!o.pdfN)o.info.push('XML CARGADO · PDF PENDIENTE');
+      o.no=o.w.no_trab;
+    });
+    rows.sort((a,b)=>((b.flags.length>0)-(a.flags.length>0))||((a.no||9e9)-(b.no||9e9)));
+    window._CONC=rows;window._CONCSEM=ns;concRender();
+  }catch(e){if(out)out.innerHTML=`<div class="empty" style="color:var(--red)">No se pudo conciliar: ${esc(e.message||e)}</div>`;}
+  finally{if(btn)btn.disabled=false;}
 }
 function concRender(){
   const rows=window._CONC||[];
-  const fs=normSem($('conc-sem')?$('conc-sem').value:'');
   const soloDif=$('conc-dif')&&$('conc-dif').checked;
-  const filt=rows.filter(o=>(!fs||o.sem===fs)&&(!soloDif||o.flags.length));
-  const nFlag=rows.filter(o=>o.flags.length).length;
+  const filt=rows.filter(o=>!soloDif||o.flags.length),nFlag=rows.filter(o=>o.flags.length).length;
   const m2=v=>v?'$'+money(v):'—';
-  const body=filt.map(o=>`<div class="imp-row" style="grid-template-columns:1.5fr .45fr .9fr .9fr .9fr .8fr 1.4fr${o.flags.length?';background:var(--amber-bg)':''}">
+  window._CONCVIEW=filt;
+  const body=filt.map(o=>`<div class="imp-row" style="grid-template-columns:1.5fr .8fr .8fr .8fr .72fr .72fr 1.55fr${o.flags.length?';background:var(--amber-bg)':''}">
     <span><b>${esc(fullName(o.w))}</b><br><span style="color:var(--mut);font-size:10.5px">#${o.no??'—'}</span></span>
-    <span style="font-size:12px">S${esc(o.sem)}</span>
     <span style="font-size:11.5px">${m2(o.esp)}</span>
-    <span style="font-size:11.5px">${o.pagCheque?'🧾 '+m2(o.pagCheque):'—'}</span>
+    <span style="font-size:11.5px">${o.pagCheque?'🧾 '+m2(o.pagCheque):o.chequePendiente?'<span style="color:var(--amber)">pend. '+m2(o.chequePendiente)+'</span>':'—'}</span>
     <span style="font-size:11.5px">${o.pagTransf?'💸 '+m2(o.pagTransf):'—'}</span>
-    <span style="font-size:11.5px">${o.hasCFDI?'🧾 '+(o.cfdiAmt?m2(o.cfdiAmt):'sí'):'<span style="color:var(--red)">no</span>'}</span>
-    <span style="font-size:10px">${o.flags.length?o.flags.map(f=>`<span class="imp-tag imp-CONFLICTO" style="font-size:9px">${f}</span>`).join(' '):'<span style="color:var(--green)">✔</span>'}</span>
+    <span style="font-size:11.5px">${o.pdfN?'<b style="color:var(--green)">✔ '+o.pdfN+'</b>':'—'}</span>
+    <span style="font-size:11.5px">${o.xmlN?'<b style="color:var(--green)">✔ '+o.xmlN+'</b><br><small>'+m2(o.cfdiAmt)+'</small>':'—'}</span>
+    <span style="font-size:10px">${o.flags.length?o.flags.map(f=>`<span class="imp-tag imp-CONFLICTO" style="font-size:9px">${f}</span>`).join(' '):'<span style="color:var(--green)">✔ CUADRADO</span>'}${o.info.length?'<br><span style="color:var(--mut)">'+o.info.join(' · ')+'</span>':''}</span>
   </div>`).join('');
   $('conc-out').innerHTML=`
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
       ${nFlag?`<span class="imp-tag imp-CONFLICTO" style="background:var(--red);color:#fff">⚠ ${nFlag} con diferencia</span>`:'<span class="imp-tag imp-COINCIDE">Todo cuadra</span>'}
       <span style="font-size:11px;color:var(--mut)">${filt.length} renglón(es)</span>
-      <span style="margin-left:auto;font-size:12px">Semana <input id="conc-sem" style="width:70px;padding:4px 6px" placeholder="todas" value="${$('conc-sem')?esc($('conc-sem').value):''}" oninput="concRender()"> · <label style="font-size:12px"><input type="checkbox" id="conc-dif" style="width:auto" ${soloDif?'checked':''} onchange="concRender()"> solo diferencias</label></span>
     </div>
-    <div class="imp-row head" style="grid-template-columns:1.5fr .45fr .9fr .9fr .9fr .8fr 1.4fr"><span>Trabajador</span><span>Sem</span><span>Esperado</span><span>Cheque</span><span>Transfer.</span><span>CFDI</span><span>Alertas</span></div>
+    <div class="imp-row head" style="grid-template-columns:1.5fr .8fr .8fr .8fr .72fr .72fr 1.55fr"><span>Trabajador</span><span>Esperado cierre/NOI</span><span>Cheque pagado</span><span>Transferencia</span><span>Recibo PDF</span><span>CFDI XML</span><span>Resultado</span></div>
     ${body||'<div class="empty">Sin movimientos de dinero para ese filtro.</div>'}
-    <p style="font-size:11px;color:var(--mut);margin-top:8px">"Esperado" es el neto que arroja el motor de nómina (base, sin faltas): si hubo faltas el pago real será menor y es normal. Se resaltan sobre todo <b>pagos sin CFDI</b>, <b>dobles pagos</b> y <b>pagos por encima del esperado</b>. Solo cruza información; no modifica nada.</p>`;
+    <p style="font-size:11px;color:var(--mut);margin-top:8px">El <b>recibo PDF</b> y el <b>CFDI XML</b> se controlan por separado. Un PDF existente ya no aparece como “sin comprobante”; si falta el XML se muestra como seguimiento informativo. Los cheques PENDIENTES no cuentan como pagados hasta quedar EXPEDIDOS o ENTREGADOS.</p>`;
 }
 function openConciliacion(){
+  const sem=concSemanaDefault();
   modal(`<div class="m-head"><h2>🔎 Conciliación total · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);font-size:12.5px;margin-bottom:8px">Cruza, por trabajador y semana, lo que <b>arroja el motor</b> (esperado) contra lo <b>pagado</b> (cheques en cualquier estatus + transferencias) y el <b>CFDI timbrado</b>. Para tener control absoluto de cada salida de dinero.</p>
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:8px">Cruza la foto inmutable del <b>cierre/NOI</b> contra transferencias, cheques realmente expedidos, recibos PDF y CFDI XML de la misma semana.</p>
+      <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:10px"><div><label>Semana</label><input id="conc-sem" style="width:90px" value="S${sem}"></div><button class="btn dark" id="conc-refresh" onclick="concBuild()">↻ Conciliar</button><label style="font-size:12px;margin-left:auto"><input type="checkbox" id="conc-dif" style="width:auto" onchange="concRender()"> solo diferencias</label></div>
       <div id="conc-out"></div>
     </div>
     <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button><button class="btn dark" onclick="exportConciliacion()">⬇ Exportar Excel</button></div>`,'xl');
   concBuild();
 }
 function exportConciliacion(){
-  const rows=window._CONC||[]; if(!rows.length){toast('No hay movimientos para exportar.','err');return;}
+  const rows=window._CONCVIEW||window._CONC||[]; if(!rows.length){toast('No hay movimientos para exportar.','err');return;}
   const aoa=[],styles=[];
-  aoa.push([`CONCILIACIÓN TOTAL — ${OBRA.nombre} — ${new Date().toLocaleDateString('es-MX')}`]);styles.push(ST.title);
-  aoa.push(['NO.','TRABAJADOR','SEMANA','ESPERADO (MOTOR)','CHEQUE','TRANSFERENCIA','CFDI','ALERTAS']);styles.push(ST.head);
-  const rs=[ST.cellC,ST.cell,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cell];
-  rows.forEach(o=>{aoa.push([o.no??'',fullName(o.w),'S'+o.sem,o.esp||'',o.pagCheque||'',o.pagTransf||'',o.hasCFDI?(o.cfdiAmt||'SÍ'):'NO',o.flags.join(' | ')]);styles.push(rs);});
-  const ws=buildSheet(aoa,styles,[7,30,8,16,14,14,12,34],[{s:{r:0,c:0},e:{r:0,c:7}}],[{hpt:24},{hpt:26}]);
-  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:1+rows.length,c:7}})};
+  aoa.push([`CONCILIACIÓN TOTAL S${window._CONCSEM||''} — ${OBRA.nombre} — ${new Date().toLocaleDateString('es-MX')}`]);styles.push(ST.title);
+  aoa.push(['NO.','TRABAJADOR','SEMANA','ESPERADO CIERRE/NOI','CHEQUE PAGADO','CHEQUE PENDIENTE','TRANSFERENCIA','RECIBO PDF','CFDI XML','TOTAL CFDI','RESULTADO']);styles.push(ST.head);
+  const rs=[ST.cellC,ST.cell,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cell];
+  rows.forEach(o=>{aoa.push([o.no??'',fullName(o.w),'S'+o.sem,o.esp||'',o.pagCheque||'',o.chequePendiente||'',o.pagTransf||'',o.pdfN,o.xmlN,o.cfdiAmt||'',o.flags.concat(o.info).join(' | ')||'CUADRADO']);styles.push(rs);});
+  const ws=buildSheet(aoa,styles,[7,30,8,18,15,16,15,12,11,14,38],[{s:{r:0,c:0},e:{r:0,c:10}}],[{hpt:24},{hpt:26}]);
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:1+rows.length,c:10}})};
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'CONCILIACION');
-  dl(wb,`CONCILIACION_TOTAL_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}_${today()}.xlsx`);
+  dl(wb,`CONCILIACION_TOTAL_S${window._CONCSEM||''}_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}_${today()}.xlsx`);
   toast('Excel de conciliación generado.','ok');
 }
 async function verDoc(docId){
@@ -9833,9 +9874,9 @@ function openCfdiImport(){
   modal(`
     <div class="m-head"><h2>🧾 Importar CFDI de nómina timbrados (XML)</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:12px">Sube los XML timbrados que salen de Aspel NOI / tu PAC. La app lee el RFC del receptor y el folio fiscal (UUID), los cruza con los trabajadores y archiva cada recibo en su expediente con validez fiscal. Nada se guarda sin tu confirmación.</p>
+      <p style="color:var(--mut);margin-bottom:12px">Sube los XML timbrados que salen de Aspel NOI / tu PAC. La app lee RFC, CURP, UUID, total y periodo de pago, los cruza solo con los trabajadores de este centro y propone la semana correcta. Nada se guarda sin tu confirmación.</p>
       <div class="grid" style="grid-template-columns:180px 1fr;align-items:end;margin-bottom:10px">
-        <div><label>Semana (opcional)</label><input id="cf-sem" placeholder="S15" value="S${isoWeek()}"></div>
+        <div><label>Forzar semana (opcional)</label><input id="cf-sem" placeholder="automática"></div>
         <div><input type="file" id="cf-files" accept=".xml" multiple onchange="parseCfdi(this)"></div>
       </div>
       <div id="cf-prev" style="max-height:380px;overflow:auto"></div>
@@ -9848,21 +9889,33 @@ function openCfdiImport(){
 async function parseCfdi(inp){
   CFDIIMP=[];
   $('cf-prev').innerHTML=skeletonRows(6,'26px 1.6fr 1.2fr 1fr','Leyendo los CFDI timbrados...');
-  const {data:allW}=await sb.from('trabajadores').select('id,obra_id,rfc,curp,primer_apellido,segundo_apellido,nombres').eq('eliminado',false);
+  const {data:allW,error:werr}=await fetchAllRows(()=>sb.from('trabajadores')
+    .select('id,obra_id,rfc,curp,primer_apellido,segundo_apellido,nombres')
+    .eq('obra_id',OBRA.id).eq('eliminado',false));
+  if(werr){$('cf-prev').innerHTML=`<div class="empty" style="color:var(--red)">No se pudo cargar el padrón: ${esc(werr.message)}</div>`;return;}
+  const limpio=x=>String(x||'').toUpperCase().replace(/\s+/g,'');
   for(const file of inp.files){
     try{
       const txt=await file.text();
       const doc=new DOMParser().parseFromString(txt,'application/xml');
-      const rec=doc.getElementsByTagName('cfdi:Receptor')[0]||doc.getElementsByTagName('Receptor')[0];
-      const tfd=doc.getElementsByTagName('tfd:TimbreFiscalDigital')[0]||doc.getElementsByTagName('TimbreFiscalDigital')[0];
+      if(doc.getElementsByTagName('parsererror').length)throw new Error('XML mal formado');
+      const nodo=n=>Array.from(doc.getElementsByTagName('*')).find(x=>String(x.localName||x.nodeName).split(':').pop()===n);
+      const rec=nodo('Receptor'),tfd=nodo('TimbreFiscalDigital'),nom=nodo('Nomina');
+      const nomRec=Array.from(doc.getElementsByTagName('*')).find(x=>String(x.localName||x.nodeName).split(':').pop()==='Receptor'&&x.parentNode&&String(x.parentNode.localName||x.parentNode.nodeName).split(':').pop()==='Nomina');
       const comp=doc.documentElement;
-      const rfc=(rec?rec.getAttribute('Rfc')||rec.getAttribute('rfc'):'')||'';
+      const rfc=limpio(rec?(rec.getAttribute('Rfc')||rec.getAttribute('rfc')):'');
+      const curp=limpio(nomRec?(nomRec.getAttribute('Curp')||nomRec.getAttribute('CURP')):'');
       const nombre=(rec?rec.getAttribute('Nombre')||'':'')||'';
-      const uuid=(tfd?tfd.getAttribute('UUID'):'')||'';
+      const uuid=limpio(tfd?tfd.getAttribute('UUID'):'');
       const fecha=(comp.getAttribute('Fecha')||'').slice(0,10);
       const total=comp.getAttribute('Total')||'';
-      const w=(allW||[]).find(x=>x.rfc&&x.rfc===rfc.toUpperCase());
-      CFDIIMP.push({name:file.name,txt,rfc:rfc.toUpperCase(),nombre,uuid,fecha,total,w,sel:!!(w&&uuid)});
+      const fechaPago=(nom?(nom.getAttribute('FechaPago')||''):'').slice(0,10);
+      const periodoInicio=(nom?(nom.getAttribute('FechaInicialPago')||''):'').slice(0,10);
+      const periodoFin=(nom?(nom.getAttribute('FechaFinalPago')||''):'').slice(0,10);
+      const baseSem=periodoFin||fechaPago||fecha;
+      const semSugerida=baseSem?'S'+isoWeekDe(OBRA,new Date(baseSem+'T12:00')):'';
+      const w=(allW||[]).find(x=>limpio(x.rfc)&&limpio(x.rfc)===rfc)||(curp?(allW||[]).find(x=>limpio(x.curp)===curp):null);
+      CFDIIMP.push({name:file.name,txt,rfc,curp,nombre,uuid,fecha,total,fechaPago,periodoInicio,periodoFin,semSugerida,w,sel:!!(w&&uuid)});
     }catch(e){CFDIIMP.push({name:file.name,error:String(e).slice(0,60),sel:false});}
   }
   // v31: duplicados — por folio fiscal (UUID) dentro del lote y contra lo ya archivado
@@ -9872,11 +9925,12 @@ async function parseCfdi(inp){
       if(vistos[x.uuid]){x.dup='MISMO LOTE: '+vistos[x.uuid];x.sel=false;}
       else vistos[x.uuid]=x.name;
     });
-    const paths=CFDIIMP.filter(x=>!x.error&&!x.dup&&x.w&&x.uuid).map(x=>`${x.w.id}/CFDI_NOMINA/${x.uuid}.xml`);
-    if(paths.length){
-      const {data}=await sb.from('documentos').select('archivo,created_at').eq('anulado',false).in('archivo',paths);
+    const uuids=[...new Set(CFDIIMP.filter(x=>!x.error&&!x.dup&&x.w&&x.uuid).map(x=>x.uuid))];
+    if(uuids.length){
+      const {data}=await fetchAllRows(()=>sb.from('documentos').select('cfdi_uuid,archivo,created_at')
+        .eq('obra_id',OBRA.id).eq('anulado',false).in('cfdi_uuid',uuids));
       (data||[]).forEach(d=>{
-        const x=CFDIIMP.find(z=>z.w&&z.uuid&&`${z.w.id}/CFDI_NOMINA/${z.uuid}.xml`===d.archivo);
+        const x=CFDIIMP.find(z=>z.w&&z.uuid&&(z.uuid===d.cfdi_uuid||`${z.w.id}/CFDI_NOMINA/${z.uuid}.xml`===d.archivo));
         if(x&&!x.dup){x.dup=`YA ARCHIVADO (${fmtD(d.created_at)})`;x.sel=false;}
       });
     }
@@ -9889,9 +9943,9 @@ async function parseCfdi(inp){
       :`<div class="imp-row" style="grid-template-columns:26px 1.4fr 1.2fr 1fr .8fr${x.dup?';background:var(--amber-bg)':''}">
         <span><input type="checkbox" style="width:auto" ${x.sel?'checked':''} onchange="CFDIIMP[${i}].sel=this.checked"></span>
         <span>${esc(x.name)}<br><span style="color:var(--mut);font-size:10.5px">${esc(x.uuid)||'SIN UUID (¿no timbrado?)'}</span>${x.dup?`<br><span style="color:var(--amber);font-size:11px;font-weight:700">⚠ DUPLICADO: ${esc(x.dup)}</span>`:''}</span>
-        <span>${esc(x.nombre)}<br><span style="color:var(--mut);font-size:11px">${esc(x.rfc)}</span></span>
+        <span>${esc(x.nombre)}<br><span style="color:var(--mut);font-size:11px">${esc(x.rfc)}${x.curp?' · '+esc(x.curp):''}</span></span>
         <span class="imp-tag ${x.dup?'imp-SINREGISTRO':x.w?'imp-ASIGNAR':'imp-SINREGISTRO'}">${x.dup?'DUPLICADO':x.w?esc([x.w.primer_apellido,x.w.nombres].join(' ')).slice(0,22):'RFC NO ENCONTRADO'}</span>
-        <span>$${esc(x.total)}<br><span style="color:var(--mut);font-size:10.5px">${esc(x.fecha)}</span></span>
+        <span>$${esc(x.total)}<br><span style="color:var(--mut);font-size:10.5px">${esc(x.semSugerida||'semana no detectada')} · ${esc(x.periodoInicio||x.fecha)}${x.periodoFin?' a '+esc(x.periodoFin):''}</span></span>
       </div>`).join('')}
     ${CFDIIMP.some(x=>x.dup)?'<div class="fhint" style="margin-top:8px">Los marcados como DUPLICADO tienen el mismo folio fiscal (UUID) que uno ya archivado y vienen desmarcados.</div>':''}`;
   $('cf-btn').classList.remove('hide');
@@ -9902,14 +9956,16 @@ async function applyCfdi(){
   if(!confirm(`¿Archivar ${sel.length} CFDI timbrado(s) en los expedientes?`))return;
   $('cf-btn').innerHTML='<span class="spin"></span> Archivando...';
   markWrite();
-  const sem=$('cf-sem').value.trim().toUpperCase();
+  const semManual=normSem($('cf-sem').value);
   let ok=0,fail=0;
   for(const x of sel){
+    const sem='S'+(semManual||normSem(x.semSugerida)||normSem(semObra()));
     const path=`${x.w.id}/CFDI_NOMINA/${x.uuid}.xml`;
     const {error:e1}=await sb.storage.from('expedientes').upload(path,new Blob([x.txt],{type:'application/xml'}),{upsert:true});
     if(e1){fail++;continue;}
     const fila={trabajador_id:x.w.id,obra_id:x.w.obra_id,categoria:'CFDI_NOMINA',
-      subtipo:'CFDI TIMBRADO',semana:sem,fecha_doc:x.fecha||null,archivo:path,nombre_archivo:`${x.uuid}.xml ($${x.total})`,subido_por:USER.email,
+      subtipo:'CFDI TIMBRADO',semana:sem,fecha_doc:x.fechaPago||x.fecha||null,archivo:path,nombre_archivo:`${x.uuid}.xml ($${x.total})`,subido_por:USER.email,
+      cfdi_uuid:x.uuid,cfdi_total:Number(x.total)||null,cfdi_fecha_pago:x.fechaPago||null,periodo_inicio:x.periodoInicio||null,periodo_fin:x.periodoFin||null,mime_type:'application/xml',
       hash:await sha256Hex(new TextEncoder().encode(x.txt))};
     let {error:e2}=await sb.from('documentos').insert(fila);
     if(e2&&/hash/i.test(e2.message||'')){delete fila.hash;({error:e2}=await sb.from('documentos').insert(fila));}
@@ -11738,13 +11794,14 @@ function domingoDeSemana(sem){
    int (norm_semana), así que app y base también estaban en desacuerdo. */
 const normSem=s=>{const n=String(s??'').replace(/\D/g,'');return n?String(parseInt(n,10)):'';};
 
-/* Un recibo de nómina puede quedar archivado como RECIBO_NOMINA o como
-   CFDI_NOMINA. La ficha del trabajador acepta las dos categorías; los legajos
-   solo aceptaban la primera — segunda causa de los falsos negativos.
-   A partir de aquí TODO el que busque un recibo pasa por recibosDe(): una sola
-   regla, para que la ficha, los legajos y las alertas no puedan discrepar. */
+/* RECIBO_NOMINA es la representación PDF imprimible; CFDI_NOMINA es el XML
+   fiscal. Ambos prueban que existe un comprobante, pero no son intercambiables:
+   un XML no se manda a pdf.js y un PDF no se anuncia como XML timbrado. */
 const RECIBO_CATS=['RECIBO_NOMINA','CFDI_NOMINA'];
-const esRecibo=d=>d&&!d.anulado&&RECIBO_CATS.includes(String(d.categoria||'').toUpperCase());
+const esReciboPdf=d=>d&&!d.anulado&&String(d.categoria||'').toUpperCase()==='RECIBO_NOMINA';
+const esCfdiXml=d=>d&&!d.anulado&&String(d.categoria||'').toUpperCase()==='CFDI_NOMINA';
+const esComprobanteNomina=d=>esReciboPdf(d)||esCfdiXml(d);
+const esRecibo=esReciboPdf;
 /* sem === undefined → todos los recibos del trabajador (como la ficha).
    sem con valor      → solo los de esa semana, comparando en forma canónica. */
 function recibosDe(tid,sem){
@@ -11753,10 +11810,16 @@ function recibosDe(tid,sem){
   return (DOCSX||[]).filter(d=>esRecibo(d)&&d.trabajador_id===tid
     &&(ns===null||normSem(d.semana)===ns));
 }
+function cfdisDe(tid,sem){
+  if(!tid)return [];
+  const ns=(sem===undefined||sem===null||sem==='')?null:normSem(sem);
+  return (DOCSX||[]).filter(d=>esCfdiXml(d)&&d.trabajador_id===tid
+    &&(ns===null||normSem(d.semana)===ns));
+}
 /* Índice "trabajador|semana" de todos los recibos archivados. Lo usan las
    alertas de recibos faltantes; se arma una vez y se consulta muchas. */
 function recSetGlobal(){
-  return new Set((DOCSX||[]).filter(esRecibo).map(d=>d.trabajador_id+'|'+normSem(d.semana)));
+  return new Set((DOCSX||[]).filter(esReciboPdf).map(d=>d.trabajador_id+'|'+normSem(d.semana)));
 }
 async function pdfBytesToImgs(bytes,scale){
   const doc=await pdfjsLib.getDocument({data:bytes}).promise; const out=[];
@@ -11963,17 +12026,21 @@ ${RENUNCIA_CSS}`;
   toast(`Documento armado: ${q.length} legajo(s) en el orden de la fila${faltan.length?` · ${faltan.length} sin recibo (revísalos)`:''}. Imprime o guarda como PDF.`,faltan.length?'err':'ok');
   if(faltan.length)setTimeout(()=>alert('Estos NO traen recibo de nómina archivado (revísalos e impórtalos si aplica):\n\n• '+faltan.join('\n• ')),600);
 }
-/* ---------- AVISO: recibos de nómina faltantes por trabajador (2026-08-03) ----
-   Desde la fecha de alta de cada trabajador y hasta la semana pasada, detecta qué
-   semanas NO tienen recibo de nómina archivado (RECIBO_NOMINA). Usa activoEn para
-   respetar reingresos/bajas. La semana en curso no cuenta. Quincenales aparte. */
-/* Semanas SIN recibo de nómina archivado de UN trabajador (desde su alta hasta la
-   semana pasada; respeta reingresos/bajas; quincenales quedan fuera). Fuente única
-   usada por el reporte "Faltan recibos" Y por la ficha del trabajador. */
+/* Faltantes documentales: cuando hay cierres, el padrón exigible sale de sus
+   snapshots (incluye nómina y finiquitos). Así una baja no se exige en semanas
+   en las que ya no formó parte del cierre. */
 function lunesDe(f){const d=new Date(String(f).slice(0,10)+'T12:00');
   d.setDate(d.getDate()-((d.getDay()+6)%7));return d.toISOString().slice(0,10);}
 function faltantesReciboDe(w,recSet){
-  if(!w||!w.fecha_alta||String(w.periodo_pago||'SEMANAL')==='QUINCENAL')return [];
+  if(!w||!w.fecha_alta)return [];
+  const cs=(CIERRES||[]).filter(c=>c.estado!=='CANCELADO'&&c.snapshot&&Array.isArray(c.snapshot.items)
+    &&c.snapshot.items.some(x=>x.trabajador_id===w.id||Number(x.numero)===Number(w.no_trab)));
+  if(cs.length){
+    return [...new Set(cs.map(c=>Number(c.semana)).filter(Boolean))].sort((a,b)=>a-b)
+      .filter(W=>!(recSet?recSet.has(w.id+'|'+String(W)):recibosDe(w.id,W).length));
+  }
+  /* Compatibilidad con obras que todavía no tienen cierres guardados. */
+  if(String(w.periodo_pago||'SEMANAL')==='QUINCENAL')return [];
   const hoyW=isoWeekDe(OBRA,new Date());
   const base=new Date((OBRA.fecha_inicio?String(OBRA.fecha_inicio).slice(0,10):SEMANA1)+'T12:00');
   const monISO=W=>{const d=new Date(base);d.setDate(base.getDate()+(W-1)*7);return d.toISOString().slice(0,10);};
@@ -11997,44 +12064,47 @@ function faltantesReciboDe(w,recSet){
   return falt;
 }
 function openFaltanRecibos(){
-  const filas=[];
-  WORKERS.filter(w=>w.fecha_alta&&String(w.periodo_pago||'SEMANAL')!=='QUINCENAL').forEach(w=>{
-    const falt=faltantesReciboDe(w);
-    if(falt.length)filas.push({w,falt});
-  });
-  filas.sort((a,b)=>b.falt.length-a.falt.length||((a.w.no_trab)||9e9)-((b.w.no_trab)||9e9));
-  window._FALTREC=filas;
-  const totalFalt=filas.reduce((s,x)=>s+x.falt.length,0);
+  const sem=concSemanaDefault();
   modal(`
     <div class="m-head"><h2>📋 Faltan recibos de nómina · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Desde la <b>fecha de alta</b> de cada trabajador (y hasta la semana pasada), detecta qué semanas <b>no tienen recibo de nómina archivado</b> (categoría RECIBO DE NÓMINA). Respeta reingresos y bajas. La semana en curso no se cuenta (aún no se paga). Los <b>quincenales</b> (oficina) se revisan aparte.</p>
-      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-        <span class="imp-tag imp-CONFLICTO">${filas.length} trabajador(es) con faltantes</span>
-        <span class="imp-tag imp-SINREGISTRO">${totalFalt} recibo(s) faltantes</span>
-      </div>
-      ${filas.length?`<div class="imp-row head" style="grid-template-columns:1.5fr 2.5fr"><span>Trabajador</span><span>Semanas sin recibo</span></div>
-      ${filas.map(x=>`<div class="imp-row" style="grid-template-columns:1.5fr 2.5fr">
-        <span><b>${esc(fullName(x.w))}</b> ${x.w.estatus==='BAJA'?'<span class="badge BAJA" style="font-size:9.5px">BAJA</span>':''}<br><span style="color:var(--mut);font-size:11px">#${x.w.no_trab??'—'} · alta ${fmtD(x.w.fecha_alta)}</span></span>
-        <span style="font-size:12px">${x.falt.map(W=>'<span class="badge PENDIENTE" style="font-size:10px;margin:1px">S'+W+'</span>').join(' ')}</span>
-      </div>`).join('')}`:'<div class="empty">✔ Todos tienen sus recibos de nómina archivados (semanas cerradas).</div>'}
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Revisa una semana cerrada: toma exactamente a quienes aparecen en el cierre/NOI y confirma si tienen su <b>recibo PDF</b> archivado. El XML fiscal se muestra aparte.</p>
+      <div style="display:flex;gap:8px;align-items:end;margin-bottom:10px"><div><label>Semana</label><input id="fr-sem" style="width:90px" value="S${sem}"></div><button class="btn dark" id="fr-btn" onclick="frecCargar()">↻ Revisar</button></div>
+      <div id="fr-out">${skeletonRows(6,'1.6fr .7fr .7fr','Verificando recibos...')}</div>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cerrar</button>
-      ${filas.length?`<button class="btn dark" onclick="exportFaltanRecibos()">⬇ Exportar Excel</button>`:''}
+      <button class="btn dark hide" id="fr-export" onclick="exportFaltanRecibos()">⬇ Exportar Excel</button>
     </div>`,'lg');
+  frecCargar();
+}
+async function frecCargar(){
+  const ns=normSem($('fr-sem')&&$('fr-sem').value);if(!ns){toast('Indica una semana válida.','err');return;}
+  const out=$('fr-out'),btn=$('fr-btn');if(btn)btn.disabled=true;if(out)out.innerHTML=skeletonRows(6,'1.6fr .7fr .7fr','Verificando cierre y documentos...');
+  try{
+    const docs=await concFuentesSemana(ns),dm=new Map((docs||[]).map(x=>[x.trabajador_id,x]));
+    const esperados=new Map();ctrlEsperadosPagoSemana(ns).forEach(e=>esperados.set(e.w.id,e.w));
+    const todos=[...esperados.values()].sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+    const filas=todos.filter(w=>!(Number((dm.get(w.id)||{}).recibos_pdf)||0)).map(w=>({w,falt:[Number(ns)],xml:Number((dm.get(w.id)||{}).cfdi_xml)||0}));
+    const conPdf=todos.length-filas.length,conXml=todos.filter(w=>Number((dm.get(w.id)||{}).cfdi_xml)>0).length;
+    window._FALTREC=filas;window._FALTRECSEM=ns;
+    $('fr-export').classList.toggle('hide',!filas.length);
+    out.innerHTML=`<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap"><span class="imp-tag imp-ASIGNAR">${todos.length} en cierre/NOI</span><span class="imp-tag imp-COINCIDE">${conPdf} con recibo PDF</span><span class="imp-tag ${filas.length?'imp-CONFLICTO':'imp-COINCIDE'}">${filas.length} faltante(s)</span><span class="imp-tag imp-ASIGNAR">${conXml} con XML fiscal</span></div>
+      ${filas.length?`<div class="imp-row head" style="grid-template-columns:1.6fr .7fr .7fr"><span>Trabajador</span><span>Recibo PDF S${ns}</span><span>CFDI XML</span></div>${filas.map(x=>`<div class="imp-row" style="grid-template-columns:1.6fr .7fr .7fr"><span><b>${esc(fullName(x.w))}</b><br><small>#${x.w.no_trab??'—'} · ${esc(x.w.estatus)}</small></span><span style="color:var(--red)">FALTA</span><span>${x.xml?'✔ '+x.xml:'—'}</span></div>`).join('')}`:`<div class="empty">✔ Los ${todos.length} trabajadores del cierre S${ns} tienen su recibo PDF archivado.</div>`}`;
+  }catch(e){out.innerHTML=`<div class="empty" style="color:var(--red)">No se pudo revisar: ${esc(e.message||e)}</div>`;}
+  finally{if(btn)btn.disabled=false;}
 }
 function exportFaltanRecibos(){
   const filas=window._FALTREC||[]; if(!filas.length)return;
   const rows=[],styles=[];
-  rows.push([`RECIBOS DE NÓMINA FALTANTES — ${OBRA.nombre} — ${new Date().toLocaleDateString('es-MX')}`]);styles.push(ST.title);
-  rows.push(['NO.','TRABAJADOR','ESTATUS','FECHA ALTA','SEMANAS SIN RECIBO','CUÁNTAS']);styles.push(ST.head);
-  const rs=[ST.cellC,ST.cell,ST.cellC,ST.cellC,ST.cell,ST.cellC];
-  filas.forEach(x=>{rows.push([x.w.no_trab??'',fullName(x.w),x.w.estatus,fmtD(x.w.fecha_alta),x.falt.map(W=>'S'+W).join(', '),x.falt.length]);styles.push(rs);});
-  const ws=buildSheet(rows,styles,[8,30,12,13,52,9],[{s:{r:0,c:0},e:{r:0,c:5}}],[{hpt:24},{hpt:26}]);
+  rows.push([`RECIBOS DE NÓMINA FALTANTES S${window._FALTRECSEM||''} — ${OBRA.nombre} — ${new Date().toLocaleDateString('es-MX')}`]);styles.push(ST.title);
+  rows.push(['NO.','TRABAJADOR','ESTATUS','SEMANA','RECIBO PDF','CFDI XML']);styles.push(ST.head);
+  const rs=[ST.cellC,ST.cell,ST.cellC,ST.cellC,ST.cellC,ST.cellC];
+  filas.forEach(x=>{rows.push([x.w.no_trab??'',fullName(x.w),x.w.estatus,'S'+window._FALTRECSEM,'FALTA',x.xml?'CARGADO':'NO CARGADO']);styles.push(rs);});
+  const ws=buildSheet(rows,styles,[8,30,12,10,15,15],[{s:{r:0,c:0},e:{r:0,c:5}}],[{hpt:24},{hpt:26}]);
   ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:1+filas.length,c:5}})};
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'FALTAN RECIBOS');
-  dl(wb,`RECIBOS_FALTANTES_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}_${today()}.xlsx`);
+  dl(wb,`RECIBOS_FALTANTES_S${window._FALTRECSEM||''}_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}_${today()}.xlsx`);
   toast('Excel de recibos faltantes generado.','ok');
 }
 function openRenuncia(id){
