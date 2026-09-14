@@ -531,18 +531,17 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
 .stat{min-width:0}
 .stat .n{font-size:clamp(17px,1.35vw,23px);overflow-wrap:anywhere}
 .tbl-card{max-height:calc(100vh - var(--topbar-h) - 250px)}
-/* La tabla principal reparte las 14 columnas dentro del ancho disponible.
+/* La tabla principal reparte 10 columnas dentro del ancho disponible.
    En portátiles conserva un mínimo compacto; sólo aparece desplazamiento
    horizontal cuando físicamente no caben, principalmente en tablet/móvil. */
-.trab-table{width:100%;min-width:980px;table-layout:fixed}
+.trab-table{width:100%;min-width:820px;table-layout:fixed}
 .trab-table th,.trab-table td{padding-left:clamp(5px,.55vw,12px);padding-right:clamp(5px,.55vw,12px);overflow:hidden;text-overflow:ellipsis}
-.trab-table th:nth-child(1){width:4%}.trab-table th:nth-child(2){width:15%}
-.trab-table th:nth-child(3){width:7%}.trab-table th:nth-child(4){width:11%}
-.trab-table th:nth-child(5),.trab-table th:nth-child(6),.trab-table th:nth-child(7),
-.trab-table th:nth-child(8),.trab-table th:nth-child(9){width:6%}
-.trab-table th:nth-child(10){width:7%}.trab-table th:nth-child(11){width:8%}
-.trab-table th:nth-child(12){width:6%}.trab-table th:nth-child(13){width:7%}
-.trab-table th:nth-child(14){width:5%}
+.trab-table th:nth-child(1){width:4%}.trab-table th:nth-child(2){width:19%}
+.trab-table th:nth-child(3){width:10%}
+.trab-table th:nth-child(4){width:15%}.trab-table th:nth-child(5){width:10%}
+.trab-table th:nth-child(6){width:10%}.trab-table th:nth-child(7){width:9%}
+.trab-table th:nth-child(8){width:9%}.trab-table th:nth-child(9){width:7%}
+.trab-table th:nth-child(10){width:7%}
 /* Encabezados de tabla pegados aunque la tabla sea larguísima */
 thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 /* Ultrawide: más aire alrededor de la columna de contenido */
@@ -863,14 +862,12 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
             <th onclick="setSort('contratista')">Contratista</th>
             <th onclick="setSort('puesto')">Puesto</th>
             <th onclick="setSort('estatus')">Estatus</th>
-            <th onclick="setSort('periodo_pago')">Periodo</th>
-            <th onclick="setSort('fecha_alta')">Fecha alta</th>
+            <th onclick="setSort('fecha_alta')">Fecha de ingreso</th>
             <th onclick="setSort('fecha_baja')">Fecha baja</th>
-            <th onclick="setSort('fecha_reingreso')">Reingreso</th>
             <th onclick="setSort('sal_semanal')">Salario</th>
-            <th>Cuenta</th><th>Banco</th><th>Teléfono</th><th>Docs</th>
+            <th>Cuenta</th><th>Teléfono</th>
           </tr></thead>
-          <tbody id="tbody"><tr class="loading-row"><td colspan="14">Cargando...</td></tr></tbody>
+          <tbody id="tbody"><tr class="loading-row"><td colspan="10">Cargando...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1587,7 +1584,7 @@ async function selectEmpresa(codigo){
 async function loadObraData(id){
   /* v36: esqueletos mientras llegan los datos — la pantalla no se queda en
      blanco ni salta cuando aparecen las filas. */
-  skeletonTabla('tbody',9,14,'Cargando trabajadores...');
+  skeletonTabla('tbody',9,10,'Cargando trabajadores...');
   skeletonTabla('chq-tbody',6,10,'Cargando cheques...');
   skeletonTabla('pg-v-tbody',5,9,'Cargando pagos...');
   const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn}]=await Promise.all([
@@ -2289,6 +2286,11 @@ function renderStats(){
     <div class="stat"><div class="n">${base.length}</div><div class="l">${filtro?'Total del filtro':'Total registro'}</div></div>`;
 }
 function setSort(k){if(SORT.k===k)SORT.asc=!SORT.asc;else{SORT.k=k;SORT.asc=true;}renderTable();}
+/* Misma regla que el centro de alertas: el aviso permanece visible hasta que
+   exista un movimiento con acuse, no sólo durante los primeros 14 días. */
+function altaImssPendiente(w){
+  return !!(w&&w.estatus!=='BAJA'&&w.fecha_alta&&!String(w.movimiento_imss||'').toUpperCase().includes('CON ACUSE'));
+}
 function openResumen(){
   const cs=[...new Set(WORKERS.map(w=>w.contratista||'(SIN CONTRATISTA)'))];
   const rows=cs.map(c=>{
@@ -2338,29 +2340,26 @@ function renderTable(){
   renderStats();
   const k=SORT.k;
   rows.sort((x,y)=>{
-    let a=k==='nombre'?fullName(x):x[k], b=k==='nombre'?fullName(y):y[k];
+    let a=k==='nombre'?fullName(x):(k==='fecha_alta'?(x.fecha_reingreso||x.fecha_alta):x[k]),
+        b=k==='nombre'?fullName(y):(k==='fecha_alta'?(y.fecha_reingreso||y.fecha_alta):y[k]);
     if(a==null||a==='')return 1; if(b==null||b==='')return -1;
     if(typeof a==='number'&&typeof b==='number')return SORT.asc?a-b:b-a;
     return SORT.asc?String(a).localeCompare(String(b)):String(b).localeCompare(String(a));
   });
   window._NAVIDS=rows.map(w=>w.id); // orden actual de la tabla, para las flechas ‹ › de la ficha
-  if(!rows.length){$('tbody').innerHTML='<tr><td colspan="14"><div class="empty"><div class="big">🗂</div>Sin trabajadores que coincidan.<br>Usa <b>＋ Nueva alta</b> para capturar el primero.</div></td></tr>';return;}
+  if(!rows.length){$('tbody').innerHTML='<tr><td colspan="10"><div class="empty"><div class="big">🗂</div>Sin trabajadores que coincidan.<br>Usa <b>＋ Nueva alta</b> para capturar el primero.</div></td></tr>';return;}
   $('tbody').innerHTML=rows.map(w=>`
     <tr onclick="openDetail('${w.id}')">
       <td>${w.no_trab??''}</td>
       <td title="${esc(fullName(w))}"><b>${esc(fullName(w))}</b></td>
       <td title="${esc(w.contratista)}">${esc(w.contratista)}</td>
       <td title="${esc(w.puesto)}">${esc(w.puesto)}</td>
-      <td><span class="badge ${w.estatus}">${w.estatus}</span>${(w.fecha_alta&&w.fecha_alta>=new Date(Date.now()-14*86400000).toISOString().slice(0,10)&&String(w.movimiento_imss||'SIN MOVIMIENTO')==='SIN MOVIMIENTO')?' <span class="badge PENDIENTE" title="Nuevo ingreso: avisar a contadoras para alta IMSS">🆕 IMSS</span>':''}</td>
-      <td><span class="badge ${w.periodo_pago||'SEMANAL'}">${w.periodo_pago==='QUINCENAL'?'QUINCENAL':'SEMANAL'}</span></td>
-      <td>${fmtD(w.fecha_alta)}</td>
+      <td><span class="badge ${w.estatus}">${w.estatus}</span>${altaImssPendiente(w)?' <span class="badge PENDIENTE" title="Alta IMSS pendiente de presentar o de archivar su acuse">⚠ ALTA IMSS</span>':''}</td>
+      <td title="${w.fecha_reingreso?'Fecha de reingreso':'Fecha de ingreso'}">${w.fecha_reingreso?'<b style="color:var(--amber)">'+fmtD(w.fecha_reingreso)+'</b><small style="display:block;color:var(--amber)">REINGRESO</small>':'<b style="color:var(--green)">'+fmtD(w.fecha_alta)+'</b><small style="display:block;color:var(--green)">INGRESO</small>'}</td>
       <td>${w.fecha_baja?'<span style="color:var(--red)">'+fmtD(w.fecha_baja)+'</span>':'—'}</td>
-      <td>${w.fecha_reingreso?'<span style="color:var(--green)">'+fmtD(w.fecha_reingreso)+'</span>':'—'}</td>
       <td>$${money(w.sal_semanal)}</td>
       <td title="${esc(w.cuenta)}">${String(w.cuenta).toUpperCase()==='CREAR'?'<b style="color:var(--amber)">CREAR</b>':esc(w.cuenta)}</td>
-      <td title="${esc(w.banco)}">${esc(w.banco)}</td>
       <td title="${esc(w.telefono)}">${esc(w.telefono)}</td>
-      <td><span class="docs-pill ${docsOk(w)===DOCS.length?'ok':''}">${docsOk(w)}/${DOCS.length}</span></td>
     </tr>`).join('');
 }
 
@@ -3504,9 +3503,9 @@ function _siguienteRid(xml){
   let n=0;for(const m of xml.matchAll(/Id="rId(\d+)"/g))n=Math.max(n,Number(m[1])||0);
   return 'rId'+(n+1);
 }
-/* xlsx-js-style conserva el control de estilos. JSZip únicamente añade al OOXML
-   final el dibujo con el logo y el encabezado legal; no recalcula ni reescribe
-   celdas, fórmulas, anchos o combinaciones. */
+/* xlsx-js-style conserva el control de estilos. El logo se integra, a escala
+   discreta y respetando su proporción, en el extremo derecho de la franja de
+   título. Nunca se coloca sobre los encabezados de columnas ni sobre los datos. */
 async function aplicarMarcaCorporativaXlsx(zip,wb){
   let ct=await zip.file('[Content_Types].xml').async('string');
   if(!/Extension="png"/i.test(ct))ct=ct.replace('</Types>','<Default Extension="png" ContentType="image/png"/></Types>');
@@ -3523,9 +3522,12 @@ async function aplicarMarcaCorporativaXlsx(zip,wb){
 
     const ws=wb.Sheets[nombre]||{},ref=ws['!ref']?XLSX.utils.decode_range(ws['!ref']):{e:{c:3}};
     const titulo=(ws['!merges']||[]).some(m=>m.s.r===0&&m.s.c===0&&m.e.c>=3);
-    const col=titulo?0:Math.max(0,ref.e.c+1);
-    const alto=codigo==='JIRE'?620000:880000;
-    const drawingXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><xdr:oneCellAnchor><xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>90000</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>45000</xdr:rowOff></xdr:from><xdr:ext cx="1420000" cy="${alto}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="1" name="Logo ${_xmlEsc(razon)}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1420000" cy="${alto}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:ln><a:noFill/></a:ln></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>`;
+    /* Con título combinado ocupa el extremo derecho de esa misma franja. Si la
+       hoja empieza directamente con encabezados, queda en una celda adicional
+       fuera de la tabla: en ambos casos es imposible que tape texto. */
+    const col=titulo?Math.max(0,ref.e.c):Math.max(0,ref.e.c+1);
+    const alto=260000,ancho=codigo==='JIRE'?595000:475000;
+    const drawingXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><xdr:oneCellAnchor><xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>30000</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>25000</xdr:rowOff></xdr:from><xdr:ext cx="${ancho}" cy="${alto}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="1" name="Logo ${_xmlEsc(razon)}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${ancho}" cy="${alto}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:ln><a:noFill/></a:ln></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>`;
     zip.file(`xl/drawings/${dibujo}`,drawingXml);
     zip.file(`xl/drawings/_rels/${dibujo}.rels`,`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${media}"/></Relationships>`);
 
@@ -3537,7 +3539,7 @@ async function aplicarMarcaCorporativaXlsx(zip,wb){
 
     let xml=await sheetFile.async('string');
     if(!/xmlns:r=/.test(xml))xml=xml.replace('<worksheet ','<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ');
-    const encabezado=`<headerFooter><oddHeader>&amp;C&amp;&quot;Calibri,Bold&quot;&amp;12${_xmlEsc(razon)}</oddHeader><oddFooter>&amp;LPLATINUM OS&amp;R&amp;D</oddFooter></headerFooter>`;
+    const encabezado=`<headerFooter><oddHeader>&amp;C&amp;&quot;Calibri,Bold&quot;&amp;12${_xmlEsc(razon)}</oddHeader><oddFooter>&amp;R&amp;D</oddFooter></headerFooter>`;
     if(/<headerFooter[\s>]/.test(xml))xml=xml.replace(/<headerFooter[\s\S]*?<\/headerFooter>/,encabezado);
     else{
       const pos=xml.search(/<(rowBreaks|colBreaks|customProperties|cellWatches|ignoredErrors|smartTags|drawing|legacyDrawing|picture|oleObjects|controls|webPublishItems|tableParts|extLst)[ \/>]/);
