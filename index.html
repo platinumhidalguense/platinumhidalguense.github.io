@@ -8150,33 +8150,48 @@ function semSincroniza(semId,d1Id,d2Id,cb){
   if($(d2Id))$(d2Id).value=d2;
   if(cb)cb();
 }
-function openMovimientos(n){
+function movimientosSemana(n,contratista=''){
   n=Math.max(1,parseInt(n)||isoWeek());
   const [d1,d2]=semRange(n);
   const enR=f=>f&&f>=d1&&f<=d2;
+  const trabajadores=contratista?WORKERS.filter(w=>w.contratista===contratista):WORKERS;
   /* REINGRESOS: quien vuelve a entrar tras una baja. Su fecha_alta es la ORIGINAL
      (de hace meses), así que filtrando solo por fecha_alta no aparecía en ninguna
      parte. Va en su propio apartado y NUNCA como alta nueva. */
-  const reingresos=WORKERS.filter(w=>enR(w.fecha_reingreso)).sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+  const reingresos=trabajadores.filter(w=>enR(w.fecha_reingreso)).sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
   const reIds=new Set(reingresos.map(w=>w.id));
-  const ingresos=WORKERS.filter(w=>enR(w.fecha_alta)&&!reIds.has(w.id));
+  const ingresos=trabajadores.filter(w=>enR(w.fecha_alta)&&!reIds.has(w.id));
   const altas=ingresos.filter(w=>w.estatus!=='PENDIENTE').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9)); // ACTIVOS y bajas de la misma semana cuentan como alta
   const pend=ingresos.filter(w=>w.estatus==='PENDIENTE').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
-  const bajas=WORKERS.filter(w=>enR(w.fecha_baja)&&!reIds.has(w.id)).sort((a,b)=>String(a.fecha_baja).localeCompare(String(b.fecha_baja)));
+  const bajas=trabajadores.filter(w=>enR(w.fecha_baja)&&!reIds.has(w.id)).sort((a,b)=>String(a.fecha_baja).localeCompare(String(b.fecha_baja)));
+  return {n,d1,d2,altas,reingresos,pend,bajas};
+}
+function openMovimientos(n,contratista=''){
+  const disponibles=[...new Set(WORKERS.map(w=>w.contratista).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  if(contratista&&!disponibles.includes(contratista))contratista='';
+  const {n:sem,d1,d2,altas,reingresos,pend,bajas}=movimientosSemana(n,contratista);
   const entradas=altas.length+reingresos.length;
   const porDia={};bajas.forEach(w=>{const k=fmtD(w.fecha_baja);porDia[k]=(porDia[k]||0)+1;});
   const item=(w,extra)=>`<div class="kv"><b>#${w.no_trab??'—'}</b><span>${esc(fullName(w))} · ${esc(w.contratista)}${extra?` · <b>${extra}</b>`:''}</span></div>`;
-  window._MOVSEM=n;
+  window._MOVSEM=sem;window._MOVCONTR=contratista;
   modal(`
     <div class="m-head"><h2>📅 Movimientos · ${esc(OBRA.nombre)}</h2>
       <div style="display:flex;align-items:center;gap:6px;margin-left:8px">
-        <button class="btn" style="padding:4px 10px" onclick="openMovimientos(${n-1})">◀</button>
-        <b style="white-space:nowrap">SEMANA ${n}</b>
-        <button class="btn" style="padding:4px 10px" onclick="openMovimientos(${n+1})">▶</button>
+        <button class="btn" style="padding:4px 10px" onclick="openMovimientos(${sem-1},window._MOVCONTR)">◀</button>
+        <b style="white-space:nowrap">SEMANA ${sem}</b>
+        <button class="btn" style="padding:4px 10px" onclick="openMovimientos(${sem+1},window._MOVCONTR)">▶</button>
       </div>
       <span style="color:var(--mut);font-size:12px">${fmtD(d1)} – ${fmtD(d2)}</span>
       <button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
+      <div style="display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+        <div style="min-width:min(100%,280px);flex:1 1 280px"><label for="mov-contratista">Contratista de esta obra</label>
+          <select id="mov-contratista" onchange="openMovimientos(window._MOVSEM,this.value)">
+            <option value="">Todos los contratistas</option>
+            ${disponibles.map(c=>`<option value="${esc(c)}" ${c===contratista?'selected':''}>${esc(c)}</option>`).join('')}
+          </select></div>
+        <span class="fhint" style="flex:1 1 260px">${contratista?`Mostrando sólo movimientos de <b>${esc(contratista)}</b>.`:'Vista global de la obra; selecciona un contratista para aislar sus movimientos.'}</span>
+      </div>
       <div class="stats" style="margin-bottom:16px">
         <div class="stat g"><div class="n">+${altas.length}</div><div class="l">Altas nuevas${(function(){const m=altas.filter(x=>x.estatus==='BAJA').length;return m?` (${altas.length-m} vigentes + ${m} con baja misma sem.)`:'';})()}</div></div>
         <div class="stat b"><div class="n">+${reingresos.length}</div><div class="l">Reingresos (ya habían trabajado)</div></div>
@@ -8200,17 +8215,10 @@ function openMovimientos(n){
     </div>`);
 }
 function exportMovimientos(){
-  const n=window._MOVSEM||isoWeek();
-  const [d1,d2]=semRange(n);
-  const enR=f=>f&&f>=d1&&f<=d2;
-  const reingresos=WORKERS.filter(w=>enR(w.fecha_reingreso)).sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
-  const reIds=new Set(reingresos.map(w=>w.id));
-  const ingresos=WORKERS.filter(w=>enR(w.fecha_alta)&&!reIds.has(w.id));
-  const altas=ingresos.filter(w=>w.estatus!=='PENDIENTE').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
-  const pend=ingresos.filter(w=>w.estatus==='PENDIENTE').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
-  const bajas=WORKERS.filter(w=>enR(w.fecha_baja)&&!reIds.has(w.id)).sort((a,b)=>String(a.fecha_baja).localeCompare(String(b.fecha_baja)));
+  const contratista=window._MOVCONTR||'';
+  const {n,d1,d2,altas,reingresos,pend,bajas}=movimientosSemana(window._MOVSEM||isoWeek(),contratista);
   const rows=[],styles=[];
-  rows.push([`MOVIMIENTOS DE PERSONAL — SEMANA ${n} (${rangoTexto(d1,d2)}) — ${OBRA.nombre}`]); styles.push(ST.title);
+  rows.push([`MOVIMIENTOS DE PERSONAL — SEMANA ${n} (${rangoTexto(d1,d2)}) — ${OBRA.nombre}${contratista?' — CONTRATISTA: '+contratista:''}`]); styles.push(ST.title);
   rows.push(['MOVIMIENTO','NO. TRAB.','NOMBRE COMPLETO','CONTRATISTA','PUESTO','FECHA','ESTATUS ACTUAL','FINIQUITO']); styles.push(ST.head);
   const rA=[ST.cellC,ST.cellC,ST.cell,ST.cellC,ST.cell,ST.cellC,ST.cellC,ST.money];
   const rB=[ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.finMoney];
@@ -8223,7 +8231,7 @@ function exportMovimientos(){
   const ws=buildSheet(rows,styles,[13,10,36,15,24,12,15,12],[{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:7}}],[{hpt:26},{hpt:24}]);
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,`MOVIMIENTOS S${n}`);
-  dl(wb,`MOVIMIENTOS_SEMANA${n}_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}.xlsx`);
+  dl(wb,`MOVIMIENTOS_SEMANA${n}_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}${contratista?'_'+contratista.slice(0,24).replace(/[^A-ZÑ0-9]+/gi,'_'):''}.xlsx`);
   toast('Excel de movimientos generado.','ok');
 }
 /* ---------- v36: ALTAS POR SEMANA (general, todas las semanas, por obra) ----------
