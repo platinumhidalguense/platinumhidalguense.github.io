@@ -1646,7 +1646,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-11.6';
+const APP_VERSION='2026-09-21.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2532,6 +2532,7 @@ function openDetail(id){
       <button class="btn" onclick="openHistorial('${w.id}')">🕘 Historial</button>
       <button class="btn" onclick="openValidar('${w.id}')">🔍 Validar</button>
       <button class="btn" onclick="openContrato('${w.id}')">📄 Contrato</button>
+      <button class="btn" onclick="openConstanciaLaboral('${w.id}')">📜 Constancia laboral</button>
       <button class="btn" onclick="openPrestaciones('${w.id}')">🧮 Prestaciones</button>
       ${w.estatus==='PENDIENTE'?`<button class="btn" style="color:var(--green);border-color:#b7dcc8" onclick="doActivar('${w.id}')">✔ Marcar ACTIVO</button>`:''}
       ${w.estatus==='ACTIVO'?`<button class="btn" style="color:#8a6d1a;border-color:#ecd9a0" onclick="openPendiente('${w.id}')">⏸ Pasar a PENDIENTE</button>
@@ -3506,7 +3507,7 @@ function buildSheet(rows,styles,widths,merges,rowHeights){
   return ws;
 }
 function dlPlain(wb,name){XLSX.writeFile(wb,name);}
-const MOTOR_NOMINA_VERSION='NOI-11.00.18/PLATINUM-2026-09-10.2';
+const MOTOR_NOMINA_VERSION='NOI-11.00.18/PLATINUM-2026-09-19.1';
 const _xmlEsc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function _dataUriBytes(uri){
   const m=String(uri||'').match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/i);
@@ -8385,7 +8386,17 @@ function exportCorreos(){
    ============================================================ */
 const cuadDe=w=>(w&&w.id_cuadrilla)?(CUADS||[]).find(c=>c.id===w.id_cuadrilla)||null:null;
 const cuadNombre=w=>{const c=cuadDe(w);return c?c.nombre:'';};
-const cuadLider=c=>{if(!c||!c.lider_id)return '';const l=(WORKERS||[]).find(x=>x.id===c.lider_id);return l?fullName(l):'';};
+/* La cabeza puede ser un trabajador del padrón o un cabo externo con expediente
+   entregado. El segundo caso solo identifica al responsable operativo de la
+   cuadrilla: no lo incorpora al motor de nómina ni a la lista de personas pagables. */
+const cuadLider=c=>{
+  if(!c)return '';
+  if(c.lider_id){
+    const l=(WORKERS||[]).find(x=>x.id===c.lider_id);
+    if(l)return fullName(l);
+  }
+  return String(c.lider_nombre_externo||'').trim();
+};
 const cuadsDe=contr=>(CUADS||[]).filter(c=>String(c.contratista||'').toUpperCase()===String(contr||'').toUpperCase())
   .sort((a,b)=>(a.orden??9999)-(b.orden??9999)||String(a.nombre).localeCompare(String(b.nombre),'es'));
 
@@ -8396,16 +8407,21 @@ const cuadsDe=contr=>(CUADS||[]).filter(c=>String(c.contratista||'').toUpperCase
    Devuelve [{contratista, cuadrilla, lider, gente:[...]}] — mismo criterio que
    fn_lista_asistencia() del Script 56, para que Excel y base no se contradigan. */
 function asGruposCuadrilla(lista){
+  const ordenContratista=['ARACELI','JP PLATINUM','LEO','MG','PLATINUM'];
   const CT=w=>String(w.contratista||'').trim().toUpperCase()||'ZZZ SIN CONTRATISTA';
   const mapa=new Map();
   (lista||[]).forEach(w=>{
     const c=cuadDe(w);
     const k=CT(w)+'\u0000'+(c?(String(c.orden??9999).padStart(4,'0')+'\u0000'+c.nombre):'ZZZZ\u0000');
     if(!mapa.has(k))mapa.set(k,{contratista:String(w.contratista||'').trim()||'(sin contratista)',
-      cuadrilla:c?c.nombre:'', cuad_id:c?c.id:null, lider:c?cuadLider(c):'', gente:[]});
+      cuadrilla:c?c.nombre:'', cuad_id:c?c.id:null, lider:c?cuadLider(c):'',orden:c?(c.orden??9999):9999,gente:[]});
     mapa.get(k).gente.push(w);
   });
-  const out=[...mapa.entries()].sort((a,b)=>a[0].localeCompare(b[0],'es')).map(x=>x[1]);
+  const rango=c=>{const i=ordenContratista.indexOf(String(c||'').trim().toUpperCase());return i<0?999:i;};
+  const out=[...mapa.values()].sort((a,b)=>rango(a.contratista)-rango(b.contratista)
+    ||String(a.contratista).localeCompare(String(b.contratista),'es')
+    ||(a.orden??9999)-(b.orden??9999)
+    ||String(a.cuadrilla).localeCompare(String(b.cuadrilla),'es'));
   /* ORDEN DENTRO DE LA CUADRILLA (2026-08-27): por NÚMERO DE TRABAJADOR, de menor
      a mayor. Antes iba alfabético por apellidos, que no corresponde a nada físico;
      el número sí es el que se usa para pasar lista y para cruzar contra nómina.
@@ -9044,9 +9060,9 @@ function hojaNombre(base,usados){
 function exportAsistencia(){
   const sem=$('as-sem').value||semObra(), d1=$('as-d1').value, d2=$('as-d2').value;
   const extra=Math.max(0,parseInt($('as-extra').value)||0);
-  /* ORDEN: contratista alfabético → cuadrilla → nombre. El apaño de INFONAVIT que
-     mandaba a PLATINUM al final se quitó: con el orden alfabético estricto cae ahí
-     solo (ARACELI, LEO, MG, PLATINUM) y ya no hay dos reglas peleándose. */
+  /* ORDEN operativo de INFONAVIT SAN CRISTÓBAL: ARACELI → JP PLATINUM → LEO →
+     MG → PLATINUM. Dentro de cada contratista se respeta orden/nombre de la
+     cuadrilla y, dentro de ella, número de trabajador ascendente. */
   const grupos=asGruposCuadrilla(asActivosSemana(d1,d2));
   const act=grupos.flatMap(g=>g.gente);
   if(!act.length){toast('No hay trabajadores activos ni altas programadas para esa semana.','err');return;}
@@ -10887,10 +10903,14 @@ function nominaPeriodo(w,opts){
   const subDia=Math.floor(subPct/100*f.uma*100)/100;
   const subSem=Math.round(subDia*P.dias*100)/100; // = cuota diaria truncada × días del periodo
   const subsidio=bruto<=topeSem?Math.min(subSem,isrBruto):0;
-  // NOI 11 conserva los decimales internos cuando acredita subsidio y corta a
-  // centavos el ISR neto. Sin subsidio se mantiene el redondeo normal.
+  // NOI 11 conserva los decimales internos al acreditar subsidio. En los casos
+  // en que el ISR residual queda por debajo de $20 redondea ese residual; por
+  // encima de ese umbral lo corta a centavos. La distinción está verificada
+  // contra los recibos reales S16, S24 y S25: evita diferencias selectivas de
+  // $0.01 con una falta sin alterar los niveles salariales ya conciliados.
+  const isrNetoRaw=isrBrutoRaw-subsidio;
   const isr=subsidio>0&&isrBrutoRaw>subsidio
-    ?Math.floor((isrBrutoRaw-subsidio)*100+1e-9)/100
+    ?(isrNetoRaw<20?redondearCentavos(isrNetoRaw):Math.floor(isrNetoRaw*100+1e-9)/100)
     :redondearCentavos(isrBruto-subsidio);
   const neto=redondearCentavos(bruto-isr-imssObr);
   return {periodo:P.cve,dias:P.dias,etiqueta:P.etiqueta,
@@ -11607,6 +11627,169 @@ function openAlertas(){
     <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`);
 }
 
+/* ---------- CONSTANCIAS LABORALES (LFT ART. 132, VII Y VIII) ---------- */
+function clFechaLarga(v){
+  if(!v)return '—';
+  const d=new Date(String(v).slice(0,10)+'T12:00:00');
+  return `${d.getDate()} de ${MES[d.getMonth()].toLowerCase()} de ${d.getFullYear()}`;
+}
+function clError(e){
+  const m=(e&&e.message)||String(e||'');
+  if(/constancias_laborales|schema cache|does not exist|could not find/i.test(m))
+    return 'Falta aplicar la migración 81_CONSTANCIAS_LABORALES.sql en Supabase.';
+  return m;
+}
+function clSalarioSugerido(w,periodicidad){
+  if(periodicidad==='DIARIO')return Number(w.sd)||0;
+  if(periodicidad==='SEMANAL')return Number(w.sal_semanal)||0;
+  if(periodicidad==='QUINCENAL'&&w.periodo_pago==='QUINCENAL')return Number(w.sal_semanal)||0;
+  return 0;
+}
+function openConstanciaLaboral(id){
+  const w=WORKERS.find(x=>x.id===id);if(!w)return;
+  const obra=OBRAS.find(o=>o.id===w.obra_id)||OBRA;
+  const codigo=empresaDeTrabajador(w),e=CFGEMP['empresa_'+codigo]||{};
+  const desde=iniAntig(w)||w.fecha_alta||today();
+  const hasta=w.estatus==='BAJA'?(w.fecha_baja||today()):'';
+  const cargo=e.repCargo||e.cargoRepresentante||'';
+  modal(`
+    <div class="m-head"><h2>📜 Constancia laboral · ${esc(fullName(w))}</h2><span class="badge ${esc(codigo)}">${esc(codigo)}</span><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <div style="display:flex;align-items:center;gap:14px;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px;background:var(--blue-bg)">
+        <img src="${logoEmpresa(codigo)}" alt="${esc(codigo)}" style="width:92px;height:46px;object-fit:contain;background:#fff;border-radius:7px;padding:4px">
+        <div><b>${esc(e.razon||razonSocialEmpresa(codigo))}</b><div style="font-size:11.5px;color:var(--mut)">RFC ${esc(e.rfc||'SIN CAPTURAR')} · ${esc(obra.nombre)}</div><div style="font-size:11px;color:var(--mut)">La razón social se fija por el centro de trabajo y no puede cambiarse aquí.</div></div>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div class="c2" style="grid-column:span 2"><label>Tipo de constancia</label><select id="cl-tipo" onchange="clTipoChange('${id}')"><option value="SERVICIOS">Constancia de servicios · LFT 132, fracción VIII</option><option value="DIAS_SALARIO">Constancia de días trabajados y salario · LFT 132, fracción VII</option></select></div>
+        <div class="c2" style="grid-column:span 2"><label>Destinatario</label><input id="cl-dest" maxlength="180" value="A QUIEN CORRESPONDA"></div>
+        <div><label>Lugar de expedición</label><input id="cl-lugar" maxlength="180" value="${esc(e.domicilio||obra.ubicacion||'PACHUCA DE SOTO, HIDALGO')}"></div>
+        <div><label>Fecha de expedición</label><input id="cl-fecha" type="date" max="${today()}" value="${today()}"></div>
+        <div><label>Periodo desde</label><input id="cl-desde" type="date" value="${desde}"></div>
+        <div><label>Periodo hasta <span style="font-weight:400;color:var(--mut)">(vacío = relación vigente)</span></label><input id="cl-hasta" type="date" value="${hasta}"></div>
+        <div id="cl-dias-box" style="display:none"><label>Días efectivamente trabajados en el periodo</label><input id="cl-dias" type="number" min="0" step="1" placeholder="Captura y confirma contra asistencia/nómina"></div>
+        <div><label>Periodicidad del salario</label><select id="cl-periodicidad" onchange="clCambiarPeriodicidad('${id}')"><option>DIARIO</option><option>SEMANAL</option><option>QUINCENAL</option><option>MENSUAL</option></select></div>
+        <div><label>Salario que aparecerá</label><input id="cl-salario" type="number" min="0" step="0.01" value="${Number(w.sd||0).toFixed(2)}"></div>
+        <div class="c2" style="grid-column:span 2"><label>Finalidad informada por la persona trabajadora (opcional)</label><input id="cl-proposito" maxlength="300" placeholder="Ej. trámite de arrendamiento, crédito o expediente personal"></div>
+        <div><label>Nombre de quien firma</label><input id="cl-firmante" maxlength="180" value="${esc(e.representante||'')}" placeholder="Nombre de la persona facultada"></div>
+        <div><label>Cargo de quien firma</label><input id="cl-cargo" maxlength="180" value="${esc(cargo)}" placeholder="Ej. REPRESENTANTE LEGAL"></div>
+      </div>
+      <div style="margin-top:13px;border:1px solid var(--border);border-radius:9px;padding:10px 12px">
+        <b style="font-size:12px">Datos que se incluirán</b>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:12px">
+          <label style="display:flex;gap:6px;align-items:center"><input id="cl-inc-func" type="checkbox" ${w.funciones?'checked':''}> Funciones</label>
+          <label style="display:flex;gap:6px;align-items:center"><input id="cl-inc-sal" type="checkbox"> Salario</label>
+          <label style="display:flex;gap:6px;align-items:center"><input id="cl-inc-curp" type="checkbox" ${w.curp?'':'disabled'}> CURP</label>
+          <label style="display:flex;gap:6px;align-items:center"><input id="cl-inc-rfc" type="checkbox" ${w.rfc?'':'disabled'}> RFC personal</label>
+          <label style="display:flex;gap:6px;align-items:center"><input id="cl-inc-nss" type="checkbox" ${w.nss?'':'disabled'}> NSS</label>
+        </div>
+        <div style="font-size:11px;color:var(--mut);margin-top:7px">Por privacidad, CURP, RFC, NSS y salario se omiten salvo que la finalidad de la solicitud los requiera. En la modalidad de días y salario, el salario es obligatorio.</div>
+      </div>
+      <label style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:10px;background:var(--amber-bg);border:1px solid #ecd9a0;border-radius:8px;font-size:12px"><input id="cl-confirma" type="checkbox" style="margin-top:2px"> <span>Confirmo que la persona trabajadora solicitó la constancia, que los datos seleccionados son necesarios para la finalidad indicada y que días/salario fueron verificados contra los registros de nómina y asistencia.</span></label>
+      <details style="margin-top:12px;font-size:11.5px;color:var(--mut)"><summary style="cursor:pointer;font-weight:700;color:var(--navy)">? Cómo usar esta función</summary><div style="padding:8px 2px">Elige la modalidad, verifica el periodo y la persona facultada para firmar. La emisión genera folio y código de verificación, guarda una copia inalterable y abre la impresión; selecciona “Guardar como PDF” o imprime para firma autógrafa. Si hubo un error, corrígelo emitiendo otra constancia: el historial no se borra.</div></details>
+      <div class="sect">Historial de constancias emitidas</div>
+      <div id="cl-hist"><span class="spin"></span> Consultando historial…</div>
+    </div>
+    <div class="m-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button id="cl-emitir" class="btn dark" onclick="emitirConstanciaLaboral('${id}')">📜 Emitir, guardar e imprimir</button></div>`,'lg');
+  cargarHistConstancias(id,obra.id);
+}
+function clTipoChange(){
+  const dias=$('cl-tipo').value==='DIAS_SALARIO';
+  $('cl-dias-box').style.display=dias?'block':'none';
+  $('cl-inc-sal').checked=dias;
+  $('cl-inc-sal').disabled=dias;
+  if(dias&&!$('cl-hasta').value)$('cl-hasta').value=today();
+}
+function clCambiarPeriodicidad(id){
+  const w=WORKERS.find(x=>x.id===id);if(!w)return;
+  const v=clSalarioSugerido(w,$('cl-periodicidad').value);
+  $('cl-salario').value=v?v.toFixed(2):'';
+}
+async function cargarHistConstancias(tid,obraId){
+  const box=$('cl-hist');if(!box)return;
+  const {data,error}=await sb.from('constancias_laborales').select('id,folio,tipo_constancia,fecha_expedicion,destinatario,firmante_nombre,emitida_por_email,emitida_en,codigo_verificacion').eq('trabajador_id',tid).eq('obra_id',obraId).order('emitida_en',{ascending:false}).limit(50);
+  if(!box)return;
+  if(error){box.innerHTML=`<div style="color:var(--red);font-size:12px">${esc(clError(error))}</div>`;return;}
+  box.innerHTML=(data||[]).length?`<div style="border:1px solid var(--border);border-radius:8px;max-height:210px;overflow:auto">${data.map(x=>`<div class="kv"><b>${esc(x.folio)}<br><span style="font-size:10px;color:var(--mut)">${fmtD(x.fecha_expedicion)} · ${x.tipo_constancia==='DIAS_SALARIO'?'DÍAS Y SALARIO':'SERVICIOS'}</span></b><span>${esc(x.destinatario)}<br><button class="btn" style="padding:2px 9px;font-size:10.5px;margin-top:4px" onclick="reimprimirConstanciaLaboral('${x.id}')">🖨 Reimprimir copia exacta</button></span></div>`).join('')}</div>`:'<div style="font-size:12px;color:var(--mut)">Aún no se han emitido constancias para esta persona.</div>';
+}
+async function emitirConstanciaLaboral(id){
+  const w=WORKERS.find(x=>x.id===id);if(!w)return;
+  const obra=OBRAS.find(o=>o.id===w.obra_id)||OBRA;
+  const codigo=empresaDeTrabajador(w),e=CFGEMP['empresa_'+codigo]||{};
+  const tipo=$('cl-tipo').value,dest=$('cl-dest').value.trim().toUpperCase(),lugar=$('cl-lugar').value.trim().toUpperCase(),fecha=$('cl-fecha').value;
+  const desde=$('cl-desde').value,hasta=$('cl-hasta').value||null,proposito=$('cl-proposito').value.trim();
+  const firmante=$('cl-firmante').value.trim().toUpperCase(),cargo=$('cl-cargo').value.trim().toUpperCase();
+  const incSal=$('cl-inc-sal').checked,incCurp=$('cl-inc-curp').checked,incRfc=$('cl-inc-rfc').checked,incNss=$('cl-inc-nss').checked,incFunc=$('cl-inc-func').checked;
+  const salario=incSal?Number($('cl-salario').value):null,periodicidad=incSal?$('cl-periodicidad').value:null;
+  const dias=tipo==='DIAS_SALARIO'?Number($('cl-dias').value):null;
+  if(!e.razon||!e.rfc){toast('Completa razón social y RFC en la configuración de '+codigo+'.','err');return;}
+  if(!dest||!lugar||!fecha||!desde){toast('Completa destinatario, lugar, fecha y periodo inicial.','err');return;}
+  if(fecha>today()){toast('La fecha de expedición no puede ser futura.','err');return;}
+  if(hasta&&hasta<desde){toast('El fin del periodo no puede ser anterior al inicio.','err');return;}
+  if(tipo==='DIAS_SALARIO'&&(!hasta||!Number.isInteger(dias)||dias<0)){toast('Captura el fin del periodo y los días efectivamente trabajados.','err');return;}
+  if(incSal&&(!(salario>=0)||!periodicidad)){toast('Verifica el salario y su periodicidad.','err');return;}
+  if(!firmante||!cargo){toast('Captura el nombre y cargo de la persona facultada para firmar.','err');return;}
+  if((incCurp&&!w.curp)||(incRfc&&!w.rfc)||(incNss&&!w.nss)){toast('No puede incluirse un dato personal que no está capturado.','err');return;}
+  if(!$('cl-confirma').checked){toast('Confirma la solicitud y la verificación de datos antes de emitir.','err');return;}
+
+  const snapshot={
+    version:'CONSTANCIA-LFT-2026.1',
+    empresa:{codigo,razon:e.razon,rfc:e.rfc,domicilio:e.domicilio||'',representante:firmante,cargo,logo:codigo},
+    centro:{id:obra.id,nombre:obra.nombre,ubicacion:obra.ubicacion||'',registro_patronal:rpDe(w),siroc:obra.registro_siroc||''},
+    trabajador:{id:w.id,no_trab:w.no_trab,nombre:fullName(w),puesto:w.puesto||'',funciones:incFunc?(w.funciones||''):'',estatus:w.estatus,fecha_alta:w.fecha_alta||null,fecha_reingreso:w.fecha_reingreso||null,fecha_baja:w.fecha_baja||null,tipo_contrato:w.tipo_contrato||'',curp:incCurp?(w.curp||''):null,rfc:incRfc?(w.rfc||''):null,nss:incNss?(w.nss||''):null},
+    documento:{tipo,destinatario:dest,proposito:proposito||null,fecha_expedicion:fecha,lugar_expedicion:lugar,periodo_desde:desde,periodo_hasta:hasta,dias_trabajados:dias,salario,periodicidad_salario:periodicidad,incluir_salario:incSal,incluir_curp:incCurp,incluir_rfc:incRfc,incluir_nss:incNss,incluir_funciones:incFunc,solicitud_confirmada:true},
+    fundamento:tipo==='DIAS_SALARIO'?'Ley Federal del Trabajo, artículo 132, fracción VII':'Ley Federal del Trabajo, artículo 132, fracción VIII'
+  };
+  const win=window.open('','_blank');
+  if(!win){toast('El navegador bloqueó la ventana. Permite ventanas emergentes e inténtalo de nuevo.','err');return;}
+  win.document.write('<!doctype html><html><body style="font-family:Arial;padding:40px">Preparando constancia y folio seguro…</body></html>');win.document.close();
+  const btn=$('cl-emitir');if(btn){btn.disabled=true;btn.textContent='Guardando…';}
+  markWrite();
+  const fila={obra_id:obra.id,trabajador_id:w.id,empresa_codigo:codigo,tipo_constancia:tipo,destinatario:dest,proposito:proposito||null,fecha_expedicion:fecha,lugar_expedicion:lugar,periodo_desde:desde,periodo_hasta:hasta,dias_trabajados:dias,salario,periodicidad_salario:periodicidad,incluir_salario:incSal,incluir_curp:incCurp,incluir_rfc:incRfc,incluir_nss:incNss,incluir_funciones:incFunc,firmante_nombre:firmante,firmante_cargo:cargo,snapshot,emitida_por:USER.id,emitida_por_email:USER.email||''};
+  const {data,error}=await sb.from('constancias_laborales').insert(fila).select('*').single();
+  if(error){win.close();if(btn){btn.disabled=false;btn.textContent='📜 Emitir, guardar e imprimir';}toast(clError(error),'err');return;}
+  win.document.open();win.document.write(constanciaLaboralHTML(data));win.document.close();
+  await ctrlAuditar('CONSTANCIAS_LABORALES','EMITIR',{folio:data.folio,tipo:data.tipo_constancia,trabajador_id:w.id,empresa:codigo},'CONSTANCIA',data.id);
+  closeModal();toast('Constancia '+data.folio+' emitida y guardada sin posibilidad de alteración.','ok');
+}
+async function reimprimirConstanciaLaboral(id){
+  const win=window.open('','_blank');
+  if(!win){toast('Permite ventanas emergentes para reimprimir.','err');return;}
+  win.document.write('<!doctype html><html><body style="font-family:Arial;padding:40px">Recuperando copia exacta…</body></html>');win.document.close();
+  const {data,error}=await sb.from('constancias_laborales').select('*').eq('id',id).eq('obra_id',OBRA.id).maybeSingle();
+  if(error||!data){win.close();toast(error?clError(error):'No se encontró la constancia.','err');return;}
+  win.document.open();win.document.write(constanciaLaboralHTML(data));win.document.close();
+  ctrlAuditar('CONSTANCIAS_LABORALES','REIMPRIMIR',{folio:data.folio},'CONSTANCIA',data.id);
+}
+function constanciaLaboralHTML(reg){
+  const s=reg.snapshot||{},e=s.empresa||{},c=s.centro||{},w=s.trabajador||{},d=s.documento||{};
+  const codigo=e.codigo||reg.empresa_codigo||'PLATINUM',logo=logoEmpresa(codigo);
+  const tipo=reg.tipo_constancia||d.tipo||'SERVICIOS',dias=reg.dias_trabajados??d.dias_trabajados;
+  const salario=reg.salario??d.salario,periodicidad=reg.periodicidad_salario||d.periodicidad_salario;
+  const vigente=!d.periodo_hasta&&String(w.estatus||'').toUpperCase()!=='BAJA';
+  const ids=[d.incluir_curp&&w.curp?`CURP <b>${esc(w.curp)}</b>`:'',d.incluir_rfc&&w.rfc?`RFC <b>${esc(w.rfc)}</b>`:'',d.incluir_nss&&w.nss?`NSS <b>${esc(w.nss)}</b>`:''].filter(Boolean).join(' · ');
+  const periodo=vigente?`desde el <b>${clFechaLarga(d.periodo_desde)}</b> y mantiene una relación laboral vigente a la fecha de expedición`:`del <b>${clFechaLarga(d.periodo_desde)}</b> al <b>${clFechaLarga(d.periodo_hasta)}</b>`;
+  const detalle=tipo==='DIAS_SALARIO'
+    ?`Durante el periodo comprendido del <b>${clFechaLarga(d.periodo_desde)}</b> al <b>${clFechaLarga(d.periodo_hasta)}</b>, constan <b>${esc(dias)} día(s) efectivamente trabajado(s)</b> y un salario <b>${esc(String(periodicidad||'').toLowerCase())} de $${money(salario)} M.N.</b>, según los registros de nómina y asistencia de la empresa.`
+    :`La persona trabajadora presta${vigente?'':'ó'} sus servicios ${periodo}, desempeñando el puesto de <b>${esc(w.puesto||'NO ESPECIFICADO')}</b> en el centro de trabajo <b>${esc(c.nombre||'')}</b>${c.ubicacion?', ubicado en '+esc(c.ubicacion):''}.`;
+  const salarioExtra=tipo==='SERVICIOS'&&d.incluir_salario?`<p>Percibe un salario <b>${esc(String(periodicidad||'').toLowerCase())} de $${money(salario)} M.N.</b>.</p>`:'';
+  const funciones=d.incluir_funciones&&w.funciones?`<p>Las funciones registradas para el puesto son: ${esc(w.funciones)}.</p>`:'';
+  const finalidad=d.proposito?` para <b>${esc(d.proposito)}</b>`:' para los fines legales y administrativos que a su interés convengan';
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${esc(reg.folio)} · ${esc(w.nombre||'Constancia laboral')}</title><style>
+  @page{size:A4;margin:15mm 16mm 18mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#172033;font-size:11.2pt;line-height:1.56;margin:0;background:#fff}.page{max-width:178mm;margin:0 auto;min-height:250mm;position:relative;padding-bottom:28mm}.head{display:flex;align-items:center;justify-content:space-between;gap:14mm;border-bottom:2px solid #193659;padding-bottom:6mm;margin-bottom:6mm}.head img{width:42mm;height:19mm;object-fit:contain}.empresa{text-align:right;font-size:8.7pt;line-height:1.35}.empresa b{font-size:10pt;color:#193659}.meta{display:flex;justify-content:space-between;gap:10mm;font-size:8.5pt;color:#5f6d80;margin-bottom:7mm}.folio{font-weight:700;color:#193659}h1{text-align:center;font-size:15pt;letter-spacing:1.1px;margin:0 0 8mm;color:#193659}.dest{font-weight:700;margin-bottom:7mm}p{text-align:justify;margin:0 0 5mm}.firma{text-align:center;width:85mm;margin:24mm auto 0;border-top:1px solid #172033;padding-top:2mm;font-size:9.5pt}.firma b{font-size:10pt}.pie{position:absolute;left:0;right:0;bottom:0;border-top:1px solid #ccd5e1;padding-top:3mm;font-size:7.7pt;color:#657387;display:grid;grid-template-columns:1fr auto;gap:4mm}.codigo{font-family:Consolas,monospace;font-weight:700;letter-spacing:.5px;color:#193659}.no-print{position:fixed;right:12px;top:12px}@media print{.no-print{display:none}.page{min-height:250mm}}@media screen{body{padding:12mm}.page{box-shadow:0 2px 18px #bbc3ce;padding:15mm;max-width:210mm}.pie{left:15mm;right:15mm;bottom:12mm}}
+  </style></head><body><button class="no-print" onclick="window.print()">Imprimir / Guardar PDF</button><main class="page">
+  <header class="head"><img src="${logo}" alt="${esc(codigo)}"><div class="empresa"><b>${esc(e.razon||'')}</b><br>RFC ${esc(e.rfc||'')}<br>${esc(e.domicilio||'')}</div></header>
+  <div class="meta"><span><span class="folio">Folio: ${esc(reg.folio||'')}</span><br>Fecha de emisión: ${clFechaLarga(reg.fecha_expedicion||d.fecha_expedicion)}</span><span style="text-align:right">${esc(reg.lugar_expedicion||d.lugar_expedicion||'')}<br>Código: <span class="codigo">${esc(reg.codigo_verificacion||'')}</span></span></div>
+  <h1>${tipo==='DIAS_SALARIO'?'CONSTANCIA DE DÍAS TRABAJADOS Y SALARIO':'CONSTANCIA LABORAL'}</h1>
+  <p class="dest">${esc(reg.destinatario||d.destinatario||'A QUIEN CORRESPONDA')}:</p>
+  <p>Por medio de la presente, <b>${esc(e.razon||'')}</b>, con Registro Federal de Contribuyentes <b>${esc(e.rfc||'')}</b>, hace constar que <b>${esc(w.nombre||'')}</b>${w.no_trab!=null?', número de trabajador <b>'+esc(w.no_trab)+'</b>':''}${ids?', identificado(a) con '+ids:''}, se encuentra registrado(a) en sus archivos laborales.</p>
+  <p>${detalle}</p>${salarioExtra}${funciones}
+  <p>La presente se expide a solicitud de la persona trabajadora${finalidad}, con fundamento en la <b>${esc(s.fundamento||'Ley Federal del Trabajo, artículo 132')}</b>.</p>
+  <p>Se extiende la presente en ${esc(reg.lugar_expedicion||d.lugar_expedicion||'')}, a ${clFechaLarga(reg.fecha_expedicion||d.fecha_expedicion)}.</p>
+  <div class="firma"><b>${esc(reg.firmante_nombre||e.representante||'')}</b><br>${esc(reg.firmante_cargo||e.cargo||'')}<br>${esc(e.razon||'')}<br><span style="font-size:8pt;color:#657387">Firma de la persona facultada y, en su caso, sello</span></div>
+  <footer class="pie"><span>Constancia patronal. El folio y código permiten verificar su integridad en el registro interno de la empresa; no sustituye documentos expedidos por una autoridad laboral.</span><span class="codigo">${esc(reg.folio||'')} · ${esc(reg.codigo_verificacion||'')}</span></footer>
+  </main><script>window.onload=()=>setTimeout(()=>window.print(),450)<\/script></body></html>`;
+}
+
 /* ---------- CONTRATO INDIVIDUAL DE TRABAJO (LFT) ---------- */
 function openContrato(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
@@ -12219,6 +12402,31 @@ async function generarRenunciaDoc(id){
 
 /* ---------- CALCULADORA DE PRESTACIONES (LFT) ---------- */
 function diasVacaciones(anios){if(anios<1)return 0;if(anios<=5)return 12+2*(anios-1);return 22+2*Math.floor((anios-6)/5);}
+/* Días de falta injustificada que no devengaron aguinaldo en el año del
+   finiquito. Solo cuenta incidencias FALTA activas, no recurrentes y ocurridas
+   entre el inicio de antigüedad (o 1 de enero) y la fecha de cálculo. La semana
+   de la obra es la fuente principal; created_at queda como respaldo para datos
+   antiguos sin semana. */
+function faltasAguinaldo(w,fechaCalculo){
+  const fin=fechaCalculo instanceof Date?new Date(fechaCalculo):new Date(String(fechaCalculo).slice(0,10)+'T12:00');
+  if(isNaN(fin)||!w||!iniAntig(w))return 0;
+  const ini=new Date(iniAntig(w)+'T12:00'), enero=new Date(fin.getFullYear(),0,1,12);
+  const corte=ini>enero?ini:enero;
+  return (typeof DESC!=='undefined'?DESC:[]).reduce((total,d)=>{
+    if(d.trabajador_id!==w.id||d.activo===false||d.recurrente||String(d.tipo||'').toUpperCase()!=='FALTA')return total;
+    let desde=null,hasta=null;
+    const sem=parseInt(String(d.semana||'').replace(/\D/g,''));
+    if(sem>0&&typeof semRange==='function'){
+      const r=semRange(sem);desde=new Date(r[0]+'T12:00');hasta=new Date(r[1]+'T12:00');
+    }else if(d.created_at){
+      desde=hasta=new Date(String(d.created_at).slice(0,10)+'T12:00');
+    }
+    if(!desde||isNaN(desde)||hasta<corte||desde>fin)return total;
+    const m=String(d.motivo||'').match(/(\d+(?:[.,]\d+)?)\s*FALTA/i);
+    const dias=m?Number(m[1].replace(',','.')):1;
+    return total+Math.max(0,Math.round(dias||0));
+  },0);
+}
 function openPrestaciones(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
   const tieneInfo=(typeof DESC!=='undefined'?DESC:[]).some(d=>d.trabajador_id===w.id&&d.activo&&d.recurrente&&String(d.tipo).toUpperCase()==='INFONAVIT');
@@ -12257,11 +12465,11 @@ function calcPrestaciones(id){
   const diasEsteAnio=Math.max(0,Math.round((fin-Math.max(ini,inicioAnio))/86400000))+1;
   const diasPend=parseInt($('f-pr-dias')?$('f-pr-dias').value:0)||0;
   const salarioPend=diasPend*sd;
-  // NOI (actualización de la contadora): el AGUINALDO proporcional se calcula
-  // con un día MENOS — se resta el día de baja (días del año − 1). Las VACACIONES
-  // y la prima vacacional siguen con los días inclusivos. Ej.: antigüedad 106 →
-  // vacaciones 106 días, aguinaldo 105 días. Verificado contra NOI y la contadora.
-  const diasAgAnio=Math.max(0,diasEsteAnio-1);
+  // NOI: el aguinaldo proporcional excluye el día de baja y los días de falta
+  // injustificada registrados durante el tiempo efectivamente laborado del año.
+  // Vacaciones y prima conservan los días inclusivos ya conciliados.
+  const faltasAg=Math.min(Math.max(0,diasEsteAnio-1),faltasAguinaldo(w,fin));
+  const diasAgAnio=Math.max(0,diasEsteAnio-1-faltasAg);
   const aguinaldo=sd*15*(diasAgAnio/365);
   const diasVacAct=diasVacaciones(anios+1);
   const vacProp=sd*diasVacAct*(diasAnio/365);
@@ -12269,7 +12477,8 @@ function calcPrestaciones(id){
   let rows=[
     ['Antigüedad',`${anios} año(s) y ${diasAnio} día(s)`],
     ['Salarios pendientes',`$${money(salarioPend)} (${diasPend} días × $${money(sd)})`],
-    ['Aguinaldo proporcional',`$${money(aguinaldo)} (15 días × ${diasAgAnio}/365 · sin el día de baja)`],
+    ...(faltasAg?[['Faltas que reducen aguinaldo',`−${faltasAg} día(s) (incidencias activas del periodo laborado)`]]:[]),
+    ['Aguinaldo proporcional',`$${money(aguinaldo)} (15 días × ${diasAgAnio}/365 · sin día de baja${faltasAg?` ni ${faltasAg} falta(s)`:''})`],
     ['Vacaciones proporcionales',`$${money(vacProp)} (${diasVacAct} días del año en curso, proporcional)`],
     ['Prima vacacional 25%',`$${money(primaVac)}`]
   ];
@@ -12326,7 +12535,7 @@ function calcPrestaciones(id){
     obra_id:w.obra_id,empresa_codigo:(typeof empresaDeTrabajador==='function'?empresaDeTrabajador(w):'PLATINUM'),trabajador_id:w.id,trabajador_numero:w.no_trab,
     trabajador_nombre:(typeof fullName==='function'?fullName(w):[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolean).join(' ')),
     tipo_calculo:'FINIQUITO_CALCULADO',periodo:f,
-    entradas:{fecha_antiguedad:iniAntig(w),fecha_calculo:f,sd,sdi,dias_inclusivos:dias,anios,dias_anio:diasAnio,dias_aguinaldo:diasAgAnio,
+    entradas:{fecha_antiguedad:iniAntig(w),fecha_calculo:f,sd,sdi,dias_inclusivos:dias,anios,dias_anio:diasAnio,dias_aguinaldo_base:Math.max(0,diasEsteAnio-1),faltas_aguinaldo:faltasAg,dias_aguinaldo:diasAgAnio,
       dias_vacaciones_tabla:diasVacAct,dias_salario_pendiente:diasPend,dias_infonavit_no_retenidos:diasInfo,
       credito_infonavit_id:infoDesc?infoDesc.id:null,origen_infonavit:infoOrigen,despido_injustificado:$('pr-despido').value==='SI',noi_manual:noiV},
     resultado:{salarios_pendientes:salarioPend,aguinaldo, vacaciones:vacProp,prima_vacacional:primaVac,isr:isrFin,
