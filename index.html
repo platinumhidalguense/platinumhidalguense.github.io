@@ -1655,7 +1655,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-23.2';
+const APP_VERSION='2026-09-24.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -10468,19 +10468,19 @@ function exportPlantillaFecha(){
   const rows=[],styles=[];
   rows.push([`PLANTILLA ACTIVA AL ${fmtD(f)} — ${OBRA.nombre}`]); styles.push(ST.title);
   rows.push([`Trabajadores activos en la fecha: ${act.length} · Generado el ${new Date().toLocaleDateString('es-MX')}`]); styles.push([ST.sub]);
-  rows.push(['NO. TRAB.','NOMBRE COMPLETO','CONTRATISTA','PUESTO','FECHA ALTA','FECHA BAJA','REINGRESO','ESTATUS HOY']); styles.push(ST.head);
-  const rs=[ST.cellC,ST.cell,ST.cell,ST.cell,ST.cellC,ST.cellC,ST.cellC,ST.cellC];
+  rows.push(['NO. TRAB.','NOMBRE COMPLETO','CONTRATISTA','PUESTO','TELÉFONO','CORREO ELECTRÓNICO','FECHA ALTA','FECHA BAJA','REINGRESO','ESTATUS HOY']); styles.push(ST.head);
+  const rs=[ST.cellC,ST.cell,ST.cell,ST.cell,ST.cellC,ST.cell,ST.cellC,ST.cellC,ST.cellC,ST.cellC];
   act.forEach(w=>{
-    rows.push([w.no_trab??'',fullName(w),w.contratista||'',w.puesto||'',
+    rows.push([w.no_trab??'',fullName(w),w.contratista||'',w.puesto||'',String(w.telefono||''),w.correo||'',
       w.fecha_alta?fmtD(w.fecha_alta):'—',
       w.fecha_baja?fmtD(w.fecha_baja):'—',
       w.fecha_reingreso?fmtD(w.fecha_reingreso):'—',
       w.estatus||'']);
     styles.push(rs);
   });
-  const merges=[{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}}];
-  const ws=buildSheet(rows,styles,[10,34,20,26,13,13,13,12],merges,[{hpt:26},{hpt:16}]);
-  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:2,c:0},e:{r:2+act.length,c:7}})};
+  const merges=[{s:{r:0,c:0},e:{r:0,c:9}},{s:{r:1,c:0},e:{r:1,c:9}}];
+  const ws=buildSheet(rows,styles,[10,34,20,26,16,34,13,13,13,12],merges,[{hpt:26},{hpt:16}]);
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:2,c:0},e:{r:2+act.length,c:9}})};
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,('PLANTILLA '+f).slice(0,31));
   dl(wb,`PLANTILLA_ACTIVA_${f}_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}.xlsx`);
