@@ -3517,7 +3517,7 @@ function buildSheet(rows,styles,widths,merges,rowHeights){
   return ws;
 }
 function dlPlain(wb,name){XLSX.writeFile(wb,name);}
-const MOTOR_NOMINA_VERSION='NOI-11.00.18/PLATINUM-2026-09-24.1';
+const MOTOR_NOMINA_VERSION='NOI-11.00.18/PLATINUM-2026-09-24.2';
 const _xmlEsc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function _dataUriBytes(uri){
   const m=String(uri||'').match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/i);
@@ -4238,6 +4238,30 @@ function pyCandidatos(d1,d2,periodo){
   fins.sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
   return {act,fins};
 }
+/* La proyección usa importes ya guardados, no vuelve a ejecutar nominaPeriodo.
+   Antes de mostrarla o exportarla se leen de nuevo sus tres fuentes: de lo
+   contrario una incidencia corregida por otra sesión puede quedar obsoleta en
+   WORKERS/DESC/DIFS aunque la base ya tenga el valor correcto. */
+async function pyDatosFrescos(){
+  const id=OBRA&&OBRA.id;
+  if(!id)return false;
+  const [{data:tw,error:e1},{data:ds,error:e2},{data:df,error:e3}]=await Promise.all([
+    fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
+    fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id)),
+    fetchAllRows(()=>sb.from('diferenciales').select('*').eq('obra_id',id).eq('activo',true))
+  ]);
+  if(OBRA.id!==id)return false;
+  if(e1||e2||e3){
+    const error=e1||e2||e3;
+    if($('py-prev'))$('py-prev').innerHTML='<div class="fhint" style="color:var(--red)">No se pudieron actualizar los datos de la proyección. Cierra y vuelve a abrir esta ventana antes de exportar.</div>';
+    if($('py-btn'))$('py-btn').disabled=true;
+    toast('No se generó la proyección con datos obsoletos: '+error.message,'err');
+    return false;
+  }
+  WORKERS=tw||[];DESC=ds||[];DIFS=df||[];
+  if($('py-prev'))pyPreview();
+  return true;
+}
 function openProyeccion(){
   const [d1,d2]=weekBounds();
   modal(`
@@ -4252,15 +4276,15 @@ function openProyeccion(){
           <option value="SEMANAL">Solo semanales</option><option value="QUINCENAL">Solo quincenales</option><option value="TODOS">Todos</option>
         </select></div>
       </div>
-      <div id="py-prev" style="margin-top:14px"></div>
+      <div id="py-prev" style="margin-top:14px">Actualizando trabajadores y retenciones...</div>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn" onclick="openProyContratista()">👷 Por contratista</button>
       <button class="btn" onclick="openDiferenciales()" title="Monto extra por trabajador para esta semana (opcional)">➕ Agregar diferencial</button>
-      <button class="btn dark" id="py-btn" onclick="exportProyeccion()">⬇ Generar Excel</button>
+      <button class="btn dark" id="py-btn" onclick="exportProyeccion()" disabled>⬇ Generar Excel</button>
     </div>`,'md');
-  pyPreview();
+  pyDatosFrescos();
 }
 function pyPreview(){
   const sem='S'+($('py-sem').value||semObra());
@@ -5090,6 +5114,9 @@ async function dfGuardar(){
   toast(`Diferenciales de la semana ${st.sem}: ${alta.length} guardado(s)${baja.length?`, ${baja.length} quitado(s)`:''}.`,'ok');
 }
 async function exportProyeccion(){
+  const btn=$('py-btn');if(btn)btn.disabled=true;
+  if(!await pyDatosFrescos())return;
+  if(btn)btn.disabled=true;
   const semN=$('py-sem').value||semObra(), sem='S'+semN, d1=$('py-d1').value, d2=$('py-d2').value, periodo=$('py-periodo').value;
   const {act,fins}=pyCandidatos(d1,d2,periodo);
   const codigo=empresaDeObra(OBRA);
