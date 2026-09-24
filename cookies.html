@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self'; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <title>Almacenamiento y cookies | PLATINUM OS</title>
+  <link rel="stylesheet" href="legal.css">
+</head>
+<body>
+  <header class="bar"><strong>PLATINUM OS · Marco de uso interno</strong><nav aria-label="Documentos legales"><a href="index.html">Volver a la plataforma</a><a href="privacidad.html">Privacidad</a><a href="terminos.html">Uso interno</a><a href="cookies.html" aria-current="page">Cookies</a></nav></header>
+  <div class="wrap">
+    <main>
+      <div class="eyebrow">Tecnologías del navegador</div>
+      <h1>Política de almacenamiento y cookies</h1>
+      <p class="meta">Versión: 23 de septiembre de 2026 · Describe el funcionamiento observado en la versión actual de PLATINUM OS.</p>
+      <div class="callout"><b>Respuesta breve:</b> el código actual no instala cookies publicitarias ni herramientas de analítica de comportamiento. Utiliza almacenamiento local del navegador para mantener la sesión iniciada y recordar configuración y preferencias. Por ello <b>no se muestra un botón de “aceptar cookies”</b> para usos no esenciales que hoy no existen. Sí informamos del almacenamiento antes del acceso. Si se agrega analítica, publicidad u otro rastreo no necesario, se revisará la base legal y se pedirá consentimiento previo cuando corresponda.</div>
+
+      <section id="diferencia"><h2>1. Cookies y almacenamiento local no son lo mismo</h2>
+        <p>Una cookie es un pequeño dato que un sitio puede solicitar al navegador y que éste puede enviar de vuelta en visitas posteriores. <i>localStorage</i> conserva datos en el navegador sin enviarlos automáticamente con cada petición. Ambos pueden contener información personal o permitir identificar a una persona y, por ello, están sujetos a los deberes de información y protección aplicables.</p>
+      </section>
+
+      <section id="uso"><h2>2. Qué se guarda actualmente</h2>
+        <div class="grid">
+          <div><b>Sesión de autenticación</b>La biblioteca de Supabase guarda por defecto información de sesión en el almacenamiento local para mantener el acceso. Es funcional y necesaria para no iniciar sesión en cada pantalla.</div>
+          <div><b>Configuración pública del proyecto</b>Se conserva la URL y la clave pública de conexión configuradas en este equipo. La clave pública no es una contraseña de administrador, pero no debe sustituir controles de acceso y RLS.</div>
+          <div><b>Preferencias de interfaz</b>Se recuerda el tema claro/oscuro, la empresa, el centro y el estado del panel para facilitar la navegación.</div>
+          <div><b>No usados en esta versión</b>No se identificaron en el código cookies propias de publicidad, píxeles comerciales ni medición de campañas. Esta descripción debe reevaluarse si cambia el frontend o un proveedor.</div>
+        </div>
+      </section>
+
+      <section id="terceros"><h2>3. Servicios externos</h2>
+        <p>La página principal carga recursos de Google Fonts y bibliotecas desde jsDelivr y Cloudflare CDN; y se comunica con Supabase para autenticación y operación. Esas conexiones pueden revelar datos técnicos, como dirección IP y datos de la solicitud, a sus operadores conforme a sus propios avisos. Las funciones de IA pueden usar Gemini cuando el usuario invoca esas herramientas; no son un rastreador de navegación. Esta política no garantiza que un tercero nunca establezca una cookie por su propia infraestructura o cambios futuros: se debe revisar periódicamente el comportamiento real en producción.</p>
+      </section>
+
+      <section id="control"><h2>4. Cómo controlar o borrar estos datos</h2>
+        <ol>
+          <li>Para dejar de utilizar la sesión, pulse <b>Cerrar sesión</b> en la plataforma.</li>
+          <li>En los ajustes del navegador puede borrar los datos del sitio, incluidas cookies y almacenamiento local, o bloquearlos.</li>
+          <li>Al borrar estos datos puede perder la sesión y las preferencias, y quizá deba volver a configurar la conexión del equipo.</li>
+        </ol>
+        <p>Si necesita limitar el uso o divulgación de sus datos personales, consulte el <a href="privacidad.html#arco">procedimiento ARCO</a> o escriba a <a href="mailto:rh@platinumhidalguense.com.mx">rh@platinumhidalguense.com.mx</a>. Desactivar almacenamiento necesario puede impedir el funcionamiento normal de la plataforma.</p>
+      </section>
+
+      <section id="cambios"><h2>5. Nuevas tecnologías y consentimiento</h2>
+        <p>Antes de activar rastreo no esencial, se actualizará esta política, se describirán finalidad, proveedor y duración, y se habilitará un control de elección cuando la legislación aplicable exija consentimiento. La continuación de la navegación no se tratará como consentimiento expreso para datos que legalmente lo requieran.</p>
+      </section>
+
+      <section id="fundamento" class="sources"><h2>Fundamento y referencia técnica</h2>
+        <p><a href="https://www.diputados.gob.mx/LeyesBiblio/pdf/LFPDPPP.pdf" target="_blank" rel="noopener noreferrer">LFPDPPP</a>, arts. 5–16 (principios, consentimiento y aviso); <a href="https://www.diputados.gob.mx/LeyesBiblio/regley/Reg_LFPDPPP.pdf" target="_blank" rel="noopener noreferrer">Reglamento</a>, disposiciones sobre tecnologías que recaban datos automáticamente; <a href="https://supabase.com/docs/reference/javascript/auth" target="_blank" rel="noopener noreferrer">documentación de Supabase Auth</a> sobre persistencia de sesiones en almacenamiento local.</p>
+      </section>
+    </main>
+    <aside class="toc" aria-label="Contenido"><b>En esta página</b><a href="#diferencia">Conceptos</a><a href="#uso">Qué se guarda</a><a href="#terceros">Servicios externos</a><a href="#control">Control y borrado</a><a href="#cambios">Cambios futuros</a><a href="#fundamento">Fundamento</a></aside>
+  </div>
+  <div class="footer">Transparencia sobre el almacenamiento · Versión 23/09/2026</div>
+</body>
+</html>
