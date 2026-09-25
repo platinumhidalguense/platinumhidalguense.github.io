@@ -1656,7 +1656,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-25.1';
+const APP_VERSION='2026-09-25.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -13157,10 +13157,12 @@ const CTRL_TABLAS={
 };
 function ctrlFaltaScript(e){
   const m=(e&&e.message)||String(e||'');
-  if(/control_casos_imss|control_aplicar_caso_imss/i.test(m))return 'Falta aplicar 87_CASOS_IMSS_CERTIFICADOS_Y_NOMINA.sql en Supabase.';
-  if(/control_altas_bajas_cortas/i.test(m))return 'Falta aplicar 88_ALTAS_BAJAS_CORTAS_SIN_SERVICIO.sql en Supabase.';
-  if(/control_eliminar_cierre_admin|control_cierres_eliminados/i.test(m))return 'Falta aplicar 89_ELIMINACION_ADMIN_CIERRE_COMPLETO.sql en Supabase.';
-  if(/control_|schema cache|does not exist|could not find/i.test(m))
+  if(/permission denied|row.level security|sin permiso|sólo el administrador/i.test(m))return m;
+  const falta=/schema cache|does not exist|could not find|PGRST205/i.test(m);
+  if(falta&&/control_casos_imss|control_aplicar_caso_imss/i.test(m))return 'Falta aplicar 87_CASOS_IMSS_CERTIFICADOS_Y_NOMINA.sql en Supabase.';
+  if(falta&&/control_altas_bajas_cortas/i.test(m))return 'Falta aplicar 88_ALTAS_BAJAS_CORTAS_SIN_SERVICIO.sql en Supabase.';
+  if(falta&&/control_eliminar_cierre_admin|control_cierres_eliminados/i.test(m))return 'Falta aplicar 89_ELIMINACION_ADMIN_CIERRE_COMPLETO.sql en Supabase.';
+  if(falta)
     return 'Falta aplicar el archivo 71_CONTROL_EMPRESARIAL_CUMPLIMIENTO.sql en Supabase.';
   return m;
 }
@@ -13454,7 +13456,7 @@ function ctrlHabiles(f,n=5){
 async function openCtrlMovimientos(){
   ctrlAuditar('SEGURIDAD_SOCIAL','ABRIR');const {data,error}=await ctrlLeer(CTRL_TABLAS.mov);if(error){toast(ctrlFaltaScript(error),'err');return;}
   const a=(data||[]).sort((x,y)=>String(y.fecha_efectiva).localeCompare(String(x.fecha_efectiva)));window._CTRLMOV=a;
-  modal(ctrlNav('📅 IMSS · IDSE · SUA')+`<div class="m-body"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoMovimiento()">＋ Registrar</button><button class="btn" onclick="ctrlSincronizarMovimientos()">↻ Detectar altas y bajas</button><button class="btn" onclick="ctrlExportMovimientos()">⬇ Excel</button></div>
+  modal(ctrlNav('📅 IMSS · IDSE · SUA')+`<div class="m-body"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoMovimiento()">＋ Registrar</button><button class="btn" onclick="ctrlSincronizarMovimientos()">↻ Detectar altas y bajas</button><button class="btn" onclick="openCtrlCasosIMSS()">🏥 Casos IMSS</button><button class="btn" onclick="openCtrlAltasCortas()">↔️ Sin servicio</button><button class="btn" onclick="ctrlExportMovimientos()">⬇ Excel</button></div>
     <p class="fhint" style="margin-top:8px">“Proceso interno” aplica la regla lunes (solicitudes lunes-miércoles: lunes de esa semana; jueves-domingo: lunes siguiente). “Límite legal” es un control separado de 5 días hábiles y debe validarse con el calendario oficial.</p>
     ${ctrlTabla(['Trabajador','Movimiento','Efectiva','Proceso interno','Límite legal','Canales','Estado','Acción'],a.map(x=>`<tr><td>#${x.trabajador_numero??'—'} ${esc(x.trabajador_nombre)}</td><td>${x.tipo}</td><td>${fmtD(x.fecha_efectiva)}</td><td>${fmtD(x.fecha_proceso_interno)}</td><td style="color:${x.estado!=='ACEPTADO'&&x.fecha_limite_legal<today()?'var(--red)':''}">${fmtD(x.fecha_limite_legal)}</td><td>${esc((x.canales||[]).join(' · '))}</td><td>${ctrlEstado(x.estado)}</td><td>${x.estado==='PENDIENTE'? `<button class="btn" onclick="ctrlMovEstado('${x.id}','PREPARADO')">Preparado</button>`:x.estado==='PREPARADO'? `<button class="btn dark" onclick="openCtrlPresentarMov('${x.id}')">Presentar</button>`:x.estado==='PRESENTADO'? `<button class="btn dark" onclick="ctrlMovEstado('${x.id}','ACEPTADO')">Aceptar</button>`:''}</td></tr>`),'Sin movimientos registrados.')}</div>`,'lg');
 }
