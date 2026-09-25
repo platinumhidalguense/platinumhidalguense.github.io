@@ -1134,7 +1134,7 @@ const EMPRESAS=Object.freeze({
   JIRE:{codigo:'JIRE',corto:'Grupo JIRE',nombre:'Grupo Comercial JIRE S.A. de C.V.',marca:'J'}
 });
 
-let sb=null, USER=null, OBRAS=[], OBRA=null, EMPRESA_ACTIVA='PLATINUM', WORKERS=[], CHEQUES=[], DESC=[], DOCSX=[], VAC=[], ACTAS=[], NOM=[], PAGOS=[], PRIMAS=[], CUADS=[], CIERRES=[], CTRLNOI=[], VIEW='trab';
+let sb=null, USER=null, OBRAS=[], OBRA=null, EMPRESA_ACTIVA='PLATINUM', WORKERS=[], CHEQUES=[], DESC=[], DOCSX=[], VAC=[], ACTAS=[], NOM=[], PAGOS=[], PRIMAS=[], CUADS=[], CIERRES=[], CTRLNOI=[], ALTAS_CORTAS=[], VIEW='trab';
 /* Script 59: diferenciales de proyección, bloques de cheques y control interno
    salarial. SUELDOSINT solo trae filas si el usuario es VIP — lo decide la RLS
    de la base, no la app. */
@@ -1602,7 +1602,7 @@ async function loadObraData(id){
   skeletonTabla('tbody',9,10,'Cargando trabajadores...');
   skeletonTabla('chq-tbody',6,10,'Cargando cheques...');
   skeletonTabla('pg-v-tbody',5,9,'Cargando pagos...');
-  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn}]=await Promise.all([
+  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn},{data:ab}]=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
     fetchAllRows(()=>sb.from('cheques').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id)),
@@ -1619,10 +1619,11 @@ async function loadObraData(id){
        cifra no llega al navegador, no es que se esconda con CSS. */
     fetchAllRows(()=>sb.from('sueldos_internos').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('control_cierres_nomina').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('control_conciliacion_noi').select('*').eq('obra_id',id))
+    fetchAllRows(()=>sb.from('control_conciliacion_noi').select('*').eq('obra_id',id)),
+    fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('id,trabajador_id,anio,semana,estado_servicio').eq('obra_id',id))
   ]);
   if(e1){toast('Error al cargar trabajadores: '+e1.message,'err');return;}
-  WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];PAGOS=pg||[];PRIMAS=(pr||[]).filter(p=>p.activo!==false);CUADS=cd||[];DIFS=df||[];BLOQUES=bq||[];SUELDOSINT=si||[];CIERRES=cc||[];CTRLNOI=cn||[];
+  WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];PAGOS=pg||[];PRIMAS=(pr||[]).filter(p=>p.activo!==false);CUADS=cd||[];DIFS=df||[];BLOQUES=bq||[];SUELDOSINT=si||[];CIERRES=cc||[];CTRLNOI=cn||[];ALTAS_CORTAS=ab||[];
   await activarProgramados();
   const cs=[...new Set(WORKERS.map(w=>w.contratista).filter(Boolean))].sort();
   const cur=$('flt-contratista').value;
@@ -1655,7 +1656,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-24.1';
+const APP_VERSION='2026-09-25.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2389,7 +2390,7 @@ function renderTable(){
       <td title="${esc(fullName(w))}"><b>${esc(fullName(w))}</b></td>
       <td title="${esc(w.contratista)}">${esc(w.contratista)}</td>
       <td title="${esc(w.puesto)}">${esc(w.puesto)}</td>
-      <td><span class="estado-trab"><span class="badge ${w.estatus}">${w.estatus}</span>${altaImssPendiente(w)?'<span class="badge PENDIENTE imss-alert" title="Alta pendiente de presentar ante el IMSS">⚠ ALTA IMSS</span>':''}</span></td>
+      <td><span class="estado-trab"><span class="badge ${w.estatus}">${w.estatus}</span>${altaImssPendiente(w)?'<span class="badge PENDIENTE imss-alert" title="Alta pendiente de presentar ante el IMSS">⚠ ALTA IMSS</span>':''}${ALTAS_CORTAS.some(a=>a.trabajador_id===w.id&&a.estado_servicio==='SIN_SERVICIO_CONFIRMADO')?'<span class="badge PENDIENTE" title="Alta y baja con registro IMSS; sin trabajo efectivo confirmado. Verifica acuses y fecha real.">SIN SERVICIO</span>':''}</span></td>
       <td title="${w.fecha_reingreso?'Fecha de reingreso':'Fecha de ingreso'}">${w.fecha_reingreso?'<b style="color:var(--amber)">'+fmtD(w.fecha_reingreso)+'</b><small style="display:block;color:var(--amber)">REINGRESO</small>':'<b style="color:var(--green)">'+fmtD(w.fecha_alta)+'</b><small style="display:block;color:var(--green)">INGRESO</small>'}</td>
       <td>${w.fecha_baja?'<span style="color:var(--red)">'+fmtD(w.fecha_baja)+'</span>':'—'}</td>
       <td>$${money(w.sal_semanal)}</td>
@@ -13150,10 +13151,15 @@ async function exportRespaldo(porCorreo){
 const CTRL_TABLAS={
   cierres:'control_cierres_nomina',noi:'control_conciliacion_noi',
   mov:'control_movimientos_seguridad_social',docs:'control_documentos_cumplimiento',
-  costos:'control_presupuestos_obra',inc:'control_incidentes_laborales',audit:'control_bitacora'
+  costos:'control_presupuestos_obra',inc:'control_incidentes_laborales',audit:'control_bitacora',
+  casosIMSS:'control_casos_imss',casosIMSSSem:'control_casos_imss_semanas',
+  altasCortas:'control_altas_bajas_cortas',cierresEliminados:'control_cierres_eliminados'
 };
 function ctrlFaltaScript(e){
   const m=(e&&e.message)||String(e||'');
+  if(/control_casos_imss|control_aplicar_caso_imss/i.test(m))return 'Falta aplicar 87_CASOS_IMSS_CERTIFICADOS_Y_NOMINA.sql en Supabase.';
+  if(/control_altas_bajas_cortas/i.test(m))return 'Falta aplicar 88_ALTAS_BAJAS_CORTAS_SIN_SERVICIO.sql en Supabase.';
+  if(/control_eliminar_cierre_admin|control_cierres_eliminados/i.test(m))return 'Falta aplicar 89_ELIMINACION_ADMIN_CIERRE_COMPLETO.sql en Supabase.';
   if(/control_|schema cache|does not exist|could not find/i.test(m))
     return 'Falta aplicar el archivo 71_CONTROL_EMPRESARIAL_CUMPLIMIENTO.sql en Supabase.';
   return m;
@@ -13213,6 +13219,8 @@ async function openControlEmpresarial(){
           ['⚖️','Conciliación NOI','Compara netos por trabajador y detecta diferencias al centavo','openCtrlConciliacionSelector()'],
           ['📒','Concentrado por contratista','Percepciones, ISR, IMSS, neto y evidencia de pago por semana','openCtrlConcentradoContratistas()'],
           ['📅','IMSS · IDSE · SUA','Altas, bajas, salarios e incapacidades con fechas y evidencias','openCtrlMovimientos()'],
+          ['🏥','Casos IMSS','Certificados, probable riesgo, calificación y días aplicados a nómina','openCtrlCasosIMSS()'],
+          ['↔️','Altas y bajas sin servicio','Distingue registros IMSS sin trabajo efectivo de faltas y finiquitos','openCtrlAltasCortas()'],
           ['🗂️','Expediente de cumplimiento','SIROC, REPSE, contratos, opiniones, pólizas y vigencias','openCtrlDocumentos()'],
           ['📊','Costo real de obra','Nómina, previsión, finiquitos, cargas y presupuesto','openCtrlCostos()'],
           ['🦺','Incidentes e incapacidades','Registro, evidencia, seguimiento y posible riesgo de trabajo','openCtrlIncidentes()']
@@ -13239,7 +13247,7 @@ async function ctrlSha(valor){
 }
 async function openCtrlCierres(){
   ctrlAuditar('CIERRE_NOMINA','ABRIR');
-  modal(ctrlNav('🔐 Cierre de nómina')+`<div class="m-body"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoCierre()">＋ Nuevo cierre</button><button class="btn" onclick="openCtrlConciliacionSelector()">⚖️ Conciliación NOI</button><button class="btn" onclick="ctrlExportCierres()">⬇ Excel</button></div><div id="ctrl-cierres"></div></div>`,'lg');
+  modal(ctrlNav('🔐 Cierre de nómina')+`<div class="m-body"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoCierre()">＋ Nuevo cierre</button><button class="btn" onclick="openCtrlConciliacionSelector()">⚖️ Conciliación NOI</button><button class="btn" onclick="ctrlExportCierres()">⬇ Excel</button>${esAdmin()?'<button class="btn" onclick="openCtrlCierresEliminados()">🗄 Historial eliminados</button>':''}</div><div id="ctrl-cierres"></div></div>`,'lg');
   const {data,error}=await ctrlLeer(CTRL_TABLAS.cierres);if(error){$('ctrl-cierres').innerHTML=esc(ctrlFaltaScript(error));return;}
   window._CTRLCIERRES=(data||[]).sort((a,b)=>b.semana-a.semana||String(b.created_at).localeCompare(String(a.created_at)));
   $('ctrl-cierres').innerHTML=ctrlTabla(['Semana','Periodo','Estado','Trabajadores','Neto','Revisión / autorización','Acciones'],window._CTRLCIERRES.map(c=>{
@@ -13249,7 +13257,7 @@ async function openCtrlCierres(){
       <td style="white-space:nowrap"><button class="btn" style="padding:4px 7px" onclick="ctrlOpenConciliacion('${c.id}')">Conciliar</button>
       <button class="btn" style="padding:4px 7px" onclick="ctrlRevisarPagosSemana(${c.semana})">Pagos</button>
       ${next?`<button class="btn dark" style="padding:4px 7px" onclick="ctrlCambiarCierre('${c.id}','${next[0]}')">${next[1]}</button>`:''}
-      ${c.estado==='BORRADOR'&&esAdmin()?`<button class="btn danger" style="padding:4px 7px" onclick="ctrlEliminarCierre('${c.id}')">Eliminar borrador</button>`:''}</td></tr>`; }),'Aún no hay cierres de nómina.');
+      ${esAdmin()?`<button class="btn danger" style="padding:4px 7px" onclick="ctrlEliminarCierre('${c.id}')">Eliminar cierre</button>`:''}</td></tr>`; }),'Aún no hay cierres de nómina.');
 }
 async function ctrlRevisarPagosSemana(sem){return conciliarSemana('S'+sem);}
 function openCtrlNuevoCierre(){
@@ -13279,12 +13287,26 @@ async function ctrlCrearCierre(){
 }
 async function ctrlEliminarCierre(id){
   const c=(window._CTRLCIERRES||[]).find(x=>x.id===id);if(!c)return;
-  if(c.estado!=='BORRADOR'){toast('Solo se puede eliminar un cierre que permanezca en BORRADOR.','err');return;}
-  if(!confirm(`¿Eliminar el borrador de la semana S${c.semana}?\n\nSe eliminará su conciliación. Los cheques automáticos todavía no expedidos se cancelarán y pasarán a papelera para conservar la trazabilidad. Los pagos BBVA y cheques manuales no se modifican.`))return;
-  await ctrlAuditar('CIERRE_NOMINA','ELIMINAR_BORRADOR',{semana:c.semana,periodo:c.periodo,huella:c.snapshot_sha256},'CIERRE',id);
-  markWrite();const {error}=await sb.from(CTRL_TABLAS.cierres).delete().eq('id',id).eq('obra_id',OBRA.id).eq('estado','BORRADOR');
+  if(!esAdmin()){toast('Sólo el administrador puede eliminar cierres.','err');return;}
+  if(!confirm(`Primera confirmación: ¿retirar el cierre S${c.semana} (${c.estado})?\n\nEl cierre y su conciliación se archivarán. Pagos, CFDI y cheques expedidos se conservan; sólo los cheques automáticos pendientes sin número se cancelan.`))return;
+  const frase=`ELIMINAR S${c.semana}`;
+  const escrita=prompt(`Segunda confirmación: escribe exactamente ${frase}`,'');
+  if(escrita!==frase){if(escrita!==null)toast('La confirmación no coincide; no se modificó nada.','err');return;}
+  const motivo=prompt('Motivo de la eliminación para la bitácora (mínimo 10 caracteres):','');
+  if(motivo===null)return;
+  if(motivo.trim().length<10){toast('Escribe un motivo de al menos 10 caracteres.','err');return;}
+  markWrite();const {data,error}=await sb.rpc('control_eliminar_cierre_admin',{p_cierre_id:id,p_confirmacion:escrita,p_motivo:motivo.trim()});
   if(error){toast('No se eliminó: '+ctrlFaltaScript(error),'err');return;}
-  toast('Borrador eliminado. Ya puedes crear correctamente el cierre de esa semana.','ok');await loadObraData(OBRA.id);openCtrlCierres();
+  toast(`Cierre S${c.semana} archivado y retirado. ${data?.cheques_conservados??0} cheque(s) conservado(s).`,'ok');
+  await loadObraData(OBRA.id);openCtrlCierres();
+}
+async function openCtrlCierresEliminados(){
+  if(!esAdmin()){toast('Sólo el administrador puede consultar este historial.','err');return;}
+  const {data,error}=await ctrlLeer(CTRL_TABLAS.cierresEliminados);
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  const a=(data||[]).sort((x,y)=>String(y.eliminado_en).localeCompare(String(x.eliminado_en)));
+  modal(ctrlNav('🗄 Historial de cierres eliminados','openCtrlCierres')+`<div class="m-body"><p class="fhint">Archivo inalterable para auditoría. Los pagos, CFDI y cheques expedidos no se eliminan al retirar un cierre.</p>
+    ${ctrlTabla(['Semana','Estado anterior','Eliminado por','Fecha','NOI archivado','Cheques vinculados','Motivo'],a.map(x=>`<tr><td>S${x.semana} · ${esc(x.periodo)}</td><td>${ctrlEstado(x.estado_anterior)}</td><td>${esc(x.actor_email)}</td><td>${new Date(x.eliminado_en).toLocaleString('es-MX')}</td><td>${(x.conciliacion||[]).length}</td><td>${(x.cheques_vinculados||[]).length}</td><td>${esc(x.motivo)}</td></tr>`),'Sin cierres eliminados.')}</div>`,'lg');
 }
 async function ctrlCambiarCierre(id,estado){
   if(!confirm(`¿Cambiar el cierre a ${estado}? Las etapas autorizadas bloquean importes y fotografía.`))return;
@@ -13538,6 +13560,207 @@ async function ctrlGuardarCosto(){
   markWrite();const {data,error}=await sb.from(CTRL_TABLAS.costos).upsert(f,{onConflict:'obra_id,semana,periodo,contratista'}).select('id').single();if(error){toast(ctrlFaltaScript(error),'err');return;}await ctrlAuditar('COSTOS_OBRA','GUARDAR',f,'PRESUPUESTO',data.id);toast('Costo y presupuesto guardados.','ok');openCtrlCostos(sem);
 }
 async function ctrlExportCostos(){const x=window._CTRLCOST;if(!x)return;const b=x.b||{},r=x.r;await ctrlExportar('COSTO REAL DE OBRA',['CONCEPTO','PRESUPUESTO','REAL'],[['Nómina',b.presupuesto_nomina||0,r.transfer+r.cheques],['Previsión social',b.presupuesto_prevision||0,r.prevision],['Finiquitos',b.presupuesto_finiquitos||0,r.finiquitos],['Carga patronal',b.presupuesto_carga_patronal||0,b.real_carga_patronal||0],['Otros',b.presupuesto_otros||0,b.real_otros||0],['TOTAL',x.pres,x.real],['PROYECCIÓN DEL MOTOR','',r.proyeccion]],`COSTO_REAL_S${x.sem}`,'COSTOS_OBRA');}
+/* ---------- CASOS IMSS: certificado, calificación y enlace a nómina ---------- */
+async function openCtrlCasosIMSS(){
+  const {data,error}=await fetchAllRows(()=>sb.from(CTRL_TABLAS.casosIMSS)
+    .select('*,control_casos_imss_semanas(*)').eq('obra_id',OBRA.id),'created_at');
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  const a=(data||[]).sort((x,y)=>String(y.created_at).localeCompare(String(x.created_at)));
+  window._CTRLIMSS=a;
+  modal(ctrlNav('🏥 Casos IMSS')+`<div class="m-body">
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoCasoIMSS()">＋ Nuevo caso</button><button class="btn" onclick="openCtrlIncidentes()">🦺 Incidentes</button></div>
+    <p class="fhint" style="margin-top:9px">Registra el ramo y los días del certificado tal como los expidió el IMSS. “Probable riesgo” no equivale a calificación positiva. Una incapacidad justifica la ausencia y no se captura como falta injustificada. No registres diagnósticos clínicos en este módulo.</p>
+    ${ctrlTabla(['Trabajador','Certificado','Ramo / riesgo','Folio','Nómina','Estado / acciones'],a.map(c=>{
+      const w=WORKERS.find(x=>x.id===c.trabajador_id),ss=c.control_casos_imss_semanas||[];
+      return `<tr><td>#${w?.no_trab??'—'} ${esc(w?fullName(w):'Trabajador no visible')}</td><td>${c.certificado_desde?fmtD(c.certificado_desde)+' a '+fmtD(c.certificado_hasta)+' · '+c.dias_certificados+' día(s)':'Pendiente'}</td>
+        <td>${esc(c.ramo_certificado.replaceAll('_',' '))}<br><small>${c.probable_riesgo_trabajo?'Probable RT · ':''}${esc(c.calificacion_rt.replaceAll('_',' '))}</small></td>
+        <td>${esc(c.folio_certificado||'Pendiente')}</td><td>${ss.map(s=>`S${s.semana}: ${s.dias_sin_salario_patronal} sin sueldo · ${esc(s.estado)}`).join('<br>')||'Sin aplicación'}</td>
+        <td>${ctrlEstado(c.estado)}<br><button class="btn" style="padding:4px 6px" onclick="openCtrlSemanaIMSS('${c.id}')">Semana</button> <button class="btn" style="padding:4px 6px" onclick="openCtrlActualizarCasoIMSS('${c.id}')">Seguimiento</button></td></tr>`;
+    }),'No hay casos IMSS en este centro.')}</div>`,'lg');
+}
+function openCtrlNuevoCasoIMSS(){
+  modal(ctrlNav('＋ Caso IMSS','openCtrlCasosIMSS')+`<div class="m-body">
+    <div class="grid" style="grid-template-columns:repeat(2,1fr)">
+      <div style="grid-column:span 2"><label>Trabajador</label><select id="im-w">${WORKERS.map(w=>`<option value="${w.id}">#${w.no_trab??'—'} · ${esc(fullName(w))}</option>`).join('')}</select></div>
+      <div><label>Tipo de caso</label><select id="im-t"><option>INCAPACIDAD</option><option>ACCIDENTE</option><option>ENFERMEDAD</option></select></div>
+      <div><label>Fecha del evento (si se conoce)</label><input id="im-e" type="date"></div>
+      <div><label>Ramo del certificado</label><select id="im-r"><option>ENFERMEDAD_GENERAL</option><option>RIESGO_TRABAJO</option><option>MATERNIDAD</option><option>SIN_CERTIFICADO</option></select></div>
+      <div><label>Tipo de certificado</label><select id="im-tc"><option>INICIAL</option><option>SUBSECUENTE</option><option>ENLACE</option><option>RECAIDA</option><option>SIN_CERTIFICADO</option></select></div>
+      <div><label>Desde (certificado)</label><input id="im-d" type="date"></div><div><label>Hasta (certificado)</label><input id="im-h" type="date"></div>
+      <div><label>Folio del certificado</label><input id="im-f" maxlength="80"></div><div><label>Folio ST-7 / ST-9</label><input id="im-st" maxlength="80"></div>
+      <div style="grid-column:span 2"><label><input id="im-prt" type="checkbox"> El documento indica probable riesgo de trabajo (pendiente de calificación)</label></div>
+      <div style="grid-column:span 2"><label>Referencia interna del expediente (sin diagnóstico ni URL pública)</label><input id="im-ref" maxlength="200"></div>
+      <div style="grid-column:span 2"><label>Notas operativas</label><textarea id="im-nota" rows="2" placeholder="Seguimiento administrativo, no diagnóstico"></textarea></div>
+    </div><p class="fhint" style="margin-top:8px">En enfermedad general, el subsidio del IMSS inicia normalmente el cuarto día sujeto a requisitos; en riesgo de trabajo calificado, el régimen es distinto. La plataforma no presume la calificación ni el pago del subsidio.</p></div>
+    <div class="m-foot"><button class="btn" onclick="openCtrlCasosIMSS()">Cancelar</button><button class="btn dark" onclick="ctrlGuardarCasoIMSS()">Guardar caso</button></div>`,'lg');
+}
+async function ctrlGuardarCasoIMSS(){
+  const w=WORKERS.find(x=>x.id===$('im-w').value),d=$('im-d').value,h=$('im-h').value,r=$('im-r').value,tc=$('im-tc').value;
+  if(!w){toast('Selecciona un trabajador.','err');return;}
+  if((!!d)!=(!!h)){toast('Captura ambas fechas del certificado.','err');return;}
+  const dias=d&&h?Math.round((Date.parse(h+'T12:00:00Z')-Date.parse(d+'T12:00:00Z'))/86400000)+1:0;
+  if(dias<0||dias>365||(!d&&(r!=='SIN_CERTIFICADO'||tc!=='SIN_CERTIFICADO'))){toast('Revisa ramo, tipo y fechas del certificado.','err');return;}
+  const f={obra_id:OBRA.id,trabajador_id:w.id,tipo_caso:$('im-t').value,fecha_evento:$('im-e').value||null,
+    ramo_certificado:r,tipo_certificado:tc,probable_riesgo_trabajo:$('im-prt').checked,
+    calificacion_rt:$('im-prt').checked?'PENDIENTE':'NO_APLICA',certificado_desde:d||null,certificado_hasta:h||null,
+    dias_certificados:dias,folio_certificado:$('im-f').value.trim()||null,
+    folio_st7:$('im-st').value.trim()||null,referencia_evidencia:$('im-ref').value.trim()||null,
+    observaciones_operativas:$('im-nota').value.trim()||null,
+    estado:d?$('im-prt').checked?'PENDIENTE_CALIFICACION':'EN_SEGUIMIENTO':'PENDIENTE_CERTIFICADO'};
+  markWrite();const {data,error}=await sb.from(CTRL_TABLAS.casosIMSS).insert(f).select('id').single();
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  await ctrlAuditar('CASOS_IMSS','REGISTRAR',{trabajador_id:w.id,ramo:r,tipo_certificado:tc,probable_rt:f.probable_riesgo_trabajo},'CASO_IMSS',data.id);
+  toast('Caso IMSS registrado. Agrega la distribución semanal antes de aplicarlo a nómina.','ok');openCtrlCasosIMSS();
+}
+function openCtrlSemanaIMSS(id){
+  const c=(window._CTRLIMSS||[]).find(x=>x.id===id);if(!c)return;
+  const w=WORKERS.find(x=>x.id===c.trabajador_id),ss=[...(c.control_casos_imss_semanas||[])].sort((a,b)=>b.anio-a.anio||b.semana-a.semana);
+  modal(ctrlNav('📅 Aplicación semanal IMSS','openCtrlCasosIMSS')+`<div class="m-body">
+    <p><b>#${w?.no_trab??'—'} ${esc(w?fullName(w):'')}</b> · ${c.certificado_desde?`${fmtD(c.certificado_desde)}–${fmtD(c.certificado_hasta)} (${c.dias_certificados} días)`:'Certificado pendiente'}</p>
+    <p class="fhint">Distingue los días con sueldo pagado por la empresa de los días del certificado sin salario patronal. La aplicación crea una incidencia, nunca una falta injustificada. Verifica el resultado contra NOI antes del cierre.</p>
+    ${ctrlTabla(['Semana','Paga empresa','Sin salario','Estado','Acción'],ss.map(s=>`<tr><td>${s.anio} · S${s.semana}</td><td>${s.dias_pagados_empresa}</td><td>${s.dias_sin_salario_patronal}</td><td>${ctrlEstado(s.estado)}</td><td>${s.estado==='APLICADO'?`Descuento ${esc(s.descuento_id?'vinculado':'no necesario')}`:`<button class="btn dark" onclick="ctrlAplicarSemanaIMSS('${c.id}','${s.id}')">Aplicar a nómina</button>`}</td></tr>`),'Sin semanas distribuidas.')}
+    <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-top:15px">
+      <div><label>Semana de la obra</label><input id="ims-sem" type="number" min="1" max="53" value="${semObra()}"></div>
+      <div><label>Días con sueldo de la empresa</label><input id="ims-pag" type="number" min="0" max="7" value="0"></div>
+      <div><label>Días sin salario patronal</label><input id="ims-sin" type="number" min="0" max="7" value="0"></div>
+      <div style="grid-column:span 3"><label>Nota de conciliación</label><input id="ims-nota" placeholder="Ejem. 3 días empresa / 4 IMSS; verificar NOI"></div>
+    </div></div><div class="m-foot"><button class="btn" onclick="openCtrlCasosIMSS()">Volver</button><button class="btn dark" onclick="ctrlGuardarSemanaIMSS('${id}')">Guardar semana</button></div>`,'lg');
+}
+async function ctrlGuardarSemanaIMSS(id){
+  const c=(window._CTRLIMSS||[]).find(x=>x.id===id);if(!c||!c.certificado_desde){toast('Primero registra las fechas del certificado.','err');return;}
+  const sem=Number($('ims-sem').value),pag=Number($('ims-pag').value),sin=Number($('ims-sin').value);
+  if(!Number.isInteger(sem)||sem<1||sem>53||![pag,sin].every(x=>Number.isInteger(x)&&x>=0&&x<=7)){toast('Semana y días inválidos.','err');return;}
+  const [ini,fin]=semRange(sem),overlap=Math.max(0,Math.round((Date.parse((fin<c.certificado_hasta?fin:c.certificado_hasta)+'T12:00:00Z')-Date.parse((ini>c.certificado_desde?ini:c.certificado_desde)+'T12:00:00Z'))/86400000)+1);
+  if(!overlap||pag+sin>overlap){toast(`El certificado cubre ${overlap} día(s) de S${sem}; revisa la distribución.`, 'err');return;}
+  if((c.control_casos_imss_semanas||[]).some(s=>s.semana===sem&&s.anio===Number(ini.slice(0,4)))){toast('Esa semana ya existe para el caso.','err');return;}
+  markWrite();const {error}=await sb.from(CTRL_TABLAS.casosIMSSSem).insert({caso_id:id,anio:Number(ini.slice(0,4)),semana:sem,
+    dias_pagados_empresa:pag,dias_sin_salario_patronal:sin,nota:$('ims-nota').value.trim()||null});
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  await ctrlAuditar('CASOS_IMSS','DISTRIBUIR_SEMANA',{caso_id:id,semana:sem,dias_empresa:pag,dias_sin_salario:sin},'CASO_IMSS',id);
+  toast('Semana guardada. Usa “Aplicar a nómina” para generar su incidencia.','ok');await openCtrlCasosIMSS();openCtrlSemanaIMSS(id);
+}
+async function ctrlAplicarSemanaIMSS(casoId,semanaId){
+  const c=(window._CTRLIMSS||[]).find(x=>x.id===casoId),s=(c?.control_casos_imss_semanas||[]).find(x=>x.id===semanaId);
+  if(!c||!s||s.estado==='APLICADO')return;
+  const w=WORKERS.find(x=>x.id===c.trabajador_id);
+  if(!w||w.estatus!=='ACTIVO'){toast('Para aplicar automáticamente, el trabajador debe estar activo en el motor. Revisa este caso con nómina.','err');return;}
+  const {error:eExist,data:ya}=await sb.from('descuentos').select('id,motivo').eq('trabajador_id',w.id)
+    .eq('obra_id',OBRA.id).eq('semana','S'+s.semana).eq('activo',true).eq('tipo','INCIDENCIA');
+  if(eExist){toast(eExist.message,'err');return;}
+  if((ya||[]).some(x=>/INCAPACIDAD IMSS/i.test(x.motivo||''))){toast('Ya hay una incidencia IMSS activa en esa semana. Vincúlala o revísala antes de generar otra.','err');return;}
+  const monto=s.dias_sin_salario_patronal?descuentoFaltasNOI(w,0,0,undefined,s.dias_sin_salario_patronal).monto:0;
+  if(s.dias_sin_salario_patronal&&(!Number.isFinite(monto)||monto<=0)){toast('No fue posible calcular un importe válido.','err');return;}
+  if(!confirm(`¿Aplicar S${s.semana} de ${fullName(w)}?\n${s.dias_sin_salario_patronal} día(s) IMSS sin salario patronal; incidencia estimada $${money(monto)}. No es falta injustificada. Verifica después contra NOI.`))return;
+  markWrite();const {error}=await sb.rpc('control_aplicar_caso_imss_semana',{p_semana_id:s.id,p_monto:monto});
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  toast('Incidencia IMSS aplicada y vinculada al caso.','ok');await loadObraData(OBRA.id);await openCtrlCasosIMSS();openCtrlSemanaIMSS(casoId);
+}
+function openCtrlActualizarCasoIMSS(id){
+  const c=(window._CTRLIMSS||[]).find(x=>x.id===id);if(!c)return;
+  modal(ctrlNav('Seguimiento del caso IMSS','openCtrlCasosIMSS')+`<div class="m-body"><p class="fhint">La calificación positiva o negativa sólo se registra al contar con dictamen del IMSS. No cambies el ramo original del certificado.</p>
+    <div class="grid" style="grid-template-columns:1fr 1fr"><div><label>Calificación oficial</label><select id="imu-cal"><option>PENDIENTE</option><option>SI_TRABAJO</option><option>NO_TRABAJO</option><option>NO_APLICA</option></select></div>
+    <div><label>Estado</label><select id="imu-est"><option>PENDIENTE_CALIFICACION</option><option>EN_SEGUIMIENTO</option><option>CERRADO</option><option>DESCARTADO</option></select></div>
+    <div><label>Folio ST-7</label><input id="imu-st7" value="${esc(c.folio_st7||'')}"></div><div><label>Folio ST-9</label><input id="imu-st9" value="${esc(c.folio_st9||'')}"></div>
+    <div><label>Folio ST-2 / alta médica</label><input id="imu-st2" value="${esc(c.folio_st2||'')}"></div><div><label>Folio certificado</label><input id="imu-f" value="${esc(c.folio_certificado||'')}"></div>
+    <div style="grid-column:span 2"><label>Referencia del dictamen / evidencia privada</label><input id="imu-ref" value="${esc(c.referencia_evidencia||'')}"></div>
+    <div style="grid-column:span 2"><label>Notas operativas (sin diagnóstico)</label><textarea id="imu-nota" rows="2">${esc(c.observaciones_operativas||'')}</textarea></div></div></div>
+    <div class="m-foot"><button class="btn" onclick="openCtrlCasosIMSS()">Cancelar</button><button class="btn dark" onclick="ctrlGuardarSeguimientoIMSS('${id}')">Guardar seguimiento</button></div>`,'lg');
+  $('imu-cal').value=c.calificacion_rt;$('imu-est').value=c.estado;
+}
+async function ctrlGuardarSeguimientoIMSS(id){
+  const c=(window._CTRLIMSS||[]).find(x=>x.id===id);if(!c)return;
+  const cal=$('imu-cal').value,st7=$('imu-st7').value.trim(),st9=$('imu-st9').value.trim(),ref=$('imu-ref').value.trim();
+  if(['SI_TRABAJO','NO_TRABAJO'].includes(cal)&&(!c.probable_riesgo_trabajo||!(st7||st9)||!ref)){toast('Para registrar una calificación oficial, requiere probable RT, folio ST-7/ST-9 y referencia del dictamen.','err');return;}
+  const up={calificacion_rt:cal,estado:$('imu-est').value,folio_st7:st7||null,folio_st9:st9||null,
+    folio_st2:$('imu-st2').value.trim()||null,folio_certificado:$('imu-f').value.trim()||null,
+    referencia_evidencia:ref||null,observaciones_operativas:$('imu-nota').value.trim()||null,updated_at:new Date().toISOString()};
+  markWrite();const {error}=await sb.from(CTRL_TABLAS.casosIMSS).update(up).eq('id',id).eq('obra_id',OBRA.id);
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  await ctrlAuditar('CASOS_IMSS','SEGUIMIENTO',{calificacion:cal,estado:up.estado,con_dictamen:!!ref},'CASO_IMSS',id);
+  toast('Seguimiento IMSS actualizado.','ok');openCtrlCasosIMSS();
+}
+/* ---------- ALTAS Y BAJAS SIN SERVICIO EFECTIVO ---------- */
+async function openCtrlAltasCortas(){
+  const {data,error}=await ctrlLeer(CTRL_TABLAS.altasCortas);if(error){toast(ctrlFaltaScript(error),'err');return;}
+  const a=(data||[]).sort((x,y)=>bajaCortaOrden(y)-bajaCortaOrden(x));window._CTRLALT=a;
+  modal(ctrlNav('↔️ Altas y bajas sin servicio')+`<div class="m-body">
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevaAltaCorta()">＋ Registrar caso</button><button class="btn" onclick="ctrlExportAltasCortas()">⬇ Excel</button></div>
+    <p class="fhint" style="margin-top:9px">Distingue fecha en la base, movimiento efectivo IDSE y escenario NOI. Esta clasificación no borra el alta IMSS ni acredita por sí sola que no existan prestaciones. Conserva acuses y revisa cualquier servicio efectivamente prestado.</p>
+    ${ctrlTabla(['Trabajador','Semana','Base alta / baja','IDSE alta / baja','NOI: modelo y neto','Servicio','Acción'],a.map(x=>{
+      const w=WORKERS.find(t=>t.id===x.trabajador_id);
+      return `<tr><td>#${w?.no_trab??'—'} ${esc(w?fullName(w):'Trabajador no visible')}</td><td>${x.anio} · S${x.semana}</td>
+      <td>${fmtD(x.fecha_alta_base)} / ${fmtD(x.fecha_baja_base)}</td><td>${x.fecha_alta_idse?fmtD(x.fecha_alta_idse):'Acuse pendiente'} / ${x.fecha_baja_idse?fmtD(x.fecha_baja_idse):'Acuse pendiente'}</td>
+      <td>${x.fecha_alta_modelo_noi?fmtD(x.fecha_alta_modelo_noi)+' / '+fmtD(x.fecha_baja_modelo_noi):'Pendiente'}<br>${x.neto_noi==null?'NOI pendiente':'$'+money(x.neto_noi)+' · '+(x.dias_pagados_noi??'—')+' días'}</td>
+      <td>${ctrlEstado(x.estado_servicio)}</td><td><button class="btn" style="padding:4px 6px" onclick="openCtrlEditarAltaCorta('${x.id}')">Revisar</button></td></tr>`;
+    }),'Sin altas y bajas cortas clasificadas.')}</div>`,'lg');
+}
+function bajaCortaOrden(x){return x.anio*100+x.semana;}
+function openCtrlNuevaAltaCorta(){
+  const candidatos=WORKERS.filter(w=>w.fecha_alta&&w.fecha_baja&&w.fecha_baja>=w.fecha_alta);
+  modal(ctrlNav('＋ Alta y baja corta','openCtrlAltasCortas')+`<div class="m-body">
+    <div><label>Trabajador con alta y baja registradas</label><select id="ab-w">${candidatos.map(w=>`<option value="${w.id}">#${w.no_trab??'—'} · ${esc(fullName(w))} · ${fmtD(w.fecha_alta)} / ${fmtD(w.fecha_baja)}</option>`).join('')}</select></div>
+    <div class="grid" style="grid-template-columns:repeat(2,1fr);margin-top:9px">
+      <div><label>Semana de la obra</label><input id="ab-sem" type="number" min="1" max="53" value="${semObra()}"></div>
+      <div><label>Situación real</label><select id="ab-est"><option>PENDIENTE</option><option>SIN_SERVICIO_CONFIRMADO</option><option>CON_SERVICIO</option><option>REVISAR</option></select></div>
+      <div><label>Fecha efectiva de alta IDSE (según acuse)</label><input id="ab-ai" type="date"></div>
+      <div><label>Fecha efectiva de baja IDSE (según acuse)</label><input id="ab-bi" type="date"></div>
+      <div><label>Alta usada en NOI (modelo)</label><input id="ab-an" type="date"></div>
+      <div><label>Baja usada en NOI (modelo)</label><input id="ab-bn" type="date"></div>
+      <div><label>Faltas usadas en NOI</label><input id="ab-f" type="number" step="0.0001" min="0"></div>
+      <div><label>Neto NOI ($)</label><input id="ab-n" type="number" step="0.01" min="0"></div>
+      <div style="grid-column:span 2"><label>Observaciones / referencia de acuses</label><textarea id="ab-nota" rows="2"></textarea></div>
+    </div><p class="fhint">No inventes fechas IDSE ni captures una falta ficticia como ausencia real. El modelo NOI se registra únicamente como conciliación.</p></div>
+    <div class="m-foot"><button class="btn" onclick="openCtrlAltasCortas()">Cancelar</button><button class="btn dark" onclick="ctrlGuardarAltaCorta()">Guardar</button></div>`,'lg');
+}
+async function ctrlGuardarAltaCorta(){
+  const w=WORKERS.find(x=>x.id===$('ab-w').value),sem=Number($('ab-sem').value);if(!w||!Number.isInteger(sem)||sem<1||sem>53){toast('Selecciona trabajador y semana válidos.','err');return;}
+  const [ini,fin]=semRange(sem);
+  if(w.fecha_alta>fin||w.fecha_baja<ini){toast('El alta y la baja registradas no coinciden con esa semana.','err');return;}
+  const estado=$('ab-est').value,nota=$('ab-nota').value.trim();
+  if(estado==='SIN_SERVICIO_CONFIRMADO'&&!confirm('Confirma con evidencia operativa que no hubo ninguna hora de trabajo efectivo. Esta marca no elimina obligaciones legales ni fechas IMSS.'))return;
+  const f={obra_id:OBRA.id,trabajador_id:w.id,anio:Number(ini.slice(0,4)),semana:sem,estado_servicio:estado,
+    fecha_alta_base:w.fecha_alta,fecha_baja_base:w.fecha_baja,
+    fecha_alta_idse:$('ab-ai').value||null,fecha_baja_idse:$('ab-bi').value||null,
+    fecha_alta_modelo_noi:$('ab-an').value||null,fecha_baja_modelo_noi:$('ab-bn').value||null,
+    faltas_modelo_noi:$('ab-f').value?Number($('ab-f').value):null,
+    dias_pagados_noi:null,neto_noi:$('ab-n').value?Number($('ab-n').value):null,
+    observaciones:nota||null,fuente:'CAPTURA_MANUAL'};
+  markWrite();const {data,error}=await sb.from(CTRL_TABLAS.altasCortas).insert(f).select('id').single();
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  await ctrlAuditar('ALTAS_BAJAS_CORTAS','REGISTRAR',{trabajador_id:w.id,semana:sem,estado_servicio:estado},'ALTA_BAJA_CORTA',data.id);
+  toast('Caso clasificado sin modificar el alta o baja original.','ok');await loadObraData(OBRA.id);openCtrlAltasCortas();
+}
+function openCtrlEditarAltaCorta(id){
+  const x=(window._CTRLALT||[]).find(a=>a.id===id);if(!x)return;
+  const w=WORKERS.find(t=>t.id===x.trabajador_id);
+  modal(ctrlNav(`Revisar S${x.semana} · #${w?.no_trab??'—'}`,'openCtrlAltasCortas')+`<div class="m-body">
+    <p><b>${esc(w?fullName(w):'Trabajador')}</b> · Base: ${fmtD(x.fecha_alta_base)} / ${fmtD(x.fecha_baja_base)}</p>
+    <div class="grid" style="grid-template-columns:1fr 1fr"><div><label>Situación real</label><select id="abe-est"><option>PENDIENTE</option><option>SIN_SERVICIO_CONFIRMADO</option><option>CON_SERVICIO</option><option>REVISAR</option></select></div>
+    <div><label>Neto NOI ($)</label><input id="abe-net" type="number" step="0.01" min="0" value="${x.neto_noi??''}"></div>
+    <div><label>Alta efectiva IDSE</label><input id="abe-ai" type="date" value="${x.fecha_alta_idse||''}"></div><div><label>Baja efectiva IDSE</label><input id="abe-bi" type="date" value="${x.fecha_baja_idse||''}"></div>
+    <div style="grid-column:span 2"><label>Observaciones / acuses</label><textarea id="abe-nota" rows="3">${esc(x.observaciones||'')}</textarea></div></div></div>
+    <div class="m-foot"><button class="btn" onclick="openCtrlAltasCortas()">Cancelar</button><button class="btn dark" onclick="ctrlActualizarAltaCorta('${id}')">Guardar revisión</button></div>`,'lg');
+  $('abe-est').value=x.estado_servicio;
+}
+async function ctrlActualizarAltaCorta(id){
+  const x=(window._CTRLALT||[]).find(a=>a.id===id);if(!x)return;
+  const estado=$('abe-est').value,ai=$('abe-ai').value||null,bi=$('abe-bi').value||null;
+  if(ai&&bi&&bi<ai){toast('La baja IDSE no puede ser anterior al alta IDSE.','err');return;}
+  if(estado==='SIN_SERVICIO_CONFIRMADO'&&x.estado_servicio!==estado&&!confirm('Confirma que no hubo trabajo efectivo; conserva evidencia y acuses IMSS.'))return;
+  const up={estado_servicio:estado,fecha_alta_idse:ai,fecha_baja_idse:bi,
+    neto_noi:$('abe-net').value!==''?Number($('abe-net').value):null,
+    observaciones:$('abe-nota').value.trim()||null,updated_at:new Date().toISOString()};
+  markWrite();const {error}=await sb.from(CTRL_TABLAS.altasCortas).update(up).eq('id',id).eq('obra_id',OBRA.id);
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  await ctrlAuditar('ALTAS_BAJAS_CORTAS','REVISAR',{estado_servicio:estado,alta_idse:ai,baja_idse:bi},'ALTA_BAJA_CORTA',id);
+  toast('Caso actualizado.','ok');await loadObraData(OBRA.id);openCtrlAltasCortas();
+}
+async function ctrlExportAltasCortas(){
+  const a=window._CTRLALT||[];
+  await ctrlExportar('ALTAS Y BAJAS CORTAS',['NO.','TRABAJADOR','SEMANA','SITUACIÓN','ALTA BASE','BAJA BASE','ALTA IDSE','BAJA IDSE','ALTA MODELO NOI','BAJA MODELO NOI','FALTAS MODELO NOI','DÍAS NOI','NETO NOI','NOTAS'],
+    a.map(x=>{const w=WORKERS.find(t=>t.id===x.trabajador_id);return [w?.no_trab??'',w?fullName(w):'',`S${x.semana}/${x.anio}`,x.estado_servicio,x.fecha_alta_base||'',x.fecha_baja_base||'',x.fecha_alta_idse||'',x.fecha_baja_idse||'',x.fecha_alta_modelo_noi||'',x.fecha_baja_modelo_noi||'',x.faltas_modelo_noi??'',x.dias_pagados_noi??'',x.neto_noi??'',x.observaciones||''];}),
+    'ALTAS_BAJAS_CORTAS','ALTAS_BAJAS_CORTAS');
+}
 async function openCtrlIncidentes(){
   ctrlAuditar('INCIDENTES','ABRIR');const {data,error}=await ctrlLeer(CTRL_TABLAS.inc);if(error){toast(ctrlFaltaScript(error),'err');return;}
   const a=(data||[]).sort((x,y)=>String(y.fecha_hora).localeCompare(String(x.fecha_hora)));window._CTRLINC=a;
@@ -13581,11 +13804,12 @@ async function ctrlExportar(titulo,headers,data,nombre,modulo){
 function openManualControl(){
   ctrlAuditar('MANUAL','ABRIR');
   modal(ctrlNav('❔ Guía rápida del Centro de control')+`<div class="m-body" style="line-height:1.55">
-    <div class="sect">1. Cierre, pagos y entrega de cheques</div><p>Crea un solo cierre por centro y semana. El sistema genera cheques pendientes para personal sin cuenta y para finiquitos; al importar NOI puedes elegir transferencia o cheque, pero todo finiquito queda forzosamente en cheque. En “Pagos” revisa transferencias BBVA, cheques pendientes y diferencias de método. Captura número y consecutivo al expedir cada cheque: desde ese momento ya cuenta como pago cubierto y el sistema forma automáticamente su bloque con la fecha y hora reales. En “Reuniones de entrega” selecciona uno o varios bloques, añade excepcionalmente cheques manuales y confirma la entrega física uno por uno. Cierra la reunión solo cuando todos estén entregados. Una persona revisa y otra distinta autoriza la nómina; después marca timbrado y pagado. Solo un borrador puede eliminarse y, al autorizar, la fotografía y sus importes quedan bloqueados.</p>
+    <div class="sect">1. Cierre, pagos y entrega de cheques</div><p>Crea un solo cierre por centro y semana. El sistema genera cheques pendientes para personal sin cuenta y para finiquitos; al importar NOI puedes elegir transferencia o cheque, pero todo finiquito queda forzosamente en cheque. En “Pagos” revisa transferencias BBVA, cheques pendientes y diferencias de método. Captura número y consecutivo al expedir cada cheque: desde ese momento ya cuenta como pago cubierto y el sistema forma automáticamente su bloque con la fecha y hora reales. En “Reuniones de entrega” selecciona uno o varios bloques, añade excepcionalmente cheques manuales y confirma la entrega física uno por uno. Cierra la reunión solo cuando todos estén entregados. Una persona revisa y otra distinta autoriza la nómina; después marca timbrado y pagado. La fotografía e importes de un cierre autorizado quedan bloqueados. Solo el administrador puede retirar un cierre de cualquier estado mediante dos confirmaciones y motivo: se archiva la fotografía y conciliación; pagos, CFDI y cheques expedidos se conservan.</p>
     <div class="sect">2. IMSS, IDSE y SUA</div><p>Usa “Detectar altas y bajas” cada semana y agrega manualmente cambios de salario e incapacidades. La fecha interna del lunes no cambia la fecha efectiva. Para marcar presentado debes guardar folio o evidencia.</p>
     <div class="sect">3. Expediente de cumplimiento</div><p>Captura SIROC, REPSE, contratos, opiniones positivas, pólizas y licencias. El semáforo depende de la vigencia y los días de alerta. “No aplica” debe usarse solo con justificación.</p>
     <div class="sect">4. Costos de obra</div><p>Captura presupuesto semanal y la carga patronal real tomada del SUA. Transferencias, cheques, previsión y finiquitos se leen de los módulos existentes. Compara siempre el real confirmado contra la proyección.</p>
-    <div class="sect">5. Incidentes e incapacidades</div><p>Registra hechos objetivos, evidencia, testigos, acciones inmediatas y seguimiento. “Posible riesgo de trabajo” es una alerta; no reemplaza la calificación del IMSS. Cerrar exige dejar seguimiento.</p>
+    <div class="sect">5. Incidentes y casos IMSS</div><p>En Incidentes registra hechos, testigos y acciones sin inferir diagnósticos. En Casos IMSS captura el ramo y tipo exactos del certificado, sus fechas, folio y si indica probable riesgo. Distribuye por semana los días que paga la empresa y los días certificados sin salario patronal; después pulsa “Aplicar a nómina” para crear una incidencia vinculada, nunca una falta injustificada. Valida el neto contra NOI. Sólo registra “Sí/No de trabajo” cuando exista dictamen ST-7/ST-9 del IMSS; conserva ST-2 si corresponde. Una baja durante incapacidad requiere revisión especial de sus efectos ante IMSS.</p>
+    <div class="sect">6. Altas y bajas sin servicio</div><p>Registra por separado lo que muestra la base, las fechas efectivas en acuses IDSE y el escenario usado en NOI. Marca “sin servicio confirmado” sólo después de verificar que no hubo horas trabajadas. Los siete casos MG de S26 ya están clasificados. La marca no cambia fechas ni cancela prestaciones o cuotas automáticamente; conserva los acuses y revisa las obligaciones que correspondan.</p>
     <div class="sect">Fuentes oficiales de referencia</div><p style="font-size:11px"><a target="_blank" rel="noopener" href="https://www.diputados.gob.mx/LeyesBiblio/pdf/LFT.pdf">Ley Federal del Trabajo</a> · <a target="_blank" rel="noopener" href="https://www.diputados.gob.mx/LeyesBiblio/pdf/LSS.pdf">Ley del Seguro Social</a> · <a target="_blank" rel="noopener" href="https://www.imss.gob.mx/node/1407">Movimientos afiliatorios / IDSE</a> · <a target="_blank" rel="noopener" href="https://www.imss.gob.mx/siroc/informacion">SIROC</a> · <a target="_blank" rel="noopener" href="https://www.imss.gob.mx/node/73917">SUA</a> · <a target="_blank" rel="noopener" href="https://portalmx.infonavit.org.mx/">INFONAVIT</a> · <a target="_blank" rel="noopener" href="https://asinom.stps.gob.mx/upload/file/Nom030.html">NOM-030-STPS-2009</a>.</p>
     <div style="padding:10px;background:var(--amber-bg);border-radius:8px;font-size:11px">Antes de presentar, confirma días inhábiles, criterios de la autoridad y versión vigente de los sistemas oficiales. Esta guía organiza evidencia y autorizaciones; no sustituye asesoría legal ni el acuse oficial.</div></div>`,'lg');
 }
