@@ -3651,7 +3651,8 @@ async function dl(wb,name){
 /* ---------- REQUISICIÓN DE TARJETAS (con VERIFICAR) ---------- */
 function reqCandidatos(d1,d2,sem,incluirRezago){
   const enSemana=w=>{
-    const ingreso=String(w.fecha_reingreso||w.fecha_alta||'').slice(0,10);
+    const reingreso=String(w.fecha_reingreso||'').slice(0,10);
+    const ingreso=(reingreso&&reingreso<=d2?reingreso:String(w.fecha_alta||'')).slice(0,10);
     if(ingreso)return !!d1&&!!d2&&ingreso>=d1&&ingreso<=d2;
     return w.semana_ingreso&&String(w.semana_ingreso).replace(/\D/g,'')===String(sem);
   };
@@ -3989,9 +3990,11 @@ async function saveIncidencias(){
    proyección de esa semana. */
 function retFilasDe(semStr){
   const semN=parseInt(String(semStr).replace(/\D/g,''))||0;
+  const [d1,d2]=semRange(semN),sinServicio=asSinServicioSemana(d1);
   const filas=[];
   DESC.filter(d=>d.activo).forEach(d=>{
-    const w=WORKERS.find(x=>x.id===d.trabajador_id); if(!w)return;
+    const w=WORKERS.find(x=>x.id===d.trabajador_id);
+    if(!w||!asVigenteSemana(w,d1,d2)||sinServicio.has(w.id))return;
     // el monto se lleva al periodo del trabajador: el mismo crédito retiene
     // el doble en una quincena de oficina que en una semana de obra.
     const P=perDe(w), mp=montoDescuento(d,P);
@@ -9309,7 +9312,7 @@ function openRevisarFirmas(){
   const d1=$('as-d1')?$('as-d1').value:weekBounds()[0],d2=$('as-d2')?$('as-d2').value:weekBounds()[1];
   const paginas=asPaginas(asGruposCuadrilla(asActivosSemana(d1,d2)));
   const act=paginas.flatMap(p=>p.gente);
-  window._RF={corners:[],nRows:10,nDias:6,cut:120,thr:0.03,pag:0,paginas,actAll:act,workers:paginas[0]?paginas[0].gente:[]};
+  window._RF={corners:[],nRows:10,nDias:6,cut:120,thr:0.03,pag:0,d1,d2,paginas,actAll:act,workers:paginas[0]?paginas[0].gente:[]};
   const opts=paginas.map((p,i)=>`<option value="${i}">HOJA ${p.numero} — ${esc(p.grupo.contratista)}${p.grupo.cuadrilla?' · '+esc(p.grupo.cuadrilla):''}</option>`);
   modal(`
     <div class="m-head"><h2>🖊️ Revisar firmas de lista escaneada · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
@@ -9408,13 +9411,14 @@ function rfAnalizar(){
     }
     body+=`<tr><td style="font-size:11px;white-space:nowrap">${w?esc(fullName(w)):'<span style="color:var(--mut)">(fila '+(r+1)+')</span>'}</td>${cells}</tr>`;
   }
-  // nuevos ingresos (para solicitar documentación): alta reciente + docs incompletos
-  const hoy=new Date(), lim=new Date(hoy.getTime()-14*86400000).toISOString().slice(0,10);
-  const nuevos=window._RF.actAll.filter(w=>w.fecha_alta&&w.fecha_alta>=lim);
-  const nuevosHtml=nuevos.length?`<div class="sect">🆕 Nuevos ingresos (últimos 14 días) — solicitar documentación</div>`+
+  // La revisión de una lista histórica no debe mezclar altas de hoy.
+  const nuevos=window._RF.actAll.filter(w=>(w.fecha_alta>=window._RF.d1&&w.fecha_alta<=window._RF.d2)
+    ||(w.fecha_reingreso>=window._RF.d1&&w.fecha_reingreso<=window._RF.d2));
+  const nuevosHtml=nuevos.length?`<div class="sect">🆕 Ingresos de la semana revisada — solicitar documentación</div>`+
     nuevos.map(w=>{const ok=(typeof docsOk==='function')?docsOk(w):0,tot=(typeof DOCS!=='undefined')?DOCS.length:7;
-      return `<div class="kv"><b>${esc(fullName(w))}</b><span>alta ${fmtD(w.fecha_alta)} · <b style="color:${ok<tot?'var(--red)':'var(--green)'}">${ok}/${tot} docs</b></span></div>`;}).join(''):
-    '<div class="sect">🆕 Nuevos ingresos</div><div style="color:var(--mut);font-size:12px">Sin altas en los últimos 14 días.</div>';
+      const ingreso=w.fecha_reingreso>=window._RF.d1&&w.fecha_reingreso<=window._RF.d2?w.fecha_reingreso:w.fecha_alta;
+      return `<div class="kv"><b>${esc(fullName(w))}</b><span>ingreso ${fmtD(ingreso)} · <b style="color:${ok<tot?'var(--red)':'var(--green)'}">${ok}/${tot} docs</b></span></div>`;}).join(''):
+    '<div class="sect">🆕 Ingresos de la semana</div><div style="color:var(--mut);font-size:12px">Sin ingresos en la semana revisada.</div>';
   const resumen=DN.map((dn,i)=>`<div class="kv"><b>${dn}</b><span>${faltan[i].length?('<b style="color:var(--red)">'+faltan[i].length+' sin firma</b>: '+faltan[i].map(esc).join(', ')):'<b style="color:var(--green)">todos firmaron</b>'}</span></div>`).join('');
   $('rf-out').innerHTML=`
     <div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
