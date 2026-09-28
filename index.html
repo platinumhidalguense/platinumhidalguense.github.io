@@ -1656,7 +1656,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-28.1';
+const APP_VERSION='2026-09-28.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -3651,11 +3651,12 @@ async function dl(wb,name){
 /* ---------- REQUISICIÓN DE TARJETAS (con VERIFICAR) ---------- */
 function reqCandidatos(d1,d2,sem,incluirRezago){
   const enSemana=w=>{
-    if(w.fecha_alta&&d1&&d2&&w.fecha_alta>=d1&&w.fecha_alta<=d2)return true;
-    if(w.semana_ingreso&&String(w.semana_ingreso).replace(/\D/g,'')===String(sem))return true;
-    return false;
+    const ingreso=String(w.fecha_reingreso||w.fecha_alta||'').slice(0,10);
+    if(ingreso)return !!d1&&!!d2&&ingreso>=d1&&ingreso<=d2;
+    return w.semana_ingreso&&String(w.semana_ingreso).replace(/\D/g,'')===String(sem);
   };
-  const act=WORKERS.filter(w=>w.estatus==='ACTIVO');
+  const sinServicio=asSinServicioSemana(d1);
+  const act=WORKERS.filter(w=>w.estatus==='ACTIVO'&&asVigenteSemana(w,d1,d2)&&!sinServicio.has(w.id));
   const crear=act.filter(w=>String(w.cuenta).toUpperCase()==='CREAR'&&(incluirRezago||enSemana(w)));
   const verificar=act.filter(w=>enSemana(w)&&String(w.cuenta).toUpperCase()!=='CREAR'&&w.cuenta);
   return {crear,verificar};
@@ -3667,7 +3668,7 @@ function openRequisicion(){
     <div class="m-body">
       <p style="color:var(--mut);margin-bottom:14px">Obra: <b>${esc(OBRA.nombre)}</b>. Incluye dos apartados: <b>NUEVAS TARJETAS</b> (activos con cuenta CREAR) y <b>VERIFICAR</b> (ingresos de la semana que ya traen cuenta propia).</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
-        <div><label>No. de semana</label><input id="rq-sem" type="number" value="${isoWeek()}" oninput="semSincroniza('rq-sem','rq-d1','rq-d2',reqPreview)"></div>
+        <div><label>No. de semana</label><input id="rq-sem" type="number" value="${semObra()}" oninput="semSincroniza('rq-sem','rq-d1','rq-d2',reqPreview)"></div>
         <div><label>Semana del</label><input id="rq-d1" type="date" value="${d1}" oninput="reqPreview()"></div>
         <div><label>Al</label><input id="rq-d2" type="date" value="${d2}" oninput="reqPreview()"></div>
       </div>
@@ -3872,22 +3873,34 @@ async function toggleDescuento(id,estado){
 
 /* ---------- INCIDENCIAS DE LA SEMANA ---------- */
 function openIncidencias(){
-  const act=WORKERS.filter(w=>w.estatus==='ACTIVO').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+  const [d1,d2]=semRange(semObra());
+  const act=asActivosSemana(d1,d2);
   if(!act.length){toast('No hay trabajadores activos en esta obra.','err');return;}
   window._INC=act;
   modal(`
     <div class="m-head"><h2>📉 Incidencias de la semana · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <div class="grid" style="grid-template-columns:180px 1fr;align-items:end;margin-bottom:12px">
-        <div><label>No. de semana</label><input id="inc-sem" type="number" value="${isoWeek()}" oninput="incExistentes()"></div>
+        <div><label>No. de semana</label><input id="inc-sem" type="number" value="${semObra()}" onchange="incExistentes();incRenderRows()"></div>
         <div><label>Buscar trabajador</label><input id="inc-q" placeholder="Escribe nombre, no. o contratista…" oninput="incFiltra()"></div>
       </div>
       <p style="color:var(--mut);font-size:12px;margin-bottom:8px">Distingue <b>faltas injustificadas</b> de <b>días de incapacidad que no paga la empresa</b>. Una falta semanal afecta el descanso proporcional; esos días de incapacidad no. Si un certificado cubre 7 días y la empresa paga 3, captura <b>4</b> en la columna IMSS; registra aparte los 7 días, fechas y folio del certificado en Incidentes e incapacidades. Si hay premios u otros conceptos especiales, contrasta el resultado con NOI.</p>
       <div id="inc-exist"></div>
       <div class="imp-row head" style="grid-template-columns:2fr .5fr .55fr .65fr .6fr .8fr 1.5fr"><span>Trabajador</span><span>SD</span><span>Faltas</span><span>Días IMSS sin sueldo</span><span>Premio $</span><span>Descuento $</span><span>Motivo</span></div>
       <div id="inc-nores" style="display:none;color:var(--mut);padding:14px;text-align:center;font-size:12.5px">Ningún trabajador coincide con la búsqueda.</div>
-      <div style="max-height:380px;overflow:auto">
-      ${act.map((w,i)=>`<div class="imp-row inc-row" data-buscar="${esc((fullName(w)+' '+(w.contratista||'')+' '+(w.no_trab||'')).toUpperCase())}" style="grid-template-columns:2fr .5fr .55fr .65fr .6fr .8fr 1.5fr">
+      <div id="inc-rows" style="max-height:380px;overflow:auto"></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn dark" onclick="saveIncidencias()">💾 Guardar incidencias</button>
+    </div>`,'lg');
+  incExistentes();incRenderRows();
+}
+function incRenderRows(){
+  const n=Number($('inc-sem')?.value)||semObra(),[d1,d2]=semRange(n);
+  const act=asActivosSemana(d1,d2);
+  window._INC=act;
+  $('inc-rows').innerHTML=act.map((w,i)=>`<div class="imp-row inc-row" data-buscar="${esc((fullName(w)+' '+(w.contratista||'')+' '+(w.no_trab||'')).toUpperCase())}" style="grid-template-columns:2fr .5fr .55fr .65fr .6fr .8fr 1.5fr">
         <span><b>${esc(fullName(w))}</b><br><span style="color:var(--mut);font-size:11px">${esc(w.contratista)}</span></span>
         <span>$${money(w.sd)}</span>
         <input id="inc-f-${i}" type="number" min="0" step="1" placeholder="0" oninput="incCalc(${i})">
@@ -3895,14 +3908,9 @@ function openIncidencias(){
         <input id="inc-p-${i}" type="number" min="0" step="0.01" placeholder="0.00" title="Premio de puntualidad/asistencia de la semana (se ANULA si hay faltas)" oninput="incCalc(${i})">
         <input id="inc-m-${i}" type="number" min="0" step="0.01" placeholder="0.00">
         <input id="inc-x-${i}" placeholder="FALTA, RETARDO, DAÑO...">
-      </div>`).join('')}
-      </div>
-    </div>
-    <div class="m-foot">
-      <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn dark" onclick="saveIncidencias()">💾 Guardar incidencias</button>
-    </div>`,'lg');
-  incExistentes();
+      </div>`).join('');
+  if($('inc-nores'))$('inc-nores').style.display=act.length?'none':'block';
+  incFiltra();
 }
 function incFiltra(){
   const q=($('inc-q').value||'').trim().toUpperCase();
@@ -4229,13 +4237,14 @@ function exportReporteDocs(){
 
 /* ---------- PROYECCIÓN DE NÓMINA (descuentos + neto + finiquitos) ---------- */
 function pyCandidatos(d1,d2,periodo){
-  // v19: solo entran los activos cuya fecha de alta ya cae DENTRO de la semana
-  // seleccionada (hasta su domingo) — quien entra la próxima semana no debe
-  // aparecer en la dispersión de esta, aunque ya esté capturado como ACTIVO.
-  let act=WORKERS.filter(w=>w.estatus==='ACTIVO'&&(!d2||!w.fecha_alta||w.fecha_alta<=d2));
+  // En una semana histórica, el estado actual no sustituye a las fechas de
+  // alta, baja y reingreso. Una baja de esa semana va solo a finiquitos.
+  const sinServicio=asSinServicioSemana(d1);
+  let act=WORKERS.filter(w=>asVigenteSemana(w,d1,d2)&&!sinServicio.has(w.id)
+    &&(w.estatus==='ACTIVO'||(w.estatus==='BAJA'&&w.fecha_baja>d2)));
   if(periodo!=='TODOS')act=act.filter(w=>(w.periodo_pago||'SEMANAL')===periodo);
   act.sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
-  const fins=WORKERS.filter(w=>w.estatus==='BAJA'&&w.fecha_baja&&d1&&d2&&w.fecha_baja>=d1&&w.fecha_baja<=d2);
+  const fins=WORKERS.filter(w=>w.estatus==='BAJA'&&w.fecha_baja&&d1&&d2&&w.fecha_baja>=d1&&w.fecha_baja<=d2&&Number(w.monto_finiquito)>0&&!sinServicio.has(w.id));
   fins.sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
   return {act,fins};
 }
@@ -4246,20 +4255,21 @@ function pyCandidatos(d1,d2,periodo){
 async function pyDatosFrescos(){
   const id=OBRA&&OBRA.id;
   if(!id)return false;
-  const [{data:tw,error:e1},{data:ds,error:e2},{data:df,error:e3}]=await Promise.all([
+  const [{data:tw,error:e1},{data:ds,error:e2},{data:df,error:e3},{data:ab,error:e4}]=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
     fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('diferenciales').select('*').eq('obra_id',id).eq('activo',true))
+    fetchAllRows(()=>sb.from('diferenciales').select('*').eq('obra_id',id).eq('activo',true)),
+    fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('obra_id,trabajador_id,anio,semana,estado_servicio').eq('obra_id',id))
   ]);
   if(OBRA.id!==id)return false;
-  if(e1||e2||e3){
-    const error=e1||e2||e3;
+  if(e1||e2||e3||e4){
+    const error=e1||e2||e3||e4;
     if($('py-prev'))$('py-prev').innerHTML='<div class="fhint" style="color:var(--red)">No se pudieron actualizar los datos de la proyección. Cierra y vuelve a abrir esta ventana antes de exportar.</div>';
     if($('py-btn'))$('py-btn').disabled=true;
     toast('No se generó la proyección con datos obsoletos: '+error.message,'err');
     return false;
   }
-  WORKERS=tw||[];DESC=ds||[];DIFS=df||[];
+  WORKERS=tw||[];DESC=ds||[];DIFS=df||[];ALTAS_CORTAS=ab||[];
   if($('py-prev'))pyPreview();
   return true;
 }
@@ -5142,13 +5152,14 @@ async function openProyContratista(){
   const [d1,d2]=weekBounds();
   const ids=obrasEmpresa().map(o=>o.id);
   if(!ids.length){toast('Esta empresa no tiene centros de trabajo disponibles.','err');return;}
-  const [{data:tw,error:e1},{data:ds,error:e2},{data:df,error:e3}]=await Promise.all([
+  const [{data:tw,error:e1},{data:ds,error:e2},{data:df,error:e3},{data:ab,error:e4}]=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').in('obra_id',ids).eq('eliminado',false)),
     fetchAllRows(()=>sb.from('descuentos').select('*').in('obra_id',ids).eq('activo',true)),
-    fetchAllRows(()=>sb.from('diferenciales').select('*').in('obra_id',ids).eq('activo',true))]);
-  if(e1||e2||e3){toast('Error al cargar: '+String((e1||e2||e3).message),'err');return;}
-  window._PC=tw||[]; window._PCDESC=ds||[]; window._PCDIFS=df||[];
-  const cts=[...new Set(window._PC.filter(w=>w.estatus!=='BAJA'&&String(w.contratista||'').trim()).map(w=>String(w.contratista).trim()))].sort();
+    fetchAllRows(()=>sb.from('diferenciales').select('*').in('obra_id',ids).eq('activo',true)),
+    fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('obra_id,trabajador_id,anio,semana,estado_servicio').in('obra_id',ids))]);
+  if(e1||e2||e3||e4){toast('Error al cargar: '+String((e1||e2||e3||e4).message),'err');return;}
+  window._PC=tw||[]; window._PCDESC=ds||[]; window._PCDIFS=df||[];window._PCALTAS=ab||[];
+  const cts=[...new Set(window._PC.filter(w=>String(w.contratista||'').trim()).map(w=>String(w.contratista).trim()))].sort();
   window._PCCT=cts;
   modal(`
     <div class="m-head"><h2>👷 Proyección por contratista · ${esc(EMPRESAS[EMPRESA_ACTIVA].corto)}</h2><button class="x" onclick="closeModal()">×</button></div>
@@ -5163,7 +5174,7 @@ async function openProyContratista(){
         </select></div>
       </div>
       <div class="sect" style="margin-top:14px">Contratistas (${cts.length}) — desmarca los que no</div>
-      ${cts.map((c,i)=>{const n=window._PC.filter(w=>w.estatus==='ACTIVO'&&String(w.contratista||'').trim()===c&&(!w.fecha_alta||w.fecha_alta<=d2)).length;
+      ${cts.map((c,i)=>{const n=window._PC.filter(w=>String(w.contratista||'').trim()===c&&asVigenteSemana(w,d1,d2)&&!asSinServicioSemana(d1,OBRAS.find(o=>o.id===w.obra_id),window._PCALTAS).has(w.id)&&(w.estatus==='ACTIVO'||(w.estatus==='BAJA'&&w.fecha_baja>d2))).length;
         return `<label style="display:inline-block;min-width:220px;padding:3px 6px;font-size:12.5px"><input type="checkbox" id="pc-ct-${i}" checked> ${esc(c)} <span style="color:var(--mut)">(${n} activos)</span></label>`;}).join('')}
     </div>
     <div class="m-foot">
@@ -5183,9 +5194,9 @@ async function exportProyContratista(){
   let n=0;
   try{
     for(const ct of cts){
-      let a=all.filter(w=>w.estatus==='ACTIVO'&&String(w.contratista||'').trim()===ct&&(!d2||!w.fecha_alta||w.fecha_alta<=d2));
+      let a=all.filter(w=>String(w.contratista||'').trim()===ct&&asVigenteSemana(w,d1,d2)&&!asSinServicioSemana(d1,OBRAS.find(o=>o.id===w.obra_id),window._PCALTAS).has(w.id)&&(w.estatus==='ACTIVO'||(w.estatus==='BAJA'&&w.fecha_baja>d2)));
       if(periodo!=='TODOS')a=a.filter(w=>(w.periodo_pago||'SEMANAL')===periodo);
-      const f=all.filter(w=>w.estatus==='BAJA'&&String(w.contratista||'').trim()===ct&&w.fecha_baja&&d1&&d2&&w.fecha_baja>=d1&&w.fecha_baja<=d2);
+      const f=all.filter(w=>w.estatus==='BAJA'&&String(w.contratista||'').trim()===ct&&w.fecha_baja&&d1&&d2&&w.fecha_baja>=d1&&w.fecha_baja<=d2&&Number(w.monto_finiquito)>0&&!asSinServicioSemana(d1,OBRAS.find(o=>o.id===w.obra_id),window._PCALTAS).has(w.id));
       if(!a.length&&!f.length)continue;
       const r=buildProyWS({
         titulo:`PROYECCIÓN DE NÓMINA  —  ${ct}  —  SEMANA ${semN}  |  ${rangoTexto(d1,d2)}`,
@@ -6080,13 +6091,12 @@ function ctrlEsperadosPagoSemana(sem){
       return {w,tipo:x.tipo||'NOMINA',metodo:(cn&&cn.metodo_pago)||x.metodo_pago||metodoPagoPredeterminado(w,x.tipo),monto:(cn&&cn.monto_noi!=null)?Number(cn.monto_noi):Number(x.monto),cierre:c};
     }).filter(Boolean);
   }
-  const [d1,d2]=_semRango(n),normales=WORKERS.filter(w=>{
-    if(!w.fecha_alta||w.fecha_alta>d2||String(w.periodo_pago||'SEMANAL')==='QUINCENAL')return false;
-    if(w.fecha_reingreso&&w.fecha_baja&&w.fecha_baja<d1&&w.fecha_reingreso>d2)return false;
-    if(w.estatus==='BAJA'&&w.fecha_baja&&w.fecha_baja<=d1)return false;
-    return !w.fecha_baja||w.fecha_baja>d1||w.estatus==='ACTIVO';
-  }).map(w=>({w,tipo:'NOMINA',metodo:metodoPagoPredeterminado(w,'NOMINA'),monto:nominaEsperada(w),cierre:null}));
-  const fin=WORKERS.filter(w=>w.estatus==='BAJA'&&w.fecha_baja&&w.fecha_baja>=d1&&w.fecha_baja<=d2&&Number(w.monto_finiquito)>0)
+  const [d1,d2]=_semRango(n),sinServicio=asSinServicioSemana(d1);
+  const normales=WORKERS.filter(w=>String(w.periodo_pago||'SEMANAL')!=='QUINCENAL'
+    &&asVigenteSemana(w,d1,d2)&&!sinServicio.has(w.id)
+    &&(w.estatus==='ACTIVO'||(w.estatus==='BAJA'&&w.fecha_baja>d2)))
+    .map(w=>({w,tipo:'NOMINA',metodo:metodoPagoPredeterminado(w,'NOMINA'),monto:nominaEsperada(w),cierre:null}));
+  const fin=WORKERS.filter(w=>w.estatus==='BAJA'&&w.fecha_baja&&w.fecha_baja>=d1&&w.fecha_baja<=d2&&Number(w.monto_finiquito)>0&&!sinServicio.has(w.id))
     .map(w=>({w,tipo:'FINIQUITO',metodo:'CHEQUE',monto:Number(w.monto_finiquito),cierre:null}));
   return normales.concat(fin);
 }
@@ -8954,41 +8964,32 @@ function icOrfanosJSON(){return JSON.stringify({contratista:IMPCU&&IMPCU.contrat
   no_encontrados:(IMPCU&&IMPCU.orfanos)||[]},null,2);}
 
 /* ---------- LISTAS DE ASISTENCIA + DIRECTORIO ---------- */
-/* Trabajadores que van en la lista de asistencia de la semana d1..d2:
-   los ACTIVOS, MÁS los PENDIENTES que YA ENTRARON (su fecha de alta es de esa
-   semana o de antes). Excluye a los que ya están de baja antes de que empiece
-   la semana, y a los PROGRAMADOS de semanas futuras (su alta es posterior al
-   domingo: todavía no se presentan). Ordena por número.
-
-   BUG CORREGIDO (2026-08-28) — antes la condición era
-       fecha_alta >= d1 && fecha_alta <= d2
-   o sea que un PENDIENTE solo salía en la lista de la semana EXACTA en que se
-   le capturó el alta. A la semana siguiente desaparecía.
-   Y quien se da de alta sin CURP, RFC, NSS, teléfono o correo queda PENDIENTE
-   —que es justamente el nuevo ingreso—, así que el que lleva tres semanas yendo
-   a la obra sin entregar papeles no aparecía en ninguna lista para firmar.
-   Ese era el reporte de "asigné la cuadrilla y no sale en la lista": no tenía
-   que ver con la cuadrilla (cuadDe() y el LEFT JOIN de fn_lista_asistencia ya
-   contemplaban a los que no tienen), sino con el estatus.
-   Ahora la regla es la que se usa en obra: si ya entró y no está de baja, va en
-   la lista. La misma corrección quedó en fn_lista_asistencia() (Script 62). */
+/* Las listas y el directorio usan la vigencia histórica del trabajador.
+   Los pendientes que ingresaron antes siguen apareciendo, mientras altas y
+   reingresos futuros no contaminan semanas anteriores. La RPC aplica la misma
+   regla (Script 92). */
+/* Vigencia histórica: una baja anterior solo deja de excluir si hubo reingreso
+   antes del domingo consultado. Una baja posterior a la semana sí pertenecía
+   a esa plantilla, aunque hoy el trabajador figure como BAJA. */
+function asVigenteSemana(w,d1,d2){
+  if(!d1||!d2||d1>d2)return false;
+  const alta=String(w.fecha_alta||'').slice(0,10);
+  const baja=String(w.fecha_baja||'').slice(0,10);
+  const reingreso=String(w.fecha_reingreso||'').slice(0,10);
+  if(!alta||alta>d2)return false;
+  if(reingreso>d2)return !!baja&&baja>d1&&baja<reingreso;
+  if(reingreso)return !baja||baja<reingreso||baja>Math.max(d1,reingreso);
+  return !baja||baja>d1;
+}
+function asSinServicioSemana(d1,obra=OBRA,registros=ALTAS_CORTAS){
+  if(!d1||!obra)return new Set();
+  const anio=Number(d1.slice(0,4)),semana=isoWeekDe(obra,new Date(d1+'T12:00'));
+  return new Set((registros||[]).filter(a=>(!a.obra_id||a.obra_id===obra.id)&&Number(a.anio)===anio&&Number(a.semana)===semana&&a.estado_servicio==='SIN_SERVICIO_CONFIRMADO').map(a=>a.trabajador_id));
+}
 function asActivosSemana(d1,d2){
-  return WORKERS.filter(w=>{
-    /* EL ESTATUS MANDA. Un ACTIVO va en la lista SIEMPRE.
-       Aquí había un filtro por fecha_baja ANTES de mirar el estatus:
-           if(w.fecha_baja && d1 && w.fecha_baja < d1) return false;
-       y dejaba fuera a TODOS LOS REINGRESOS. doReactivar() conserva a
-       propósito la fecha_baja anterior para el historial y solo marca
-       fecha_reingreso, así que el reingresado quedaba ACTIVO, yendo a la
-       obra todos los días, y sin aparecer en ninguna lista para firmar.
-       Ese filtro tampoco servía para nada más: un BAJA cae de todos modos
-       en el `return false` del final. Ver bug de PEDRO TIRSO TIRSO
-       (04/09/2026) y test_reingreso_listas.mjs. */
-    if(w.estatus==='ACTIVO')return true;                              // activo de planta (incluye reingresos)
-    // pendiente que ya entró: su alta es de esta semana o de antes
-    if(w.estatus==='PENDIENTE'&&w.fecha_alta&&d2&&w.fecha_alta<=d2)return true;
-    return false;
-  }).sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+  const sinServicio=asSinServicioSemana(d1);
+  return WORKERS.filter(w=>!sinServicio.has(w.id)&&asVigenteSemana(w,d1,d2))
+    .sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
 }
 /* Los mismos de arriba, pero en el orden de las LISTAS: contratista → cuadrilla →
    nombre. Se arma con asGruposCuadrilla para que el Excel y la consulta de la
@@ -8996,15 +8997,12 @@ function asActivosSemana(d1,d2){
 function asOrdenados(d1,d2){
   return asGruposCuadrilla(asActivosSemana(d1,d2)).flatMap(g=>g.gente);
 }
-/* RED DE SEGURIDAD (04/09/2026). La regla es "todo ACTIVO va en la lista".
-   Aquí se comprueba en pantalla, cada vez: si algún ACTIVO del padrón no
-   quedó en la lista, se dice quién y por qué, en rojo. El bug de PEDRO
-   TIRSO TIRSO estuvo semanas sin que nadie lo notara porque el número de
-   arriba SÍ cuadraba consigo mismo; lo que faltaba era compararlo contra
-   el padrón. */
-function asFaltantes(lst){
+/* Red de seguridad: compara solo activos vigentes en la semana, nunca altas
+   de un periodo posterior. */
+function asFaltantes(lst,d1,d2){
   const dentro=new Set(lst.map(w=>w.id));
-  return (WORKERS||[]).filter(w=>w.estatus==='ACTIVO'&&!dentro.has(w.id));
+  const sinServicio=asSinServicioSemana(d1);
+  return (WORKERS||[]).filter(w=>w.estatus==='ACTIVO'&&!sinServicio.has(w.id)&&asVigenteSemana(w,d1,d2)&&!dentro.has(w.id));
 }
 function asUpdateStat(){
   const d1=$('as-d1')?$('as-d1').value:'', d2=$('as-d2')?$('as-d2').value:'';
@@ -9012,12 +9010,12 @@ function asUpdateStat(){
   if($('as-stat-n'))$('as-stat-n').textContent=lst.length;
   if($('as-stat-l'))$('as-stat-l').innerHTML=`En la lista de esa semana → ${asPaginas(asGruposCuadrilla(lst)).length} hojas${pend?` · incluye <b>${pend}</b> sin expediente completo (ya están asistiendo)`:''}`;
   const av=$('as-alerta'); if(!av)return;
-  const falta=asFaltantes(lst);
+  const falta=asFaltantes(lst,d1,d2);
   if(!falta.length){ av.innerHTML=''; av.style.display='none'; return; }
   av.style.display='';
   av.innerHTML=`<div class="kv" style="background:var(--red-bg,#fde8e8)"><b style="color:var(--red)">⚠ ${falta.length} ACTIVO(S) FUERA DE LA LISTA</b>
     <span>${falta.slice(0,8).map(w=>`<b>${esc(fullName(w))}</b>${w.no_trab?' (Nº '+w.no_trab+')':''}`).join(' · ')}${falta.length>8?` y ${falta.length-8} más`:''}.
-    Todo ACTIVO debe salir en la lista. Avísale a quien lleva el sistema.</span></div>`;
+    Todo trabajador vigente en esa semana debe salir en la lista. Avísale a quien lleva el sistema.</span></div>`;
 }
 function openAsistencia(){
   const [d1,d2]=weekBounds();
@@ -9025,7 +9023,7 @@ function openAsistencia(){
   modal(`
     <div class="m-head"><h2>📝 Listas de asistencia · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:14px">Genera el Excel con hojas de 10 trabajadores, más las hojas de <b>NUEVO INGRESO</b> en blanco que pidas, y el <b>directorio alfabético para vigilancia</b>. Incluye a los <b>activos</b> y a las <b>altas programadas</b> (pendientes que entran en la semana elegida). Cada hoja va <b>ordenada por número de trabajador</b> dentro de su cuadrilla.</p>
+      <p style="color:var(--mut);margin-bottom:14px">Genera el Excel con hojas de 10 trabajadores, más las hojas de <b>NUEVO INGRESO</b> en blanco que pidas, y el <b>directorio alfabético para vigilancia</b>. Incluye solo a quienes tuvieron vigencia en la semana elegida, incluso pendientes que ya ingresaron; excluye altas y reingresos de semanas futuras y casos confirmados sin servicio. Cada hoja va <b>ordenada por número de trabajador</b> dentro de su cuadrilla.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
         <div><label>No. de semana</label><input id="as-sem" type="number" value="${semObra()}" oninput="semSincroniza('as-sem','as-d1','as-d2');asUpdateStat()"></div>
         <div><label>Del (lunes)</label><input id="as-d1" type="date" value="${d1}" onchange="asUpdateStat()"></div>
@@ -9213,7 +9211,8 @@ function exportDirectorio(){
   const d1=$('as-d1')?$('as-d1').value:'', d2=$('as-d2')?$('as-d2').value:'';
   // mismo padrón que las listas (activos + altas programadas de la semana),
   // pero en orden alfabético para vigilancia
-  const act=(d1&&d2?asActivosSemana(d1,d2):WORKERS.filter(w=>w.estatus==='ACTIVO'))
+  const rango=d1&&d2?[d1,d2]:semRange(Number(sem));
+  const act=asActivosSemana(rango[0],rango[1])
     .slice().sort((a,b)=>fullName(a).localeCompare(fullName(b),'es'));
   if(!act.length){toast('No hay trabajadores activos.','err');return;}
   const empKey='PLATINUM';
@@ -9240,12 +9239,12 @@ function exportDirectorio(){
   <table><thead><tr><th>NOMBRE COMPLETO DEL TRABAJADOR</th><th>NO. TRABAJADOR</th></tr></thead><tbody>
   ${act.map(w=>`<tr><td>${esc(fullName(w))}</td><td>${w.no_trab??'—'}</td></tr>`).join('')}
   </tbody></table>
-  <div class="foot">Lista alfabética · Solo trabajadores ACTIVOS (${act.length}) · '—' = nuevo ingreso pendiente de número asignado · Generado el ${new Date().toLocaleDateString('es-MX')}</div>
+  <div class="foot">Lista alfabética · Plantilla de la semana (${act.length}) · '—' = nuevo ingreso pendiente de número asignado · Generado el ${new Date().toLocaleDateString('es-MX')}</div>
   <script>window.onload=()=>window.print()<\/script></body></html>`;
   const win=window.open('','_blank');
   if(!win){toast('Permite ventanas emergentes para generar el directorio.','err');return;}
   win.document.write(html);win.document.close();
-  toast(`Directorio generado: ${act.length} activos en orden alfabético. Guárdalo como PDF.`,'ok');
+  toast(`Directorio generado: ${act.length} trabajadores de la semana en orden alfabético. Guárdalo como PDF.`,'ok');
 }
 
 /* ---------- DIRECTORIO EN EXCEL (2026-08-28) ---------------------------
@@ -9269,7 +9268,8 @@ function exportDirectorioExcel(){
   const sem=$('as-sem')?($('as-sem').value||semObra()):semObra();
   const d1=$('as-d1')?$('as-d1').value:'', d2=$('as-d2')?$('as-d2').value:'';
   // mismo padrón que las listas de asistencia, para que no haya dos verdades
-  const base=(d1&&d2)?asActivosSemana(d1,d2):WORKERS.filter(w=>w.estatus==='ACTIVO');
+  const rango=d1&&d2?[d1,d2]:semRange(Number(sem));
+  const base=asActivosSemana(rango[0],rango[1]);
   const filas=dirFilas(base);
   if(!filas.length){toast('No hay trabajadores activos para el directorio.','err');return;}
   const rows=[],styles=[],hs=[];
@@ -9306,14 +9306,15 @@ function exportDirectorioExcel(){
    Las celdas de firma salen EN BLANCO en la plantilla (los horarios impresos
    solo van en el encabezado), por eso cualquier trazo dentro = firma. */
 function openRevisarFirmas(){
-  const act=WORKERS.filter(w=>w.estatus==='ACTIVO').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
-  const pags=Math.max(1,Math.ceil(act.length/10));
-  window._RF={corners:[],nRows:10,nDias:6,cut:120,thr:0.03,pag:0,actAll:act,workers:act.slice(0,10)};
-  const opts=[];for(let i=0;i<pags;i++){const a=act.slice(i*10,i*10+10);opts.push(`<option value="${i}">LISTA ${i+1} — ${a.length?('No. '+(a[0].no_trab??'?')+' a '+(a[a.length-1].no_trab??'?')):'vacía'}</option>`);}
+  const d1=$('as-d1')?$('as-d1').value:weekBounds()[0],d2=$('as-d2')?$('as-d2').value:weekBounds()[1];
+  const paginas=asPaginas(asGruposCuadrilla(asActivosSemana(d1,d2)));
+  const act=paginas.flatMap(p=>p.gente);
+  window._RF={corners:[],nRows:10,nDias:6,cut:120,thr:0.03,pag:0,paginas,actAll:act,workers:paginas[0]?paginas[0].gente:[]};
+  const opts=paginas.map((p,i)=>`<option value="${i}">HOJA ${p.numero} — ${esc(p.grupo.contratista)}${p.grupo.cuadrilla?' · '+esc(p.grupo.cuadrilla):''}</option>`);
   modal(`
     <div class="m-head"><h2>🖊️ Revisar firmas de lista escaneada · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Sube la <b>foto de UNA hoja</b> de la lista de asistencia. La app ya sabe qué trabajadores van en ella; solo detecta en qué celdas hay firma y en cuáles no. <b>v1:</b> ajusta la sensibilidad si hace falta; la cuadrícula azul te muestra dónde está midiendo.</p>
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Sube la <b>foto de UNA hoja</b> de la lista de asistencia de ${esc(fmtD(d1))} a ${esc(fmtD(d2))}. Elige el mismo número de hoja que aparece impreso; solo detecta en qué celdas hay firma y en cuáles no. Ajusta la sensibilidad si hace falta; la cuadrícula azul muestra dónde está midiendo.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">
         <div><label>¿Qué hoja es?</label><select id="rf-pag" onchange="rfSetPag()">${opts.join('')}</select></div>
         <div><label>Días en la hoja</label><input id="rf-dias" type="number" min="1" max="7" value="6" onchange="window._RF.nDias=Math.max(1,Math.min(7,parseInt(this.value)||6));rfRedraw()"></div>
@@ -9332,7 +9333,7 @@ function openRevisarFirmas(){
     </div>
     <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`,'lg');
 }
-function rfSetPag(){const i=parseInt($('rf-pag').value)||0;window._RF.pag=i;window._RF.workers=window._RF.actAll.slice(i*10,i*10+10);window._RF.corners=[];if($('rf-out'))$('rf-out').innerHTML='';rfRedraw();}
+function rfSetPag(){const i=parseInt($('rf-pag').value)||0;window._RF.pag=i;window._RF.workers=window._RF.paginas[i]?window._RF.paginas[i].gente:[];window._RF.corners=[];if($('rf-out'))$('rf-out').innerHTML='';rfRedraw();}
 function rfFile(inp){
   const f=inp.files[0]; if(!f)return;
   const img=new Image();
