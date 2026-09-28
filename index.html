@@ -3657,7 +3657,8 @@ function reqCandidatos(d1,d2,sem,incluirRezago){
     return w.semana_ingreso&&String(w.semana_ingreso).replace(/\D/g,'')===String(sem);
   };
   const sinServicio=asSinServicioSemana(d1);
-  const act=WORKERS.filter(w=>w.estatus==='ACTIVO'&&asVigenteSemana(w,d1,d2)&&!sinServicio.has(w.id));
+  const act=WORKERS.filter(w=>asVigenteSemana(w,d1,d2)&&!sinServicio.has(w.id)
+    &&(w.estatus==='ACTIVO'||(w.estatus==='BAJA'&&w.fecha_baja>d2)));
   const crear=act.filter(w=>String(w.cuenta).toUpperCase()==='CREAR'&&(incluirRezago||enSemana(w)));
   const verificar=act.filter(w=>enSemana(w)&&String(w.cuenta).toUpperCase()!=='CREAR'&&w.cuenta);
   return {crear,verificar};
