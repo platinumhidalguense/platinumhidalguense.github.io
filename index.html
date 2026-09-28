@@ -1656,7 +1656,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-25.2';
+const APP_VERSION='2026-09-28.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -8276,6 +8276,7 @@ function openMovimientos(n,contratista=''){
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cerrar</button>
       <button class="btn dark" ${entradas+bajas.length?'':'disabled'} onclick="exportMovimientos()">⬇ Exportar Excel</button>
+      <button class="btn dark" ${entradas+bajas.length?'':'disabled'} onclick="exportMovimientosPDF()">📄 Exportar PDF</button>
     </div>`);
 }
 function exportMovimientos(){
@@ -8297,6 +8298,60 @@ function exportMovimientos(){
   XLSX.utils.book_append_sheet(wb,ws,`MOVIMIENTOS S${n}`);
   dl(wb,`MOVIMIENTOS_SEMANA${n}_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}${contratista?'_'+contratista.slice(0,24).replace(/[^A-ZÑ0-9]+/gi,'_'):''}.xlsx`);
   toast('Excel de movimientos generado.','ok');
+}
+function movimientosPDFHTML(mov,contratista=''){
+  const {n,d1,d2,altas,reingresos,pend,bajas}=mov;
+  const codigo=empresaDeObra(OBRA),empresa=CFGEMP['empresa_'+codigo]||{};
+  const razon=empresa.razon||razonSocialEmpresa(codigo);
+  const secciones=[['ALTAS NUEVAS',altas,'fecha_alta'],['REINGRESOS',reingresos,'fecha_reingreso'],
+    ['BAJAS',bajas,'fecha_baja'],['PENDIENTES DE ALTA',pend,'fecha_alta']];
+  const filas=secciones.filter(([,gente])=>gente.length).map(([titulo,gente,fecha])=>
+    `<tr class="grupo"><td colspan="5">${titulo} · ${gente.length}</td></tr>`+
+    gente.map(w=>`<tr><td class="numero">${esc(w.no_trab??'—')}</td><td class="nombre">${esc(fullName(w))}</td>`+
+      `<td>${esc(w.puesto||'—')}</td><td>${esc(w.contratista||'—')}</td><td class="fecha">${esc(fmtD(w[fecha]))}</td></tr>`).join('')).join('');
+  const neto=altas.length+reingresos.length-bajas.length;
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Movimientos semana ${n} · ${esc(OBRA.nombre)}</title>
+  <style>
+  @page{size:letter portrait;margin:12mm 11mm 12mm}*{box-sizing:border-box}
+  body{margin:0;color:#172033;font-family:Arial,Helvetica,sans-serif;font-size:9pt}
+  .accion{position:fixed;top:12px;right:12px;background:#193659;color:#fff;border:0;border-radius:5px;padding:9px 14px;font-weight:bold;cursor:pointer}
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}
+  .membrete{border-bottom:2px solid #193659;padding-bottom:4mm}
+  .membrete-box{display:flex;align-items:center;gap:6mm;min-height:20mm}
+  .membrete img{width:29mm;height:17mm;object-fit:contain}
+  .empresa{flex:1;min-width:0;text-align:right;font-size:7.5pt;line-height:1.3;overflow-wrap:anywhere}
+  .empresa b{font-size:10pt;color:#193659}
+  .titulo{font-size:13pt;font-weight:bold;color:#193659;text-align:center;padding:5mm 0 2mm}
+  .contexto{font-size:8.5pt;line-height:1.5;padding-bottom:3mm}
+  .contexto b{color:#193659}.resumen{font-size:8pt;color:#475569;padding-bottom:3mm}
+  .columnas th{background:#193659;color:#fff;text-align:left;font-size:7.5pt;padding:2.3mm 1.5mm}
+  .columnas th:first-child,.columnas th:last-child{text-align:center}
+  tbody td{border-bottom:1px solid #dbe3ec;padding:2.2mm 1.5mm;vertical-align:top;overflow-wrap:anywhere;line-height:1.25}
+  tbody .grupo td{background:#e9eff7;color:#193659;font-weight:bold;padding:2.4mm 1.5mm;break-after:avoid;page-break-after:avoid}
+  .numero,.fecha{text-align:center;white-space:nowrap}.nombre{font-weight:bold}
+  .vacio{text-align:center;color:#64748b;padding:10mm}
+  @media print{.accion{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  </style></head><body><button class="accion" onclick="window.print()">Imprimir / Guardar PDF</button><table>
+  <colgroup><col style="width:10%"><col style="width:32%"><col style="width:26%"><col style="width:21%"><col style="width:11%"></colgroup>
+  <thead><tr><td class="membrete" colspan="5"><div class="membrete-box"><img src="${logoEmpresa(codigo)}" alt="${esc(codigo)}"><div class="empresa"><b>${esc(razon)}</b><br>RFC ${esc(empresa.rfc||'—')}<br>${esc(empresa.domicilio||'')}</div></div></td></tr>
+  <tr><td class="titulo" colspan="5">MOVIMIENTOS DE PERSONAL · SEMANA ${esc(n)}</td></tr>
+  <tr><td class="contexto" colspan="5"><b>Centro:</b> ${esc(OBRA.nombre)} &nbsp; <b>Periodo:</b> ${esc(fmtD(d1))} al ${esc(fmtD(d2))}${contratista?` &nbsp; <b>Contratista:</b> ${esc(contratista)}`:''}</td></tr>
+  <tr><td class="resumen" colspan="5">${altas.length} altas · ${reingresos.length} reingresos · ${bajas.length} bajas · ${pend.length} pendientes · Variación neta ${neto>=0?'+':''}${neto}</td></tr>
+  <tr class="columnas"><th>NO.</th><th>NOMBRE COMPLETO</th><th>PUESTO</th><th>CONTRATISTA</th><th>FECHA</th></tr></thead>
+  <tbody>${filas||'<tr><td class="vacio" colspan="5">Sin movimientos en esta semana.</td></tr>'}</tbody></table>
+  <script>window.onload=()=>setTimeout(()=>window.print(),450)<\/script></body></html>`;
+}
+function exportMovimientosPDF(){
+  const contratista=window._MOVCONTR||'';
+  const mov=movimientosSemana(window._MOVSEM||isoWeek(),contratista);
+  if(!mov.altas.length&&!mov.reingresos.length&&!mov.bajas.length&&!mov.pend.length){
+    toast('No hay movimientos para exportar en esta semana.','err');return;
+  }
+  const win=window.open('','_blank');
+  if(!win){toast('Permite ventanas emergentes para generar el PDF.','err');return;}
+  win.document.write(movimientosPDFHTML(mov,contratista));win.document.close();
+  toast('Reporte listo en hoja carta vertical. Elige “Guardar como PDF” en la impresión.','ok');
 }
 /* ---------- v36: ALTAS POR SEMANA (general, todas las semanas, por obra) ----------
    Como el de movimientos pero completo: todas las altas agrupadas por semana de
@@ -8485,6 +8540,17 @@ function asGruposCuadrilla(lista){
   out.forEach(g=>g.gente.sort((a,b)=>
     ((a.no_trab??9e9)-(b.no_trab??9e9)) || fullName(a).localeCompare(fullName(b),'es')));
   return out;
+}
+/* Secuencia física de las hojas de asistencia: una por cada bloque de 10 de
+   la misma cuadrilla. La usan tanto el libro de listas como el directorio. */
+function asPaginas(grupos){
+  const paginas=[];
+  (grupos||[]).forEach(grupo=>{
+    const partes=Math.max(1,Math.ceil(grupo.gente.length/10));
+    for(let i=0;i<partes;i++)paginas.push({grupo,gente:grupo.gente.slice(i*10,i*10+10),
+      parte:i+1,partes,numero:paginas.length+1});
+  });
+  return paginas;
 }
 
 /* ---------- ADMINISTRAR CUADRILLAS ---------- */
@@ -8944,7 +9010,7 @@ function asUpdateStat(){
   const d1=$('as-d1')?$('as-d1').value:'', d2=$('as-d2')?$('as-d2').value:'';
   const lst=asActivosSemana(d1,d2), pend=lst.filter(w=>w.estatus==='PENDIENTE').length;
   if($('as-stat-n'))$('as-stat-n').textContent=lst.length;
-  if($('as-stat-l'))$('as-stat-l').innerHTML=`En la lista de esa semana → ${Math.max(1,Math.ceil(lst.length/10))} hojas${pend?` · incluye <b>${pend}</b> sin expediente completo (ya están asistiendo)`:''}`;
+  if($('as-stat-l'))$('as-stat-l').innerHTML=`En la lista de esa semana → ${asPaginas(asGruposCuadrilla(lst)).length} hojas${pend?` · incluye <b>${pend}</b> sin expediente completo (ya están asistiendo)`:''}`;
   const av=$('as-alerta'); if(!av)return;
   const falta=asFaltantes(lst);
   if(!falta.length){ av.innerHTML=''; av.style.display='none'; return; }
@@ -8973,7 +9039,7 @@ function openAsistencia(){
         <div><label>Salida sábado</label><input id="as-h4" value="13:00"></div>
       </div>
       <div style="display:flex;gap:10px;margin-top:16px">
-        <div class="stat g" style="flex:1"><div class="n" id="as-stat-n">${lst.length}</div><div class="l" id="as-stat-l">En la lista de esa semana → ${Math.max(1,Math.ceil(lst.length/10))} hojas</div></div>
+        <div class="stat g" style="flex:1"><div class="n" id="as-stat-n">${lst.length}</div><div class="l" id="as-stat-l">En la lista de esa semana → ${asPaginas(asGruposCuadrilla(lst)).length} hojas</div></div>
       </div>
       <div id="as-alerta" style="margin-top:10px;display:none"></div>
     </div>
@@ -9034,7 +9100,7 @@ function asSheet(grupo,cfg,blanco){
      Quedan solo OBRA, PERÍODO y CUADRILLA, cada uno en su propio renglón y a todo
      lo ancho, con fuente más grande (AS.lb2/AS.lv2) para que se lean de lejos y
      el nombre de la cuadrilla NUNCA se corte. */
-  rows.push(mrow(['LISTA DE ASISTENCIA DE OBRA'])); styles.push(AS.t); hs.push({hpt:26});
+  rows.push(mrow(['LISTA DE ASISTENCIA DE OBRA'+(cfg.hoja?' · HOJA '+cfg.hoja:'')])); styles.push(AS.t); hs.push({hpt:26});
   rows.push(mrow(['OBRA:','',cfg.obra])); styles.push([AS.lb2,AS.lb2].concat(new Array(nc-2).fill(AS.lv2))); hs.push({hpt:20});
   rows.push(mrow(['PERÍODO:','',cfg.periodo])); styles.push([AS.lb2,AS.lb2].concat(new Array(nc-2).fill(AS.lv2))); hs.push({hpt:20});
   const gTxt=cfg.grupo?(cfg.grupo.contratista+(cfg.grupo.cuadrilla?' · '+cfg.grupo.cuadrilla:'')
@@ -9124,24 +9190,21 @@ function exportAsistencia(){
   const cfg={obra:OBRA.ubicacion||OBRA.nombre,
     periodo:`${rangoTexto(d1,d2)}   |   SEMANA ${sem}`, d1,
     h1:$('as-h1').value||'8:00', h2:$('as-h2').value||'17:00', h3:$('as-h3').value||'9:00', h4:$('as-h4').value||'13:00'};
-  const wb=XLSX.utils.book_new(); const usados=new Set(); let hojas=0;
+  const wb=XLSX.utils.book_new(); const usados=new Set();
   /* UNA HOJA POR CUADRILLA. Si una cuadrilla pasa de 10, se parte en varias hojas
      numeradas (1/2, 2/2) pero sin mezclarla con otra cuadrilla. */
-  grupos.forEach(g=>{
-    const partes=Math.max(1,Math.ceil(g.gente.length/10));
-    for(let i=0;i<partes;i++){
-      const c2={...cfg,grupo:g,parte:partes>1?`${i+1}/${partes}`:''};
-      const etq=(g.contratista+(g.cuadrilla?' '+g.cuadrilla:''))+(partes>1?` ${i+1}`:'');
-      XLSX.utils.book_append_sheet(wb,asSheet(g.gente.slice(i*10,i*10+10),c2,false),hojaNombre(etq,usados));
-      hojas++;
-    }
+  const paginas=asPaginas(grupos);
+  paginas.forEach(p=>{
+      const g=p.grupo,c2={...cfg,grupo:g,parte:p.partes>1?`${p.parte}/${p.partes}`:'',hoja:p.numero};
+      const etq=(g.contratista+(g.cuadrilla?' '+g.cuadrilla:''))+(p.partes>1?` ${p.parte}`:'');
+      XLSX.utils.book_append_sheet(wb,asSheet(p.gente,c2,false),hojaNombre(etq,usados));
   });
   for(let i=0;i<extra;i++)
     XLSX.utils.book_append_sheet(wb,asSheet([],cfg,true),hojaNombre(`NUEVO INGRESO ${i+1}`,usados));
   dl(wb,`LISTA_DE_ASISTENCIA_SEMANA_${sem}.xlsx`);
   const nCu=grupos.filter(g=>g.cuadrilla).length;
   const nPend=act.filter(w=>w.estatus==='PENDIENTE').length;
-  toast(`Listas generadas: ${hojas} hojas (${grupos.length} grupo(s)${nCu?`, ${nCu} con cuadrilla`:''}) + ${extra} de nuevo ingreso${nPend?` · incluye ${nPend} sin expediente completo`:''}. Imprimir HORIZONTAL. Generando directorio...`,'ok');
+  toast(`Listas generadas: ${paginas.length} hojas (${grupos.length} grupo(s)${nCu?`, ${nCu} con cuadrilla`:''}) + ${extra} de nuevo ingreso${nPend?` · incluye ${nPend} sin expediente completo`:''}. Imprimir HORIZONTAL. Generando directorio...`,'ok');
   setTimeout(exportDirectorioExcel,600);
   setTimeout(exportDirectorio,1400);
 }
@@ -9187,8 +9250,8 @@ function exportDirectorio(){
 
 /* ---------- DIRECTORIO EN EXCEL (2026-08-28) ---------------------------
    El directorio impreso de vigilancia (arriba) solo trae nombre y número.
-   Este es la versión de trabajo: NOMBRE, NÚMERO, PUESTO y CUADRILLA, para
-   ubicar a alguien sin tener que abrir la plataforma.
+   Esta es la versión de trabajo: NOMBRE, NÚMERO, PUESTO, CONTRATISTA,
+   CUADRILLA y HOJA de asistencia, para ubicar a alguien sin abrir la plataforma.
 
    El nombre va por APELLIDOS primero —que es como lo arma fullName() y como
    se busca en obra— y toda la hoja va alfabética por esos apellidos. Quien
@@ -9196,11 +9259,11 @@ function exportDirectorio(){
    para que se distinga de un dato que faltó capturar. */
 const DIR_SIN_CUADRILLA='Sin cuadrilla';
 function dirFilas(lista){
-  return (lista||[]).map(w=>{
-    const c=cuadDe(w);
-    return {w, nombre:fullName(w), no:w.no_trab, puesto:w.puesto||'',
-            cuadrilla:c&&String(c.nombre||'').trim()?c.nombre:DIR_SIN_CUADRILLA};
-  }).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base'}));
+  return asPaginas(asGruposCuadrilla(lista)).flatMap(p=>p.gente.map(w=>({
+    w,nombre:fullName(w),no:w.no_trab,puesto:w.puesto||'',
+    contratista:p.grupo.contratista,
+    cuadrilla:p.grupo.cuadrilla||DIR_SIN_CUADRILLA,hoja:p.numero
+  }))).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base'}));
 }
 function exportDirectorioExcel(){
   const sem=$('as-sem')?($('as-sem').value||semObra()):semObra();
@@ -9210,23 +9273,23 @@ function exportDirectorioExcel(){
   const filas=dirFilas(base);
   if(!filas.length){toast('No hay trabajadores activos para el directorio.','err');return;}
   const rows=[],styles=[],hs=[];
-  rows.push(['DIRECTORIO DE TRABAJADORES','','','']); styles.push(ST.title); hs.push({hpt:26});
-  rows.push([`${OBRA.nombre}${OBRA.ubicacion?' · '+OBRA.ubicacion:''} · Semana ${sem} · ${filas.length} trabajador(es)`,'','','']);
+  rows.push(['DIRECTORIO DE TRABAJADORES','','','','','']); styles.push(ST.title); hs.push({hpt:26});
+  rows.push([`${OBRA.nombre}${OBRA.ubicacion?' · '+OBRA.ubicacion:''} · Semana ${sem} · ${filas.length} trabajador(es)`,'','','','','']);
   styles.push(ST.sub); hs.push({hpt:18});
-  rows.push(['NOMBRE COMPLETO','NO. TRABAJADOR','PUESTO','CUADRILLA']);
+  rows.push(['NOMBRE COMPLETO','NO. TRABAJADOR','PUESTO','CONTRATISTA','CUADRILLA','HOJA']);
   styles.push(ST.head); hs.push({hpt:24});
   filas.forEach(f=>{
-    rows.push([f.nombre, f.no??'—', f.puesto||'—', f.cuadrilla]);
+    rows.push([f.nombre, f.no??'—', f.puesto||'—', f.contratista, f.cuadrilla, f.hoja]);
     // el que no tiene cuadrilla se ve de un vistazo, sin tener que leer
     const sc=f.cuadrilla===DIR_SIN_CUADRILLA
       ? {...ST.cell,font:{sz:10,name:'Calibri',italic:true,color:{rgb:'8A6D1A'}},fill:{fgColor:{rgb:'FFF7E6'}}}
       : ST.cell;
-    styles.push([ST.cell,ST.cellC,ST.cell,sc]); hs.push(null);
+    styles.push([ST.cell,ST.cellC,ST.cell,ST.cellC,sc,ST.cellC]); hs.push(null);
   });
-  const merges=[{s:{r:0,c:0},e:{r:0,c:3}},{s:{r:1,c:0},e:{r:1,c:3}}];
-  const ws=buildSheet(rows,styles,[38,14,26,26],merges,hs);
+  const merges=[{s:{r:0,c:0},e:{r:0,c:5}},{s:{r:1,c:0},e:{r:1,c:5}}];
+  const ws=buildSheet(rows,styles,[38,14,26,18,26,9],merges,hs);
   ws['!margins']={left:0.4,right:0.4,top:0.5,bottom:0.4,header:0.2,footer:0.2};
-  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:2,c:0},e:{r:rows.length-1,c:3}})};
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:2,c:0},e:{r:rows.length-1,c:5}})};
   ws['!freeze']={xSplit:0,ySplit:3};
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'DIRECTORIO');
