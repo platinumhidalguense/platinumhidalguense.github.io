@@ -1658,7 +1658,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-29.1';
+const APP_VERSION='2026-09-29.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -8410,9 +8410,9 @@ function movimientosPDFHTML(mov,contratista=''){
   const secciones=[['ALTAS NUEVAS',altas,'fecha_alta'],['REINGRESOS',reingresos,'fecha_reingreso'],
     ['BAJAS',bajas,'fecha_baja'],['PENDIENTES DE ALTA',pend,'fecha_alta']];
   const filas=secciones.filter(([,gente])=>gente.length).map(([titulo,gente,fecha])=>
-    `<tr class="grupo"><td colspan="5">${titulo} · ${gente.length}</td></tr>`+
+    `<tr class="grupo"><td colspan="6">${titulo} · ${gente.length}</td></tr>`+
     gente.map(w=>`<tr><td class="numero">${esc(w.no_trab??'—')}</td><td class="nombre">${esc(fullName(w))}</td>`+
-      `<td>${esc(w.puesto||'—')}</td><td>${esc(w.contratista||'—')}</td><td class="fecha">${esc(fmtD(w[fecha]))}</td></tr>`).join('')).join('');
+      `<td>${esc(w.puesto||'—')}</td><td>${esc(w.contratista||'—')}</td><td>${esc(cuadNombre(w)||'—')}</td><td class="fecha">${esc(fmtD(w[fecha]))}</td></tr>`).join('')).join('');
   const neto=altas.length+reingresos.length-bajas.length;
   return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Movimientos semana ${n} · ${esc(OBRA.nombre)}</title>
   <style>
@@ -8437,13 +8437,13 @@ function movimientosPDFHTML(mov,contratista=''){
   .vacio{text-align:center;color:#64748b;padding:10mm}
   @media print{.accion{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   </style></head><body><button class="accion" onclick="window.print()">Imprimir / Guardar PDF</button><table>
-  <colgroup><col style="width:10%"><col style="width:32%"><col style="width:26%"><col style="width:21%"><col style="width:11%"></colgroup>
-  <thead><tr><td class="membrete" colspan="5"><div class="membrete-box"><img src="${logoEmpresa(codigo)}" alt="${esc(codigo)}"><div class="empresa"><b>${esc(razon)}</b><br>RFC ${esc(empresa.rfc||'—')}<br>${esc(empresa.domicilio||'')}</div></div></td></tr>
-  <tr><td class="titulo" colspan="5">MOVIMIENTOS DE PERSONAL · SEMANA ${esc(n)}</td></tr>
-  <tr><td class="contexto" colspan="5"><b>Centro:</b> ${esc(OBRA.nombre)} &nbsp; <b>Periodo:</b> ${esc(fmtD(d1))} al ${esc(fmtD(d2))}${contratista?` &nbsp; <b>Contratista:</b> ${esc(contratista)}`:''}</td></tr>
-  <tr><td class="resumen" colspan="5">${altas.length} altas · ${reingresos.length} reingresos · ${bajas.length} bajas · ${pend.length} pendientes · Variación neta ${neto>=0?'+':''}${neto}</td></tr>
-  <tr class="columnas"><th>NO.</th><th>NOMBRE COMPLETO</th><th>PUESTO</th><th>CONTRATISTA</th><th>FECHA</th></tr></thead>
-  <tbody>${filas||'<tr><td class="vacio" colspan="5">Sin movimientos en esta semana.</td></tr>'}</tbody></table>
+  <colgroup><col style="width:8%"><col style="width:29%"><col style="width:20%"><col style="width:15%"><col style="width:18%"><col style="width:10%"></colgroup>
+  <thead><tr><td class="membrete" colspan="6"><div class="membrete-box"><img src="${logoEmpresa(codigo)}" alt="${esc(codigo)}"><div class="empresa"><b>${esc(razon)}</b><br>RFC ${esc(empresa.rfc||'—')}<br>${esc(empresa.domicilio||'')}</div></div></td></tr>
+  <tr><td class="titulo" colspan="6">MOVIMIENTOS DE PERSONAL · SEMANA ${esc(n)}</td></tr>
+  <tr><td class="contexto" colspan="6"><b>Centro:</b> ${esc(OBRA.nombre)} &nbsp; <b>Periodo:</b> ${esc(fmtD(d1))} al ${esc(fmtD(d2))}${contratista?` &nbsp; <b>Contratista:</b> ${esc(contratista)}`:''}</td></tr>
+  <tr><td class="resumen" colspan="6">${altas.length} altas · ${reingresos.length} reingresos · ${bajas.length} bajas · ${pend.length} pendientes · Variación neta ${neto>=0?'+':''}${neto}</td></tr>
+  <tr class="columnas"><th>NO.</th><th>NOMBRE COMPLETO</th><th>PUESTO</th><th>CONTRATISTA</th><th>CUADRILLA</th><th>FECHA</th></tr></thead>
+  <tbody>${filas||'<tr><td class="vacio" colspan="6">Sin movimientos en esta semana.</td></tr>'}</tbody></table>
   <script>window.onload=()=>setTimeout(()=>window.print(),450)<\/script></body></html>`;
 }
 function exportMovimientosPDF(){
