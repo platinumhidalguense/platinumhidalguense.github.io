@@ -1134,7 +1134,7 @@ const EMPRESAS=Object.freeze({
   JIRE:{codigo:'JIRE',corto:'Grupo JIRE',nombre:'Grupo Comercial JIRE S.A. de C.V.',marca:'J'}
 });
 
-let sb=null, USER=null, OBRAS=[], OBRA=null, EMPRESA_ACTIVA='PLATINUM', WORKERS=[], CHEQUES=[], DESC=[], DOCSX=[], VAC=[], ACTAS=[], NOM=[], PAGOS=[], PRIMAS=[], CUADS=[], CIERRES=[], CTRLNOI=[], ALTAS_CORTAS=[], VIEW='trab';
+let sb=null, USER=null, OBRAS=[], OBRA=null, EMPRESA_ACTIVA='PLATINUM', WORKERS=[], CHEQUES=[], DESC=[], DOCSX=[], VAC=[], ACTAS=[], NOM=[], PAGOS=[], PRIMAS=[], CUADS=[], CIERRES=[], CTRLNOI=[], ALTAS_CORTAS=[], FINTRANS=[], VIEW='trab';
 /* Script 59: diferenciales de proyección, bloques de cheques y control interno
    salarial. SUELDOSINT solo trae filas si el usuario es VIP — lo decide la RLS
    de la base, no la app. */
@@ -1602,7 +1602,7 @@ async function loadObraData(id){
   skeletonTabla('tbody',9,10,'Cargando trabajadores...');
   skeletonTabla('chq-tbody',6,10,'Cargando cheques...');
   skeletonTabla('pg-v-tbody',5,9,'Cargando pagos...');
-  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn},{data:ab}]=await Promise.all([
+  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn},{data:ab},{data:ft,error:eFt}]=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
     fetchAllRows(()=>sb.from('cheques').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id)),
@@ -1620,10 +1620,12 @@ async function loadObraData(id){
     fetchAllRows(()=>sb.from('sueldos_internos').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('control_cierres_nomina').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('control_conciliacion_noi').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('id,trabajador_id,anio,semana,estado_servicio').eq('obra_id',id))
+    fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('id,trabajador_id,anio,semana,estado_servicio').eq('obra_id',id)),
+    fetchAllRows(()=>sb.from('control_finiquitos_transferencia').select('*').eq('obra_id',id))
   ]);
   if(e1){toast('Error al cargar trabajadores: '+e1.message,'err');return;}
-  WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];PAGOS=pg||[];PRIMAS=(pr||[]).filter(p=>p.activo!==false);CUADS=cd||[];DIFS=df||[];BLOQUES=bq||[];SUELDOSINT=si||[];CIERRES=cc||[];CTRLNOI=cn||[];ALTAS_CORTAS=ab||[];
+  if(eFt){toast('No se pudo leer el control de finiquitos por transferencia: '+eFt.message,'err');return;}
+  WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];PAGOS=pg||[];PRIMAS=(pr||[]).filter(p=>p.activo!==false);CUADS=cd||[];DIFS=df||[];BLOQUES=bq||[];SUELDOSINT=si||[];CIERRES=cc||[];CTRLNOI=cn||[];ALTAS_CORTAS=ab||[];FINTRANS=ft||[];
   await activarProgramados();
   const cs=[...new Set(WORKERS.map(w=>w.contratista).filter(Boolean))].sort();
   const cur=$('flt-contratista').value;
@@ -1656,7 +1658,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-28.2';
+const APP_VERSION='2026-09-29.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -4259,21 +4261,22 @@ function pyCandidatos(d1,d2,periodo){
 async function pyDatosFrescos(){
   const id=OBRA&&OBRA.id;
   if(!id)return false;
-  const [{data:tw,error:e1},{data:ds,error:e2},{data:df,error:e3},{data:ab,error:e4}]=await Promise.all([
+  const [{data:tw,error:e1},{data:ds,error:e2},{data:df,error:e3},{data:ab,error:e4},{data:ft,error:e5}]=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
     fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('diferenciales').select('*').eq('obra_id',id).eq('activo',true)),
-    fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('obra_id,trabajador_id,anio,semana,estado_servicio').eq('obra_id',id))
+    fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('obra_id,trabajador_id,anio,semana,estado_servicio').eq('obra_id',id)),
+    fetchAllRows(()=>sb.from('control_finiquitos_transferencia').select('*').eq('obra_id',id))
   ]);
   if(OBRA.id!==id)return false;
-  if(e1||e2||e3||e4){
-    const error=e1||e2||e3||e4;
+  if(e1||e2||e3||e4||e5){
+    const error=e1||e2||e3||e4||e5;
     if($('py-prev'))$('py-prev').innerHTML='<div class="fhint" style="color:var(--red)">No se pudieron actualizar los datos de la proyección. Cierra y vuelve a abrir esta ventana antes de exportar.</div>';
     if($('py-btn'))$('py-btn').disabled=true;
     toast('No se generó la proyección con datos obsoletos: '+error.message,'err');
     return false;
   }
-  WORKERS=tw||[];DESC=ds||[];DIFS=df||[];ALTAS_CORTAS=ab||[];
+  WORKERS=tw||[];DESC=ds||[];DIFS=df||[];ALTAS_CORTAS=ab||[];FINTRANS=ft||[];
   if($('py-prev'))pyPreview();
   return true;
 }
@@ -4282,7 +4285,7 @@ function openProyeccion(){
   modal(`
     <div class="m-head"><h2>💰 Proyección de nómina</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:14px">Obra: <b>${esc(OBRA.nombre)}</b>. Incluye a todos los <b>activos</b> del periodo elegido y a las <b>bajas de la semana</b> con su finiquito (en rojo, pago con CHEQUE). Quien no tenga <b>ni cuenta ni CLABE</b> sale en la sección PENDIENTE con pago por <b>CHEQUE</b>. Los totales llevan <b>fórmulas</b>: puedes mover montos a mano en Excel y se recalculan.</p>
+      <p style="color:var(--mut);margin-bottom:14px">Obra: <b>${esc(OBRA.nombre)}</b>. Incluye activos y bajas de la semana. Los finiquitos son por cheque salvo excepción de transferencia autorizada por el administrador. Quien no tenga cuenta ni CLABE sale como pendiente de cheque. Los totales del Excel llevan fórmulas.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
         <div><label>No. de semana</label><input id="py-sem" type="number" value="${semObra()}" oninput="semSincroniza('py-sem','py-d1','py-d2',pyPreview)"></div>
         <div><label>Del día</label><input id="py-d1" type="date" value="${d1}" oninput="pyPreview()"></div>
@@ -4331,7 +4334,7 @@ function pyPreview(){
       <div class="stat g" style="flex:1"><div class="n">${act.length}</div><div class="l">Activos · $${money(tS)}</div></div>
       <div class="stat b" style="flex:1"><div class="n">$${money(tDif)}</div><div class="l">Previsión social</div></div>
       <div class="stat a" style="flex:1"><div class="n">${nDesc}</div><div class="l">Con descuento · −$${money(tD)}</div></div>
-      <div class="stat r" style="flex:1"><div class="n">${fins.length}</div><div class="l">Finiquitos (cheque) · $${money(tF)}</div></div>
+      <div class="stat r" style="flex:1"><div class="n">${fins.length}</div><div class="l">Finiquitos (según método autorizado) · $${money(tF)}</div></div>
       <div class="stat b" style="flex:1"><div class="n">$${money(tS+tDif-tD+tF)}</div><div class="l">Total general (neto)</div></div>
     </div>${desglose}`;
   $('py-btn').disabled=!(act.length+fins.length);
@@ -4357,7 +4360,8 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
   const chqAct=act.filter(w=>tieneCta(w)&&w.forma_pago==='CHEQUE');
   const sinCta=act.filter(w=>!tieneCta(w)).sort(cmp);
   // dif viaja en cada renglón y tiene su propia columna en el Excel.
-  const chequeRows=[...fins.map(w=>({w,ret:0,dif:0,imp:Number(w.monto_finiquito)||0,fin:true})),...chqAct.map(w=>{const x=dsInfo(w);return {w,ret:x.ret,dif:x.dif,imp:x.neto,fin:false};})].sort((a,b)=>cmp(a.w,b.w));
+  const finTrans=fins.filter(w=>!!finTransDe(w,sem)).sort(cmp);
+  const chequeRows=[...fins.filter(w=>!finTransDe(w,sem)).map(w=>({w,ret:0,dif:0,imp:Number(w.monto_finiquito)||0,fin:true})),...chqAct.map(w=>{const x=dsInfo(w);return {w,ret:x.ret,dif:x.dif,imp:x.neto,fin:false};})].sort((a,b)=>cmp(a.w,b.w));
   const rows=[],styles=[],hs=[],secRows=[],fx=[];
   rows.push([titulo]); styles.push(ST.title); hs.push({hpt:26});
   rows.push([sub]); styles.push(ST.sub); hs.push({hpt:18});
@@ -4365,7 +4369,7 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
   const rowSt=[ST.cellC,ST.cellC,ST.cell,ST.cell,ST.cellC,ST.cellC,ST.money,ST.money,ST.money,ST.money,ST.cellC];
   const finSt=[ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.finMoney,ST.finMoney,ST.finMoney,ST.finMoney,ST.fin];
   const penSt=rowSt.map(x=>({...x,fill:{fgColor:{rgb:'FFF3D6'}}}));
-  let tT=0,tC=0,tP=0,tR=0,tNom=0,tDif=0,trRange=null,chRange=null,pendRange=null;
+  let tT=0,tC=0,tP=0,tR=0,tNom=0,tDif=0,trRange=null,finRange=null,chRange=null,pendRange=null;
   const xr=()=>rows.length+1;
   secRows.push(rows.length);
   rows.push([`◆  TRANSFERENCIA BANCARIA  —  ${transf.length} trabajadores`]); styles.push(ST.sect2); hs.push({hpt:18});
@@ -4376,6 +4380,16 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
       fx.push({r});
       styles.push(rowSt);hs.push(null);});
     trRange=[a,xr()-1];}
+  if(finTrans.length){
+    secRows.push(rows.length);
+    rows.push([`◆  FINIQUITOS POR TRANSFERENCIA  —  ${finTrans.length} trabajadores`]);styles.push(ST.sect2);hs.push({hpt:18});
+    const a=xr();
+    finTrans.forEach(w=>{const imp=Number(w.monto_finiquito)||0;tT+=imp;tNom+=imp;
+      rows.push([w.no_trab??'',bVal(w),fullName(w),clOk(w)?'/'+clOk(w):'—',ctaOk(w)||'—',w.banco||'—',imp,'','',imp,'TRANSFERENCIA']);
+      styles.push(finSt);hs.push(null);
+    });
+    finRange=[a,xr()-1];
+  }
   if(chequeRows.length){
     secRows.push(rows.length);
     rows.push([`◆  CHEQUE / FINIQUITO  —  ${chequeRows.length} trabajadores`]); styles.push({...ST.sect,fill:{fgColor:{rgb:'FCE4D6'}},font:{bold:true,sz:10.5,color:{rgb:'B3261E'},name:'Calibri'}}); hs.push({hpt:18});
@@ -4398,9 +4412,9 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
     pendRange=[a,xr()-1];}
   tT=redondearCentavos(tT);tC=redondearCentavos(tC);tP=redondearCentavos(tP);
   tR=redondearCentavos(tR);tNom=redondearCentavos(tNom);tDif=redondearCentavos(tDif);
-  const total=redondearCentavos(tT+tC+tP), nTot=transf.length+chequeRows.length+sinCta.length;
+  const total=redondearCentavos(tT+tC+tP), nTot=transf.length+finTrans.length+chequeRows.length+sinCta.length;
   const firstData=5, lastData=rows.length, rTot=rows.length+1, rT2=rows.length+2, rT3=rows.length+3;
-  rows.push([`TOTAL TRABAJADORES: ${nTot}`,'',`Transf. ${transf.length}  |  Cheque ${chequeRows.length}  |  Pendientes ${sinCta.length} (pagan con cheque)`,'','','',tNom,tDif,tR,total,'']);
+  rows.push([`TOTAL TRABAJADORES: ${nTot}`,'',`Transf. ${transf.length+finTrans.length}  |  Cheque ${chequeRows.length}  |  Pendientes ${sinCta.length} (pagan con cheque)`,'','','',tNom,tDif,tR,total,'']);
   styles.push([ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.totalMoney,ST.totalMoney,ST.totalMoney,ST.totalMoney,ST.total]); hs.push({hpt:20});
   rows.push(['TOTAL TRANSFERENCIA:','',tT,'TOTAL CHEQUE (INCLUYE PENDIENTES):','',Math.round((tC+tP)*100)/100,'TOTAL RETENCIONES:','',tR,'','']);
   styles.push([ST.total,ST.total,ST.totalMoney,ST.total,ST.total,ST.totalMoney,ST.total,ST.total,ST.totalMoney,ST.total,ST.total]); hs.push({hpt:20});
@@ -4428,7 +4442,10 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
   if(mostrarPrevision)F('H'+rTot,`SUM(H${firstData}:H${lastData})`);
   F(retCol+rTot,`SUM(${retCol}${firstData}:${retCol}${lastData})`);
   F(totalCol+rTot,`SUM(${totalCol}${firstData}:${totalCol}${lastData})`);
-  if(trRange)F('C'+rT2,`SUM(${totalCol}${trRange[0]}:${totalCol}${trRange[1]})`);
+  const fTrans=[];
+  if(trRange)fTrans.push(`SUM(${totalCol}${trRange[0]}:${totalCol}${trRange[1]})`);
+  if(finRange)fTrans.push(`SUM(${totalCol}${finRange[0]}:${totalCol}${finRange[1]})`);
+  if(fTrans.length)F('C'+rT2,fTrans.join('+'));
   const fCheq=[];
   if(chRange)fCheq.push(`SUM(${totalCol}${chRange[0]}:${totalCol}${chRange[1]})`);
   if(pendRange)fCheq.push(`SUM(${totalCol}${pendRange[0]}:${totalCol}${pendRange[1]})`);
@@ -4443,7 +4460,7 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
     };}),
     ...fins.map(w=>({obra_id:w.obra_id,empresa_codigo:empCodigo(w),trabajador_id:w.id,trabajador_numero:w.no_trab,trabajador_nombre:fullName(w),
       tipo_calculo:'FINIQUITO_EN_PROYECCION',periodo:sem,entradas:{fecha_baja:w.fecha_baja||null,origen:'monto_finiquito_guardado'},
-      resultado:{forma_pago:'CHEQUE',neto:redondearCentavos(Number(w.monto_finiquito)||0)},monto_modelo:null,monto_aplicado:redondearCentavos(Number(w.monto_finiquito)||0),ajuste_noi:null}))
+      resultado:{forma_pago:finTransDe(w,sem)?'TRANSFERENCIA':'CHEQUE',neto:redondearCentavos(Number(w.monto_finiquito)||0)},monto_modelo:null,monto_aplicado:redondearCentavos(Number(w.monto_finiquito)||0),ajuste_noi:null}))
   ];
   return {ws,tT,tC,tP,tR,tNom,tDif,total,nTot,auditoria};
 }
@@ -6086,13 +6103,21 @@ function ctrlCierreDeSemana(sem){
   const n=parseInt(normSem(sem))||0;
   return (CIERRES||[]).filter(c=>c.semana===n&&c.estado!=='CANCELADO').sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))[0]||null;
 }
+function finTransDe(w,sem){
+  const n=parseInt(normSem(sem))||0;
+  if(!w||!n)return null;
+  const [inicio]=semRange(n);
+  const anio=Number(String(inicio||'').slice(0,4));
+  return (FINTRANS||[]).find(x=>x.trabajador_id===w.id&&Number(x.semana)===n&&Number(x.anio)===anio)||null;
+}
 function ctrlEsperadosPagoSemana(sem){
   const n=parseInt(normSem(sem))||0,c=ctrlCierreDeSemana(n);
   if(c&&c.snapshot&&Array.isArray(c.snapshot.items)&&c.snapshot.items.length){
     return c.snapshot.items.map(x=>{
       const w=WORKERS.find(z=>z.id===x.trabajador_id)||WORKERS.find(z=>Number(z.no_trab)===Number(x.numero));if(!w)return null;
       const cn=(CTRLNOI||[]).find(z=>z.cierre_id===c.id&&z.trabajador_id===w.id&&z.tipo_calculo===(x.tipo||'NOMINA'));
-      return {w,tipo:x.tipo||'NOMINA',metodo:(cn&&cn.metodo_pago)||x.metodo_pago||metodoPagoPredeterminado(w,x.tipo),monto:(cn&&cn.monto_noi!=null)?Number(cn.monto_noi):Number(x.monto),cierre:c};
+      const finTrans=(x.tipo==='FINIQUITO')?finTransDe(w,n):null;
+      return {w,tipo:x.tipo||'NOMINA',metodo:finTrans?'TRANSFERENCIA':((cn&&cn.metodo_pago)||x.metodo_pago||metodoPagoPredeterminado(w,x.tipo)),monto:(cn&&cn.monto_noi!=null)?Number(cn.monto_noi):Number(x.monto),cierre:c,finTrans};
     }).filter(Boolean);
   }
   const [d1,d2]=_semRango(n),sinServicio=asSinServicioSemana(d1);
@@ -6101,7 +6126,7 @@ function ctrlEsperadosPagoSemana(sem){
     &&(w.estatus==='ACTIVO'||(w.estatus==='BAJA'&&w.fecha_baja>d2)))
     .map(w=>({w,tipo:'NOMINA',metodo:metodoPagoPredeterminado(w,'NOMINA'),monto:nominaEsperada(w),cierre:null}));
   const fin=WORKERS.filter(w=>w.estatus==='BAJA'&&w.fecha_baja&&w.fecha_baja>=d1&&w.fecha_baja<=d2&&Number(w.monto_finiquito)>0&&!sinServicio.has(w.id))
-    .map(w=>({w,tipo:'FINIQUITO',metodo:'CHEQUE',monto:Number(w.monto_finiquito),cierre:null}));
+    .map(w=>{const finTrans=finTransDe(w,n);return {w,tipo:'FINIQUITO',metodo:finTrans?'TRANSFERENCIA':'CHEQUE',monto:Number(w.monto_finiquito),cierre:null,finTrans};});
   return normales.concat(fin);
 }
 function conciliaSemanaDatos(sem){
@@ -6110,7 +6135,8 @@ function conciliaSemanaDatos(sem){
   const cheques=(CHEQUES||[]).filter(c=>!c.eliminado&&normSem(c.semana)===ns&&c.estatus!=='CANCELADO');
   return esperados.map(e=>{const w=e.w;
     const míos=pagos.filter(p=>p.trabajador_id===w.id);
-    const exito=míos.filter(p=>String(p.estado||'').toUpperCase()!=='RECHAZADO');
+    const exito=míos.filter(p=>String(p.estado||'').toUpperCase()==='EXITOSO'
+      &&(!e.finTrans||e.finTrans.pago_id===p.id));
     const rech =míos.filter(p=>String(p.estado||'').toUpperCase()==='RECHAZADO');
     const chq  =cheques.filter(c=>c.trabajador_id===w.id&&c.tipo_pago===(e.tipo==='FINIQUITO'?'FINIQUITO':'CHEQUE'));
     const entregado=chq.filter(c=>c.estatus==='ENTREGADO'),expedido=chq.filter(c=>c.estatus==='EXPEDIDO'),pendiente=chq.filter(c=>c.estatus==='PENDIENTE');
@@ -6123,6 +6149,9 @@ function conciliaSemanaDatos(sem){
     else if(entregado.length){ estado='CHEQUE ENTREGADO'; motivo='cheque entregado'+(entregado[0].num_cheque?' #'+entregado[0].num_cheque:''); }
     else if(expedido.length){ estado='CHEQUE EXPEDIDO'; motivo='cheque expedido'+(expedido[0].num_cheque?' #'+expedido[0].num_cheque:'')+' · cubierto, pendiente de entrega física'; }
     else if(pendiente.length){estado='CHEQUE PENDIENTE';motivo='cheque '+pendiente[0].estatus.toLowerCase()+(pendiente[0].num_cheque?' #'+pendiente[0].num_cheque:' · falta capturar número y consecutivo');}
+    else if(e.finTrans&&e.finTrans.estado==='DECLARADO_POR_ADMIN'){
+      estado='TRANSFERENCIA POR CONCILIAR';motivo='finiquito reportado por el administrador; falta vincular el pago BBVA';
+    }
     else if(rech.length){ estado='RECHAZADO'; motivo='la transferencia rebotó y NO se ha repuesto'; }
     else { estado='SIN PAGO'; motivo='no aparece ni en el pago global ni en pagos individuales ni en cheques'; }
     return {w,estado,motivo,exito,rech,chq,esperado:e.monto!=null?e.monto:nominaEsperada(w),tipo:e.tipo,metodo:e.metodo};
@@ -6149,8 +6178,9 @@ async function conciliarSemana(sem){
   const chqExp =filas.filter(f=>f.estado==='CHEQUE EXPEDIDO');
   const chqPend=filas.filter(f=>f.estado==='CHEQUE PENDIENTE');
   const metodo =filas.filter(f=>f.estado==='MÉTODO INCORRECTO');
+  const porConciliar=filas.filter(f=>f.estado==='TRANSFERENCIA POR CONCILIAR');
   const ok     =filas.filter(f=>f.estado==='OK');
-  const acciones=[...sinPago,...rech,...chqPend,...metodo];window._CONC={S,filas,acciones};
+  const acciones=[...sinPago,...rech,...chqPend,...metodo,...porConciliar];window._CONC={S,filas,acciones};
   const urgente=acciones.length;
   modal(`
     <div class="m-head"><h2>${urgente?'🚨':'✅'} Revisión de la semana ${esc(S)} · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
@@ -6733,6 +6763,10 @@ function exportPagoLote(){
 /* Cancela (no borra) un cheque porque ya se pagó por transferencia. */
 async function pagoCancelarCheque(id){
   const c=(CHEQUES||[]).find(x=>x.id===id); if(!c){toast('Cheque no encontrado.','err');return;}
+  if(c.tipo_pago==='FINIQUITO'){
+    if(!esAdmin()){toast('Solo el administrador puede cambiar el método de un finiquito.','err');return;}
+    openFiniquitoTransferenciaAdmin(c.trabajador_id);return;
+  }
   if(!confirm(`¿CANCELAR el cheque${c.num_cheque?' #'+c.num_cheque:''} de ${c.nombre||''} (semana ${c.semana}, $${money(c.importe)})?\n\nQueda marcado como CANCELADO (no se borra) porque a este trabajador ya se le pagó por transferencia esa semana.`))return;
   markWrite();
   const obs=(c.observaciones?c.observaciones+' · ':'')+'CANCELADO: ya pagado por transferencia (control de pagos '+today()+')';
@@ -6749,6 +6783,7 @@ function cpBuild(){
   const key=(tid,nom,ns)=>(tid||('N:'+_pgNorm(nom)))+'|'+ns;
   (CHEQUES||[]).filter(c=>!c.eliminado).forEach(c=>{const ns=normSem(c.semana);const k=key(c.trabajador_id,c.nombre,ns);const o=map.get(k)||{tid:c.trabajador_id,nombre:c.nombre,sem:ns,chq:[],pag:[]};o.chq.push(c);if(!o.nombre)o.nombre=c.nombre;map.set(k,o);});
   (PAGOS||[]).forEach(p=>{const ns=normSem(p.semana);const w=WORKERS.find(x=>x.id===p.trabajador_id);const k=key(p.trabajador_id,w?fullName(w):p.titular,ns);const o=map.get(k)||{tid:p.trabajador_id,nombre:(w?fullName(w):p.titular),sem:ns,chq:[],pag:[]};o.pag.push(p);map.set(k,o);});
+  (FINTRANS||[]).forEach(f=>{const w=WORKERS.find(x=>x.id===f.trabajador_id);const ns=String(f.semana),k=key(f.trabajador_id,w?fullName(w):'',ns);const o=map.get(k)||{tid:f.trabajador_id,nombre:w?fullName(w):'',sem:ns,chq:[],pag:[]};o.finTrans=f;map.set(k,o);});
   const rows=[...map.values()];
   rows.forEach(o=>{
     const w=o.tid?WORKERS.find(x=>x.id===o.tid):null; if(w)o.nombre=fullName(w); o.no=w?w.no_trab:null;
@@ -6774,12 +6809,13 @@ function cpRender(){
     <span style="font-size:12px">S${esc(o.sem)}</span>
     <span style="font-size:11.5px">${o.chq.length?o.chq.map(c=>`${c.tipo_pago==='FINIQUITO'?'🏁':'🧾'} ${money2(c.importe)} <span style="color:var(--mut)">${esc(c.estatus||'')}</span>`).join('<br>'):'<span style="color:var(--mut)">—</span>'}</span>
     <span style="font-size:11.5px">${o.pag.length?o.pag.map(p=>`💸 ${money2(p.importe)} <span style="color:${String(p.estado).toUpperCase()==='RECHAZADO'?'var(--red)':'var(--mut)'}">${esc(p.estado||'')}</span>`).join('<br>'):'<span style="color:var(--mut)">—</span>'}</span>
-    <span style="font-size:11px">${o.dup?`<b style="color:var(--red)">⚠ POSIBLE DOBLE</b>${o.chqAct[0]?` <button class="btn danger" style="padding:1px 7px;font-size:10px" onclick="pagoCancelarCheque('${o.chqAct[0].id}')">Cancelar cheque</button>`:''}`:(o.rech?'<b style="color:var(--red)">✗ rechazado</b>':'<span style="color:var(--green)">✔</span>')}</span>
+    <span style="font-size:11px">${o.dup?`<b style="color:var(--red)">⚠ POSIBLE DOBLE</b>${o.chqAct[0]?` <button class="btn danger" style="padding:1px 7px;font-size:10px" onclick="pagoCancelarCheque('${o.chqAct[0].id}')">Revisar cheque</button>`:''}`:o.finTrans?(o.finTrans.estado==='CONCILIADO_BANCO'?'<b style="color:var(--green)">Finiquito conciliado</b>':`<b style="color:var(--amber)">Finiquito reportado · falta BBVA</b>${esAdmin()?` <button class="btn" style="padding:1px 7px;font-size:10px" onclick="openFiniquitoTransferenciaAdmin('${o.tid}')">Vincular pago</button>`:''}`):(o.rech?'<b style="color:var(--red)">✗ rechazado</b>':'<span style="color:var(--green)">✔</span>')}</span>
   </div>`).join('');
   $('cp-out').innerHTML=`
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
       ${nDup?`<span class="imp-tag imp-CONFLICTO" style="background:var(--red);color:#fff">⚠ ${nDup} posible(s) pago(s) doble(s)</span>`:'<span class="imp-tag imp-COINCIDE">Sin pagos dobles</span>'}
       ${nRech?`<span class="imp-tag imp-CONFLICTO">${nRech} rechazado(s)</span>`:''}
+      ${esAdmin()?'<button class="btn dark" onclick="openFiniquitoTransferenciaAdmin()">🏁 Finiquito por transferencia</button>':''}
       <span style="margin-left:auto;font-size:12px">Semana <input id="cp-sem" style="width:70px;padding:4px 6px" placeholder="todas" value="${$('cp-sem')?esc($('cp-sem').value):''}" oninput="cpRender()"> · <label style="font-size:12px"><input type="checkbox" id="cp-dup" style="width:auto" ${soloDup?'checked':''} onchange="cpRender()"> solo dobles</label></span>
     </div>
     <div class="imp-row head" style="grid-template-columns:1.6fr .5fr 1.3fr 1.3fr 1fr"><span>Trabajador</span><span>Sem</span><span>Cheque</span><span>Transferencia</span><span>Estado</span></div>
@@ -6789,7 +6825,7 @@ function openControlPagos(){
   modal(`
     <div class="m-head"><h2>🔁 Control de pagos · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Une <b>cheques</b> y <b>transferencias</b> por trabajador y semana. Resalta en rojo a quien tenga <b>cheque Y transferencia en la misma semana</b> (posible pago doble) — puedes cancelar el cheque desde aquí. Los importados por transferencia salen de 📥 Importar → 💸 Pago global BBVA.</p>
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Une cheques y transferencias por trabajador y semana. Un finiquito por transferencia requiere autorización del administrador; si el pago todavía no está importado de BBVA se mostrará como <b>reportado, pendiente de conciliar</b>.</p>
       <div id="cp-out"></div>
     </div>
     <div class="m-foot">
@@ -6797,6 +6833,60 @@ function openControlPagos(){
       <button class="btn dark" onclick="exportControlPagos()">⬇ Exportar Excel</button>
     </div>`,'lg');
   cpBuild();
+}
+function openFiniquitoTransferenciaAdmin(trabajadorId=''){
+  if(!esAdmin()){toast('Solo el administrador puede autorizar esta operación.','err');return;}
+  const bajas=WORKERS.filter(w=>w.estatus==='BAJA'&&w.fecha_baja&&Number(w.monto_finiquito)>0)
+    .sort((a,b)=>String(b.fecha_baja).localeCompare(String(a.fecha_baja))||Number(a.no_trab)-Number(b.no_trab));
+  if(!bajas.length){toast('No hay finiquitos elegibles en este centro.','err');return;}
+  modal(`
+    <div class="m-head"><h2>🏁 Finiquito por transferencia · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p class="fhint">Excepción administrativa al cheque de finiquito. Solo se anula automáticamente un cheque <b>PENDIENTE y sin número</b>; los expedidos requieren revisión física. Sin un pago BBVA importado, el caso queda <b>declarado, pendiente de conciliación bancaria</b>.</p>
+      <div class="grid" style="grid-template-columns:1fr 1fr">
+        <div class="c2"><label>Trabajador dado de baja</label><select id="ft-trab" onchange="finTransActualizarFormulario()">${bajas.map(w=>`<option value="${w.id}" ${w.id===trabajadorId?'selected':''}>#${esc(w.no_trab)} · ${esc(fullName(w))} · ${esc(w.fecha_baja)}</option>`).join('')}</select></div>
+        <div id="ft-resumen" class="c2"></div>
+        <div class="c2"><label>Transferencia BBVA ya importada (si existe)</label><select id="ft-pago"><option value="">Aún no importada — quedará por conciliar</option></select></div>
+        <div><label>Fecha de transferencia declarada (opcional)</label><input id="ft-fecha" type="date"></div>
+        <div><label>Referencia declarada (opcional)</label><input id="ft-ref" maxlength="120" placeholder="Folio bancario / comprobante"></div>
+        <div class="c2"><label>Motivo de la excepción</label><textarea id="ft-motivo" rows="2" placeholder="Ej. Personal administrativo; finiquito pagado por transferencia"></textarea></div>
+      </div>
+    </div>
+    <div class="m-foot"><button class="btn" onclick="openControlPagos()">Volver</button><button class="btn dark" id="ft-guardar" onclick="finTransGuardar()">Autorizar cambio</button></div>`,'md');
+  finTransActualizarFormulario();
+}
+function finTransActualizarFormulario(){
+  const w=WORKERS.find(x=>x.id===$('ft-trab')?.value);if(!w)return;
+  const sem=isoWeekDe(OBRA,new Date(w.fecha_baja+'T12:00'));
+  const reg=finTransDe(w,sem);
+  $('ft-resumen').innerHTML=`<div style="padding:9px;border:1px solid var(--border);border-radius:8px;font-size:12px"><b>S${sem} · Finiquito $${money(w.monto_finiquito)}</b><br>${reg?`Estado: ${reg.estado==='CONCILIADO_BANCO'?'conciliado con BBVA':'declarado; falta vincular BBVA'}`:'Método actual: cheque por defecto'}</div>`;
+  const pagos=PAGOS.filter(p=>p.trabajador_id===w.id&&normSem(p.semana)===String(sem)
+    &&String(p.estado).toUpperCase()==='EXITOSO'&&String(p.medio).toUpperCase()==='TRANSFERENCIA'
+    &&Math.abs(Number(p.importe)-Number(w.monto_finiquito))<=0.01);
+  $('ft-pago').innerHTML='<option value="">Aún no importada — quedará por conciliar</option>'+pagos.map(p=>`<option value="${p.id}">$${money(p.importe)} · ${esc(p.fecha_pago||'sin fecha')} · ${esc(p.folio_lote||p.nombre_archivo||'sin folio')}</option>`).join('');
+  $('ft-guardar').disabled=!!reg&&reg.estado==='CONCILIADO_BANCO';
+}
+async function finTransGuardar(){
+  if(!esAdmin()){toast('Permiso de administrador requerido.','err');return;}
+  const w=WORKERS.find(x=>x.id===$('ft-trab')?.value),pago=$('ft-pago')?.value||null;
+  if(!w)return;
+  const sem=isoWeekDe(OBRA,new Date(w.fecha_baja+'T12:00')),reg=finTransDe(w,sem);
+  const motivo=$('ft-motivo').value.trim();
+  if(motivo.length<10){toast('Describe el motivo en al menos 10 caracteres.','err');return;}
+  if(reg&&!pago){toast('El caso ya está declarado. Selecciona el pago BBVA importado para conciliarlo.','err');return;}
+  if(!confirm(`¿Autorizar el finiquito de ${fullName(w)} por TRANSFERENCIA, S${sem}, $${money(w.monto_finiquito)}?\n\nEl cheque pendiente sin número se anulará. ${pago?'El pago BBVA quedará vinculado.':'NO existe pago BBVA vinculado: quedará por conciliar.'}`))return;
+  if(prompt('Segunda confirmación del administrador: escribe CONFIRMAR TRANSFERENCIA')!=='CONFIRMAR TRANSFERENCIA'){
+    toast('Confirmación cancelada.','err');return;
+  }
+  $('ft-guardar').disabled=true;markWrite();
+  const {data,error}=await sb.rpc('control_marcar_finiquito_transferencia',{
+    p_trabajador:w.id,p_semana:sem,p_pago_id:pago,p_fecha:$('ft-fecha').value||null,
+    p_referencia:$('ft-ref').value.trim()||null,p_motivo:motivo,p_confirmacion:'CONFIRMAR TRANSFERENCIA'
+  });
+  if(error){$('ft-guardar').disabled=false;toast('No se aplicó el cambio: '+error.message,'err');return;}
+  await loadObraData(OBRA.id);
+  toast(data?.estado==='CONCILIADO_BANCO'?'Finiquito conciliado con pago BBVA.':'Finiquito por transferencia registrado; comprobante BBVA pendiente.','ok');
+  openControlPagos();
 }
 function exportControlPagos(){
   const rows=window._CP||[]; if(!rows.length){toast('No hay datos para exportar.','err');return;}
@@ -13307,7 +13397,7 @@ function ctrlSnapshotNomina(sem,periodo){
   let nomina=0,prev=0,ret=0,fini=0,neto=0;
   act.forEach(w=>{const sueldo=redondearCentavos(Number(w.sal_semanal)||0),p=redondearCentavos(difDe(w.id,'S'+sem)),r=descuentosDe(w,'S'+sem).total,n=redondearCentavos(Math.max(0,sueldo+p-r));
     nomina+=sueldo;prev+=p;ret+=r;neto+=n;items.push({trabajador_id:w.id,numero:w.no_trab,nombre:fullName(w),tipo:'NOMINA',metodo_pago:metodoPagoPredeterminado(w,'NOMINA'),sueldo_nomina:sueldo,prevision_social:p,retenciones:r,monto:n});});
-  fins.forEach(w=>{const n=redondearCentavos(Number(w.monto_finiquito)||0);fini+=n;neto+=n;items.push({trabajador_id:w.id,numero:w.no_trab,nombre:fullName(w),tipo:'FINIQUITO',metodo_pago:'CHEQUE',monto:n});});
+  fins.forEach(w=>{const n=redondearCentavos(Number(w.monto_finiquito)||0);fini+=n;neto+=n;items.push({trabajador_id:w.id,numero:w.no_trab,nombre:fullName(w),tipo:'FINIQUITO',metodo_pago:finTransDe(w,sem)?'TRANSFERENCIA':'CHEQUE',monto:n});});
   return {obra_id:OBRA.id,empresa_codigo:empresaDeObra(OBRA),obra:OBRA.nombre,semana:sem,periodo,desde:d1,hasta:d2,formula_version:MOTOR_NOMINA_VERSION,
     total_nomina:redondearCentavos(nomina),total_prevision:redondearCentavos(prev),total_retenciones:redondearCentavos(ret),
     total_finiquitos:redondearCentavos(fini),total_neto:redondearCentavos(neto),total_trabajadores:items.length,items};
@@ -13488,7 +13578,7 @@ async function ctrlLeerArchivoNOI(inp){
     if(conflictos.length)throw new Error('El reporte repite trabajadores con netos distintos: '+conflictos.slice(0,8).join(', ')+'. Revisa el archivo antes de importarlo.');
     const exp=(window._CTRL_CIERRE.snapshot&&window._CTRL_CIERRE.snapshot.items)||[],out=[],usados=new Set();
     exp.forEach(x=>{const n=noi.get(Number(x.numero)),w=WORKERS.find(z=>z.id===x.trabajador_id);if(n)usados.add(Number(x.numero));out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:x.trabajador_id,
-      trabajador_numero:x.numero,trabajador_nombre:x.nombre,tipo_calculo:x.tipo||'NOMINA',metodo_pago:x.tipo==='FINIQUITO'?'CHEQUE':(x.metodo_pago||metodoPagoPredeterminado(w,x.tipo)),monto_platinum:x.monto,monto_noi:n?n.m:null,
+      trabajador_numero:x.numero,trabajador_nombre:x.nombre,tipo_calculo:x.tipo||'NOMINA',metodo_pago:x.tipo==='FINIQUITO'?(finTransDe(w,window._CTRL_CIERRE.semana)?'TRANSFERENCIA':'CHEQUE'):(x.metodo_pago||metodoPagoPredeterminado(w,x.tipo)),monto_platinum:x.monto,monto_noi:n?n.m:null,
       detalle:{sueldo_nomina:x.sueldo_nomina||0,prevision_social:x.prevision_social||0,retenciones:x.retenciones||0,archivo:file.name,hojas:detectadas.map(d=>d.hoja.nombre),lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
     noi.forEach((n,no)=>{if(!usados.has(no))out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:null,trabajador_numero:no,trabajador_nombre:String(n.nombre||'NO EN SNAPSHOT'),
       tipo_calculo:n.tipo,metodo_pago:n.tipo==='FINIQUITO'?'CHEQUE':'TRANSFERENCIA',monto_platinum:null,monto_noi:n.m,detalle:{archivo:file.name,hoja:n.hoja,fila:n.fila,lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
