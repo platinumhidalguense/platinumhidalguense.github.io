@@ -252,6 +252,10 @@ thead th:hover{color:var(--brand-txt)}
 tbody td{padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
 tbody tr{cursor:pointer}
 tbody tr:hover{background:var(--hover)}
+.altas-cortas-tabla table{min-width:0;table-layout:fixed;font-size:11px}
+.altas-cortas-tabla th,.altas-cortas-tabla td{white-space:normal;overflow-wrap:anywhere;padding:8px}
+.altas-cortas-tabla th:first-child{width:30%}
+.altas-cortas-tabla th:last-child{width:20%}
 .badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
 .badge.ACTIVO,.badge.EXPEDIDO{background:var(--green-bg);color:var(--green)}
 .badge.BAJA,.badge.CANCELADO{background:var(--red-bg);color:var(--red)}
@@ -1658,7 +1662,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-29.2';
+const APP_VERSION='2026-09-30.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2500,7 +2504,7 @@ function openDetail(id){
         const fijos=DESC.filter(d=>d.trabajador_id===w.id&&d.recurrente&&d.activo);
         const inc=DESC.filter(d=>d.trabajador_id===w.id&&!d.recurrente&&d.activo).sort((a,b)=>String(b.semana).localeCompare(String(a.semana))).slice(0,8);
         return `<div class="sect">Descuentos <button class="btn" style="float:right;padding:3px 10px;font-size:11.5px;margin-top:-4px" onclick="openDescuento('${w.id}')">＋ Agregar descuento fijo</button></div>
-        ${fijos.length?fijos.map(d=>`<div class="kv"><b>${esc(d.tipo)} (fijo)</b><span>$${money(d.monto)} · ${esc(d.motivo)||'sin nota'}${exResumen(d)} <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openExcepcion('${d.id}')">⏸/×2 Semana</button> <button class="btn danger" style="padding:2px 8px;font-size:11px;margin-left:8px" onclick="toggleDescuento('${d.id}',false)">Desactivar</button></span></div>`).join(''):'<div class="kv"><b>Fijos</b><span>Sin descuentos fijos activos</span></div>'}
+        ${fijos.length?fijos.map(d=>`<div class="kv"><b>${esc(d.tipo)} (fijo)</b><span>$${money(d.monto)} · ${String(d.tipo).toUpperCase()==='INFONAVIT'?`crédito ${numeroCreditoInfonavit(d)?esc(numeroCreditoInfonavit(d)):'<b style="color:var(--amber)">⚠ número sin cotejar</b>'} · `:''}${esc(d.motivo)||'sin nota'}${exResumen(d)} ${String(d.tipo).toUpperCase()==='INFONAVIT'?`<button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openCreditoNumero('${d.id}')">No. crédito</button>`:''} <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openExcepcion('${d.id}')">⏸/×2 Semana</button> <button class="btn danger" style="padding:2px 8px;font-size:11px;margin-left:8px" onclick="toggleDescuento('${d.id}',false)">Desactivar</button></span></div>`).join(''):'<div class="kv"><b>Fijos</b><span>Sin descuentos fijos activos</span></div>'}
         ${inc.length?inc.map(d=>`<div class="kv"><b>${esc(d.semana)} · ${esc(d.tipo)}</b><span>$${money(d.monto)} · ${esc(d.motivo)||''} <button class="btn danger" style="padding:2px 8px;font-size:11px;margin-left:8px" onclick="toggleDescuento('${d.id}',false)">Quitar</button></span></div>`).join(''):''}`;
       })()}
       ${(function(){
@@ -3826,7 +3830,8 @@ function openDescuento(trabId){
       </div>
       <div class="fhint" id="ds-hint" style="margin-top:6px">Si capturas la cuota mensual del aviso, la de la ${P.unidad.toLowerCase()} se calcula sola: (mensual×2 + seguro) ÷ días del bimestre × ${P.dias} (fórmula SUA). Valida la primera retención contra la cédula del SUA.</div>
       <div class="fhint" style="margin-top:6px;color:var(--navy)">🏠 <b>La modalidad y el factor son lo que hace posible el recálculo automático</b> de cada bimestre. Cópialos tal cual del aviso de retención del INFONAVIT.</div>
-      <div style="margin-top:12px"><label>Nota / no. de crédito</label><input id="ds-motivo" placeholder="No. CRÉDITO INFONAVIT 1234567890..."></div>
+      <div id="ds-credito-wrap" style="margin-top:12px"><label>No. de crédito INFONAVIT (10 dígitos) *</label><input id="ds-credito" inputmode="numeric" maxlength="10" placeholder="Según aviso de retención"></div>
+      <div style="margin-top:10px"><label>Nota del aviso / observaciones</label><input id="ds-motivo" placeholder="Referencia del aviso o comentarios"></div>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
@@ -3840,6 +3845,10 @@ async function saveDescuento(trabId){
   const factor=parseFloat($('ds-mensual').value);
   const tipo=$('ds-tipo').value;
   const mod=tipo==='INFONAVIT'?(($('ds-mod')||{}).value||'CUOTA_FIJA'):'CUOTA_FIJA';
+  const numeroCredito=tipo==='INFONAVIT'?$('ds-credito').value.trim():'';
+  if(tipo==='INFONAVIT'&&!/^\d{10}$/.test(numeroCredito)){
+    toast('Captura los 10 dígitos del crédito tal como aparecen en el aviso INFONAVIT.','err');return;
+  }
   const mensual=factor>0?dsMensualEquivalente(mod,factor,w):0;
   if(mensual>0){const o=$('ds-motivo');if(!/MENSUAL/.test(o.value.toUpperCase()))o.value=(o.value?o.value+' | ':'')+'CUOTA MENSUAL $'+mensual.toFixed(2);}
   if(!monto||monto<=0){toast('Indica el monto del descuento.','err');return;}
@@ -3850,7 +3859,7 @@ async function saveDescuento(trabId){
      · la MODALIDAD y el FACTOR (Script 63): son lo que le permite al cron
        bimestral recalcular esta retención sola. Sin ellos, el crédito se
        queda congelado en la cifra del bimestre en que se capturó. */
-  const fila={trabajador_id:trabId,obra_id:w.obra_id,tipo,
+  const fila={trabajador_id:trabId,obra_id:w.obra_id,tipo,numero_credito:numeroCredito||null,
     motivo:$('ds-motivo').value.trim().toUpperCase(),monto,recurrente:true,creado_por:USER.email,
     periodicidad:periodoPago(w),cuota_mensual:(mensual>0?Math.round(mensual*100)/100:null),
     modalidad:mod,factor:(factor>0?factor:null),
@@ -3865,6 +3874,26 @@ async function saveDescuento(trabId){
   if(error){toast('Error: '+error.message,'err');return;}
   closeModal();toast('Descuento fijo registrado: se aplicará en cada proyección.','ok');
   await loadObraData(OBRA.id);
+}
+function openCreditoNumero(id){
+  const d=DESC.find(x=>x.id===id&&x.obra_id===OBRA.id&&String(x.tipo).toUpperCase()==='INFONAVIT');
+  if(!d){toast('No se encontró el crédito INFONAVIT de este centro.','err');return;}
+  const w=WORKERS.find(x=>x.id===d.trabajador_id);
+  modal(`<div class="m-head"><h2>🏠 Cotejar número de crédito</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body"><p><b>${esc(w?fullName(w):'Trabajador')}</b> · descuento ${esc(d.modalidad||'CUOTA_FIJA')} · $${money(d.monto)} por ${esc(d.periodicidad||'periodo')}.</p>
+    <p class="fhint" style="margin:8px 0">Consulta el <b>Aviso de Retención de Descuentos</b> vigente y captura sus 10 dígitos. Cambiar este dato no modifica el factor ni el importe de la retención.</p>
+    <label>No. de crédito INFONAVIT</label><input id="cn-numero" inputmode="numeric" maxlength="10" value="${esc(numeroCreditoInfonavit(d))}" placeholder="10 dígitos del aviso"></div>
+    <div class="m-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn dark" onclick="guardarCreditoNumero('${id}')">Guardar número</button></div>`,'md');
+}
+async function guardarCreditoNumero(id){
+  const numero=$('cn-numero').value.trim();
+  if(!/^\d{10}$/.test(numero)){toast('El número de crédito INFONAVIT debe tener exactamente 10 dígitos.','err');return;}
+  markWrite();
+  const {error}=await sb.from('descuentos').update({numero_credito:numero,actualizado_por:USER.email}).eq('id',id).eq('obra_id',OBRA.id).eq('tipo','INFONAVIT');
+  if(error){toast('No se pudo guardar: '+error.message,'err');return;}
+  await loadObraData(OBRA.id);
+  const d=DESC.find(x=>x.id===id);if(d)openDetail(d.trabajador_id);
+  toast('Número de crédito guardado; coteja el factor y monto con el aviso.','ok');
 }
 async function toggleDescuento(id,estado){
   if(!confirm(estado?'¿Reactivar este descuento?':'¿Desactivar este descuento? Dejará de aplicarse en las proyecciones (queda en el historial).'))return;
@@ -10812,6 +10841,18 @@ function smAssist(extra){
 
 /* --- BAJAS CON MOTIVO LEGAL Y DOCUMENTO SEGÚN MOTIVO --- */
 const MOTIVOS_BAJA=['RENUNCIA VOLUNTARIA','TERMINO DE CONTRATO U OBRA','MUTUO ACUERDO','ABANDONO DE TRABAJO','DESPIDO JUSTIFICADO (ART. 47 LFT)','DEFUNCION','OTRO'];
+function altaBajaMismaSemana(w,fechaBaja){
+  if(!w?.fecha_alta||!fechaBaja||fechaBaja<w.fecha_alta||!OBRA||w.obra_id!==OBRA.id)return false;
+  const sem=isoWeekDe(OBRA,new Date(fechaBaja+'T12:00'));
+  if(sem<1||sem>53)return false;
+  const [inicio,fin]=semRange(sem);
+  return w.fecha_alta>=inicio&&w.fecha_alta<=fin;
+}
+function bajaCortaPreview(id){
+  const w=WORKERS.find(x=>x.id===id),el=$('b-corta-alert');if(!el)return;
+  const fecha=$('b-fecha')?.value||'';
+  el.style.display=altaBajaMismaSemana(w,fecha)?'block':'none';
+}
 function openBaja(id){
   const w=WORKERS.find(x=>x.id===id);
   modal(`
@@ -10819,11 +10860,12 @@ function openBaja(id){
     <div class="m-body">
       <p style="margin-bottom:14px;color:var(--mut)">El registro <b>no se elimina</b>: cambia a BAJA con su motivo legal y se genera el documento que corresponde (renuncia, convenio de terminación o aviso de rescisión).</p>
       <div class="grid" style="grid-template-columns:1fr 1fr">
-        <div><label>Fecha de baja *</label><input id="b-fecha" type="date" value="${today()}"></div>
+        <div><label>Fecha de baja *</label><input id="b-fecha" type="date" value="${today()}" oninput="bajaCortaPreview('${id}')"></div>
         <div><label>Motivo (define el documento) *</label><select id="b-motivo-cat">${MOTIVOS_BAJA.map(m=>`<option>${m}</option>`).join('')}</select></div>
         <div><label>Monto finiquito ($)</label><input id="b-finiquito" type="number" step="0.01" placeholder="0.00" oninput="$('b-chq-wrap').style.opacity=this.value>0?1:.45"></div>
         <div><label>Detalle / observación</label><input id="b-motivo" placeholder="Detalle adicional (opcional)"></div>
       </div>
+      <div id="b-corta-alert" class="fhint" style="display:none;margin-top:12px;color:var(--amber)">⚠ El alta y la baja corresponden a la misma semana de esta obra. Al confirmar, el caso aparecerá automáticamente en <b>Centro de control → Altas y bajas sin servicio</b>, con estado <b>PENDIENTE de verificar</b>. No se asumirá que no trabajó: revisa horas, acuses IDSE y NOI antes de confirmar esa clasificación.</div>
       <div id="b-chq-wrap" style="margin-top:14px;background:var(--amber-bg);border-radius:8px;padding:12px 14px;opacity:.45">
         <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;color:var(--txt)">
           <input type="checkbox" id="b-cheque" checked style="width:auto">
@@ -10836,12 +10878,16 @@ function openBaja(id){
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn danger" id="baja-btn" onclick="doBaja('${id}')">Confirmar BAJA</button>
     </div>`,'md');
+  bajaCortaPreview(id);
 }
 async function doBaja(id){
   const f=$('b-fecha').value; if(!f){toast('Indica la fecha de baja.','err');return;}
   const cat=$('b-motivo-cat').value;
-  if(!confirm('¿Confirmas la BAJA por '+cat+'?'))return;
   const w=WORKERS.find(x=>x.id===id);
+  const corta=altaBajaMismaSemana(w,f);
+  if(!confirm(corta
+    ?`¿Confirmas la BAJA por ${cat}?\n\nAlta y baja en la misma semana: se abrirá automáticamente un caso PENDIENTE en el Centro de control. Solo después de verificar que no hubo trabajo efectivo se podrá marcar «sin servicio confirmado».`
+    :'¿Confirmas la BAJA por '+cat+'?'))return;
   const fin=$('b-finiquito').value?parseFloat($('b-finiquito').value):null;
   const det=$('b-motivo').value.trim().toUpperCase();
   const conCheque=$('b-cheque').checked&&fin>0;
@@ -11032,6 +11078,7 @@ function recalcBadge(){
 function dsModalidad(){
   const esInf=($('ds-tipo')||{}).value==='INFONAVIT';
   const wrap=$('ds-mod-wrap'); if(wrap)wrap.style.display=esInf?'':'none';
+  const creditoWrap=$('ds-credito-wrap');if(creditoWrap)creditoWrap.style.display=esInf?'':'none';
   const mod=esInf?(($('ds-mod')||{}).value||'CUOTA_FIJA'):'CUOTA_FIJA';
   const lbl=$('ds-lbl-factor');
   if(lbl)lbl.textContent=!esInf?'Cuota MENSUAL ($)'
@@ -12675,25 +12722,37 @@ function faltasAguinaldo(w,fechaCalculo){
     return total+Math.max(0,Math.round(dias||0));
   },0);
 }
+function creditoInfonavitActivo(w){
+  return (typeof DESC!=='undefined'?DESC:[]).find(d=>d.trabajador_id===w.id&&d.activo===true&&d.recurrente===true&&String(d.tipo||'').toUpperCase()==='INFONAVIT')||null;
+}
+function numeroCreditoInfonavit(d){
+  if(!d)return '';
+  const estructurado=String(d.numero_credito||'').trim();
+  if(/^\d{10}$/.test(estructurado))return estructurado;
+  return String(d.motivo||'').match(/(?:^|\D)(\d{10})(?!\d)/)?.[1]||'';
+}
 function openPrestaciones(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
-  const tieneInfo=(typeof DESC!=='undefined'?DESC:[]).some(d=>d.trabajador_id===w.id&&d.activo&&d.recurrente&&String(d.tipo).toUpperCase()==='INFONAVIT');
+  const infoDesc=creditoInfonavitActivo(w);
+  const numeroCredito=numeroCreditoInfonavit(infoDesc);
   modal(`
     <div class="m-head"><h2>🧮 Prestaciones de ley · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
         <div><label>Fecha de cálculo / baja</label><input id="pr-fecha" type="date" value="${today()}" oninput="calcPrestaciones('${id}')"></div>
         ${fld('pr-dias','Días trabajados sin pagar',0,{type:'number',extra:`oninput="calcPrestaciones('${id}')" min="0"`})}
-        ${fld('pr-info-dias','Días INFONAVIT no retenidos','',{type:'number',ph:'Auto: 1 si baja lunes',extra:`oninput="calcPrestaciones('${id}')" min="0" ${tieneInfo?'':'disabled'}`})}
+        ${infoDesc?fld('pr-info-dias','Días INFONAVIT no retenidos','',{type:'number',ph:'Auto: 1 si baja lunes',extra:`oninput="calcPrestaciones('${id}')" min="0" max="31" step="1"`})
+          :'<div><label>Crédito INFONAVIT</label><div class="fhint" style="margin-top:5px">No hay crédito activo. No se propone ni aplica retención.</div></div>'}
         <div><label>¿Despido injustificado?</label><select id="pr-despido" onchange="calcPrestaciones('${id}')"><option value="NO">No (renuncia/término)</option><option value="SI">Sí (indemnización)</option></select></div>
       </div>
+      ${infoDesc?`<div class="fhint" style="margin-top:8px"><b>Crédito INFONAVIT activo:</b> ${numeroCredito?`No. ${esc(numeroCredito)}`:'⚠ Falta el número de 10 dígitos: coteja el aviso'} · ${esc(infoDesc.modalidad||'CUOTA_FIJA')} · factor ${Number(infoDesc.factor||0).toFixed(4)} · $${money(infoDesc.monto)} por ${esc(infoDesc.periodicidad||periodoPago(w))}. El importe diario se desglosa abajo cuando corresponda.</div>`:''}
       <div class="grid" style="grid-template-columns:1fr 1fr 2fr;margin-top:8px;align-items:end">
         <div><label>ISR D001 NOI ($) — si se ajustó</label><input id="pr-isr-noi" type="number" min="0" step="0.01" placeholder="usar cálculo automático" oninput="calcPrestaciones('${id}')"></div>
         <div><label>Finiquito según NOI ($) — opcional</label><input id="pr-noi" type="number" step="0.01" placeholder="para cuadrar al centavo" oninput="calcPrestaciones('${id}')"></div>
         <div style="font-size:11.5px;color:var(--mut);padding-bottom:8px">Si contabilidad cambió D001 en NOI, captura aquí ese ISR para recalcular el neto y dejar el ajuste visible. El finiquito según NOI, si se captura, sigue mandando sobre el modelo para el cheque.</div>
       </div>
       <div id="pr-out" style="margin-top:16px"></div>
-      <p style="font-size:11.5px;color:var(--mut);margin-top:10px">Cálculo conforme a LFT vigente: aguinaldo 15 días (art. 87), vacaciones desde 12 días (art. 76), prima vacacional 25% (art. 80), indemnización 3 meses + 20 días/año con salario integrado (arts. 48-50) y prima de antigüedad 12 días/año con tope de 2 salarios mínimos (art. 162). Si existe <b>crédito INFONAVIT activo</b> y la baja administrativa es lunes, el campo de retención propone <b>un día aunque no haya salario pendiente</b>; escribe 0 para no aplicarlo si el corte ya lo cubrió. Verifica el aviso y la cédula SUA antes de pagar.</p>
+      <p style="font-size:11.5px;color:var(--mut);margin-top:10px">Cálculo conforme a LFT vigente: aguinaldo 15 días (art. 87), vacaciones desde 12 días (art. 76), prima vacacional 25% (art. 80), indemnización según causal y prima de antigüedad (art. 162). Sólo si la ficha tiene <b>retención INFONAVIT activa</b> se propone un día adicional cuando la baja es lunes, independientemente de salarios pendientes; escribe 0 si ya quedó retenido en otro corte. Confirma el aviso, la cédula SUA y el detalle de NOI antes de pagar: el modelo no sustituye esa conciliación.</p>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cerrar</button>
@@ -12705,6 +12764,7 @@ let PR_TOTAL=0;
 function calcPrestaciones(id){
   const w=WORKERS.find(x=>x.id===id);
   const sd=Number(w.sd)||0, sdi=Number(w.sdi)||sd;
+  const infoDesc=creditoInfonavitActivo(w);
   const f=$('pr-fecha').value; if(!f||!iniAntig(w)){
     globalThis._PR_AUDIT={invalido:true};PR_TOTAL=NaN;
     if($('pr-usar'))$('pr-usar').disabled=true;
@@ -12772,21 +12832,35 @@ function calcPrestaciones(id){
   // La retención del lunes de baja es INDEPENDIENTE de salarios pendientes.
   // Se propone un día si hay crédito activo y fecha de baja lunes; escribir 0
   // permite confirmar que el último corte ya lo cubrió, sin inventar salario.
-  const infoDesc=(typeof DESC!=='undefined'?DESC:[]).find(d=>d.trabajador_id===w.id&&d.activo&&d.recurrente&&String(d.tipo).toUpperCase()==='INFONAVIT');
   const infoInput=$('f-pr-info-dias');
   const infoManual=infoInput&&infoInput.value!=='';
-  const diasInfo=infoDesc?(infoManual?Math.max(0,parseInt(infoInput.value,10)||0):(fin.getDay()===1?1:0)):0;
+  const diasCapturados=infoManual?Number(infoInput.value):null;
+  if(infoManual&&(!Number.isInteger(diasCapturados)||diasCapturados<0||diasCapturados>31)){
+    globalThis._PR_AUDIT={invalido:true};PR_TOTAL=NaN;
+    $('pr-out').innerHTML='<div class="fhint" style="color:var(--red)">Los días INFONAVIT deben ser enteros entre 0 y 31.</div>';
+    if($('pr-usar'))$('pr-usar').disabled=true;
+    return;
+  }
+  const diasInfo=infoDesc?(infoManual?diasCapturados:(fin.getDay()===1?1:0)):0;
   let infoAplicado=0,infoOrigen=infoDesc?(infoManual?'CAPTURA_MANUAL':'AUTO_LUNES_BAJA'):'SIN_CREDITO';
+  if(infoDesc){
+    const numero=numeroCreditoInfonavit(infoDesc);
+    const mod=String(infoDesc.modalidad||'CUOTA_FIJA').toUpperCase();
+    const cuota=Number(infoDesc.cuota_mensual)||Number(infoDesc.factor)||0;
+    rows.push(['Crédito INFONAVIT',`${numero?'No. '+esc(numero):'⚠ Número pendiente de validar'} · ${esc(mod)} · ${mod==='PORCENTAJE'?Number(infoDesc.factor||0)+'% sobre SDI':'cuota mensual $'+money(cuota)} · ${diasBimestreActual(fin)} días en bimestre`]);
+  }
   if(infoDesc&&diasInfo>0){
     const infoExacta=retencionInfonavitDesdeAviso(infoDesc,w,diasInfo,fin);
     const Pinfo=perDe(w), cuotaPeriodo=montoDescuento(infoDesc,Pinfo);
     const infoProp=infoExacta==null?redondearCentavos(cuotaPeriodo/Pinfo.dias*diasInfo):infoExacta;
     if(infoProp>0){
-      rows.push([`Retención INFONAVIT (${diasInfo} día(s) no retenidos; redondeo único)`,`−$${money(infoProp)}`]);
+      rows.push([`Retención INFONAVIT (${diasInfo} día(s) × $${money(infoProp/diasInfo)} aprox.; redondeo único)`,`−$${money(infoProp)}`]);
       total-=infoProp;
       infoAplicado=infoProp;infoOrigen=(infoManual?'MANUAL_':'AUTO_LUNES_')+(infoExacta==null?'PRORRATEO_PERIODO':'AVISO_CREDITO');
     }
   }
+  if(infoDesc&&diasInfo===0)rows.push(['Retención INFONAVIT adicional','$0.00 (sin días pendientes de retener)']);
+  if(!infoDesc)rows.push(['Retención INFONAVIT','No aplica: sin crédito activo registrado']);
   // Las percepciones se suman DESPUÉS de redondear cada concepto a centavos;
   // el total mostrado coincide con los renglones, como en el reporte NOI.
   const modeloTotal=redondearCentavos(total);
@@ -12806,7 +12880,9 @@ function calcPrestaciones(id){
     tipo_calculo:'FINIQUITO_CALCULADO',periodo:f,
     entradas:{fecha_antiguedad:iniAntig(w),fecha_calculo:f,sd,sdi,dias_inclusivos:dias,anios,dias_anio:diasAnio,dias_aguinaldo_base:Math.max(0,diasEsteAnio-1),faltas_aguinaldo:faltasAg,dias_aguinaldo:diasAgAnio,
       dias_vacaciones_tabla:diasVacAct,dias_salario_pendiente:diasPend,dias_infonavit_no_retenidos:diasInfo,dias_infonavit_captura_manual:!!infoManual,
-      credito_infonavit_id:infoDesc?infoDesc.id:null,origen_infonavit:infoOrigen,despido_injustificado:$('pr-despido').value==='SI',noi_manual:noiV,isr_noi_manual:isrManual?isrFin:null},
+      credito_infonavit_id:infoDesc?infoDesc.id:null,numero_credito_infonavit:numeroCreditoInfonavit(infoDesc)||null,
+      factor_infonavit:infoDesc?Number(infoDesc.factor)||null:null,origen_infonavit:infoOrigen,
+      despido_injustificado:$('pr-despido').value==='SI',noi_manual:noiV,isr_noi_manual:isrManual?isrFin:null},
     resultado:{salarios_pendientes:salarioPend,aguinaldo, vacaciones:vacProp,prima_vacacional:primaVac,isr:isrFin,
       isr_calculado:isrCalculado,infonavit:infoAplicado,indemnizacion,modelo_total:modeloTotal,aplicado:PR_TOTAL},
     monto_modelo:modeloTotal,monto_aplicado:PR_TOTAL,ajuste_noi:dif,requiere_noi_manual:requiereNoiManual
@@ -13340,8 +13416,8 @@ function ctrlEstado(v){
         warn=/^(PENDIENTE|POR_VENCER|EN_TRAMITE|ABIERTO|REVISADO|PREPARADO)$/.test(x);
   return `<span style="display:inline-block;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:800;background:${bad?'var(--red-bg)':warn?'var(--amber-bg)':ok?'var(--green-bg)':'var(--blue-bg)'};color:${bad?'var(--red)':warn?'var(--amber)':ok?'var(--green)':'var(--navy)'}">${esc(x||'—')}</span>`;
 }
-function ctrlTabla(headers,rows,empty='Sin registros'){
-  return rows.length?`<div class="tbl-card" style="margin-top:12px;overflow:auto"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`
+function ctrlTabla(headers,rows,empty='Sin registros',className=''){
+  return rows.length?`<div class="tbl-card ${className}" style="margin-top:12px;overflow:auto"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`
     :`<div class="empty"><div class="big">📭</div>${esc(empty)}</div>`;
 }
 async function ctrlLeer(tabla,orden='created_at'){
@@ -13841,23 +13917,37 @@ async function ctrlGuardarSeguimientoIMSS(id){
   toast('Seguimiento IMSS actualizado.','ok');openCtrlCasosIMSS();
 }
 /* ---------- ALTAS Y BAJAS SIN SERVICIO EFECTIVO ---------- */
-async function openCtrlAltasCortas(){
+async function openCtrlAltasCortas(semElegida){
   const {data,error}=await ctrlLeer(CTRL_TABLAS.altasCortas);if(error){toast(ctrlFaltaScript(error),'err');return;}
   const a=(data||[]).sort((x,y)=>bajaCortaOrden(y)-bajaCortaOrden(x));window._CTRLALT=a;
+  const semanaActual=semObra(),anioActual=Number(semRange(semanaActual)[0].slice(0,4));
+  const semanas=[...new Set(a.map(x=>`${x.anio}|${x.semana}`))].sort((x,y)=>{
+    const [ax,as]=x.split('|').map(Number),[yx,ys]=y.split('|').map(Number);
+    return yx-ax||ys-as;
+  });
+  const actual=`${anioActual}|${semanaActual}`;
+  const elegida=semElegida||window._CTRLALTSEM;
+  const clave=semanas.includes(elegida)?elegida:(semanas.includes(actual)?actual:semanas[0]||actual);
+  window._CTRLALTSEM=clave;
+  const [anio,semana]=clave.split('|').map(Number);
+  const visibles=a.filter(x=>Number(x.anio)===anio&&Number(x.semana)===semana);
+  const pendientes=visibles.filter(x=>x.estado_servicio==='PENDIENTE'||x.estado_servicio==='REVISAR').length;
   modal(ctrlNav('↔️ Altas y bajas sin servicio')+`<div class="m-body">
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevaAltaCorta()">＋ Registrar caso</button><button class="btn" onclick="ctrlExportAltasCortas()">⬇ Excel</button></div>
-    <p class="fhint" style="margin-top:9px">Distingue fecha en la base, movimiento efectivo IDSE y escenario NOI. Esta clasificación no borra el alta IMSS ni acredita por sí sola que no existan prestaciones. Conserva acuses y revisa cualquier servicio efectivamente prestado.</p>
-    ${ctrlTabla(['Trabajador','Semana','Base alta / baja','IDSE alta / baja','NOI: modelo y neto','Servicio','Acción'],a.map(x=>{
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><div><label>Semana de la obra</label><select id="ab-filtro-semana" onchange="openCtrlAltasCortas(this.value)">${(semanas.length?semanas:[actual]).map(s=>{const [y,n]=s.split('|');return `<option value="${s}" ${s===clave?'selected':''}>S${n} · ${y} (${a.filter(x=>Number(x.anio)===Number(y)&&Number(x.semana)===Number(n)).length})</option>`;}).join('')}</select></div><button class="btn dark" onclick="openCtrlNuevaAltaCorta()">＋ Registrar caso</button><button class="btn" onclick="ctrlExportAltasCortas()">⬇ Excel de S${semana}</button></div>
+    <p class="fhint" style="margin-top:9px"><b>S${semana}/${anio}:</b> ${visibles.length} caso(s), ${pendientes} por verificar. Las altas y bajas de la misma semana se registran automáticamente como <b>PENDIENTE</b>; no significan ausencia de trabajo por sí mismas. Contrasta horas, IDSE y NOI antes de confirmar.</p>
+    ${ctrlTabla(['Trabajador / servicio','Base alta / baja','IDSE alta / baja','NOI: modelo y neto'],visibles.map(x=>{
       const w=WORKERS.find(t=>t.id===x.trabajador_id);
-      return `<tr><td>#${w?.no_trab??'—'} ${esc(w?fullName(w):'Trabajador no visible')}</td><td>${x.anio} · S${x.semana}</td>
+      return `<tr><td>#${w?.no_trab??'—'} ${esc(w?fullName(w):'Trabajador no visible')}<br>${ctrlEstado(x.estado_servicio)} <button class="btn" style="padding:3px 7px;margin-top:4px" onclick="openCtrlEditarAltaCorta('${x.id}')">Revisar caso</button></td>
       <td>${fmtD(x.fecha_alta_base)} / ${fmtD(x.fecha_baja_base)}</td><td>${x.fecha_alta_idse?fmtD(x.fecha_alta_idse):'Acuse pendiente'} / ${x.fecha_baja_idse?fmtD(x.fecha_baja_idse):'Acuse pendiente'}</td>
       <td>${x.fecha_alta_modelo_noi?fmtD(x.fecha_alta_modelo_noi)+' / '+fmtD(x.fecha_baja_modelo_noi):'Pendiente'}<br>${x.neto_noi==null?'NOI pendiente':'$'+money(x.neto_noi)+' · '+(x.dias_pagados_noi??'—')+' días'}</td>
-      <td>${ctrlEstado(x.estado_servicio)}</td><td><button class="btn" style="padding:4px 6px" onclick="openCtrlEditarAltaCorta('${x.id}')">Revisar</button></td></tr>`;
-    }),'Sin altas y bajas cortas clasificadas.')}</div>`,'lg');
+      </tr>`;
+    }),`Sin casos detectados en S${semana}/${anio}.`,'altas-cortas-tabla')}</div>`,'lg');
 }
 function bajaCortaOrden(x){return x.anio*100+x.semana;}
 function openCtrlNuevaAltaCorta(){
-  const candidatos=WORKERS.filter(w=>w.fecha_alta&&w.fecha_baja&&w.fecha_baja>=w.fecha_alta);
+  const yaRegistrados=new Set((window._CTRLALT||[]).map(x=>x.trabajador_id));
+  const candidatos=WORKERS.filter(w=>w.fecha_alta&&w.fecha_baja&&w.fecha_baja>=w.fecha_alta&&!yaRegistrados.has(w.id));
+  if(!candidatos.length){toast('Todas las altas y bajas detectadas ya tienen un caso. Usa «Revisar» en la semana correspondiente.','ok');return;}
   modal(ctrlNav('＋ Alta y baja corta','openCtrlAltasCortas')+`<div class="m-body">
     <div><label>Trabajador con alta y baja registradas</label><select id="ab-w">${candidatos.map(w=>`<option value="${w.id}">#${w.no_trab??'—'} · ${esc(fullName(w))} · ${fmtD(w.fecha_alta)} / ${fmtD(w.fecha_baja)}</option>`).join('')}</select></div>
     <div class="grid" style="grid-template-columns:repeat(2,1fr);margin-top:9px">
@@ -13917,8 +14007,9 @@ async function ctrlActualizarAltaCorta(id){
   toast('Caso actualizado.','ok');await loadObraData(OBRA.id);openCtrlAltasCortas();
 }
 async function ctrlExportAltasCortas(){
-  const a=window._CTRLALT||[];
-  await ctrlExportar('ALTAS Y BAJAS CORTAS',['NO.','TRABAJADOR','SEMANA','SITUACIÓN','ALTA BASE','BAJA BASE','ALTA IDSE','BAJA IDSE','ALTA MODELO NOI','BAJA MODELO NOI','FALTAS MODELO NOI','DÍAS NOI','NETO NOI','NOTAS'],
+  const [anio,semana]=String(window._CTRLALTSEM||'').split('|').map(Number);
+  const a=(window._CTRLALT||[]).filter(x=>Number(x.anio)===anio&&Number(x.semana)===semana);
+  await ctrlExportar(`ALTAS Y BAJAS CORTAS · S${semana}/${anio}`,['NO.','TRABAJADOR','SEMANA','SITUACIÓN','ALTA BASE','BAJA BASE','ALTA IDSE','BAJA IDSE','ALTA MODELO NOI','BAJA MODELO NOI','FALTAS MODELO NOI','DÍAS NOI','NETO NOI','NOTAS'],
     a.map(x=>{const w=WORKERS.find(t=>t.id===x.trabajador_id);return [w?.no_trab??'',w?fullName(w):'',`S${x.semana}/${x.anio}`,x.estado_servicio,x.fecha_alta_base||'',x.fecha_baja_base||'',x.fecha_alta_idse||'',x.fecha_baja_idse||'',x.fecha_alta_modelo_noi||'',x.fecha_baja_modelo_noi||'',x.faltas_modelo_noi??'',x.dias_pagados_noi??'',x.neto_noi??'',x.observaciones||''];}),
     'ALTAS_BAJAS_CORTAS','ALTAS_BAJAS_CORTAS');
 }
