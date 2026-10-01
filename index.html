@@ -1667,7 +1667,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-01.1';
+const APP_VERSION='2026-10-01.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -4927,6 +4927,8 @@ function openExpedirChequeReunion(id,cid){
 }
 async function expedirChequeReunion(id,cid){
   const num=$('re-num').value.trim(),con=$('re-con').value.trim(),st=window._REUNION_ENTREGA,q=st&&st.cheques.find(x=>x.id===cid);if(!q)return;if(!num||!con){toast('Captura el número de cheque y el consecutivo.','err');return;}$('re-exp-btn').innerHTML='<span class="spin"></span> Guardando...';markWrite();
+  const respaldo=await chqResolverNeto(q);
+  if(respaldo.error||Number(q.importe)!==respaldo.neto){$('re-exp-btn').textContent='Guardar como expedido';toast(respaldo.error||`El cheque es $${money(q.importe)} y el respaldo ${respaldo.origen} es $${money(respaldo.neto)}. Corrige el cheque antes de expedirlo.`,'err');return;}
   const [dn,dc]=await Promise.all([
     sb.from('cheques').select('id,nombre').eq('obra_id',q.obra_id).eq('num_cheque',num).neq('id',cid).neq('estatus','CANCELADO').or('eliminado.eq.false,eliminado.is.null').limit(1),
     sb.from('cheques').select('id,nombre').eq('obra_id',q.obra_id).eq('consecutivo',con).neq('id',cid).neq('estatus','CANCELADO').or('eliminado.eq.false,eliminado.is.null').limit(1)
@@ -8126,22 +8128,43 @@ async function crCrearFaltantes(){
   toast(err?`Creados ${ok}, ${err} con error.`:`✔ ${ok} cheque(s) PENDIENTE(S) creados desde los recibos.`,err?'err':'ok');
   await loadObraData(OBRA.id);
 }
-/* Al capturar un cheque: trae el neto del recibo de esa semana y avisa si difiere */
+/* El importe se toma del NOI importado; sin NOI, del PDF individual de la
+   misma obra, semana, persona Y tipo. Nunca sustituir finiquito por sueldo. */
+async function chqResolverNeto(c){
+  const semana=Number(normSem(c.semana)),tipo=c.tipo_pago==='FINIQUITO'?'FINIQUITO':'NOMINA';
+  if(!c.trabajador_id||!c.obra_id||!semana)return {error:'Selecciona trabajador, centro y semana antes de expedir.'};
+  const cierres=await sb.from('control_cierres_nomina').select('id,archivo_noi,estado').eq('obra_id',c.obra_id).eq('semana',semana).neq('estado','CANCELADO').limit(5);
+  if(cierres.error)return {error:'No se pudo consultar el cierre NOI: '+cierres.error.message};
+  const importados=(cierres.data||[]).filter(z=>z.archivo_noi);
+  if(importados.length>1)return {error:'Hay más de un cierre NOI importado para esta semana; revisa antes de expedir.'};
+  if(importados.length){
+    const nr=await sb.from('control_conciliacion_noi').select('monto_noi,tipo_calculo').eq('cierre_id',importados[0].id).eq('obra_id',c.obra_id).eq('trabajador_id',c.trabajador_id).eq('tipo_calculo',tipo).limit(2);
+    if(nr.error)return {error:'No se pudo leer el neto NOI: '+nr.error.message};
+    if((nr.data||[]).length!==1)return {error:`NOI no contiene un ${tipo==='FINIQUITO'?'finiquito':'sueldo'} único de este trabajador en S${semana}. No expidas el cheque.`};
+    const neto=Number(nr.data[0].monto_noi);
+    return Number.isFinite(neto)&&neto>0?{neto,origen:'NOI S'+semana}:{error:'NOI registra neto $0.00; no corresponde expedir cheque.'};
+  }
+  const dr=await sb.from('documentos').select('id,archivo,semana').eq('obra_id',c.obra_id).eq('trabajador_id',c.trabajador_id).eq('categoria','RECIBO_NOMINA').eq('semana','S'+semana).eq('anulado',false).limit(20);
+  if(dr.error)return {error:'No se pudieron consultar los recibos: '+dr.error.message};
+  const coinciden=[];
+  for(const d of dr.data||[]){
+    let info=_RECCACHE[d.archivo];
+    if(!info){try{const {data:blob,error}=await sb.storage.from('expedientes').download(d.archivo);if(error)throw error;info=parseReciboText(await pdfBytesToText(new Uint8Array(await blob.arrayBuffer())));_RECCACHE[d.archivo]=info;}catch(e){return {error:'No se pudo leer el recibo '+d.archivo+': '+e.message};}}
+    if(info.tipo===(tipo==='FINIQUITO'?'FINIQUITO':'SUELDO')&&Number.isFinite(info.neto))coinciden.push(info.neto);
+  }
+  if(!coinciden.length)return {error:`Falta el recibo PDF de ${tipo==='FINIQUITO'?'finiquito':'sueldo'} S${semana}, o no se pudo extraer su neto. Importa NOI o el recibo correcto.`};
+  if(coinciden.some(n=>n!==coinciden[0]))return {error:'Hay recibos de este tipo con netos distintos; concilia los documentos antes de expedir.'};
+  return coinciden[0]>0?{neto:coinciden[0],origen:'recibo PDF S'+semana}:{error:'El recibo tiene neto $0.00; no corresponde expedir cheque.'};
+}
 async function chqTraerRecibo(){
-  const nom=($('c-nombre')&&$('c-nombre').value||'').trim().toUpperCase();
-  const sem=($('f-c-semana')&&$('f-c-semana').value||'').trim();
-  const w=WORKERS.find(x=>fullName(x).toUpperCase()===nom);
-  if(!w){toast('Elige primero al trabajador.','err');return;}
-  if(!normSem(sem)){toast('Indica la semana (ej. S17).','err');return;}
-  const d=recibosDe(w.id,sem);
-  if(!d.length){toast('No hay recibo de nómina archivado de '+fullName(w)+' en la semana S'+normSem(sem)+'.','err');return;}
-  toast('Leyendo recibo...');
-  let info=_RECCACHE[d[0].archivo];
-  if(!info){try{const {data:blob}=await sb.storage.from('expedientes').download(d[0].archivo);info=parseReciboText(await pdfBytesToText(new Uint8Array(await blob.arrayBuffer())));_RECCACHE[d[0].archivo]=info;}catch(e){toast('No se pudo leer el recibo.','err');return;}}
-  if(info.neto==null){toast('No pude leer el neto del recibo.','err');return;}
-  if($('f-c-importe'))$('f-c-importe').value=info.neto;
-  if($('c-tipo'))$('c-tipo').value=(info.tipo==='FINIQUITO'?'FINIQUITO':'CHEQUE');
-  toast(`Del recibo: neto $${money(info.neto)} (${info.tipo}).`,'ok');
+  const nom=($('c-nombre')?.value||'').trim().toUpperCase(),w=WORKERS.find(x=>fullName(x).toUpperCase()===nom);
+  if(!w){toast('Elige primero un trabajador registrado.','err');return;}
+  const rec={obra_id:OBRA.id,trabajador_id:w.id,semana:$('f-c-semana')?.value,tipo_pago:$('c-tipo')?.value};
+  const r=await chqResolverNeto(rec),input=$('f-c-importe'),aviso=$('c-neto-fuente');
+  if(r.error){if(aviso)aviso.textContent=r.error;toast(r.error,'err');return;}
+  if(input)input.value=r.neto.toFixed(2);
+  if(aviso)aviso.textContent=`Importe verificado: $${money(r.neto)} · ${r.origen}`;
+  toast(`Importe $${money(r.neto)} verificado contra ${r.origen}.`,'ok');
 }
 function renderCheques(){
   if(!window._FOLIOCHK){window._FOLIOCHK=1;chequeFolioAviso();}
@@ -8177,9 +8200,10 @@ function openChequeForm(id){
         ${fld('c-curp','CURP',c?c.curp:'',{extra:'maxlength="18"'})}
         ${fld('c-semana','Semana (ej. S15)',c?c.semana:'S'+isoWeek())}
         ${fld('c-periodo','Periodo (se llena solo al cambiar la semana)',c?c.periodo:periodoCorto(isoWeek()))}
-        ${fld('c-importe','Importe ($)',c?(c.importe??''):'',{type:'number',extra:'step="0.01"'})}
-        <div style="display:flex;align-items:end"><button type="button" class="btn" style="width:100%;padding:8px;font-size:12px" onclick="chqTraerRecibo()" title="Llena el importe con el neto del recibo de nómina de esa semana">🧾 Traer del recibo</button></div>
-        <div><label>Tipo de pago</label><select id="c-tipo">${['CHEQUE','FINIQUITO'].map(t=>`<option ${(c&&c.tipo_pago)===t?'selected':''}>${t}</option>`).join('')}</select></div>
+        ${fld('c-importe','Importe verificado ($)',c?(c.importe??''):'',{type:'number',extra:'step="0.01" readonly'})}
+        <div style="display:flex;align-items:end"><button type="button" class="btn" style="width:100%;padding:8px;font-size:12px" onclick="chqTraerRecibo()" title="Verifica NOI o recibo de la misma semana y tipo">🧾 Verificar neto</button></div>
+        <div class="c3" id="c-neto-fuente" style="font-size:12px;color:var(--amber)">El importe se verificará automáticamente antes de guardar.</div>
+        <div><label>Tipo de pago</label><select id="c-tipo" onchange="chqTraerRecibo()">${['CHEQUE','FINIQUITO'].map(t=>`<option ${(c&&c.tipo_pago)===t?'selected':''}>${t}</option>`).join('')}</select></div>
         ${fld('c-num','Número de cheque',c?c.num_cheque:'',{hint:'Al capturarlo, el estatus pasa a EXPEDIDO automáticamente.'})}
         ${fld('c-consec','No. consecutivo',c?c.consecutivo:'')}
         <div><label>Estatus</label><select id="c-estatus">${['PENDIENTE','EXPEDIDO','ENTREGADO','CANCELADO'].map(s2=>`<option ${((c&&c.estatus)||'PENDIENTE')===s2?'selected':''}>${s2}</option>`).join('')}</select></div>
@@ -8198,7 +8222,8 @@ function openChequeForm(id){
      línea reventaba al abrir el formulario — por eso el PERIODO nunca se
      llenaba solo al escribir la semana. */
   const elSem=$('f-c-semana'), elPer=$('f-c-periodo');
-  if(elSem&&elPer)elSem.oninput=()=>{const n=parseInt(String(elSem.value).replace(/\D/g,''));if(n>0)elPer.value=periodoCorto(n);};
+  if(elSem&&elPer){elSem.oninput=()=>{const n=parseInt(String(elSem.value).replace(/\D/g,''));if(n>0)elPer.value=periodoCorto(n);};elSem.onchange=()=>chqTraerRecibo();}
+  if(c&&c.estatus==='PENDIENTE')chqTraerRecibo();
 }
 function chqAutofill(){
   const nom=$('c-nombre').value.trim().toUpperCase();
@@ -8206,7 +8231,7 @@ function chqAutofill(){
   if(!w)return;
   $('f-c-no_trab').value=w.no_trab??'';$('f-c-contratista').value=w.contratista||'';
   $('f-c-puesto').value=w.puesto||'';$('f-c-curp').value=w.curp||'';
-  if(!$('f-c-importe').value)$('f-c-importe').value=w.estatus==='BAJA'&&w.monto_finiquito?w.monto_finiquito:(w.sal_semanal??'');
+  chqTraerRecibo();
 }
 /* ============================================================
    v36 · REGLA ANTI-DUPLICADOS DE CHEQUES (espejo del Script 52)
@@ -8232,16 +8257,24 @@ function chequeDuplicado(rec,idActual){
 async function saveCheque(id){
   const g=i=>{const el=$('f-'+i)||$(i);return el?el.value.trim():'';};
   if(!g('c-nombre')){toast('Indica el nombre del trabajador o beneficiario.','err');return;}
-  if(!g('c-importe')||isNaN(parseFloat(g('c-importe')))){toast('Indica un importe válido.','err');return;}
   let estatus=$('c-estatus').value;
   if(g('c-num')&&estatus==='PENDIENTE')estatus='EXPEDIDO';
   const w=WORKERS.find(x=>fullName(x).toUpperCase()===g('c-nombre').toUpperCase());
+  const previo=id?CHEQUES.find(x=>x.id===id):null;
+  let neto=Number(g('c-importe'));
+  if(!previo||previo.estatus==='PENDIENTE'){
+    const respaldo=await chqResolverNeto({obra_id:OBRA.id,trabajador_id:w?.id,semana:g('c-semana'),tipo_pago:$('c-tipo').value});
+    if(respaldo.error){toast(respaldo.error,'err');return;}
+    neto=respaldo.neto;
+    if($('f-c-importe'))$('f-c-importe').value=neto.toFixed(2);
+  }
+  if(!Number.isFinite(neto)||neto<=0){toast('Se requiere un neto positivo comprobado.','err');return;}
   const rec={
     obra_id:OBRA.id, trabajador_id:(w?w.id:null),
     nombre:g('c-nombre').toUpperCase(), no_trab:g('c-no_trab')?parseInt(g('c-no_trab')):null,
     contratista:g('c-contratista').toUpperCase(), puesto:g('c-puesto').toUpperCase(),
     curp:g('c-curp').toUpperCase(), semana:g('c-semana').toUpperCase(), periodo:g('c-periodo').toUpperCase(),
-    importe:parseFloat(g('c-importe')), tipo_pago:$('c-tipo').value,
+    importe:neto, tipo_pago:$('c-tipo').value,
     num_cheque:g('c-num'), consecutivo:g('c-consec'), estatus, observaciones:g('c-obs').toUpperCase()
   };
   const dupNum=rec.num_cheque&&CHEQUES.find(x=>x.num_cheque===rec.num_cheque&&x.id!==id&&x.estatus!=='CANCELADO');
