@@ -256,6 +256,11 @@ tbody tr:hover{background:var(--hover)}
 .altas-cortas-tabla th,.altas-cortas-tabla td{white-space:normal;overflow-wrap:anywhere;padding:8px}
 .altas-cortas-tabla th:first-child{width:30%}
 .altas-cortas-tabla th:last-child{width:20%}
+.imss-calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin:12px 0}
+.imss-day{border:1px solid var(--border);border-radius:9px;padding:8px;min-width:0;background:var(--card)}
+.imss-day b{display:block;font-size:11px;margin-bottom:5px}
+.imss-day select{width:100%;font-size:11px;padding:6px 4px}
+@media(max-width:800px){.imss-calendar{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
 .badge.ACTIVO,.badge.EXPEDIDO{background:var(--green-bg);color:var(--green)}
 .badge.BAJA,.badge.CANCELADO{background:var(--red-bg);color:var(--red)}
@@ -1662,7 +1667,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-09-30.1';
+const APP_VERSION='2026-10-01.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -13800,36 +13805,38 @@ async function ctrlExportCostos(){const x=window._CTRLCOST;if(!x)return;const b=
 /* ---------- CASOS IMSS: certificado, calificación y enlace a nómina ---------- */
 async function openCtrlCasosIMSS(){
   const {data,error}=await fetchAllRows(()=>sb.from(CTRL_TABLAS.casosIMSS)
-    .select('*,control_casos_imss_semanas(*)').eq('obra_id',OBRA.id),'created_at');
+    .select('*,control_casos_imss_semanas(*)').eq('obra_id',OBRA.id).is('eliminado_en',null),'created_at');
   if(error){toast(ctrlFaltaScript(error),'err');return;}
   const a=(data||[]).sort((x,y)=>String(y.created_at).localeCompare(String(x.created_at)));
   window._CTRLIMSS=a;
   modal(ctrlNav('🏥 Casos IMSS')+`<div class="m-body">
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoCasoIMSS()">＋ Nuevo caso</button><button class="btn" onclick="openCtrlIncidentes()">🦺 Incidentes</button></div>
-    <p class="fhint" style="margin-top:9px">Registra el ramo y los días del certificado tal como los expidió el IMSS. “Probable riesgo” no equivale a calificación positiva. Una incapacidad justifica la ausencia y no se captura como falta injustificada. No registres diagnósticos clínicos en este módulo.</p>
+    <p class="fhint" style="margin-top:9px">Registra el certificado y clasifica cada día en el calendario: empresa, subsidio IMSS esperado o sin pago. El subsidio requiere requisitos y comprobación; “probable riesgo” no equivale a calificación positiva. No captures diagnósticos clínicos.</p>
     ${ctrlTabla(['Trabajador','Certificado','Ramo / riesgo','Folio','Nómina','Estado / acciones'],a.map(c=>{
       const w=WORKERS.find(x=>x.id===c.trabajador_id),ss=c.control_casos_imss_semanas||[];
       return `<tr><td>#${w?.no_trab??'—'} ${esc(w?fullName(w):'Trabajador no visible')}</td><td>${c.certificado_desde?fmtD(c.certificado_desde)+' a '+fmtD(c.certificado_hasta)+' · '+c.dias_certificados+' día(s)':'Pendiente'}</td>
         <td>${esc(c.ramo_certificado.replaceAll('_',' '))}<br><small>${c.probable_riesgo_trabajo?'Probable RT · ':''}${esc(c.calificacion_rt.replaceAll('_',' '))}</small></td>
-        <td>${esc(c.folio_certificado||'Pendiente')}</td><td>${ss.map(s=>`S${s.semana}: ${s.dias_sin_salario_patronal} sin sueldo · ${esc(s.estado)}`).join('<br>')||'Sin aplicación'}</td>
-        <td>${ctrlEstado(c.estado)}<br><button class="btn" style="padding:4px 6px" onclick="openCtrlSemanaIMSS('${c.id}')">Semana</button> <button class="btn" style="padding:4px 6px" onclick="openCtrlActualizarCasoIMSS('${c.id}')">Seguimiento</button></td></tr>`;
+        <td>${esc(c.folio_certificado||'Pendiente')}</td><td>${ss.map(s=>`S${s.semana}: ${s.dias_pagados_empresa} empresa · ${s.dias_imss_estimados||0} IMSS · ${s.dias_sin_subsidio||0} sin pago · ${esc(s.estado)}`).join('<br>')||'Sin distribución'}</td>
+        <td>${ctrlEstado(c.estado)}<br><button class="btn" style="padding:4px 6px" onclick="openCtrlSemanaIMSS('${c.id}')">Calendario</button> <button class="btn" style="padding:4px 6px" onclick="openCtrlEditarCasoIMSS('${c.id}')">Editar</button> <button class="btn" style="padding:4px 6px" onclick="openCtrlActualizarCasoIMSS('${c.id}')">Seguimiento</button>${esAdmin()?` <button class="btn danger" style="padding:4px 6px" onclick="ctrlArchivarCasoIMSS('${c.id}')">Eliminar</button>`:''}</td></tr>`;
     }),'No hay casos IMSS en este centro.')}</div>`,'lg');
 }
-function openCtrlNuevoCasoIMSS(){
+function openCtrlNuevoCasoIMSS(incidenteId=''){
+  const inc=(window._CTRLINC||[]).find(x=>x.id===incidenteId);
   modal(ctrlNav('＋ Caso IMSS','openCtrlCasosIMSS')+`<div class="m-body">
     <div class="grid" style="grid-template-columns:repeat(2,1fr)">
-      <div style="grid-column:span 2"><label>Trabajador</label><select id="im-w">${WORKERS.map(w=>`<option value="${w.id}">#${w.no_trab??'—'} · ${esc(fullName(w))}</option>`).join('')}</select></div>
+      <div style="grid-column:span 2"><label>Trabajador</label><select id="im-w">${WORKERS.map(w=>`<option value="${w.id}" ${w.id===inc?.trabajador_id?'selected':''}>#${w.no_trab??'—'} · ${esc(fullName(w))}</option>`).join('')}</select></div>
       <div><label>Tipo de caso</label><select id="im-t"><option>INCAPACIDAD</option><option>ACCIDENTE</option><option>ENFERMEDAD</option></select></div>
       <div><label>Fecha del evento (si se conoce)</label><input id="im-e" type="date"></div>
       <div><label>Ramo del certificado</label><select id="im-r"><option>ENFERMEDAD_GENERAL</option><option>RIESGO_TRABAJO</option><option>MATERNIDAD</option><option>SIN_CERTIFICADO</option></select></div>
       <div><label>Tipo de certificado</label><select id="im-tc"><option>INICIAL</option><option>SUBSECUENTE</option><option>ENLACE</option><option>RECAIDA</option><option>SIN_CERTIFICADO</option></select></div>
-      <div><label>Desde (certificado)</label><input id="im-d" type="date"></div><div><label>Hasta (certificado)</label><input id="im-h" type="date"></div>
-      <div><label>Folio del certificado</label><input id="im-f" maxlength="80"></div><div><label>Folio ST-7 / ST-9</label><input id="im-st" maxlength="80"></div>
-      <div style="grid-column:span 2"><label><input id="im-prt" type="checkbox"> El documento indica probable riesgo de trabajo (pendiente de calificación)</label></div>
+      <div><label>Desde (certificado)</label><input id="im-d" type="date" value="${inc?.incapacidad_desde||''}"></div><div><label>Hasta (certificado)</label><input id="im-h" type="date" value="${inc?.incapacidad_hasta||''}"></div>
+      <div><label>Folio del certificado</label><input id="im-f" maxlength="80" value="${esc(inc?.folio_imss||'')}"></div><div><label>Folio ST-7 / ST-9</label><input id="im-st" maxlength="80" value="${esc(inc?.folio_st7||'')}"></div>
+      <div style="grid-column:span 2"><label><input id="im-prt" type="checkbox" ${inc?.posible_riesgo_trabajo?'checked':''}> El documento indica probable riesgo de trabajo (pendiente de calificación)</label></div>
       <div style="grid-column:span 2"><label>Referencia interna del expediente (sin diagnóstico ni URL pública)</label><input id="im-ref" maxlength="200"></div>
       <div style="grid-column:span 2"><label>Notas operativas</label><textarea id="im-nota" rows="2" placeholder="Seguimiento administrativo, no diagnóstico"></textarea></div>
-    </div><p class="fhint" style="margin-top:8px">En enfermedad general, el subsidio del IMSS inicia normalmente el cuarto día sujeto a requisitos; en riesgo de trabajo calificado, el régimen es distinto. La plataforma no presume la calificación ni el pago del subsidio.</p></div>
+    </div><p class="fhint" style="margin-top:8px">El calendario no asigna pagador automáticamente. En enfermedad general, el subsidio IMSS procede ordinariamente desde el cuarto día sujeto a cotizaciones; la empresa sólo pagará los días que ustedes confirmen. El probable riesgo no equivale a dictamen.</p></div>
     <div class="m-foot"><button class="btn" onclick="openCtrlCasosIMSS()">Cancelar</button><button class="btn dark" onclick="ctrlGuardarCasoIMSS()">Guardar caso</button></div>`,'lg');
+  window._CTRLIMSS_INCIDENTE=incidenteId||null;
 }
 async function ctrlGuardarCasoIMSS(){
   const w=WORKERS.find(x=>x.id===$('im-w').value),d=$('im-d').value,h=$('im-h').value,r=$('im-r').value,tc=$('im-tc').value;
@@ -13837,7 +13844,7 @@ async function ctrlGuardarCasoIMSS(){
   if((!!d)!=(!!h)){toast('Captura ambas fechas del certificado.','err');return;}
   const dias=d&&h?Math.round((Date.parse(h+'T12:00:00Z')-Date.parse(d+'T12:00:00Z'))/86400000)+1:0;
   if(dias<0||dias>365||(!d&&(r!=='SIN_CERTIFICADO'||tc!=='SIN_CERTIFICADO'))){toast('Revisa ramo, tipo y fechas del certificado.','err');return;}
-  const f={obra_id:OBRA.id,trabajador_id:w.id,tipo_caso:$('im-t').value,fecha_evento:$('im-e').value||null,
+  const f={obra_id:OBRA.id,trabajador_id:w.id,incidente_id:window._CTRLIMSS_INCIDENTE||null,tipo_caso:$('im-t').value,fecha_evento:$('im-e').value||null,
     ramo_certificado:r,tipo_certificado:tc,probable_riesgo_trabajo:$('im-prt').checked,
     calificacion_rt:$('im-prt').checked?'PENDIENTE':'NO_APLICA',certificado_desde:d||null,certificado_hasta:h||null,
     dias_certificados:dias,folio_certificado:$('im-f').value.trim()||null,
@@ -13847,44 +13854,140 @@ async function ctrlGuardarCasoIMSS(){
   markWrite();const {data,error}=await sb.from(CTRL_TABLAS.casosIMSS).insert(f).select('id').single();
   if(error){toast(ctrlFaltaScript(error),'err');return;}
   await ctrlAuditar('CASOS_IMSS','REGISTRAR',{trabajador_id:w.id,ramo:r,tipo_certificado:tc,probable_rt:f.probable_riesgo_trabajo},'CASO_IMSS',data.id);
-  toast('Caso IMSS registrado. Agrega la distribución semanal antes de aplicarlo a nómina.','ok');openCtrlCasosIMSS();
+  window._CTRLIMSS_INCIDENTE=null;
+  toast('Caso IMSS registrado. Clasifica cada día antes de aplicarlo a nómina.','ok');await openCtrlCasosIMSS();if(d)openCtrlSemanaIMSS(data.id);
 }
-function openCtrlSemanaIMSS(id){
+function openCtrlEditarCasoIMSS(id){
+  const c=(window._CTRLIMSS||[]).find(x=>x.id===id);if(!c)return;
+  const w=WORKERS.find(x=>x.id===c.trabajador_id),tieneSemanas=!!c.control_casos_imss_semanas?.length;
+  modal(ctrlNav('✎ Editar incapacidad IMSS','openCtrlCasosIMSS')+`<div class="m-body">
+    <p><b>#${w?.no_trab??'—'} ${esc(w?fullName(w):'Trabajador')}</b></p>
+    <p class="fhint">Edita los datos del certificado aquí. Los días que paga cada parte se cambian en <b>Calendario</b>. ${tieneSemanas?'Para preservar incidencias y cierres, las fechas del certificado están bloqueadas mientras existan semanas distribuidas.':''}</p>
+    <div class="grid" style="grid-template-columns:repeat(2,1fr)">
+      <div><label>Tipo de caso</label><select id="ime-t">${['INCAPACIDAD','ACCIDENTE','ENFERMEDAD'].map(x=>`<option ${c.tipo_caso===x?'selected':''}>${x}</option>`).join('')}</select></div>
+      <div><label>Fecha del evento</label><input id="ime-e" type="date" value="${c.fecha_evento||''}"></div>
+      <div><label>Ramo del certificado</label><select id="ime-r">${['ENFERMEDAD_GENERAL','RIESGO_TRABAJO','MATERNIDAD','SIN_CERTIFICADO'].map(x=>`<option ${c.ramo_certificado===x?'selected':''}>${x}</option>`).join('')}</select></div>
+      <div><label>Tipo de certificado</label><select id="ime-tc">${['INICIAL','SUBSECUENTE','ENLACE','RECAIDA','SIN_CERTIFICADO'].map(x=>`<option ${c.tipo_certificado===x?'selected':''}>${x}</option>`).join('')}</select></div>
+      <div><label>Desde</label><input id="ime-d" type="date" value="${c.certificado_desde||''}" ${tieneSemanas?'disabled':''}></div>
+      <div><label>Hasta</label><input id="ime-h" type="date" value="${c.certificado_hasta||''}" ${tieneSemanas?'disabled':''}></div>
+      <div><label>Folio del certificado</label><input id="ime-f" maxlength="80" value="${esc(c.folio_certificado||'')}"></div>
+      <div><label>Folio ST-7</label><input id="ime-st" maxlength="80" value="${esc(c.folio_st7||'')}"></div>
+      <div style="grid-column:span 2"><label><input id="ime-prt" type="checkbox" ${c.probable_riesgo_trabajo?'checked':''}> El certificado indica probable riesgo de trabajo</label></div>
+      <div style="grid-column:span 2"><label>Referencia privada del expediente</label><input id="ime-ref" maxlength="200" value="${esc(c.referencia_evidencia||'')}"></div>
+      <div style="grid-column:span 2"><label>Notas operativas, sin diagnóstico</label><textarea id="ime-nota" rows="2">${esc(c.observaciones_operativas||'')}</textarea></div>
+    </div></div><div class="m-foot"><button class="btn" onclick="openCtrlCasosIMSS()">Cancelar</button><button class="btn dark" onclick="ctrlGuardarEdicionCasoIMSS('${id}')">Guardar cambios</button></div>`,'lg');
+}
+async function ctrlGuardarEdicionCasoIMSS(id){
+  const c=(window._CTRLIMSS||[]).find(x=>x.id===id);if(!c)return;
+  const d=$('ime-d').value,h=$('ime-h').value;
+  if((!!d)!=(!!h)){toast('Captura ambas fechas del certificado.','err');return;}
+  const dias=ctrlFechasIMSS(d,h).length;
+  if((d&&(!dias||dias>365))||(!d&&($('ime-r').value!=='SIN_CERTIFICADO'||$('ime-tc').value!=='SIN_CERTIFICADO'))){toast('Revisa las fechas, ramo y tipo del certificado.','err');return;}
+  if(c.calificacion_rt==='SI_TRABAJO'&&!$('ime-prt').checked){toast('Un dictamen de riesgo positivo no puede perder el indicador de probable riesgo.','err');return;}
+  const up={tipo_caso:$('ime-t').value,fecha_evento:$('ime-e').value||null,ramo_certificado:$('ime-r').value,
+    tipo_certificado:$('ime-tc').value,certificado_desde:d||null,certificado_hasta:h||null,dias_certificados:dias,
+    folio_certificado:$('ime-f').value.trim()||null,folio_st7:$('ime-st').value.trim()||null,
+    probable_riesgo_trabajo:$('ime-prt').checked,referencia_evidencia:$('ime-ref').value.trim()||null,
+    observaciones_operativas:$('ime-nota').value.trim()||null,updated_at:new Date().toISOString()};
+  markWrite();const {error}=await sb.from(CTRL_TABLAS.casosIMSS).update(up).eq('id',id).eq('obra_id',OBRA.id).is('eliminado_en',null);
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  await ctrlAuditar('CASOS_IMSS','EDITAR_CERTIFICADO',{caso_id:id,ramo:up.ramo_certificado,dias_certificados:dias},'CASO_IMSS',id);
+  toast('Certificado actualizado.','ok');openCtrlCasosIMSS();
+}
+async function ctrlArchivarCasoIMSS(id){
+  if(!esAdmin()){toast('Sólo el administrador puede eliminar un caso IMSS.','err');return;}
+  const c=(window._CTRLIMSS||[]).find(x=>x.id===id);if(!c)return;
+  const w=WORKERS.find(x=>x.id===c.trabajador_id);
+  if(!confirm(`Primera confirmación: ¿retirar la incapacidad de ${w?fullName(w):'este trabajador'}?\n\nSe conservará una copia auditada y se desactivarán únicamente las incidencias vinculadas. Un cierre existente debe retirarse primero.`))return;
+  const clave=prompt('Segunda confirmación: escribe exactamente ELIMINAR INCAPACIDAD','');
+  if(clave!=='ELIMINAR INCAPACIDAD'){if(clave!==null)toast('La confirmación no coincide.','err');return;}
+  const motivo=prompt('Motivo de eliminación para la bitácora (mínimo 10 caracteres):','');
+  if(motivo===null)return;
+  if(motivo.trim().length<10){toast('Escribe un motivo de al menos 10 caracteres.','err');return;}
+  markWrite();const {error}=await sb.rpc('control_archivar_caso_imss_admin',{
+    p_caso_id:id,p_confirmacion:clave,p_motivo:motivo.trim()
+  });
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  toast('Caso retirado de la vista; registro conservado en la bitácora.','ok');
+  await loadObraData(OBRA.id);openCtrlCasosIMSS();
+}
+function ctrlFechasIMSS(desde,hasta){
+  const out=[];if(!desde||!hasta||hasta<desde)return out;
+  const d=new Date(desde+'T12:00:00Z'),fin=new Date(hasta+'T12:00:00Z');
+  while(d<=fin&&out.length<366){out.push(d.toISOString().slice(0,10));d.setUTCDate(d.getUTCDate()+1);}
+  return out;
+}
+function ctrlSemanasIMSS(c){
+  return [...new Set(ctrlFechasIMSS(c.certificado_desde,c.certificado_hasta)
+    .map(fecha=>isoWeekDe(OBRA,new Date(fecha+'T12:00:00'))))].filter(n=>n>=1&&n<=53).sort((a,b)=>a-b);
+}
+function ctrlPreviewDiasIMSS(){
+  const x=(window._CTRLIMSS_DIAS||[]).map(fecha=>({fecha,pagador:$('ims-dia-'+fecha)?.value||'PENDIENTE'}));
+  const n=p=>x.filter(d=>d.pagador===p).length;
+  const box=$('ims-resumen');if(box)box.innerHTML=`<b>${n('EMPRESA')}</b> empresa · <b>${n('IMSS')}</b> IMSS esperado · <b>${n('SIN_PAGO')}</b> sin pago · <b>${n('PENDIENTE')}</b> por clasificar`;
+}
+function ctrlMarcarDiasIMSS(pagador){
+  (window._CTRLIMSS_DIAS||[]).forEach(fecha=>{const el=$('ims-dia-'+fecha);if(el)el.value=pagador;});
+  ctrlPreviewDiasIMSS();
+}
+function openCtrlSemanaIMSS(id,semElegida){
   const c=(window._CTRLIMSS||[]).find(x=>x.id===id);if(!c)return;
   const w=WORKERS.find(x=>x.id===c.trabajador_id),ss=[...(c.control_casos_imss_semanas||[])].sort((a,b)=>b.anio-a.anio||b.semana-a.semana);
-  modal(ctrlNav('📅 Aplicación semanal IMSS','openCtrlCasosIMSS')+`<div class="m-body">
+  const semanas=ctrlSemanasIMSS(c),sem=semanas.includes(Number(semElegida))?Number(semElegida):(semanas.includes(semObra())?semObra():semanas[0]);
+  const [inicio,fin]=sem?semRange(sem):['',''];
+  const dias=ctrlFechasIMSS(inicio>c.certificado_desde?inicio:c.certificado_desde,fin<c.certificado_hasta?fin:c.certificado_hasta);
+  const vigente=ss.find(s=>s.semana===sem&&s.anio===Number(inicio.slice(0,4)));
+  const prev=new Map((vigente?.detalle_dias||[]).map(d=>[d.fecha,d.pagador]));
+  window._CTRLIMSS_DIAS=dias;
+  modal(ctrlNav('📅 Calendario de incapacidad','openCtrlCasosIMSS')+`<div class="m-body">
     <p><b>#${w?.no_trab??'—'} ${esc(w?fullName(w):'')}</b> · ${c.certificado_desde?`${fmtD(c.certificado_desde)}–${fmtD(c.certificado_hasta)} (${c.dias_certificados} días)`:'Certificado pendiente'}</p>
-    <p class="fhint">Distingue los días con sueldo pagado por la empresa de los días del certificado sin salario patronal. La aplicación crea una incidencia, nunca una falta injustificada. Verifica el resultado contra NOI antes del cierre.</p>
-    ${ctrlTabla(['Semana','Paga empresa','Sin salario','Estado','Acción'],ss.map(s=>`<tr><td>${s.anio} · S${s.semana}</td><td>${s.dias_pagados_empresa}</td><td>${s.dias_sin_salario_patronal}</td><td>${ctrlEstado(s.estado)}</td><td>${s.estado==='APLICADO'?`Descuento ${esc(s.descuento_id?'vinculado':'no necesario')}`:`<button class="btn dark" onclick="ctrlAplicarSemanaIMSS('${c.id}','${s.id}')">Aplicar a nómina</button>`}</td></tr>`),'Sin semanas distribuidas.')}
-    <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-top:15px">
-      <div><label>Semana de la obra</label><input id="ims-sem" type="number" min="1" max="53" value="${semObra()}"></div>
-      <div><label>Días con sueldo de la empresa</label><input id="ims-pag" type="number" min="0" max="7" value="0"></div>
-      <div><label>Días sin salario patronal</label><input id="ims-sin" type="number" min="0" max="7" value="0"></div>
-      <div style="grid-column:span 3"><label>Nota de conciliación</label><input id="ims-nota" placeholder="Ejem. 3 días empresa / 4 IMSS; verificar NOI"></div>
-    </div></div><div class="m-foot"><button class="btn" onclick="openCtrlCasosIMSS()">Volver</button><button class="btn dark" onclick="ctrlGuardarSemanaIMSS('${id}')">Guardar semana</button></div>`,'lg');
+    <p class="fhint">Clasifica <b>cada día natural</b>. “IMSS esperado” no acredita un subsidio efectivamente pagado. La empresa sólo paga los días que selecciones. Ningún día se clasifica automáticamente.</p>
+    ${ctrlTabla(['Semana','Empresa','IMSS esperado','Sin pago','Estado / nómina'],ss.map(s=>`<tr><td>${s.anio} · S${s.semana}</td><td>${s.dias_pagados_empresa}</td><td>${s.dias_imss_estimados||0}</td><td>${s.dias_sin_subsidio||0}</td><td>${ctrlEstado(s.estado)} ${s.estado==='APLICADO'?'· incidencia vinculada':`<button class="btn dark" onclick="ctrlAplicarSemanaIMSS('${c.id}','${s.id}')">Aplicar a nómina</button>`}</td></tr>`),'Sin semanas distribuidas.')}
+    ${semanas.length?`<div style="margin-top:14px"><label>Semana del certificado</label><select id="ims-sem" onchange="openCtrlSemanaIMSS('${id}',this.value)">${semanas.map(n=>`<option value="${n}" ${n===sem?'selected':''}>S${n} · ${semRange(n).map(fmtD).join(' a ')}</option>`).join('')}</select></div>
+      <div class="imss-calendar">${dias.map(fecha=>`<div class="imss-day"><b>${new Date(fecha+'T12:00:00Z').toLocaleDateString('es-MX',{timeZone:'UTC',weekday:'short',day:'2-digit',month:'short'})}</b><small>${fecha}</small><select id="ims-dia-${fecha}" onchange="ctrlPreviewDiasIMSS()"><option value="PENDIENTE">Por clasificar</option><option value="EMPRESA" ${prev.get(fecha)==='EMPRESA'?'selected':''}>Paga empresa</option><option value="IMSS" ${prev.get(fecha)==='IMSS'?'selected':''}>IMSS esperado</option><option value="SIN_PAGO" ${prev.get(fecha)==='SIN_PAGO'?'selected':''}>Sin pago</option></select></div>`).join('')}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" onclick="ctrlMarcarDiasIMSS('EMPRESA')">Todos empresa</button><button class="btn" onclick="ctrlMarcarDiasIMSS('IMSS')">Todos IMSS</button><button class="btn" onclick="ctrlMarcarDiasIMSS('SIN_PAGO')">Todos sin pago</button><button class="btn" onclick="ctrlMarcarDiasIMSS('PENDIENTE')">Limpiar</button></div>
+      <div id="ims-resumen" class="fhint" style="margin-top:8px"></div>
+      <div style="margin-top:10px"><label>Nota de conciliación</label><input id="ims-nota" value="${esc(vigente?.nota||'')}" maxlength="500" placeholder="Razón del pago patronal o comprobante IMSS"></div>
+      <p class="fhint" style="margin-top:8px">En enfermedad general, IMSS normalmente subsidia desde el cuarto día si se cumplen las semanas cotizadas; los primeros tres no se asignan a la empresa por ley. Riesgo de trabajo exige calificación del IMSS. Si ya existe cierre de esta semana, deberá retirarse y recrearse antes de cambiar importes.</p>`:'<p class="fhint">Completa primero las fechas del certificado.</p>'}
+    </div><div class="m-foot"><button class="btn" onclick="openCtrlCasosIMSS()">Volver</button>${semanas.length?`<button class="btn dark" onclick="ctrlGuardarSemanaIMSS('${id}')">Guardar calendario S${sem}</button>`:''}</div>`,'lg');
+  ctrlPreviewDiasIMSS();
 }
 async function ctrlGuardarSemanaIMSS(id){
   const c=(window._CTRLIMSS||[]).find(x=>x.id===id);if(!c||!c.certificado_desde){toast('Primero registra las fechas del certificado.','err');return;}
-  const sem=Number($('ims-sem').value),pag=Number($('ims-pag').value),sin=Number($('ims-sin').value);
-  if(!Number.isInteger(sem)||sem<1||sem>53||![pag,sin].every(x=>Number.isInteger(x)&&x>=0&&x<=7)){toast('Semana y días inválidos.','err');return;}
-  const [ini,fin]=semRange(sem),overlap=Math.max(0,Math.round((Date.parse((fin<c.certificado_hasta?fin:c.certificado_hasta)+'T12:00:00Z')-Date.parse((ini>c.certificado_desde?ini:c.certificado_desde)+'T12:00:00Z'))/86400000)+1);
-  if(!overlap||pag+sin>overlap){toast(`El certificado cubre ${overlap} día(s) de S${sem}; revisa la distribución.`, 'err');return;}
-  if((c.control_casos_imss_semanas||[]).some(s=>s.semana===sem&&s.anio===Number(ini.slice(0,4)))){toast('Esa semana ya existe para el caso.','err');return;}
-  markWrite();const {error}=await sb.from(CTRL_TABLAS.casosIMSSSem).insert({caso_id:id,anio:Number(ini.slice(0,4)),semana:sem,
-    dias_pagados_empresa:pag,dias_sin_salario_patronal:sin,nota:$('ims-nota').value.trim()||null});
+  const sem=Number($('ims-sem').value),dias=window._CTRLIMSS_DIAS||[];
+  const detalle=dias.map(fecha=>({fecha,pagador:$('ims-dia-'+fecha)?.value||'PENDIENTE'}));
+  if(!Number.isInteger(sem)||!dias.length||detalle.some(x=>x.pagador==='PENDIENTE')){
+    toast('Clasifica todos los días de la semana antes de guardar.','err');return;
+  }
+  const sin=detalle.filter(x=>x.pagador!=='EMPRESA').length;
+  const s=(c.control_casos_imss_semanas||[]).find(x=>x.semana===sem);
+  const w=WORKERS.find(x=>x.id===c.trabajador_id);
+  const monto=s?.estado==='APLICADO'&&w?(sin?descuentoFaltasNOI(w,0,0,undefined,sin).monto:0):null;
+  if(s?.estado==='APLICADO'&&(!Number.isFinite(monto)||monto<0)){
+    toast('No se pudo recalcular la incidencia aplicada.','err');return;
+  }
+  markWrite();const {error}=await sb.rpc('control_guardar_semana_imss_detalle',{
+    p_caso_id:id,p_semana:sem,p_detalle:detalle,p_nota:$('ims-nota').value.trim()||null,p_monto:monto
+  });
   if(error){toast(ctrlFaltaScript(error),'err');return;}
-  await ctrlAuditar('CASOS_IMSS','DISTRIBUIR_SEMANA',{caso_id:id,semana:sem,dias_empresa:pag,dias_sin_salario:sin},'CASO_IMSS',id);
-  toast('Semana guardada. Usa “Aplicar a nómina” para generar su incidencia.','ok');await openCtrlCasosIMSS();openCtrlSemanaIMSS(id);
+  toast('Calendario guardado'+(s?.estado==='APLICADO'?' y descuento recalculado.':'. Revisa y aplica la incidencia a nómina.'),'ok');
+  await loadObraData(OBRA.id);await openCtrlCasosIMSS();openCtrlSemanaIMSS(id,sem);
 }
 async function ctrlAplicarSemanaIMSS(casoId,semanaId){
   const c=(window._CTRLIMSS||[]).find(x=>x.id===casoId),s=(c?.control_casos_imss_semanas||[]).find(x=>x.id===semanaId);
   if(!c||!s||s.estado==='APLICADO')return;
   const w=WORKERS.find(x=>x.id===c.trabajador_id);
   if(!w||w.estatus!=='ACTIVO'){toast('Para aplicar automáticamente, el trabajador debe estar activo en el motor. Revisa este caso con nómina.','err');return;}
+  if(!Array.isArray(s.detalle_dias)||s.detalle_dias.length!==s.dias_pagados_empresa+s.dias_sin_salario_patronal){
+    toast('Primero clasifica todos los días del certificado en el calendario.','err');return;
+  }
+  const {data:cierres,error:eCierre}=await sb.from(CTRL_TABLAS.cierres).select('id,estado').eq('obra_id',OBRA.id).eq('semana',s.semana).neq('estado','CANCELADO').limit(1);
+  if(eCierre){toast(ctrlFaltaScript(eCierre),'err');return;}
+  if(cierres?.length){toast('Ya existe un cierre de S'+s.semana+'. El administrador debe retirarlo y recrearlo para aplicar esta incapacidad sin dejar la fotografía desactualizada.','err');return;}
   const {error:eExist,data:ya}=await sb.from('descuentos').select('id,motivo').eq('trabajador_id',w.id)
-    .eq('obra_id',OBRA.id).eq('semana','S'+s.semana).eq('activo',true).eq('tipo','INCIDENCIA');
+    .eq('obra_id',OBRA.id).eq('semana','S'+s.semana).eq('activo',true).in('tipo',['INCIDENCIA','FALTA']);
   if(eExist){toast(eExist.message,'err');return;}
-  if((ya||[]).some(x=>/INCAPACIDAD IMSS/i.test(x.motivo||''))){toast('Ya hay una incidencia IMSS activa en esa semana. Vincúlala o revísala antes de generar otra.','err');return;}
+  if(ya?.length){toast('Ya hay una falta o incidencia activa para este trabajador en S'+s.semana+'. Concíliala antes de aplicar la incapacidad para evitar un doble descuento.','err');return;}
   const monto=s.dias_sin_salario_patronal?descuentoFaltasNOI(w,0,0,undefined,s.dias_sin_salario_patronal).monto:0;
   if(s.dias_sin_salario_patronal&&(!Number.isFinite(monto)||monto<=0)){toast('No fue posible calcular un importe válido.','err');return;}
   if(!confirm(`¿Aplicar S${s.semana} de ${fullName(w)}?\n${s.dias_sin_salario_patronal} día(s) IMSS sin salario patronal; incidencia estimada $${money(monto)}. No es falta injustificada. Verifica después contra NOI.`))return;
@@ -14016,9 +14119,14 @@ async function ctrlExportAltasCortas(){
 async function openCtrlIncidentes(){
   ctrlAuditar('INCIDENTES','ABRIR');const {data,error}=await ctrlLeer(CTRL_TABLAS.inc);if(error){toast(ctrlFaltaScript(error),'err');return;}
   const a=(data||[]).sort((x,y)=>String(y.fecha_hora).localeCompare(String(x.fecha_hora)));window._CTRLINC=a;
-  modal(ctrlNav('🦺 Incidentes e incapacidades')+`<div class="m-body"><div style="display:flex;gap:8px"><button class="btn dark" onclick="openCtrlNuevoIncidente()">＋ Registrar</button><button class="btn" onclick="ctrlExportIncidentes()">⬇ Excel</button></div>
-  <p class="fhint" style="margin-top:8px">“Posible riesgo” activa seguimiento; no sustituye la calificación del IMSS ni la investigación de seguridad e higiene.</p>
-  ${ctrlTabla(['Fecha','Trabajador','Tipo / severidad','Posible RT','Incapacidad','Estado','Seguimiento'],a.map(x=>`<tr><td>${new Date(x.fecha_hora).toLocaleString('es-MX')}</td><td>#${x.trabajador_numero??'—'} ${esc(x.trabajador_nombre)}</td><td>${x.tipo}<br>${ctrlEstado(x.severidad)}</td><td>${x.posible_riesgo_trabajo?'Sí':'No'}<br><small>${esc(x.calificacion)}</small></td><td>${x.dias_incapacidad||0} días</td><td>${ctrlEstado(x.estado)}</td><td>${x.estado!=='CERRADO'?`<button class="btn" onclick="openCtrlSeguimientoInc('${x.id}')">Actualizar</button>`:esc(x.seguimiento||'')}</td></tr>`),'Sin incidentes registrados.')}</div>`,'lg');
+  modal(ctrlNav('🦺 Incidentes e incapacidades')+`<div class="m-body"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoIncidente()">＋ Registrar incidente</button><button class="btn" onclick="openCtrlCasosIMSS()">📅 Incapacidades y calendario</button><button class="btn" onclick="ctrlExportIncidentes()">⬇ Excel</button></div>
+  <p class="fhint" style="margin-top:8px">“Posible riesgo” activa seguimiento; no sustituye la calificación del IMSS. Para asignar pagadores por fecha y afectar nómina, registra o vincula el certificado en <b>Incapacidades y calendario</b>.</p>
+  ${ctrlTabla(['Fecha','Trabajador','Tipo / severidad','Posible RT','Incapacidad','Estado','Seguimiento'],a.map(x=>`<tr><td>${new Date(x.fecha_hora).toLocaleString('es-MX')}</td><td>#${x.trabajador_numero??'—'} ${esc(x.trabajador_nombre)}</td><td>${x.tipo}<br>${ctrlEstado(x.severidad)}</td><td>${x.posible_riesgo_trabajo?'Sí':'No'}<br><small>${esc(x.calificacion)}</small></td><td>${x.dias_incapacidad||0} días ${x.incapacidad_desde?`<br><button class="btn" style="padding:3px 6px" onclick="ctrlAbrirCasoDesdeIncidente('${x.id}')">Certificado / calendario</button>`:''}</td><td>${ctrlEstado(x.estado)}</td><td>${x.estado!=='CERRADO'?`<button class="btn" onclick="openCtrlSeguimientoInc('${x.id}')">Actualizar</button>`:esc(x.seguimiento||'')}</td></tr>`),'Sin incidentes registrados.')}</div>`,'lg');
+}
+async function ctrlAbrirCasoDesdeIncidente(id){
+  const {data,error}=await sb.from(CTRL_TABLAS.casosIMSS).select('id').eq('obra_id',OBRA.id).eq('incidente_id',id).is('eliminado_en',null).limit(1);
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  if(data?.length){await openCtrlCasosIMSS();openCtrlSemanaIMSS(data[0].id);}else openCtrlNuevoCasoIMSS(id);
 }
 function openCtrlNuevoIncidente(){
   const now=new Date(),local=new Date(now-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
