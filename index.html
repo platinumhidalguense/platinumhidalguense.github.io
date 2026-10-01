@@ -1667,7 +1667,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-01.2';
+const APP_VERSION='2026-10-01.3';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -13435,7 +13435,7 @@ function ctrlFaltaScript(e){
   if(falta&&/control_casos_imss|control_aplicar_caso_imss/i.test(m))return 'Falta aplicar 87_CASOS_IMSS_CERTIFICADOS_Y_NOMINA.sql en Supabase.';
   if(falta&&/control_altas_bajas_cortas/i.test(m))return 'Falta aplicar 88_ALTAS_BAJAS_CORTAS_SIN_SERVICIO.sql en Supabase.';
   if(falta&&/control_eliminar_cierre_admin|control_cierres_eliminados/i.test(m))return 'Falta aplicar 89_ELIMINACION_ADMIN_CIERRE_COMPLETO.sql en Supabase.';
-  if(falta)
+  if(falta&&/control_cierres_nomina|control_conciliacion_noi|control_movimientos_seguridad_social|control_documentos_cumplimiento|control_presupuestos_obra|control_incidentes_laborales|control_bitacora/i.test(m))
     return 'Falta aplicar el archivo 71_CONTROL_EMPRESARIAL_CUMPLIMIENTO.sql en Supabase.';
   return m;
 }
