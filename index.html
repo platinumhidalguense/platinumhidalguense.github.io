@@ -13835,44 +13835,8 @@ async function ctrlGuardarCosto(){
   markWrite();const {data,error}=await sb.from(CTRL_TABLAS.costos).upsert(f,{onConflict:'obra_id,semana,periodo,contratista'}).select('id').single();if(error){toast(ctrlFaltaScript(error),'err');return;}await ctrlAuditar('COSTOS_OBRA','GUARDAR',f,'PRESUPUESTO',data.id);toast('Costo y presupuesto guardados.','ok');openCtrlCostos(sem);
 }
 async function ctrlExportCostos(){const x=window._CTRLCOST;if(!x)return;const b=x.b||{},r=x.r;await ctrlExportar('COSTO REAL DE OBRA',['CONCEPTO','PRESUPUESTO','REAL'],[['Nómina',b.presupuesto_nomina||0,r.transfer+r.cheques],['Previsión social',b.presupuesto_prevision||0,r.prevision],['Finiquitos',b.presupuesto_finiquitos||0,r.finiquitos],['Carga patronal',b.presupuesto_carga_patronal||0,b.real_carga_patronal||0],['Otros',b.presupuesto_otros||0,b.real_otros||0],['TOTAL',x.pres,x.real],['PROYECCIÓN DEL MOTOR','',r.proyeccion]],`COSTO_REAL_S${x.sem}`,'COSTOS_OBRA');}
-/* Un único módulo; las pestañas conservan los flujos existentes. */
-function ctrlSaludTabs(activa){
-  return `<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px">
-    ${[['incidentes','🦺 Incidentes','openCtrlIncidentes()'],['incapacidades','🏥 Incapacidades IMSS','openCtrlCasosIMSS()'],['st7','📋 ST-7 y acuses','openCtrlST7()']].map(([id,titulo,accion])=>`<button class="btn ${activa===id?'dark':''}" onclick="${accion}">${titulo}</button>`).join('')}
-  </div>`;
-}
-/* ---------- CASOS IMSS: certificado, calificación y enlace a nómina ---------- */
-async function openCtrlCasosIMSS(){
-  const {data,error}=await fetchAllRows(()=>sb.from(CTRL_TABLAS.casosIMSS)
-    .select('*,control_casos_imss_semanas(*)').eq('obra_id',OBRA.id).is('eliminado_en',null),'created_at');
-  if(error){toast(ctrlFaltaScript(error),'err');return;}
-  const a=(data||[]).sort((x,y)=>{
-    const nx=Number(WORKERS.find(w=>w.id===x.trabajador_id)?.no_trab),ny=Number(WORKERS.find(w=>w.id===y.trabajador_id)?.no_trab);
-    return (Number.isFinite(nx)?nx:999999)-(Number.isFinite(ny)?ny:999999)||String(y.created_at).localeCompare(String(x.created_at));
-  });
-  window._CTRLIMSS=a;
-  modal(ctrlNav('🦺 Incidentes, incapacidades y ST-7')+`<div class="m-body">${ctrlSaludTabs('incapacidades')}
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoCasoIMSS()">＋ Nuevo caso / importar certificado</button></div>
-    <div style="margin-top:10px"><label>Buscar por número, nombre o folio</label><input id="imss-buscar" type="search" placeholder="Ej. 433, Zulema, PK247642" oninput="ctrlFiltrarCasosIMSS(this.value)"><small id="imss-conteo" style="display:block;margin-top:4px;color:var(--mut)">${a.length} caso(s)</small></div>
-    <p class="fhint" style="margin-top:9px">Registra el certificado y clasifica cada día en el calendario: empresa, subsidio IMSS esperado o sin pago. El subsidio requiere requisitos y comprobación; “probable riesgo” no equivale a calificación positiva. No captures diagnósticos clínicos.</p>
-    ${ctrlTabla(['Trabajador','Certificado','Ramo / riesgo','Folio','Nómina','Estado / acciones'],a.map(c=>{
-      const w=WORKERS.find(x=>x.id===c.trabajador_id),ss=c.control_casos_imss_semanas||[];
-      return `<tr data-imss-id="${c.id}"><td>#${w?.no_trab??'—'} ${esc(w?fullName(w):'Trabajador no visible')}</td><td>${c.certificado_desde?fmtD(c.certificado_desde)+' a '+fmtD(c.certificado_hasta)+' · '+c.dias_certificados+' día(s)':'Pendiente'}</td>
-        <td>${esc(c.ramo_certificado.replaceAll('_',' '))}<br><small>${c.probable_riesgo_trabajo?'Probable RT · ':''}${esc(c.calificacion_rt.replaceAll('_',' '))}</small></td>
-        <td>${esc(c.folio_certificado||'Pendiente')}</td><td>${ss.map(s=>`S${s.semana}: ${s.dias_pagados_empresa} empresa · ${s.dias_imss_estimados||0} IMSS · ${s.dias_sin_subsidio||0} sin pago · ${esc(s.estado)}`).join('<br>')||'Sin distribución'}</td>
-        <td>${ctrlEstado(c.estado)}<br><button class="btn" style="padding:4px 6px" onclick="openCtrlSemanaIMSS('${c.id}')">Calendario</button> <button class="btn" style="padding:4px 6px" onclick="openCtrlEditarCasoIMSS('${c.id}')">Editar</button> <button class="btn" style="padding:4px 6px" onclick="openCtrlActualizarCasoIMSS('${c.id}')">Seguimiento</button>${c.datos_documento?` <button class="btn" style="padding:4px 6px" onclick="ctrlDetalleDocumentoIMSS('${c.id}')">Datos</button>`:''}${c.certificado_archivo?` <button class="btn" style="padding:4px 6px" onclick="ctrlVerCertificadoIMSS('${c.id}')">📎 Certificado</button>`:c.datos_documento?` <button class="btn" style="padding:4px 6px" onclick="ctrlAdjuntarCertificadoIMSS('${c.id}')">Adjuntar archivo</button>`:''}${esAdmin()?` <button class="btn danger" style="padding:4px 6px" onclick="ctrlArchivarCasoIMSS('${c.id}')">Eliminar</button>`:''}</td></tr>`;
-    }),'No hay casos IMSS en este centro.')}</div>`,'lg');
-}
-function ctrlFiltrarCasosIMSS(texto){
-  const q=String(texto||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-  let visibles=0;
-  document.querySelectorAll('[data-imss-id]').forEach(tr=>{
-    const c=(window._CTRLIMSS||[]).find(x=>x.id===tr.dataset.imssId),w=WORKERS.find(x=>x.id===c?.trabajador_id);
-    const hay=`${w?.no_trab??''} ${w?fullName(w):''} ${c?.folio_certificado||''}`.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(q);
-    tr.style.display=hay?'':'none';if(hay)visibles++;
-  });
-  if($('imss-conteo'))$('imss-conteo').textContent=`${visibles} caso(s)`;
-}
+/* El expediente IMSS es una sola lista; se conservan los registros originales. */
+async function openCtrlCasosIMSS(){return openCtrlIncidentes();}
 function openCtrlNuevoCasoIMSS(incidenteId=''){
   const inc=(window._CTRLINC||[]).find(x=>x.id===incidenteId);
   window._CTRLIMSS_CERT=null;
@@ -13925,7 +13889,11 @@ async function ctrlLeerCertificadoIMSS(input){
     const nssDiscrepante=coincidencias.length===1&&d.nss&&coincidencias[0].nss&&limpio(d.nss)!==limpio(coincidencias[0].nss);
     if(box)box.innerHTML=`<div style="margin-top:9px;padding:9px;background:var(--amber-bg);border-radius:8px"><b>Lectura para revisar con el original</b> · ${coincidencias.length===1?`Coincide con #${coincidencias[0].no_trab}`:'No hubo coincidencia única por CURP/NSS; selección manual obligatoria.'}<br>${campos.filter(x=>x[1]!==null&&x[1]!==undefined&&x[1]!=='').map(([k,v])=>`<small style="display:inline-block;margin:3px 9px 0 0"><b>${esc(k)}:</b> ${esc(String(v))}</small>`).join('')}${nssDiscrepante?'<p class="fhint">⚠ El NSS leído no coincide con la ficha. Revisa el original; si la CURP coincide, deberás confirmar expresamente la discrepancia antes de guardar.</p>':''}${d.advertencias?.length?`<p class="fhint">⚠ ${esc(d.advertencias.join(' · '))}</p>`:''}</div>`;
     $('im-pagadores').style.display='block';ctrlPreviewPagoCertificadoIMSS();
-  }catch(e){if(box)box.textContent='No se completó la lectura. Puedes registrar los datos manualmente.';toast(e.message||String(e),'err');input.value='';}
+  }catch(e){
+    const mensaje=e.message||String(e);
+    if(box)box.innerHTML=`<div class="fhint" style="margin-top:8px">No se completó la lectura: ${esc(mensaje)}<br>Puedes capturar el caso manualmente o <button class="btn" style="padding:4px 8px;margin-top:6px" onclick="ctrlLeerCertificadoIMSS($('im-archivo'))">Reintentar con el mismo archivo</button>.</div>`;
+    toast(mensaje,'err');
+  }
 }
 async function ctrlSubirArchivoIMSS(casoId,trabajadorId,file){
   const ext=({'image/jpeg':'jpg','image/png':'png','image/webp':'webp','application/pdf':'pdf'})[file.type];
@@ -14269,11 +14237,52 @@ async function ctrlExportAltasCortas(){
     'ALTAS_BAJAS_CORTAS','ALTAS_BAJAS_CORTAS');
 }
 async function openCtrlIncidentes(){
-  ctrlAuditar('INCIDENTES','ABRIR');const {data,error}=await ctrlLeer(CTRL_TABLAS.inc);if(error){toast(ctrlFaltaScript(error),'err');return;}
-  const a=(data||[]).sort((x,y)=>String(y.fecha_hora).localeCompare(String(x.fecha_hora)));window._CTRLINC=a;
-  modal(ctrlNav('🦺 Incidentes, incapacidades y ST-7')+`<div class="m-body">${ctrlSaludTabs('incidentes')}<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoIncidente()">＋ Registrar incidente</button><button class="btn" onclick="ctrlExportIncidentes()">⬇ Excel</button></div>
-  <p class="fhint" style="margin-top:8px">“Posible riesgo” activa seguimiento; no sustituye la calificación del IMSS. Para asignar pagadores por fecha y afectar nómina, registra o vincula el certificado en <b>Incapacidades y calendario</b>.</p>
-  ${ctrlTabla(['Fecha','Trabajador','Tipo / severidad','Posible RT','Incapacidad','Estado','Seguimiento'],a.map(x=>`<tr><td>${new Date(x.fecha_hora).toLocaleString('es-MX')}</td><td>#${x.trabajador_numero??'—'} ${esc(x.trabajador_nombre)}</td><td>${x.tipo}<br>${ctrlEstado(x.severidad)}</td><td>${x.posible_riesgo_trabajo?'Sí':'No'}<br><small>${esc(x.calificacion)}</small></td><td>${x.dias_incapacidad||0} días ${x.incapacidad_desde?`<br><button class="btn" style="padding:3px 6px" onclick="ctrlAbrirCasoDesdeIncidente('${x.id}')">Certificado / calendario</button>`:''}</td><td>${ctrlEstado(x.estado)}</td><td>${x.estado!=='CERRADO'?`<button class="btn" onclick="openCtrlSeguimientoInc('${x.id}')">Actualizar</button>`:esc(x.seguimiento||'')}</td></tr>`),'Sin incidentes registrados.')}</div>`,'lg');
+  ctrlAuditar('INCIDENTES_IMSS','ABRIR');
+  const [ir,cr,sr]=await Promise.all([
+    fetchAllRows(()=>sb.from(CTRL_TABLAS.inc).select('*').eq('obra_id',OBRA.id),'fecha_hora'),
+    fetchAllRows(()=>sb.from(CTRL_TABLAS.casosIMSS).select('*,control_casos_imss_semanas(*)').eq('obra_id',OBRA.id).is('eliminado_en',null),'created_at'),
+    fetchAllRows(()=>sb.from(CTRL_TABLAS.st7).select('*').eq('obra_id',OBRA.id),'recibido_en')
+  ]);
+  const error=ir.error||cr.error||sr.error;if(error){toast(ctrlFaltaScript(error),'err');return;}
+  const incidentes=(ir.data||[]).sort((a,b)=>String(b.fecha_hora).localeCompare(String(a.fecha_hora)));
+  const casos=(cr.data||[]).sort((a,b)=>String(b.certificado_desde||b.created_at).localeCompare(String(a.certificado_desde||a.created_at)));
+  const acuses=(sr.data||[]).sort((a,b)=>String(b.recibido_en).localeCompare(String(a.recibido_en)));
+  window._CTRLINC=incidentes;window._CTRLIMSS=casos;window._CTRLST7=acuses;
+  const mapa=new Map();
+  function agregar(id,tipo,registro){
+    const clave=id||`incidente:${registro.id}`;
+    if(!mapa.has(clave))mapa.set(clave,{clave,trabajador_id:id,incidentes:[],casos:[],st7:[]});
+    mapa.get(clave)[tipo].push(registro);
+  }
+  incidentes.forEach(x=>agregar(x.trabajador_id,'incidentes',x));
+  casos.forEach(x=>agregar(x.trabajador_id,'casos',x));
+  acuses.forEach(x=>agregar(x.trabajador_id,'st7',x));
+  const grupos=[...mapa.values()].map(g=>{
+    const w=WORKERS.find(x=>x.id===g.trabajador_id),i=g.incidentes[0];
+    g.numero=w?.no_trab??i?.trabajador_numero??null;
+    g.nombre=w?fullName(w):i?.trabajador_nombre||'Trabajador no visible';
+    g.busqueda=`${g.numero??''} ${g.nombre} ${g.casos.map(x=>`${x.folio_certificado||''} ${x.folio_st7||''}`).join(' ')} ${g.st7.map(x=>x.folio_st7).join(' ')}`
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    return g;
+  }).sort((a,b)=>(Number(a.numero)||999999)-(Number(b.numero)||999999)||a.nombre.localeCompare(b.nombre,'es'));
+  window._CTRLSALUD=grupos;
+  modal(ctrlNav('🦺 Expediente único de incidentes e IMSS')+`<div class="m-body">
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoIncidente()">＋ Incidente</button><button class="btn dark" onclick="openCtrlNuevoCasoIMSS()">＋ Incapacidad / importar certificado</button><button class="btn" onclick="openCtrlNuevoST7()">＋ Recepción ST-7</button><button class="btn" onclick="ctrlExportIncidentes()">⬇ Excel de incidentes</button><button class="btn" onclick="openCtrlGuiaST7()">? Guía ST-7</button></div>
+    <p class="fhint" style="margin-top:9px">Un expediente por trabajador reúne hechos, certificados, calendario de nómina y ST-7; cada documento conserva su fecha y folio. “Probable riesgo” no equivale a calificación del IMSS.</p>
+    <div style="margin-top:10px"><label>Buscar por número, nombre o folio</label><input id="salud-buscar" type="search" placeholder="Ej. 366, Yovani, PK247642" oninput="ctrlFiltrarSalud(this.value)"><small id="salud-conteo" style="display:block;margin-top:4px;color:var(--mut)">${grupos.length} trabajador(es) · ${incidentes.length} incidente(s) · ${casos.length} caso(s) IMSS · ${acuses.length} ST-7</small></div>
+    ${grupos.length?grupos.map((g,idx)=>`<div data-salud-idx="${idx}" style="border:1px solid var(--line);border-radius:10px;margin-top:12px;padding:12px">
+      <div style="font-weight:800;color:var(--navy);font-size:14px">#${esc(g.numero??'—')} · ${esc(g.nombre)}</div>
+      <small style="color:var(--mut)">${g.incidentes.length} incidente(s) · ${g.casos.length} certificado(s)/caso(s) · ${g.st7.length} ST-7</small>
+      ${g.incidentes.map(i=>`<div style="margin-top:10px;padding:9px;border-left:3px solid var(--amber);background:var(--amber-bg);border-radius:5px"><b>🦺 Incidente · ${st7Fecha(i.fecha_hora)}</b> · ${esc(i.tipo)} · ${esc(i.severidad)} · ${ctrlEstado(i.estado)}<br><small>${i.posible_riesgo_trabajo?'Probable riesgo · ':''}${esc(i.lugar||'')} · ${esc(i.folio_st7||i.folio_imss||'Sin folio')}</small><br><button class="btn" style="padding:4px 7px;margin-top:4px" onclick="openCtrlSeguimientoInc('${i.id}')">Seguimiento</button> <button class="btn" style="padding:4px 7px;margin-top:4px" onclick="ctrlAbrirCasoDesdeIncidente('${i.id}')">${g.casos.some(c=>c.incidente_id===i.id)?'Abrir calendario vinculado':'Nuevo certificado de este incidente'}</button></div>`).join('')}
+      ${g.casos.map(c=>{const ss=c.control_casos_imss_semanas||[];return `<div style="margin-top:10px;padding:9px;border-left:3px solid var(--blue);background:var(--blue-bg);border-radius:5px"><b>🏥 ${esc(c.tipo_caso||'Caso IMSS')} · ${c.certificado_desde?fmtD(c.certificado_desde)+' a '+fmtD(c.certificado_hasta):'Certificado pendiente'}</b> · ${ctrlEstado(c.estado)}<br><small>${esc((c.ramo_certificado||'').replaceAll('_',' '))} · Folio ${esc(c.folio_certificado||'pendiente')}${c.incidente_id?' · Vinculado a incidente':''}</small><br><small>${ss.map(s=>`S${s.semana}: ${s.dias_pagados_empresa} empresa · ${s.dias_imss_estimados||0} IMSS esperado · ${s.dias_sin_subsidio||0} sin pago`).join(' | ')||'Sin distribución semanal'}</small><br><button class="btn" style="padding:4px 7px;margin-top:4px" onclick="openCtrlSemanaIMSS('${c.id}')">Calendario</button> <button class="btn" style="padding:4px 7px;margin-top:4px" onclick="openCtrlEditarCasoIMSS('${c.id}')">Editar</button> <button class="btn" style="padding:4px 7px;margin-top:4px" onclick="openCtrlActualizarCasoIMSS('${c.id}')">Seguimiento</button>${c.datos_documento?` <button class="btn" style="padding:4px 7px;margin-top:4px" onclick="ctrlDetalleDocumentoIMSS('${c.id}')">Datos</button>`:''}${c.certificado_archivo?` <button class="btn" style="padding:4px 7px;margin-top:4px" onclick="ctrlVerCertificadoIMSS('${c.id}')">📎 Certificado</button>`:` <button class="btn" style="padding:4px 7px;margin-top:4px" onclick="ctrlAdjuntarCertificadoIMSS('${c.id}')">Adjuntar certificado</button>`}${esAdmin()?` <button class="btn danger" style="padding:4px 7px;margin-top:4px" onclick="ctrlArchivarCasoIMSS('${c.id}')">Eliminar caso</button>`:''}</div>`;}).join('')}
+      ${g.st7.map(s=>`<div style="margin-top:10px;padding:9px;border-left:3px solid var(--green);background:var(--green-bg);border-radius:5px"><b>📋 ST-7 ${esc(s.folio_st7)}</b> · Recibido ${st7Fecha(s.recibido_en)} · ${s.devuelto_en?'Devuelto '+st7Fecha(s.devuelto_en):'Pendiente de devolución'}${st7Pendientes(s)}<small>IMSS: ${st7Fecha(s.aviso_imss_en)} · STPS: ${st7Fecha(s.aviso_stps_en)} · ${s.acuse_firmado_archivo?'Acuse archivado':'Sin acuse firmado archivado'}</small><br><button class="btn" style="padding:4px 7px;margin-top:4px" onclick="ctrlImprimirAcuseST7('${s.id}')">Imprimir acuse</button>${!s.devuelto_en?` <button class="btn" style="padding:4px 7px;margin-top:4px" onclick="openCtrlEntregaST7('${s.id}')">Registrar entrega</button>`:''} <button class="btn" style="padding:4px 7px;margin-top:4px" onclick="openCtrlAvisosST7('${s.id}')">Avisos</button>${s.acuse_firmado_archivo?` <button class="btn" style="padding:4px 7px;margin-top:4px" onclick="ctrlVerAcuseST7('${s.id}')">Ver firmado</button>`:s.devuelto_en?` <label class="btn" style="padding:4px 7px;display:inline-block;cursor:pointer">Archivar firmado<input id="st7-scan-${s.id}" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style="display:none" onchange="ctrlSubirAcuseST7('${s.id}')"></label>`:''}</div>`).join('')}
+    </div>`).join(''):'<div class="empty">No hay incidentes, incapacidades ni ST-7 en este centro.</div>'}
+  </div>`,'lg');
+}
+function ctrlFiltrarSalud(texto){
+  const q=String(texto||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();let n=0;
+  document.querySelectorAll('[data-salud-idx]').forEach(el=>{const g=(window._CTRLSALUD||[])[Number(el.dataset.saludIdx)],visible=!!g?.busqueda.includes(q);el.style.display=visible?'':'none';if(visible)n++;});
+  if($('salud-conteo'))$('salud-conteo').textContent=`${n} trabajador(es) visibles`;
 }
 async function ctrlAbrirCasoDesdeIncidente(id){
   const {data,error}=await sb.from(CTRL_TABLAS.casosIMSS).select('id').eq('obra_id',OBRA.id).eq('incidente_id',id).is('eliminado_en',null).limit(1);
@@ -14320,28 +14329,7 @@ function st7Pendientes(s){
   return avisos.map(x=>`<small style="display:block;color:${x.startsWith('⚠')?'var(--amber)':'var(--mut)'}">${esc(x)}</small>`).join('');
 }
 async function openCtrlST7(){
-  const {data,error}=await fetchAllRows(()=>sb.from(CTRL_TABLAS.st7).select('*').eq('obra_id',OBRA.id),'recibido_en');
-  if(error){toast(ctrlFaltaScript(error),'err');return;}
-  const a=(data||[]).sort((x,y)=>String(y.recibido_en).localeCompare(String(x.recibido_en)));window._CTRLST7=a;
-  modal(ctrlNav('🦺 Incidentes, incapacidades y ST-7')+`<div class="m-body">${ctrlSaludTabs('st7')}
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoST7()">＋ Registrar recepción ST-7</button><button class="btn" onclick="openCtrlGuiaST7()">? Plazos y uso</button></div>
-    <p class="fhint" style="margin-top:9px">El acuse es <b>interno</b>: imprime dos ejemplares, firma con quien entrega y devuelve el ST-7, y archiva una copia firmada. No sustituye el ST-7 oficial ni acredita su presentación ante IMSS o STPS.</p>
-    <div style="margin-top:10px"><label>Buscar por número, nombre o folio</label><input id="st7-buscar" type="search" placeholder="Trabajador o folio ST-7" oninput="ctrlFiltrarST7(this.value)"></div>
-    ${ctrlTabla(['Trabajador / folio','Recepción','Devolución','Avisos / acuse','Acciones'],a.map(s=>{
-      const w=WORKERS.find(x=>x.id===s.trabajador_id);
-      return `<tr data-st7-id="${s.id}"><td>#${esc(w?.no_trab??'—')} ${esc(w?fullName(w):'Trabajador no visible')}<br><small>${esc(s.folio_st7)}</small></td>
-        <td>${st7Fecha(s.recibido_en)}<br><small>Capturado: ${st7Fecha(s.registrado_en)}</small></td>
-        <td>${s.devuelto_en?st7Fecha(s.devuelto_en)+'<br><small>Capturado: '+st7Fecha(s.devolucion_registrada_en)+'</small>':ctrlEstado('PENDIENTE')}${st7Pendientes(s)}</td>
-        <td>IMSS: ${st7Fecha(s.aviso_imss_en)}<br>STPS: ${st7Fecha(s.aviso_stps_en)}<br>${s.acuse_firmado_archivo?'📎 Acuse firmado':'⚠ Sin acuse firmado archivado'}</td>
-        <td><button class="btn" style="padding:4px 6px" onclick="ctrlImprimirAcuseST7('${s.id}')">Imprimir acuse</button> ${!s.devuelto_en?`<button class="btn dark" style="padding:4px 6px" onclick="openCtrlEntregaST7('${s.id}')">Registrar entrega</button>`:''}
-        <button class="btn" style="padding:4px 6px" onclick="openCtrlAvisosST7('${s.id}')">Avisos</button>
-        ${s.acuse_firmado_archivo?`<button class="btn" style="padding:4px 6px" onclick="ctrlVerAcuseST7('${s.id}')">Ver firmado</button>`:s.devuelto_en?`<label class="btn" style="padding:4px 6px;display:inline-block;cursor:pointer">Archivar firmado<input id="st7-scan-${s.id}" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style="display:none" onchange="ctrlSubirAcuseST7('${s.id}')"></label>`:'<small>Archivar tras la entrega</small>'}</td></tr>`;
-    }),'No hay ST-7 registrados en este centro.')}</div>`,'lg');
-}
-function ctrlFiltrarST7(texto){
-  const q=String(texto||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-  document.querySelectorAll('[data-st7-id]').forEach(tr=>{const s=(window._CTRLST7||[]).find(x=>x.id===tr.dataset.st7Id),w=WORKERS.find(x=>x.id===s?.trabajador_id);
-    tr.style.display=`${w?.no_trab??''} ${w?fullName(w):''} ${s?.folio_st7||''}`.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(q)?'':'none';});
+  return openCtrlIncidentes();
 }
 async function openCtrlNuevoST7(){
   const [ir,cr]=await Promise.all([
