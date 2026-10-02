@@ -14309,6 +14309,16 @@ async function ctrlExportIncidentes(){const a=window._CTRLINC||[];await ctrlExpo
 const st7Fecha=v=>v?new Date(v).toLocaleString('es-MX',{timeZone:'America/Mexico_City',dateStyle:'short',timeStyle:'short'}):'Pendiente';
 const st7InputAhora=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
 const st7ISO=id=>{const v=$(id)?.value;if(!v)return null;const d=new Date(v);return Number.isNaN(d.getTime())?null:d.toISOString();};
+function st7Pendientes(s){
+  const avisos=[];
+  if(!s.devuelto_en)avisos.push(Date.now()>new Date(s.recibido_en).getTime()+86400000?'⚠ Meta interna 24 h vencida':'Meta interna: devolver en 24 h');
+  if(s.accidente_en_centro===true&&s.accidente_en){
+    const t=new Date(s.accidente_en).getTime();
+    if(!s.aviso_imss_en)avisos.push(Date.now()>t+86400000?'⚠ Revisar aviso IMSS 24 h':'Revisar aviso IMSS 24 h');
+    if(!s.aviso_stps_en)avisos.push(Date.now()>t+259200000?'⚠ Revisar aviso STPS 72 h':'Revisar aviso STPS 72 h');
+  }
+  return avisos.map(x=>`<small style="display:block;color:${x.startsWith('⚠')?'var(--amber)':'var(--mut)'}">${esc(x)}</small>`).join('');
+}
 async function openCtrlST7(){
   const {data,error}=await fetchAllRows(()=>sb.from(CTRL_TABLAS.st7).select('*').eq('obra_id',OBRA.id),'recibido_en');
   if(error){toast(ctrlFaltaScript(error),'err');return;}
@@ -14321,7 +14331,7 @@ async function openCtrlST7(){
       const w=WORKERS.find(x=>x.id===s.trabajador_id);
       return `<tr data-st7-id="${s.id}"><td>#${esc(w?.no_trab??'—')} ${esc(w?fullName(w):'Trabajador no visible')}<br><small>${esc(s.folio_st7)}</small></td>
         <td>${st7Fecha(s.recibido_en)}<br><small>Capturado: ${st7Fecha(s.registrado_en)}</small></td>
-        <td>${s.devuelto_en?st7Fecha(s.devuelto_en)+'<br><small>Capturado: '+st7Fecha(s.devolucion_registrada_en)+'</small>':ctrlEstado('PENDIENTE')}</td>
+        <td>${s.devuelto_en?st7Fecha(s.devuelto_en)+'<br><small>Capturado: '+st7Fecha(s.devolucion_registrada_en)+'</small>':ctrlEstado('PENDIENTE')}${st7Pendientes(s)}</td>
         <td>IMSS: ${st7Fecha(s.aviso_imss_en)}<br>STPS: ${st7Fecha(s.aviso_stps_en)}<br>${s.acuse_firmado_archivo?'📎 Acuse firmado':'⚠ Sin acuse firmado archivado'}</td>
         <td><button class="btn" style="padding:4px 6px" onclick="ctrlImprimirAcuseST7('${s.id}')">Imprimir acuse</button> ${!s.devuelto_en?`<button class="btn dark" style="padding:4px 6px" onclick="openCtrlEntregaST7('${s.id}')">Registrar entrega</button>`:''}
         <button class="btn" style="padding:4px 6px" onclick="openCtrlAvisosST7('${s.id}')">Avisos</button>
