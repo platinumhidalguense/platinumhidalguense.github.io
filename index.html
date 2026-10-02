@@ -13425,7 +13425,7 @@ const CTRL_TABLAS={
   cierres:'control_cierres_nomina',noi:'control_conciliacion_noi',
   mov:'control_movimientos_seguridad_social',docs:'control_documentos_cumplimiento',
   costos:'control_presupuestos_obra',inc:'control_incidentes_laborales',audit:'control_bitacora',
-  casosIMSS:'control_casos_imss',casosIMSSSem:'control_casos_imss_semanas',
+  casosIMSS:'control_casos_imss',casosIMSSSem:'control_casos_imss_semanas',st7:'control_st7_acuses',
   altasCortas:'control_altas_bajas_cortas',cierresEliminados:'control_cierres_eliminados'
 };
 function ctrlFaltaScript(e){
@@ -13433,6 +13433,7 @@ function ctrlFaltaScript(e){
   if(/permission denied|row.level security|sin permiso|sólo el administrador/i.test(m))return m;
   const falta=/schema cache|does not exist|could not find|PGRST205/i.test(m);
   if(falta&&/control_casos_imss|control_aplicar_caso_imss/i.test(m))return 'Falta aplicar 87_CASOS_IMSS_CERTIFICADOS_Y_NOMINA.sql en Supabase.';
+  if(falta&&/control_st7_acuses/i.test(m))return 'Falta aplicar 108_CONTROL_ST7_RECEPCION_ENTREGA.sql en Supabase.';
   if(falta&&/control_altas_bajas_cortas/i.test(m))return 'Falta aplicar 88_ALTAS_BAJAS_CORTAS_SIN_SERVICIO.sql en Supabase.';
   if(falta&&/control_eliminar_cierre_admin|control_cierres_eliminados/i.test(m))return 'Falta aplicar 89_ELIMINACION_ADMIN_CIERRE_COMPLETO.sql en Supabase.';
   if(falta&&/control_cierres_nomina|control_conciliacion_noi|control_movimientos_seguridad_social|control_documentos_cumplimiento|control_presupuestos_obra|control_incidentes_laborales|control_bitacora/i.test(m))
@@ -13494,11 +13495,10 @@ async function openControlEmpresarial(){
           ['⚖️','Conciliación NOI','Compara netos por trabajador y detecta diferencias al centavo','openCtrlConciliacionSelector()'],
           ['📒','Concentrado por contratista','Percepciones, ISR, IMSS, neto y evidencia de pago por semana','openCtrlConcentradoContratistas()'],
           ['📅','IMSS · IDSE · SUA','Altas, bajas, salarios e incapacidades con fechas y evidencias','openCtrlMovimientos()'],
-          ['🏥','Casos IMSS','Certificados, probable riesgo, calificación y días aplicados a nómina','openCtrlCasosIMSS()'],
           ['↔️','Altas y bajas sin servicio','Distingue registros IMSS sin trabajo efectivo de faltas y finiquitos','openCtrlAltasCortas()'],
           ['🗂️','Expediente de cumplimiento','SIROC, REPSE, contratos, opiniones, pólizas y vigencias','openCtrlDocumentos()'],
           ['📊','Costo real de obra','Nómina, previsión, finiquitos, cargas y presupuesto','openCtrlCostos()'],
-          ['🦺','Incidentes e incapacidades','Registro, evidencia, seguimiento y posible riesgo de trabajo','openCtrlIncidentes()']
+          ['🦺','Incidentes, incapacidades y ST-7','Hechos, certificados, calendario, acuses y seguimiento en un solo lugar','openCtrlIncidentes()']
         ].map(x=>`<button class="btn" style="white-space:normal;text-align:left;padding:15px;min-height:94px" onclick="${x[3]}"><span style="font-size:24px">${x[0]}</span><br><b>${x[1]}</b><br><span style="font-size:11px;color:var(--mut)">${x[2]}</span></button>`).join('')}
       </div>
       <div style="margin-top:14px;padding:10px 12px;border-radius:8px;background:var(--blue-bg);font-size:11px;color:var(--mut)">
@@ -13835,6 +13835,12 @@ async function ctrlGuardarCosto(){
   markWrite();const {data,error}=await sb.from(CTRL_TABLAS.costos).upsert(f,{onConflict:'obra_id,semana,periodo,contratista'}).select('id').single();if(error){toast(ctrlFaltaScript(error),'err');return;}await ctrlAuditar('COSTOS_OBRA','GUARDAR',f,'PRESUPUESTO',data.id);toast('Costo y presupuesto guardados.','ok');openCtrlCostos(sem);
 }
 async function ctrlExportCostos(){const x=window._CTRLCOST;if(!x)return;const b=x.b||{},r=x.r;await ctrlExportar('COSTO REAL DE OBRA',['CONCEPTO','PRESUPUESTO','REAL'],[['Nómina',b.presupuesto_nomina||0,r.transfer+r.cheques],['Previsión social',b.presupuesto_prevision||0,r.prevision],['Finiquitos',b.presupuesto_finiquitos||0,r.finiquitos],['Carga patronal',b.presupuesto_carga_patronal||0,b.real_carga_patronal||0],['Otros',b.presupuesto_otros||0,b.real_otros||0],['TOTAL',x.pres,x.real],['PROYECCIÓN DEL MOTOR','',r.proyeccion]],`COSTO_REAL_S${x.sem}`,'COSTOS_OBRA');}
+/* Un único módulo; las pestañas conservan los flujos existentes. */
+function ctrlSaludTabs(activa){
+  return `<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px">
+    ${[['incidentes','🦺 Incidentes','openCtrlIncidentes()'],['incapacidades','🏥 Incapacidades IMSS','openCtrlCasosIMSS()'],['st7','📋 ST-7 y acuses','openCtrlST7()']].map(([id,titulo,accion])=>`<button class="btn ${activa===id?'dark':''}" onclick="${accion}">${titulo}</button>`).join('')}
+  </div>`;
+}
 /* ---------- CASOS IMSS: certificado, calificación y enlace a nómina ---------- */
 async function openCtrlCasosIMSS(){
   const {data,error}=await fetchAllRows(()=>sb.from(CTRL_TABLAS.casosIMSS)
@@ -13845,8 +13851,8 @@ async function openCtrlCasosIMSS(){
     return (Number.isFinite(nx)?nx:999999)-(Number.isFinite(ny)?ny:999999)||String(y.created_at).localeCompare(String(x.created_at));
   });
   window._CTRLIMSS=a;
-  modal(ctrlNav('🏥 Casos IMSS')+`<div class="m-body">
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoCasoIMSS()">＋ Nuevo caso / importar certificado</button><button class="btn" onclick="openCtrlIncidentes()">🦺 Incidentes</button></div>
+  modal(ctrlNav('🦺 Incidentes, incapacidades y ST-7')+`<div class="m-body">${ctrlSaludTabs('incapacidades')}
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoCasoIMSS()">＋ Nuevo caso / importar certificado</button></div>
     <div style="margin-top:10px"><label>Buscar por número, nombre o folio</label><input id="imss-buscar" type="search" placeholder="Ej. 433, Zulema, PK247642" oninput="ctrlFiltrarCasosIMSS(this.value)"><small id="imss-conteo" style="display:block;margin-top:4px;color:var(--mut)">${a.length} caso(s)</small></div>
     <p class="fhint" style="margin-top:9px">Registra el certificado y clasifica cada día en el calendario: empresa, subsidio IMSS esperado o sin pago. El subsidio requiere requisitos y comprobación; “probable riesgo” no equivale a calificación positiva. No captures diagnósticos clínicos.</p>
     ${ctrlTabla(['Trabajador','Certificado','Ramo / riesgo','Folio','Nómina','Estado / acciones'],a.map(c=>{
@@ -14265,7 +14271,7 @@ async function ctrlExportAltasCortas(){
 async function openCtrlIncidentes(){
   ctrlAuditar('INCIDENTES','ABRIR');const {data,error}=await ctrlLeer(CTRL_TABLAS.inc);if(error){toast(ctrlFaltaScript(error),'err');return;}
   const a=(data||[]).sort((x,y)=>String(y.fecha_hora).localeCompare(String(x.fecha_hora)));window._CTRLINC=a;
-  modal(ctrlNav('🦺 Incidentes e incapacidades')+`<div class="m-body"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoIncidente()">＋ Registrar incidente</button><button class="btn" onclick="openCtrlCasosIMSS()">📅 Incapacidades y calendario</button><button class="btn" onclick="ctrlExportIncidentes()">⬇ Excel</button></div>
+  modal(ctrlNav('🦺 Incidentes, incapacidades y ST-7')+`<div class="m-body">${ctrlSaludTabs('incidentes')}<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoIncidente()">＋ Registrar incidente</button><button class="btn" onclick="ctrlExportIncidentes()">⬇ Excel</button></div>
   <p class="fhint" style="margin-top:8px">“Posible riesgo” activa seguimiento; no sustituye la calificación del IMSS. Para asignar pagadores por fecha y afectar nómina, registra o vincula el certificado en <b>Incapacidades y calendario</b>.</p>
   ${ctrlTabla(['Fecha','Trabajador','Tipo / severidad','Posible RT','Incapacidad','Estado','Seguimiento'],a.map(x=>`<tr><td>${new Date(x.fecha_hora).toLocaleString('es-MX')}</td><td>#${x.trabajador_numero??'—'} ${esc(x.trabajador_nombre)}</td><td>${x.tipo}<br>${ctrlEstado(x.severidad)}</td><td>${x.posible_riesgo_trabajo?'Sí':'No'}<br><small>${esc(x.calificacion)}</small></td><td>${x.dias_incapacidad||0} días ${x.incapacidad_desde?`<br><button class="btn" style="padding:3px 6px" onclick="ctrlAbrirCasoDesdeIncidente('${x.id}')">Certificado / calendario</button>`:''}</td><td>${ctrlEstado(x.estado)}</td><td>${x.estado!=='CERRADO'?`<button class="btn" onclick="openCtrlSeguimientoInc('${x.id}')">Actualizar</button>`:esc(x.seguimiento||'')}</td></tr>`),'Sin incidentes registrados.')}</div>`,'lg');
 }
@@ -14299,6 +14305,158 @@ function openCtrlSeguimientoInc(id){
 }
 async function ctrlGuardarSeguimiento(id){const s=$('cis-seg').value.trim();if(!s){toast('Escribe el seguimiento.','err');return;}const estado=$('cis-est').value,up={seguimiento:s,estado,calificacion:$('cis-cal').value,cerrado_en:estado==='CERRADO'?new Date().toISOString():null};markWrite();const {error}=await sb.from(CTRL_TABLAS.inc).update(up).eq('id',id).eq('obra_id',OBRA.id);if(error){toast(ctrlFaltaScript(error),'err');return;}await ctrlAuditar('INCIDENTES','SEGUIMIENTO',up,'INCIDENTE',id);toast('Seguimiento actualizado.','ok');openCtrlIncidentes();}
 async function ctrlExportIncidentes(){const a=window._CTRLINC||[];await ctrlExportar('INCIDENTES E INCAPACIDADES',['FECHA','NO.','TRABAJADOR','TIPO','SEVERIDAD','POSIBLE RT','CALIFICACIÓN','DÍAS INCAPACIDAD','ST-7','IMSS','ESTADO','DESCRIPCIÓN','ACCIONES','SEGUIMIENTO'],a.map(x=>[x.fecha_hora,x.trabajador_numero??'',x.trabajador_nombre,x.tipo,x.severidad,x.posible_riesgo_trabajo?'SÍ':'NO',x.calificacion,x.dias_incapacidad,x.folio_st7||'',x.folio_imss||'',x.estado,x.descripcion,x.acciones_inmediatas||'',x.seguimiento||'']),'INCIDENTES_INCAPACIDADES','INCIDENTES');}
+/* ---------- ST-7: recepción, devolución y evidencia privada ---------- */
+const st7Fecha=v=>v?new Date(v).toLocaleString('es-MX',{timeZone:'America/Mexico_City',dateStyle:'short',timeStyle:'short'}):'Pendiente';
+const st7InputAhora=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
+const st7ISO=id=>{const v=$(id)?.value;if(!v)return null;const d=new Date(v);return Number.isNaN(d.getTime())?null:d.toISOString();};
+async function openCtrlST7(){
+  const {data,error}=await fetchAllRows(()=>sb.from(CTRL_TABLAS.st7).select('*').eq('obra_id',OBRA.id),'recibido_en');
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  const a=(data||[]).sort((x,y)=>String(y.recibido_en).localeCompare(String(x.recibido_en)));window._CTRLST7=a;
+  modal(ctrlNav('🦺 Incidentes, incapacidades y ST-7')+`<div class="m-body">${ctrlSaludTabs('st7')}
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoST7()">＋ Registrar recepción ST-7</button><button class="btn" onclick="openCtrlGuiaST7()">? Plazos y uso</button></div>
+    <p class="fhint" style="margin-top:9px">El acuse es <b>interno</b>: imprime dos ejemplares, firma con quien entrega y devuelve el ST-7, y archiva una copia firmada. No sustituye el ST-7 oficial ni acredita su presentación ante IMSS o STPS.</p>
+    <div style="margin-top:10px"><label>Buscar por número, nombre o folio</label><input id="st7-buscar" type="search" placeholder="Trabajador o folio ST-7" oninput="ctrlFiltrarST7(this.value)"></div>
+    ${ctrlTabla(['Trabajador / folio','Recepción','Devolución','Avisos / acuse','Acciones'],a.map(s=>{
+      const w=WORKERS.find(x=>x.id===s.trabajador_id);
+      return `<tr data-st7-id="${s.id}"><td>#${esc(w?.no_trab??'—')} ${esc(w?fullName(w):'Trabajador no visible')}<br><small>${esc(s.folio_st7)}</small></td>
+        <td>${st7Fecha(s.recibido_en)}<br><small>Capturado: ${st7Fecha(s.registrado_en)}</small></td>
+        <td>${s.devuelto_en?st7Fecha(s.devuelto_en)+'<br><small>Capturado: '+st7Fecha(s.devolucion_registrada_en)+'</small>':ctrlEstado('PENDIENTE')}</td>
+        <td>IMSS: ${st7Fecha(s.aviso_imss_en)}<br>STPS: ${st7Fecha(s.aviso_stps_en)}<br>${s.acuse_firmado_archivo?'📎 Acuse firmado':'⚠ Sin acuse firmado archivado'}</td>
+        <td><button class="btn" style="padding:4px 6px" onclick="ctrlImprimirAcuseST7('${s.id}')">Imprimir acuse</button> ${!s.devuelto_en?`<button class="btn dark" style="padding:4px 6px" onclick="openCtrlEntregaST7('${s.id}')">Registrar entrega</button>`:''}
+        <button class="btn" style="padding:4px 6px" onclick="openCtrlAvisosST7('${s.id}')">Avisos</button>
+        ${s.acuse_firmado_archivo?`<button class="btn" style="padding:4px 6px" onclick="ctrlVerAcuseST7('${s.id}')">Ver firmado</button>`:`<label class="btn" style="padding:4px 6px;display:inline-block;cursor:pointer">Archivar firmado<input id="st7-scan-${s.id}" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style="display:none" onchange="ctrlSubirAcuseST7('${s.id}')"></label>`}</td></tr>`;
+    }),'No hay ST-7 registrados en este centro.')}</div>`,'lg');
+}
+function ctrlFiltrarST7(texto){
+  const q=String(texto||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  document.querySelectorAll('[data-st7-id]').forEach(tr=>{const s=(window._CTRLST7||[]).find(x=>x.id===tr.dataset.st7Id),w=WORKERS.find(x=>x.id===s?.trabajador_id);
+    tr.style.display=`${w?.no_trab??''} ${w?fullName(w):''} ${s?.folio_st7||''}`.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(q)?'':'none';});
+}
+async function openCtrlNuevoST7(){
+  const [ir,cr]=await Promise.all([
+    fetchAllRows(()=>sb.from(CTRL_TABLAS.inc).select('id,trabajador_id,fecha_hora,tipo').eq('obra_id',OBRA.id),'fecha_hora'),
+    fetchAllRows(()=>sb.from(CTRL_TABLAS.casosIMSS).select('id,trabajador_id,folio_st7,fecha_evento').eq('obra_id',OBRA.id).is('eliminado_en',null),'created_at')
+  ]);
+  if(ir.error||cr.error){toast(ctrlFaltaScript(ir.error||cr.error),'err');return;}
+  window._ST7VINCULOS={inc:ir.data||[],casos:cr.data||[]};
+  modal(ctrlNav('📋 Recepción de ST-7','openCtrlST7')+`<div class="m-body">
+    <p class="fhint">Captura la hora <b>real</b> en que recibiste el ST-7. El servidor guarda además la hora de registro, que no podrás modificar. Confirma la identidad y el folio contra el documento original.</p>
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">
+      <div style="grid-column:span 2"><label>Trabajador *</label><select id="st7-w" onchange="ctrlST7Vinculos()"><option value="">Seleccionar</option>${[...WORKERS].sort((a,b)=>(a.no_trab??999999)-(b.no_trab??999999)).map(w=>`<option value="${w.id}">#${w.no_trab??'—'} · ${esc(fullName(w))}</option>`).join('')}</select></div>
+      <div><label>Folio ST-7 *</label><input id="st7-folio" maxlength="80"></div>
+      <div><label>Fecha y hora de recepción *</label><input id="st7-rec" type="datetime-local" value="${st7InputAhora()}"></div>
+      <div><label>Entregado por *</label><input id="st7-de" maxlength="160" placeholder="Nombre de quien entrega"></div>
+      <div><label>Recibido en la empresa por *</label><input id="st7-por" maxlength="160" placeholder="Nombre y cargo"></div>
+      <div><label>Fecha y hora del accidente, si consta</label><input id="st7-acc" type="datetime-local"></div>
+      <div><label>¿Ocurrió en el centro de trabajo?</label><select id="st7-centro"><option value="">No determinado</option><option value="si">Sí</option><option value="no">No</option></select></div>
+      <div><label>Incidente relacionado</label><select id="st7-inc"><option value="">Ninguno</option></select></div>
+      <div><label>Caso IMSS relacionado</label><select id="st7-caso"><option value="">Ninguno</option></select></div>
+      <div style="grid-column:span 2"><label>Observaciones administrativas, sin diagnóstico</label><textarea id="st7-obs" rows="2"></textarea></div>
+    </div><p class="fhint">Si fue accidente en el centro: aviso escrito al IMSS dentro de 24 h del evento; aviso a STPS dentro de 72 h. Son obligaciones <b>distintas</b> de llenar/devolver el ST-7. El objetivo de devolución en 24 h desde recepción es sólo control interno.</p></div>
+    <div class="m-foot"><button class="btn" onclick="openCtrlST7()">Cancelar</button><button class="btn dark" onclick="ctrlGuardarRecepcionST7()">Guardar recepción</button></div>`,'lg');
+}
+function ctrlST7Vinculos(){
+  const id=$('st7-w').value,v=window._ST7VINCULOS||{inc:[],casos:[]};
+  $('st7-inc').innerHTML='<option value="">Ninguno</option>'+v.inc.filter(x=>x.trabajador_id===id).map(x=>`<option value="${x.id}">${esc(x.tipo)} · ${st7Fecha(x.fecha_hora)}</option>`).join('');
+  $('st7-caso').innerHTML='<option value="">Ninguno</option>'+v.casos.filter(x=>x.trabajador_id===id).map(x=>`<option value="${x.id}">${esc(x.folio_st7||'Caso IMSS')} · ${esc(fmtD(x.fecha_evento))}</option>`).join('');
+}
+async function ctrlGuardarRecepcionST7(){
+  const w=WORKERS.find(x=>x.id===$('st7-w').value),rec=st7ISO('st7-rec'),folio=$('st7-folio').value.trim(),de=$('st7-de').value.trim(),por=$('st7-por').value.trim();
+  if(!w||!rec||!folio||!de||!por){toast('Completa trabajador, folio, fecha y hora, quien entrega y quien recibe.','err');return;}
+  if(new Date(rec).getTime()>Date.now()+300000){toast('La recepción no puede ser futura.','err');return;}
+  const up={obra_id:OBRA.id,trabajador_id:w.id,incidente_id:$('st7-inc').value||null,caso_imss_id:$('st7-caso').value||null,folio_st7:folio,
+    accidente_en_centro:$('st7-centro').value===''?null:$('st7-centro').value==='si',accidente_en:st7ISO('st7-acc'),
+    recibido_en:rec,recibido_de:de,recibido_por:por,observaciones:$('st7-obs').value.trim()||null};
+  markWrite();const {data,error}=await sb.from(CTRL_TABLAS.st7).insert(up).select('id').single();
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  await ctrlAuditar('ST7','RECEPCION',{folio,recibido_en:rec},'ST7',data.id);
+  toast('Recepción registrada. Imprime el acuse y recaba ambas firmas.','ok');await openCtrlST7();
+}
+function openCtrlEntregaST7(id){
+  const s=(window._CTRLST7||[]).find(x=>x.id===id);if(!s||s.devuelto_en)return;
+  modal(ctrlNav('📋 Entrega del ST-7 contestado','openCtrlST7')+`<div class="m-body"><p>Folio <b>${esc(s.folio_st7)}</b> · recibido ${st7Fecha(s.recibido_en)}.</p>
+    <p class="fhint">Registra la fecha y hora <b>real</b> de devolución del ST-7 llenado y firmado al trabajador. La captura del servidor queda separada. Imprime de nuevo el acuse para firmar esta segunda entrega.</p>
+    <div><label>Fecha y hora de devolución *</label><input id="st7-dev" type="datetime-local" value="${st7InputAhora()}"></div>
+    <div><label>Entregado a *</label><input id="st7-dest" maxlength="160" placeholder="Nombre del trabajador o representante"></div>
+    <div><label>Entregado por *</label><input id="st7-entrega" maxlength="160" placeholder="Nombre del responsable de la empresa"></div></div>
+    <div class="m-foot"><button class="btn" onclick="openCtrlST7()">Cancelar</button><button class="btn dark" onclick="ctrlGuardarEntregaST7('${id}')">Confirmar entrega</button></div>`,'md');
+}
+async function ctrlGuardarEntregaST7(id){
+  const s=(window._CTRLST7||[]).find(x=>x.id===id),fecha=st7ISO('st7-dev'),a=$('st7-dest').value.trim(),por=$('st7-entrega').value.trim();
+  if(!s||!fecha||!a||!por||new Date(fecha)<new Date(s.recibido_en)||new Date(fecha).getTime()>Date.now()+300000){toast('Revisa fecha, hora y nombres de la devolución.','err');return;}
+  markWrite();const {error}=await sb.from(CTRL_TABLAS.st7).update({devuelto_en:fecha,devuelto_a:a,devuelto_por:por}).eq('id',id).eq('obra_id',OBRA.id).is('devuelto_en',null);
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  await ctrlAuditar('ST7','ENTREGA',{devuelto_en:fecha,devuelto_a:a},'ST7',id);toast('Devolución registrada. Imprime y firma el acuse actualizado.','ok');openCtrlST7();
+}
+function openCtrlAvisosST7(id){
+  const s=(window._CTRLST7||[]).find(x=>x.id===id);if(!s)return;
+  modal(ctrlNav('📣 Avisos del accidente','openCtrlST7')+`<div class="m-body"><p>ST-7 ${esc(s.folio_st7)}. Capturar aquí no presenta avisos ante la autoridad: conserva los acuses oficiales por separado.</p>
+    <div><label>Fecha y hora del aviso al IMSS</label><input id="st7-imss" type="datetime-local" ${s.aviso_imss_en?'disabled':''}></div>
+    <div><label>Fecha y hora del aviso a STPS</label><input id="st7-stps" type="datetime-local" ${s.aviso_stps_en?'disabled':''}></div>
+    <p class="fhint">IMSS: 24 h desde accidente en el centro de trabajo; fuera de él, al tener conocimiento. STPS: 72 h para aviso de accidente de trabajo. No hay plazo legal general encontrado para que el patrón devuelva el reverso del ST-7.</p></div>
+    <div class="m-foot"><button class="btn" onclick="openCtrlST7()">Cancelar</button><button class="btn dark" onclick="ctrlGuardarAvisosST7('${id}')">Guardar avisos capturados</button></div>`,'md');
+}
+async function ctrlGuardarAvisosST7(id){
+  const s=(window._CTRLST7||[]).find(x=>x.id===id);if(!s)return;
+  const up={};if(!s.aviso_imss_en&&$('st7-imss').value)up.aviso_imss_en=st7ISO('st7-imss');
+  if(!s.aviso_stps_en&&$('st7-stps').value)up.aviso_stps_en=st7ISO('st7-stps');
+  if(!Object.keys(up).length){toast('Captura al menos un aviso nuevo.','err');return;}
+  if(Object.values(up).some(x=>!x||new Date(x).getTime()>Date.now()+300000)){toast('La fecha del aviso no puede ser futura.','err');return;}
+  markWrite();const {error}=await sb.from(CTRL_TABLAS.st7).update(up).eq('id',id).eq('obra_id',OBRA.id);
+  if(error){toast(ctrlFaltaScript(error),'err');return;}
+  await ctrlAuditar('ST7','AVISOS',up,'ST7',id);toast('Fechas registradas; verifica que tengas los acuses oficiales.','ok');openCtrlST7();
+}
+async function ctrlSubirAcuseST7(id){
+  const s=(window._CTRLST7||[]).find(x=>x.id===id),file=$('st7-scan-'+id)?.files?.[0];if(!s||!file)return;
+  const tipos={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','application/pdf':'pdf'},ext=tipos[file.type];
+  if(!ext||file.size>8388608){toast('Sube JPG, PNG, WebP o PDF de máximo 8 MB.','err');return;}
+  const ruta=`${OBRA.id}/${s.trabajador_id}/${id}/${crypto.randomUUID()}.${ext}`;
+  markWrite();const {error:upErr}=await sb.storage.from('st7-expedientes').upload(ruta,file,{contentType:file.type,upsert:false});
+  if(upErr){toast('No se pudo archivar: '+upErr.message,'err');return;}
+  const {error}=await sb.from(CTRL_TABLAS.st7).update({acuse_firmado_archivo:ruta}).eq('id',id).eq('obra_id',OBRA.id).is('acuse_firmado_archivo',null);
+  if(error){toast('Archivo privado subido, pero no quedó vinculado: '+ctrlFaltaScript(error)+'. Contacta al administrador.','err');return;}
+  await ctrlAuditar('ST7','ACUSE_FIRMADO',{archivo:ruta},'ST7',id);toast('Acuse firmado archivado.','ok');openCtrlST7();
+}
+async function ctrlVerAcuseST7(id){
+  const s=(window._CTRLST7||[]).find(x=>x.id===id);if(!s?.acuse_firmado_archivo)return;
+  const {data,error}=await sb.storage.from('st7-expedientes').createSignedUrl(s.acuse_firmado_archivo,60);
+  if(error){toast(error.message,'err');return;}window.open(data.signedUrl,'_blank','noopener');
+}
+function ctrlImprimirAcuseST7(id){
+  const s=(window._CTRLST7||[]).find(x=>x.id===id),w=WORKERS.find(x=>x.id===s?.trabajador_id);if(!s||!w)return;
+  const codigo=empresaDeObra(OBRA),empresa=CFGEMP['empresa_'+codigo]||{},razon=razonSocialEmpresa(codigo),generado=st7Fecha(new Date());
+  const html=`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Acuse interno ST-7 ${esc(s.folio_st7)}</title><style>
+    @page{size:letter portrait;margin:14mm}*{box-sizing:border-box}body{font:10pt Arial,sans-serif;color:#172033;margin:0}
+    header{display:flex;align-items:center;border-bottom:2px solid #183b61;padding-bottom:5mm;gap:6mm}header img{width:28mm;height:18mm;object-fit:contain}header div{flex:1;text-align:right;font-size:8pt;line-height:1.4}header b{font-size:11pt;color:#183b61}
+    h1{text-align:center;font-size:14pt;color:#183b61;margin:7mm 0 2mm}h2{font-size:10pt;color:#183b61;background:#e9eff7;padding:2mm;margin:7mm 0 3mm}
+    p{margin:2mm 0;line-height:1.4}.grid{display:grid;grid-template-columns:1fr 1fr;gap:2mm 7mm}.dato{border-bottom:1px solid #d5dee8;padding:2mm 0}
+    .firmas{display:grid;grid-template-columns:1fr 1fr;gap:10mm;margin-top:15mm}.firma{text-align:center;border-top:1px solid #172033;padding-top:2mm;font-size:8pt}
+    .nota{margin-top:6mm;padding:3mm;border:1px solid #bbc9d9;font-size:8pt}.pie{margin-top:5mm;font-size:7pt;color:#536277}
+    button{position:fixed;right:10px;top:10px;background:#183b61;color:white;border:0;padding:8px;border-radius:5px}@media print{button{display:none}}
+    </style></head><body><button onclick="window.print()">Imprimir / Guardar PDF</button>
+    <header><img src="${logoEmpresa(codigo)}"><div><b>${esc(razon)}</b><br>RFC ${esc(empresa.rfc||'—')}<br>${esc(empresa.domicilio||'')}</div></header>
+    <h1>ACUSE INTERNO DE RECEPCIÓN Y DEVOLUCIÓN · ST-7</h1><p style="text-align:center">Centro de trabajo: <b>${esc(OBRA.nombre)}</b> · Registro patronal: ${esc(OBRA.registro_patronal||'—')}</p>
+    <div class="grid"><div class="dato"><b>Trabajador:</b> #${esc(w.no_trab??'—')} ${esc(fullName(w))}</div><div class="dato"><b>Folio ST-7:</b> ${esc(s.folio_st7)}</div><div class="dato"><b>Accidente referido:</b> ${st7Fecha(s.accidente_en)}</div><div class="dato"><b>Lugar:</b> ${s.accidente_en_centro===null?'No determinado':s.accidente_en_centro?'Centro de trabajo':'Fuera del centro'}</div></div>
+    <h2>1. RECEPCIÓN DEL FORMATO EN LA EMPRESA</h2><p>Fecha y hora efectiva de recepción: <b>${st7Fecha(s.recibido_en)}</b></p><p>Entregado por: ${esc(s.recibido_de)} · Recibido por: ${esc(s.recibido_por)}</p><p>Capturado en la plataforma: ${st7Fecha(s.registrado_en)}. La firma acredita la entrega física indicada; la captura digital por sí sola no la sustituye.</p>
+    <div class="firmas"><div class="firma">Firma de quien entrega el ST-7<br>${esc(s.recibido_de)}</div><div class="firma">Firma de quien recibe por la empresa<br>${esc(s.recibido_por)}</div></div>
+    <h2>2. DEVOLUCIÓN DEL ST-7 CONTESTADO AL TRABAJADOR</h2>${s.devuelto_en?`<p>Fecha y hora efectiva de devolución: <b>${st7Fecha(s.devuelto_en)}</b></p><p>Entregado a: ${esc(s.devuelto_a)} · Entregado por: ${esc(s.devuelto_por)}</p><p>Capturado en la plataforma: ${st7Fecha(s.devolucion_registrada_en)}</p>`:'<p>Fecha y hora efectiva de devolución: __________________________ &nbsp; Entregado a: __________________________</p>'}
+    <div class="firmas"><div class="firma">Firma y nombre de quien recibe el ST-7 contestado<br>${esc(s.devuelto_a||'')}</div><div class="firma">Firma de quien entrega por la empresa<br>${esc(s.devuelto_por||'')}</div></div>
+    <div class="nota"><b>Alcance:</b> Acuse administrativo interno de recepción y devolución. No sustituye el formato ST-7 del IMSS, su calificación, ni el acuse oficial de avisos al IMSS o a la STPS. No implica aceptación ni rechazo de un riesgo de trabajo. Conservar dos tantos firmados y archivar la copia digital.</div>
+    <div class="pie">Folio interno: ${esc(s.id)} · Generado: ${generado} · Fundamento operativo: LSS art. 51; Reglamento de Prestaciones Médicas del IMSS arts. 22–24; LFT art. 504, fr. V. Los avisos oficiales se acreditan por separado.</div>
+    <script>window.onload=()=>setTimeout(()=>window.print(),450)<\/script></body></html>`;
+  const win=window.open('','_blank');if(!win){toast('Permite ventanas emergentes para imprimir el acuse.','err');return;}
+  win.document.write(html);win.document.close();ctrlAuditar('ST7','IMPRIMIR_ACUSE',{folio:s.folio_st7},'ST7',id);
+}
+function openCtrlGuiaST7(){
+  modal(ctrlNav('📋 ST-7 · plazos y evidencia','openCtrlST7')+`<div class="m-body" style="line-height:1.55">
+    <p><b>1.</b> Registra el momento real en que la empresa recibió el ST-7 y quién lo entregó. Imprime el acuse interno en dos tantos y recaba las dos firmas de recepción.</p>
+    <p><b>2.</b> Completa el reverso del ST-7 oficial con los hechos que constan, sin diagnosticar ni calificar el riesgo. Registra la hora real de devolución al trabajador; imprime de nuevo el acuse y firma la segunda sección. Archiva el escaneo firmado.</p>
+    <p><b>3.</b> Registra por separado los avisos y conserva sus acuses oficiales: accidente en el centro de trabajo, aviso escrito al IMSS dentro de <b>24 horas del evento</b> (art. 22 del Reglamento de Prestaciones Médicas); accidente de trabajo, aviso a STPS dentro de <b>72 horas</b> (art. 504, fr. V, LFT). Fuera del centro, el aviso al IMSS procede al conocer el accidente.</p>
+    <p><b>Plazo de devolución del ST-7:</b> no se identificó en estas fuentes un plazo legal general de 24 o 72 horas para que el patrón conteste el reverso. Se propone <b>24 horas desde recepción como meta interna</b>, sin presentarla como ley. El IMSS permite que el trámite continúe aun si el patrón no lo llena.</p>
+    <p style="font-size:11px"><a target="_blank" rel="noopener" href="https://www.imss.gob.mx/tramites/imss03008">Trámite ST-7 IMSS</a> · <a target="_blank" rel="noopener" href="https://www.imss.gob.mx/sites/all/statics/pdf/reglamentos/4045_RPMIMSS.pdf">Reglamento IMSS</a> · <a target="_blank" rel="noopener" href="https://www.diputados.gob.mx/LeyesBiblio/pdf/LFT.pdf">LFT</a></p>
+    <p class="fhint">Este acuse no tiene sello de autoridad. Si falta una firma, su fuerza probatoria es limitada; documenta la negativa o imposibilidad por medios adicionales y consulta al área jurídica.</p></div>`,'lg');
+}
 async function ctrlExportar(titulo,headers,data,nombre,modulo){
   if(!data.length){toast('No hay información para exportar.','err');return;}
   const rows=[[titulo+' — '+OBRA.nombre],[razonSocialEmpresa(empresaDeObra(OBRA))+' · Generado '+new Date().toLocaleString('es-MX')],headers,...data],styles=[ST.title,ST.sub,ST.head,...data.map(()=>headers.map((_,i)=>/MONTO|NETO|REAL|PRESUP|NÓMINA|PREVISIÓN|RETENCIÓN|FINIQUITO|DIFERENCIA/i.test(headers[i])?ST.money:ST.cell))];
