@@ -13916,7 +13916,8 @@ async function ctrlLeerCertificadoIMSS(input){
     $('im-f').value=d.folio_certificado||'';$('im-prt').checked=!!d.probable_riesgo_trabajo;
     window._CTRLIMSS_CERT={file,datos:d,modelo:j.modelo};
     const campos=[['Asegurado',d.nombre_asegurado],['NSS',d.nss],['CURP',d.curp],['Folio',d.folio_certificado],['Expedido',d.fecha_expedicion],['Inicio',d.fecha_inicio],['Días autorizados',d.dias_autorizados],['Patrón',d.patron],['Unidad',d.unidad_medica_expedidora],['UMF adscripción',d.umf_adscripcion],['Delegación',d.delegacion_expedidora],['Médico',d.medico],['Matrícula',d.matricula_medico]];
-    if(box)box.innerHTML=`<div style="margin-top:9px;padding:9px;background:var(--amber-bg);border-radius:8px"><b>Lectura para revisar con el original</b> · ${coincidencias.length===1?`Coincide con #${coincidencias[0].no_trab}`:'No hubo coincidencia única por CURP/NSS; selección manual obligatoria.'}<br>${campos.filter(x=>x[1]!==null&&x[1]!==undefined&&x[1]!=='').map(([k,v])=>`<small style="display:inline-block;margin:3px 9px 0 0"><b>${esc(k)}:</b> ${esc(String(v))}</small>`).join('')}${d.advertencias?.length?`<p class="fhint">⚠ ${esc(d.advertencias.join(' · '))}</p>`:''}</div>`;
+    const nssDiscrepante=coincidencias.length===1&&d.nss&&coincidencias[0].nss&&limpio(d.nss)!==limpio(coincidencias[0].nss);
+    if(box)box.innerHTML=`<div style="margin-top:9px;padding:9px;background:var(--amber-bg);border-radius:8px"><b>Lectura para revisar con el original</b> · ${coincidencias.length===1?`Coincide con #${coincidencias[0].no_trab}`:'No hubo coincidencia única por CURP/NSS; selección manual obligatoria.'}<br>${campos.filter(x=>x[1]!==null&&x[1]!==undefined&&x[1]!=='').map(([k,v])=>`<small style="display:inline-block;margin:3px 9px 0 0"><b>${esc(k)}:</b> ${esc(String(v))}</small>`).join('')}${nssDiscrepante?'<p class="fhint">⚠ El NSS leído no coincide con la ficha. Revisa el original; si la CURP coincide, deberás confirmar expresamente la discrepancia antes de guardar.</p>':''}${d.advertencias?.length?`<p class="fhint">⚠ ${esc(d.advertencias.join(' · '))}</p>`:''}</div>;
     $('im-pagadores').style.display='block';ctrlPreviewPagoCertificadoIMSS();
   }catch(e){if(box)box.textContent='No se completó la lectura. Puedes registrar los datos manualmente.';toast(e.message||String(e),'err');input.value='';}
 }
@@ -13962,7 +13963,13 @@ async function ctrlGuardarCasoIMSS(){
   let clasificacion=null;
   if(cert){
     const norm=x=>String(x||'').replace(/\W/g,'').toUpperCase(),dato=cert.datos;
-    if((dato.curp&&norm(dato.curp)!==norm(w.curp))||(dato.nss&&norm(dato.nss)!==norm(w.nss))){toast('CURP o NSS del documento no coincide con el trabajador. Revisa el original; no se puede archivar en una ficha distinta.','err');return;}
+    const curpCoincide=!!dato.curp&&!!w.curp&&norm(dato.curp)===norm(w.curp);
+    const nssDiscrepante=!!dato.nss&&!!w.nss&&norm(dato.nss)!==norm(w.nss);
+    if((dato.curp&&!curpCoincide)||(!curpCoincide&&nssDiscrepante)){toast('La identidad del documento no coincide con la ficha. Revisa el original; no se puede archivar en otro trabajador.','err');return;}
+    if(nssDiscrepante){
+      if(!confirm(`La CURP coincide con #${w.no_trab}, pero el NSS leído del certificado (${dato.nss}) difiere del registrado (${w.nss}). ¿Revisaste el original y confirmas archivar esta discrepancia sin modificar la ficha del trabajador?`))return;
+      dato.advertencias=[...new Set([...(dato.advertencias||[]),'NSS del certificado distinto al registrado; CURP coincidente y discrepancia confirmada por el operador.'])];
+    }
     if(d!==dato.fecha_inicio||h!==dato.fecha_hasta||dias!==dato.dias_autorizados){toast('Las fechas/días difieren de la lectura. Corrige el documento o registra manualmente; no se archivará una copia discordante.','err');return;}
     const patron=norm(dato.patron),empresa=empresaDeObra(OBRA);
     if((/JIRE/.test(patron)&&empresa!=='JIRE')||(/PLATINUM/.test(patron)&&empresa!=='PLATINUM')){toast('La razón social del certificado no corresponde a este centro de trabajo.','err');return;}
