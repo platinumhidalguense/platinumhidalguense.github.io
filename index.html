@@ -14335,7 +14335,7 @@ async function openCtrlST7(){
         <td>IMSS: ${st7Fecha(s.aviso_imss_en)}<br>STPS: ${st7Fecha(s.aviso_stps_en)}<br>${s.acuse_firmado_archivo?'📎 Acuse firmado':'⚠ Sin acuse firmado archivado'}</td>
         <td><button class="btn" style="padding:4px 6px" onclick="ctrlImprimirAcuseST7('${s.id}')">Imprimir acuse</button> ${!s.devuelto_en?`<button class="btn dark" style="padding:4px 6px" onclick="openCtrlEntregaST7('${s.id}')">Registrar entrega</button>`:''}
         <button class="btn" style="padding:4px 6px" onclick="openCtrlAvisosST7('${s.id}')">Avisos</button>
-        ${s.acuse_firmado_archivo?`<button class="btn" style="padding:4px 6px" onclick="ctrlVerAcuseST7('${s.id}')">Ver firmado</button>`:`<label class="btn" style="padding:4px 6px;display:inline-block;cursor:pointer">Archivar firmado<input id="st7-scan-${s.id}" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style="display:none" onchange="ctrlSubirAcuseST7('${s.id}')"></label>`}</td></tr>`;
+        ${s.acuse_firmado_archivo?`<button class="btn" style="padding:4px 6px" onclick="ctrlVerAcuseST7('${s.id}')">Ver firmado</button>`:s.devuelto_en?`<label class="btn" style="padding:4px 6px;display:inline-block;cursor:pointer">Archivar firmado<input id="st7-scan-${s.id}" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" style="display:none" onchange="ctrlSubirAcuseST7('${s.id}')"></label>`:'<small>Archivar tras la entrega</small>'}</td></tr>`;
     }),'No hay ST-7 registrados en este centro.')}</div>`,'lg');
 }
 function ctrlFiltrarST7(texto){
@@ -14418,7 +14418,7 @@ async function ctrlGuardarAvisosST7(id){
   await ctrlAuditar('ST7','AVISOS',up,'ST7',id);toast('Fechas registradas; verifica que tengas los acuses oficiales.','ok');openCtrlST7();
 }
 async function ctrlSubirAcuseST7(id){
-  const s=(window._CTRLST7||[]).find(x=>x.id===id),file=$('st7-scan-'+id)?.files?.[0];if(!s||!file)return;
+  const s=(window._CTRLST7||[]).find(x=>x.id===id),file=$('st7-scan-'+id)?.files?.[0];if(!s||!s.devuelto_en||!file)return;
   const tipos={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','application/pdf':'pdf'},ext=tipos[file.type];
   if(!ext||file.size>8388608){toast('Sube JPG, PNG, WebP o PDF de máximo 8 MB.','err');return;}
   const ruta=`${OBRA.id}/${s.trabajador_id}/${id}/${crypto.randomUUID()}.${ext}`;
