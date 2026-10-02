@@ -13840,24 +13840,40 @@ async function openCtrlCasosIMSS(){
   const {data,error}=await fetchAllRows(()=>sb.from(CTRL_TABLAS.casosIMSS)
     .select('*,control_casos_imss_semanas(*)').eq('obra_id',OBRA.id).is('eliminado_en',null),'created_at');
   if(error){toast(ctrlFaltaScript(error),'err');return;}
-  const a=(data||[]).sort((x,y)=>String(y.created_at).localeCompare(String(x.created_at)));
+  const a=(data||[]).sort((x,y)=>{
+    const nx=Number(WORKERS.find(w=>w.id===x.trabajador_id)?.no_trab),ny=Number(WORKERS.find(w=>w.id===y.trabajador_id)?.no_trab);
+    return (Number.isFinite(nx)?nx:999999)-(Number.isFinite(ny)?ny:999999)||String(y.created_at).localeCompare(String(x.created_at));
+  });
   window._CTRLIMSS=a;
   modal(ctrlNav('🏥 Casos IMSS')+`<div class="m-body">
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoCasoIMSS()">＋ Nuevo caso</button><button class="btn" onclick="openCtrlIncidentes()">🦺 Incidentes</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoCasoIMSS()">＋ Nuevo caso / importar certificado</button><button class="btn" onclick="openCtrlIncidentes()">🦺 Incidentes</button></div>
+    <div style="margin-top:10px"><label>Buscar por número, nombre o folio</label><input id="imss-buscar" type="search" placeholder="Ej. 433, Zulema, PK247642" oninput="ctrlFiltrarCasosIMSS(this.value)"><small id="imss-conteo" style="display:block;margin-top:4px;color:var(--mut)">${a.length} caso(s)</small></div>
     <p class="fhint" style="margin-top:9px">Registra el certificado y clasifica cada día en el calendario: empresa, subsidio IMSS esperado o sin pago. El subsidio requiere requisitos y comprobación; “probable riesgo” no equivale a calificación positiva. No captures diagnósticos clínicos.</p>
     ${ctrlTabla(['Trabajador','Certificado','Ramo / riesgo','Folio','Nómina','Estado / acciones'],a.map(c=>{
       const w=WORKERS.find(x=>x.id===c.trabajador_id),ss=c.control_casos_imss_semanas||[];
-      return `<tr><td>#${w?.no_trab??'—'} ${esc(w?fullName(w):'Trabajador no visible')}</td><td>${c.certificado_desde?fmtD(c.certificado_desde)+' a '+fmtD(c.certificado_hasta)+' · '+c.dias_certificados+' día(s)':'Pendiente'}</td>
+      return `<tr data-imss-id="${c.id}"><td>#${w?.no_trab??'—'} ${esc(w?fullName(w):'Trabajador no visible')}</td><td>${c.certificado_desde?fmtD(c.certificado_desde)+' a '+fmtD(c.certificado_hasta)+' · '+c.dias_certificados+' día(s)':'Pendiente'}</td>
         <td>${esc(c.ramo_certificado.replaceAll('_',' '))}<br><small>${c.probable_riesgo_trabajo?'Probable RT · ':''}${esc(c.calificacion_rt.replaceAll('_',' '))}</small></td>
         <td>${esc(c.folio_certificado||'Pendiente')}</td><td>${ss.map(s=>`S${s.semana}: ${s.dias_pagados_empresa} empresa · ${s.dias_imss_estimados||0} IMSS · ${s.dias_sin_subsidio||0} sin pago · ${esc(s.estado)}`).join('<br>')||'Sin distribución'}</td>
-        <td>${ctrlEstado(c.estado)}<br><button class="btn" style="padding:4px 6px" onclick="openCtrlSemanaIMSS('${c.id}')">Calendario</button> <button class="btn" style="padding:4px 6px" onclick="openCtrlEditarCasoIMSS('${c.id}')">Editar</button> <button class="btn" style="padding:4px 6px" onclick="openCtrlActualizarCasoIMSS('${c.id}')">Seguimiento</button>${esAdmin()?` <button class="btn danger" style="padding:4px 6px" onclick="ctrlArchivarCasoIMSS('${c.id}')">Eliminar</button>`:''}</td></tr>`;
+        <td>${ctrlEstado(c.estado)}<br><button class="btn" style="padding:4px 6px" onclick="openCtrlSemanaIMSS('${c.id}')">Calendario</button> <button class="btn" style="padding:4px 6px" onclick="openCtrlEditarCasoIMSS('${c.id}')">Editar</button> <button class="btn" style="padding:4px 6px" onclick="openCtrlActualizarCasoIMSS('${c.id}')">Seguimiento</button>${c.datos_documento?` <button class="btn" style="padding:4px 6px" onclick="ctrlDetalleDocumentoIMSS('${c.id}')">Datos</button>`:''}${c.certificado_archivo?` <button class="btn" style="padding:4px 6px" onclick="ctrlVerCertificadoIMSS('${c.id}')">📎 Certificado</button>`:c.datos_documento?` <button class="btn" style="padding:4px 6px" onclick="ctrlAdjuntarCertificadoIMSS('${c.id}')">Adjuntar archivo</button>`:''}${esAdmin()?` <button class="btn danger" style="padding:4px 6px" onclick="ctrlArchivarCasoIMSS('${c.id}')">Eliminar</button>`:''}</td></tr>`;
     }),'No hay casos IMSS en este centro.')}</div>`,'lg');
+}
+function ctrlFiltrarCasosIMSS(texto){
+  const q=String(texto||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  let visibles=0;
+  document.querySelectorAll('[data-imss-id]').forEach(tr=>{
+    const c=(window._CTRLIMSS||[]).find(x=>x.id===tr.dataset.imssId),w=WORKERS.find(x=>x.id===c?.trabajador_id);
+    const hay=`${w?.no_trab??''} ${w?fullName(w):''} ${c?.folio_certificado||''}`.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(q);
+    tr.style.display=hay?'':'none';if(hay)visibles++;
+  });
+  if($('imss-conteo'))$('imss-conteo').textContent=`${visibles} caso(s)`;
 }
 function openCtrlNuevoCasoIMSS(incidenteId=''){
   const inc=(window._CTRLINC||[]).find(x=>x.id===incidenteId);
+  window._CTRLIMSS_CERT=null;
   modal(ctrlNav('＋ Caso IMSS','openCtrlCasosIMSS')+`<div class="m-body">
+    <div style="padding:11px;border:1px solid var(--line);border-radius:9px;margin-bottom:12px"><label>Importar certificado IMSS (imagen o PDF, máximo 8 MB)</label><input id="im-archivo" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onchange="ctrlLeerCertificadoIMSS(this)"><div class="fhint">La lectura envía el documento a Gemini únicamente después de tu confirmación. Verifica el original antes de guardar; el archivo quedará privado en el expediente de incapacidad.</div><div id="im-lectura"></div></div>
     <div class="grid" style="grid-template-columns:repeat(2,1fr)">
-      <div style="grid-column:span 2"><label>Trabajador</label><select id="im-w">${WORKERS.map(w=>`<option value="${w.id}" ${w.id===inc?.trabajador_id?'selected':''}>#${w.no_trab??'—'} · ${esc(fullName(w))}</option>`).join('')}</select></div>
+      <div style="grid-column:span 2"><label>Trabajador</label><select id="im-w"><option value="">— Selecciona —</option>${[...WORKERS].sort((a,b)=>(Number(a.no_trab)||999999)-(Number(b.no_trab)||999999)).map(w=>`<option value="${w.id}" ${w.id===inc?.trabajador_id?'selected':''}>#${w.no_trab??'—'} · ${esc(fullName(w))}</option>`).join('')}</select></div>
       <div><label>Tipo de caso</label><select id="im-t"><option>INCAPACIDAD</option><option>ACCIDENTE</option><option>ENFERMEDAD</option></select></div>
       <div><label>Fecha del evento (si se conoce)</label><input id="im-e" type="date"></div>
       <div><label>Ramo del certificado</label><select id="im-r"><option>ENFERMEDAD_GENERAL</option><option>RIESGO_TRABAJO</option><option>MATERNIDAD</option><option>SIN_CERTIFICADO</option></select></div>
@@ -13868,8 +13884,73 @@ function openCtrlNuevoCasoIMSS(incidenteId=''){
       <div style="grid-column:span 2"><label>Referencia interna del expediente (sin diagnóstico ni URL pública)</label><input id="im-ref" maxlength="200"></div>
       <div style="grid-column:span 2"><label>Notas operativas</label><textarea id="im-nota" rows="2" placeholder="Seguimiento administrativo, no diagnóstico"></textarea></div>
     </div><p class="fhint" style="margin-top:8px">El calendario no asigna pagador automáticamente. En enfermedad general, el subsidio IMSS procede ordinariamente desde el cuarto día sujeto a cotizaciones; la empresa sólo pagará los días que ustedes confirmen. El probable riesgo no equivale a dictamen.</p></div>
+    <div id="im-pagadores" style="display:none;padding:0 16px 14px"><label>Confirma quién cubre los días de este certificado</label><div class="grid" style="grid-template-columns:repeat(2,1fr)"><div><label>Días pagados por la empresa</label><input id="im-empresa-dias" type="number" min="0" value="0" oninput="ctrlPreviewPagoCertificadoIMSS()"></div><div><label>Días de subsidio IMSS esperado</label><input id="im-imss-dias" type="number" min="0" value="0" oninput="ctrlPreviewPagoCertificadoIMSS()"></div></div><div id="im-pago-resumen" class="fhint"></div><label><input id="im-pago-confirmado" type="checkbox"> Revisé el certificado y confirmo esta distribución; los días restantes quedarán sin pago.</label></div>
     <div class="m-foot"><button class="btn" onclick="openCtrlCasosIMSS()">Cancelar</button><button class="btn dark" onclick="ctrlGuardarCasoIMSS()">Guardar caso</button></div>`,'lg');
   window._CTRLIMSS_INCIDENTE=incidenteId||null;
+}
+function ctrlPreviewPagoCertificadoIMSS(){
+  const c=window._CTRLIMSS_CERT,d=c?.datos?.dias_autorizados||0;
+  const emp=Number($('im-empresa-dias')?.value),imss=Number($('im-imss-dias')?.value);
+  const valido=Number.isInteger(emp)&&Number.isInteger(imss)&&emp>=0&&imss>=0&&emp+imss<=d;
+  if($('im-pago-resumen'))$('im-pago-resumen').textContent=valido?
+    `${emp} empresa · ${imss} IMSS esperado · ${d-emp-imss} sin pago. Podrás ajustar fechas individuales en el calendario.`:
+    `Los días deben ser enteros, no negativos y sumar como máximo ${d}.`;
+}
+async function ctrlLeerCertificadoIMSS(input){
+  const file=input.files?.[0],box=$('im-lectura');window._CTRLIMSS_CERT=null;
+  if($('im-pagadores'))$('im-pagadores').style.display='none';
+  if(!file)return;
+  if(!['image/jpeg','image/png','image/webp','application/pdf'].includes(file.type)||file.size>8388608){toast('Usa JPG, PNG, WebP o PDF de hasta 8 MB.','err');input.value='';return;}
+  if(!confirm('Esta lectura enviará el certificado —incluidos NSS y CURP— a Gemini. ¿Continuar?')){input.value='';return;}
+  if(box)box.innerHTML='<p class="fhint">Leyendo el certificado…</p>';
+  try{
+    const imagen=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||'').split(',')[1]||'');r.onerror=reject;r.readAsDataURL(file);});
+    const j=await iaLlamar('gemini-citt',{obra_id:OBRA.id,mime:file.type,imagen},90000);
+    if(!j.ok||!j.datos)throw new Error(j.error||'Gemini no pudo leer el certificado.');
+    const d=j.datos,limpio=x=>String(x||'').replace(/\W/g,'').toUpperCase();
+    const coincidencias=WORKERS.filter(w=>(d.curp&&limpio(w.curp)===limpio(d.curp))||(d.nss&&limpio(w.nss)===limpio(d.nss)));
+    if(coincidencias.length===1)$('im-w').value=coincidencias[0].id;
+    else $('im-w').value='';
+    $('im-d').value=d.fecha_inicio||'';$('im-h').value=d.fecha_hasta||'';
+    $('im-r').value=d.ramo_certificado||'SIN_CERTIFICADO';$('im-tc').value=d.tipo_certificado||'SIN_CERTIFICADO';
+    $('im-f').value=d.folio_certificado||'';$('im-prt').checked=!!d.probable_riesgo_trabajo;
+    window._CTRLIMSS_CERT={file,datos:d,modelo:j.modelo};
+    const campos=[['Asegurado',d.nombre_asegurado],['NSS',d.nss],['CURP',d.curp],['Folio',d.folio_certificado],['Expedido',d.fecha_expedicion],['Inicio',d.fecha_inicio],['Días autorizados',d.dias_autorizados],['Patrón',d.patron],['Unidad',d.unidad_medica_expedidora],['UMF adscripción',d.umf_adscripcion],['Delegación',d.delegacion_expedidora],['Médico',d.medico],['Matrícula',d.matricula_medico]];
+    if(box)box.innerHTML=`<div style="margin-top:9px;padding:9px;background:var(--amber-bg);border-radius:8px"><b>Lectura para revisar con el original</b> · ${coincidencias.length===1?`Coincide con #${coincidencias[0].no_trab}`:'No hubo coincidencia única por CURP/NSS; selección manual obligatoria.'}<br>${campos.filter(x=>x[1]!==null&&x[1]!==undefined&&x[1]!=='').map(([k,v])=>`<small style="display:inline-block;margin:3px 9px 0 0"><b>${esc(k)}:</b> ${esc(String(v))}</small>`).join('')}${d.advertencias?.length?`<p class="fhint">⚠ ${esc(d.advertencias.join(' · '))}</p>`:''}</div>`;
+    $('im-pagadores').style.display='block';ctrlPreviewPagoCertificadoIMSS();
+  }catch(e){if(box)box.textContent='No se completó la lectura. Puedes registrar los datos manualmente.';toast(e.message||String(e),'err');input.value='';}
+}
+async function ctrlSubirArchivoIMSS(casoId,trabajadorId,file){
+  const ext=({'image/jpeg':'jpg','image/png':'png','image/webp':'webp','application/pdf':'pdf'})[file.type];
+  if(!ext||file.size>8388608)throw new Error('Archivo no permitido o mayor de 8 MB.');
+  const ruta=`${OBRA.id}/${trabajadorId}/${crypto.randomUUID()}.${ext}`;
+  const {error}=await sb.storage.from('incapacidades-imss').upload(ruta,file,{contentType:file.type,upsert:false});
+  if(error)throw error;
+  const {error:upError}=await sb.from(CTRL_TABLAS.casosIMSS).update({certificado_archivo:ruta,certificado_mime:file.type,updated_at:new Date().toISOString()}).eq('id',casoId).eq('obra_id',OBRA.id);
+  if(upError)throw upError;
+  await ctrlAuditar('CASOS_IMSS','ARCHIVAR_CERTIFICADO',{caso_id:casoId,archivo:ruta},'CASO_IMSS',casoId);
+}
+async function ctrlAdjuntarCertificadoIMSS(id){
+  const c=(window._CTRLIMSS||[]).find(x=>x.id===id);if(!c||c.certificado_archivo)return;
+  const input=document.createElement('input');input.type='file';input.accept='image/jpeg,image/png,image/webp,application/pdf';
+  input.onchange=async()=>{const file=input.files?.[0];if(!file)return;
+    if(!confirm('Confirma que este archivo corresponde al certificado del caso seleccionado.'))return;
+    try{markWrite();await ctrlSubirArchivoIMSS(id,c.trabajador_id,file);toast('Certificado archivado.','ok');await openCtrlCasosIMSS();}
+    catch(e){toast('No se pudo archivar: '+(e.message||e),'err');}};
+  input.click();
+}
+async function ctrlVerCertificadoIMSS(id){
+  const c=(window._CTRLIMSS||[]).find(x=>x.id===id);if(!c?.certificado_archivo)return;
+  const {data,error}=await sb.storage.from('incapacidades-imss').createSignedUrl(c.certificado_archivo,60);
+  if(error||!data?.signedUrl){toast('No se pudo abrir el certificado privado.','err');return;}
+  window.open(data.signedUrl,'_blank','noopener,noreferrer');
+}
+function ctrlDetalleDocumentoIMSS(id){
+  const c=(window._CTRLIMSS||[]).find(x=>x.id===id);if(!c?.datos_documento)return;
+  const w=WORKERS.find(x=>x.id===c.trabajador_id);
+  const labels={nombre_asegurado:'Asegurado',nss:'NSS',curp:'CURP',folio_certificado:'Serie y folio',tipo_certificado:'Tipo',ramo_certificado:'Ramo',probable_riesgo_trabajo:'Probable riesgo de trabajo',fecha_inicio:'Inicio',fecha_hasta:'Hasta',dias_autorizados:'Días autorizados',fecha_expedicion:'Expedición',dias_acumulados:'Días acumulados',patron:'Patrón',unidad_medica_expedidora:'Unidad expedidora',umf_adscripcion:'UMF adscripción',delegacion_expedidora:'Delegación expedidora',delegacion_adscripcion:'Delegación adscripción',nivel_atencion:'Nivel de atención',puesto_trabajo:'Puesto',control_maternidad:'Control maternidad',medico:'Médico',matricula_medico:'Matrícula',numero_identificacion:'Identificación',agregado_medico:'Agregado médico',cve_ptal:'Clave postal',consultorio:'Consultorio',turno:'Turno',sexo:'Sexo',fecha_nacimiento:'Fecha nacimiento'};
+  const d=c.datos_documento;
+  modal(ctrlNav(`📋 Certificado IMSS · #${w?.no_trab??'—'}`,'openCtrlCasosIMSS')+`<div class="m-body"><p class="fhint">Datos transcritos por IA y confirmados al guardar. Ante discrepancia, prevalece el certificado original. Subsidio IMSS = esperado, no comprobado.</p>${Object.entries(labels).map(([k,l])=>`<div class="kv"><b>${esc(l)}</b><span>${esc(d[k]===true?'Sí':d[k]===false?'No':d[k]??'—')}</span></div>`).join('')}${d.advertencias?.length?`<p class="fhint">⚠ ${esc(d.advertencias.join(' · '))}</p>`:''}</div><div class="m-foot"><button class="btn" onclick="openCtrlCasosIMSS()">Volver</button>${c.certificado_archivo?`<button class="btn dark" onclick="ctrlVerCertificadoIMSS('${id}')">Abrir original</button>`:''}</div>`,'lg');
 }
 async function ctrlGuardarCasoIMSS(){
   const w=WORKERS.find(x=>x.id===$('im-w').value),d=$('im-d').value,h=$('im-h').value,r=$('im-r').value,tc=$('im-tc').value;
@@ -13877,6 +13958,19 @@ async function ctrlGuardarCasoIMSS(){
   if((!!d)!=(!!h)){toast('Captura ambas fechas del certificado.','err');return;}
   const dias=d&&h?Math.round((Date.parse(h+'T12:00:00Z')-Date.parse(d+'T12:00:00Z'))/86400000)+1:0;
   if(dias<0||dias>365||(!d&&(r!=='SIN_CERTIFICADO'||tc!=='SIN_CERTIFICADO'))){toast('Revisa ramo, tipo y fechas del certificado.','err');return;}
+  const cert=window._CTRLIMSS_CERT;
+  let clasificacion=null;
+  if(cert){
+    const norm=x=>String(x||'').replace(/\W/g,'').toUpperCase(),dato=cert.datos;
+    if((dato.curp&&norm(dato.curp)!==norm(w.curp))||(dato.nss&&norm(dato.nss)!==norm(w.nss))){toast('CURP o NSS del documento no coincide con el trabajador. Revisa el original; no se puede archivar en una ficha distinta.','err');return;}
+    if(d!==dato.fecha_inicio||h!==dato.fecha_hasta||dias!==dato.dias_autorizados){toast('Las fechas/días difieren de la lectura. Corrige el documento o registra manualmente; no se archivará una copia discordante.','err');return;}
+    const patron=norm(dato.patron),empresa=empresaDeObra(OBRA);
+    if((/JIRE/.test(patron)&&empresa!=='JIRE')||(/PLATINUM/.test(patron)&&empresa!=='PLATINUM')){toast('La razón social del certificado no corresponde a este centro de trabajo.','err');return;}
+    const em=Number($('im-empresa-dias').value),im=Number($('im-imss-dias').value);
+    if(!Number.isInteger(em)||!Number.isInteger(im)||em<0||im<0||em+im>dias||!$('im-pago-confirmado').checked){toast('Confirma cuántos días cubre cada parte; el resto quedará sin pago.','err');return;}
+    if(r==='ENFERMEDAD_GENERAL'&&im>0&&im>Math.max(0,dias-3)&&!confirm('En enfermedad general el subsidio IMSS ordinariamente inicia el cuarto día de la incapacidad, sujeto a requisitos. ¿Tienes un soporte específico para clasificar más días como IMSS esperado?'))return;
+    clasificacion={empresa:em,imss:im};
+  }
   const f={obra_id:OBRA.id,trabajador_id:w.id,incidente_id:window._CTRLIMSS_INCIDENTE||null,tipo_caso:$('im-t').value,fecha_evento:$('im-e').value||null,
     ramo_certificado:r,tipo_certificado:tc,probable_riesgo_trabajo:$('im-prt').checked,
     calificacion_rt:$('im-prt').checked?'PENDIENTE':'NO_APLICA',certificado_desde:d||null,certificado_hasta:h||null,
@@ -13884,10 +13978,22 @@ async function ctrlGuardarCasoIMSS(){
     folio_st7:$('im-st').value.trim()||null,referencia_evidencia:$('im-ref').value.trim()||null,
     observaciones_operativas:$('im-nota').value.trim()||null,
     estado:d?$('im-prt').checked?'PENDIENTE_CALIFICACION':'EN_SEGUIMIENTO':'PENDIENTE_CERTIFICADO'};
+  if(cert){f.datos_documento=cert.datos;f.extraccion_modelo=cert.modelo||null;f.extraccion_revisada_en=new Date().toISOString();}
   markWrite();const {data,error}=await sb.from(CTRL_TABLAS.casosIMSS).insert(f).select('id').single();
   if(error){toast(ctrlFaltaScript(error),'err');return;}
   await ctrlAuditar('CASOS_IMSS','REGISTRAR',{trabajador_id:w.id,ramo:r,tipo_certificado:tc,probable_rt:f.probable_riesgo_trabajo},'CASO_IMSS',data.id);
   window._CTRLIMSS_INCIDENTE=null;
+  if(cert){
+    try{await ctrlSubirArchivoIMSS(data.id,w.id,cert.file);}catch(e){toast('Caso guardado, pero falta archivar la imagen: '+(e.message||e)+'. Reintenta desde la lista.','err');await openCtrlCasosIMSS();return;}
+    try{
+      const fechas=ctrlFechasIMSS(d,h),porSemana=new Map();
+      fechas.forEach((fecha,i)=>{const sem=isoWeekDe(OBRA,new Date(fecha+'T12:00:00')),pagador=i<clasificacion.empresa?'EMPRESA':i<clasificacion.empresa+clasificacion.imss?'IMSS':'SIN_PAGO';
+        if(!porSemana.has(sem))porSemana.set(sem,[]);porSemana.get(sem).push({fecha,pagador});});
+      for(const [sem,detalle] of porSemana){const {error:e}=await sb.rpc('control_guardar_semana_imss_detalle',{
+        p_caso_id:data.id,p_semana:sem,p_detalle:detalle,p_nota:'Distribución confirmada al importar certificado; pendiente de comprobar subsidio IMSS.',p_monto:null});if(e)throw e;}
+    }catch(e){toast('Certificado archivado, pero no se guardó la distribución: '+(e.message||e)+'. Complétala en Calendario.','err');await openCtrlCasosIMSS();openCtrlSemanaIMSS(data.id);return;}
+  }
+  window._CTRLIMSS_CERT=null;
   toast('Caso IMSS registrado. Clasifica cada día antes de aplicarlo a nómina.','ok');await openCtrlCasosIMSS();if(d)openCtrlSemanaIMSS(data.id);
 }
 function openCtrlEditarCasoIMSS(id){
