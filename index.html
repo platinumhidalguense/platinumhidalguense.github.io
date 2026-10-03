@@ -1667,7 +1667,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-01.3';
+const APP_VERSION='2026-10-03.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -3555,7 +3555,7 @@ function _siguienteRid(xml){
 /* xlsx-js-style conserva el control de estilos. El logo se integra, a escala
    discreta y respetando su proporción, en el extremo derecho de la franja de
    título. Nunca se coloca sobre los encabezados de columnas ni sobre los datos. */
-async function aplicarMarcaCorporativaXlsx(zip,wb,esAsistencia=!!wb.__asistencia){
+async function aplicarMarcaCorporativaXlsx(zip,wb){
   let ct=await zip.file('[Content_Types].xml').async('string');
   if(!/Extension="png"/i.test(ct))ct=ct.replace('</Types>','<Default Extension="png" ContentType="image/png"/></Types>');
   if(!/Extension="jpeg"/i.test(ct))ct=ct.replace('</Types>','<Default Extension="jpeg" ContentType="image/jpeg"/></Types>');
@@ -3588,13 +3588,9 @@ async function aplicarMarcaCorporativaXlsx(zip,wb,esAsistencia=!!wb.__asistencia
 
     let xml=await sheetFile.async('string');
     if(!/xmlns:r=/.test(xml))xml=xml.replace('<worksheet ','<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ');
-    /* En un libro de asistencia, el número físico sale del orden real de las
-       pestañas, no de una propiedad auxiliar que la librería pudiera omitir. */
-    const numeroHoja=esAsistencia?idx+1:ws.__numeroHojaAsistencia;
-    const pieHoja=Number.isInteger(numeroHoja)
-      ? `&amp;C&amp;&quot;Calibri,Bold&quot;&amp;10HOJA ${numeroHoja}&amp;R&amp;D`
-      : '&amp;R&amp;D';
-    const encabezado=`<headerFooter><oddHeader>&amp;C&amp;&quot;Calibri,Bold&quot;&amp;12${_xmlEsc(razon)}</oddHeader><oddFooter>${pieHoja}</oddFooter></headerFooter>`;
+    /* El número de asistencia vive en una celda al pie de cada pestaña. Excel
+       reinicia algunos campos del pie al cambiar de hoja y repetía HOJA 1. */
+    const encabezado=`<headerFooter><oddHeader>&amp;C&amp;&quot;Calibri,Bold&quot;&amp;12${_xmlEsc(razon)}</oddHeader><oddFooter>&amp;R&amp;D</oddFooter></headerFooter>`;
     if(/<headerFooter[\s>]/.test(xml))xml=xml.replace(/<headerFooter[\s\S]*?<\/headerFooter>/,encabezado);
     else{
       const pos=xml.search(/<(rowBreaks|colBreaks|customProperties|cellWatches|ignoredErrors|smartTags|drawing|legacyDrawing|picture|oleObjects|controls|webPublishItems|tableParts|extLst)[ \/>]/);
@@ -3664,7 +3660,7 @@ async function dl(wb,name){
       xml=configurarPaginaXlsx(xml,esAsistencia);
       zip.file(f,xml);
     }
-    await aplicarMarcaCorporativaXlsx(zip,wb,esAsistencia);
+    await aplicarMarcaCorporativaXlsx(zip,wb);
     const out=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const a=document.createElement('a');a.href=URL.createObjectURL(out);a.download=name;
     document.body.appendChild(a);a.click();a.remove();
@@ -9249,7 +9245,8 @@ const AS={
   wn:{font:{sz:9,name:'Calibri'},fill:{fgColor:{rgb:'EBF3FB'}},border:BORD,alignment:{vertical:'center',wrapText:true}},
   wc:{font:{sz:9,name:'Calibri'},fill:{fgColor:{rgb:'EBF3FB'}},border:BORD,alignment:{horizontal:'center',vertical:'center'}},
   b:{font:{sz:9,name:'Calibri'},border:BORD},
-  f:{font:{bold:true,sz:9,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'1F3864'}},alignment:{horizontal:'center',vertical:'center'}}
+  f:{font:{bold:true,sz:9,color:{rgb:'FFFFFF'},name:'Calibri'},fill:{fgColor:{rgb:'1F3864'}},alignment:{horizontal:'center',vertical:'center'}},
+  pagina:{font:{bold:true,sz:10,color:{rgb:'1F3864'},name:'Calibri'},alignment:{horizontal:'center',vertical:'center'}}
 };
 /* Ancho de una columna a la medida de su contenido, en unidades de Excel
    (1 unidad ≈ 1 carácter). Se acota entre min y max para que ni se corte ni
@@ -9312,7 +9309,7 @@ function asSheet(grupo,cfg,blanco){
      un mínimo de seis renglones para cuadrillas diminutas, sin estirar una sola
      firma hasta ocupar media hoja. Las hojas normales usan 6 a 11 renglones. */
   const plazas=blanco?10:Math.max(6,grupo.length);
-  const altoFila=Math.round(365/plazas*10)/10;
+  const altoFila=Math.round(347/plazas*10)/10;
   for(let i=0;i<plazas;i++){
     const w=grupo[i];
     if(w&&!blanco)rows.push(mrow([w.no_trab??'',fullName(w),w.nss||'']));
@@ -9320,6 +9317,7 @@ function asSheet(grupo,cfg,blanco){
     styles.push(w&&!blanco?wSt:bSt); hs.push({hpt:altoFila});
   }
   rows.push(mrow([blanco?'TOTAL DE TRABAJADORES: ______':'TOTAL DE TRABAJADORES: '+grupo.length])); styles.push(AS.f); hs.push({hpt:15});
+  rows.push(mrow([Number.isInteger(cfg.hoja)?`HOJA ${cfg.hoja}`:''])); styles.push(AS.pagina); hs.push({hpt:18});
   const last=nc-1;
   /* Cada dato del encabezado ocupa su renglón completo: la etiqueta en A:B y el
      valor de C hasta la última columna. Así la cuadrilla dispone de todo el ancho
@@ -9328,7 +9326,8 @@ function asSheet(grupo,cfg,blanco){
     {s:{r:1,c:0},e:{r:1,c:1}},{s:{r:1,c:2},e:{r:1,c:last}},
     {s:{r:2,c:0},e:{r:2,c:1}},{s:{r:2,c:2},e:{r:2,c:last}},
     {s:{r:3,c:0},e:{r:3,c:1}},{s:{r:3,c:2},e:{r:3,c:last}},
-    {s:{r:7+plazas,c:0},e:{r:7+plazas,c:last}}];
+    {s:{r:7+plazas,c:0},e:{r:7+plazas,c:last}},
+    {s:{r:8+plazas,c:0},e:{r:8+plazas,c:last}}];
   for(let i=0;i<6;i++)merges.push({s:{r:4,c:base+i*2},e:{r:4,c:base+i*2+1}});
   for(let c=0;c<base;c++)merges.push({s:{r:4,c},e:{r:6,c}});
   /* ANCHOS (2026-08-27) · CARTA HORIZONTAL con márgenes de 0.25" = 10.5" útiles.
@@ -9356,7 +9355,6 @@ function asSheet(grupo,cfg,blanco){
   // Margen superior amplio: baja todo el contenido para dejar el espacio en
   // blanco arriba (lado del encabezado) y poder perforar SIN tocar el encabezado.
   ws['!margins']={left:0.25,right:0.25,top:0.95,bottom:0.2,header:0.2,footer:0.1};
-  if(Number.isInteger(cfg.hoja))ws.__numeroHojaAsistencia=cfg.hoja;
   return ws;
 }
 /* Nombre de hoja válido para Excel: 31 caracteres y sin \\ / ? * [ ] : */
