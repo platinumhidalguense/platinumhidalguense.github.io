@@ -3555,7 +3555,7 @@ function _siguienteRid(xml){
 /* xlsx-js-style conserva el control de estilos. El logo se integra, a escala
    discreta y respetando su proporción, en el extremo derecho de la franja de
    título. Nunca se coloca sobre los encabezados de columnas ni sobre los datos. */
-async function aplicarMarcaCorporativaXlsx(zip,wb){
+async function aplicarMarcaCorporativaXlsx(zip,wb,esAsistencia=!!wb.__asistencia){
   let ct=await zip.file('[Content_Types].xml').async('string');
   if(!/Extension="png"/i.test(ct))ct=ct.replace('</Types>','<Default Extension="png" ContentType="image/png"/></Types>');
   if(!/Extension="jpeg"/i.test(ct))ct=ct.replace('</Types>','<Default Extension="jpeg" ContentType="image/jpeg"/></Types>');
@@ -3588,8 +3588,11 @@ async function aplicarMarcaCorporativaXlsx(zip,wb){
 
     let xml=await sheetFile.async('string');
     if(!/xmlns:r=/.test(xml))xml=xml.replace('<worksheet ','<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ');
-    const pieHoja=Number.isInteger(ws.__numeroHojaAsistencia)
-      ? `&amp;C&amp;&quot;Calibri,Bold&quot;&amp;10HOJA ${ws.__numeroHojaAsistencia}&amp;R&amp;D`
+    /* En un libro de asistencia, el número físico sale del orden real de las
+       pestañas, no de una propiedad auxiliar que la librería pudiera omitir. */
+    const numeroHoja=esAsistencia?idx+1:ws.__numeroHojaAsistencia;
+    const pieHoja=Number.isInteger(numeroHoja)
+      ? `&amp;C&amp;&quot;Calibri,Bold&quot;&amp;10HOJA ${numeroHoja}&amp;R&amp;D`
       : '&amp;R&amp;D';
     const encabezado=`<headerFooter><oddHeader>&amp;C&amp;&quot;Calibri,Bold&quot;&amp;12${_xmlEsc(razon)}</oddHeader><oddFooter>${pieHoja}</oddFooter></headerFooter>`;
     if(/<headerFooter[\s>]/.test(xml))xml=xml.replace(/<headerFooter[\s\S]*?<\/headerFooter>/,encabezado);
@@ -3628,32 +3631,40 @@ async function registrarExportacion(wb,name){
   return registrarBitacoraNomina(ids.map(id=>({obra_id:id,tipo_calculo:'EXPORTACION_EXCEL',periodo:name,
     entradas:{archivo:name,hojas:wb.SheetNames},resultado:{empresa:empresaDeObra(OBRAS.find(o=>o.id===id)||OBRA),hojas:wb.SheetNames.length}})));
 }
-/* Descarga con impresión lista: graba ORIENTACIÓN HORIZONTAL + AJUSTAR AL ANCHO
-   en TODAS las hojas del libro (Excel y Google Sheets lo respetan al imprimir). */
+/* Para asistencia, cada pestaña debe ser exactamente una página física: de lo
+   contrario su número fijo se repetiría si Excel la divide en dos. Los demás
+   exportes conservan su escala editable del 100 %. */
+function configurarPaginaXlsx(xml,unaPagina){
+  xml=xml.replace(/<pageSetUpPr[^>]*\/>/g,'');
+  if(unaPagina){
+    const ajuste='<pageSetUpPr fitToPage="1"/>';
+    if(/<sheetPr[^>]*\/>/.test(xml))xml=xml.replace(/<sheetPr([^>]*)\/>/,`<sheetPr$1>${ajuste}</sheetPr>`);
+    else if(/<sheetPr[^>]*>/.test(xml))xml=xml.replace('</sheetPr>',ajuste+'</sheetPr>');
+    else xml=xml.replace(/(<worksheet[^>]*>)/,`$1<sheetPr>${ajuste}</sheetPr>`);
+  }
+  const ps=unaPagina
+    ? '<pageSetup paperSize="1" orientation="landscape" fitToWidth="1" fitToHeight="1"/>'
+    : '<pageSetup paperSize="1" orientation="landscape" scale="100"/>';
+  if(/<pageSetup[ \/>]/.test(xml))return xml.replace(/<pageSetup[^>]*\/>/,ps);
+  if(/<pageMargins[^>]*\/>/.test(xml))return xml.replace(/(<pageMargins[^>]*\/>)/,'$1'+ps);
+  const ins='<pageMargins left="0.25" right="0.25" top="0.3" bottom="0.3" header="0.1" footer="0.1"/>'+ps;
+  const pos=xml.search(/<(headerFooter|rowBreaks|colBreaks|drawing|ignoredErrors|tableParts|extLst)[ \/>]/);
+  return pos>=0?xml.slice(0,pos)+ins+xml.slice(pos):xml.replace('</worksheet>',ins+'</worksheet>');
+}
+/* Descarga con orientación horizontal. */
 async function dl(wb,name){
   try{
     if(!window.JSZip){dlPlain(wb,name);await registrarExportacion(wb,name);toast('Excel generado sin incrustar logo: falta el componente JSZip.','err');return;}
+    const esAsistencia=!!wb.__asistencia;
     const data=XLSX.write(wb,{type:'array',bookType:'xlsx'});
     const zip=await JSZip.loadAsync(data);
     const files=Object.keys(zip.files).filter(f=>/^xl\/worksheets\/sheet\d+\.xml$/.test(f));
     for(const f of files){
       let xml=await zip.file(f).async('string');
-      // Escala EDITABLE: quitamos fitToPage (bloqueaba "Ajustar al %" en Excel) y
-      // usamos modo "Ajustar a N% del tamaño normal" (scale). Así el usuario puede
-      // cambiar la escala de impresión. Orientación horizontal por default.
-      xml=xml.replace(/<pageSetUpPr[^>]*\/>/g,'');
-      const ps='<pageSetup paperSize="1" orientation="landscape" scale="100"/>';
-      if(/<pageSetup[ \/>]/.test(xml))xml=xml.replace(/<pageSetup[^>]*\/>/,ps);
-      else if(/<pageMargins[^>]*\/>/.test(xml))xml=xml.replace(/(<pageMargins[^>]*\/>)/,'$1'+ps);
-      else{
-        const ins='<pageMargins left="0.25" right="0.25" top="0.3" bottom="0.3" header="0.1" footer="0.1"/>'+ps;
-        const pos=xml.search(/<(headerFooter|rowBreaks|colBreaks|drawing|ignoredErrors|tableParts|extLst)[ \/>]/);
-        if(pos>=0)xml=xml.slice(0,pos)+ins+xml.slice(pos);
-        else xml=xml.replace('</worksheet>',ins+'</worksheet>');
-      }
+      xml=configurarPaginaXlsx(xml,esAsistencia);
       zip.file(f,xml);
     }
-    await aplicarMarcaCorporativaXlsx(zip,wb);
+    await aplicarMarcaCorporativaXlsx(zip,wb,esAsistencia);
     const out=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const a=document.createElement('a');a.href=URL.createObjectURL(out);a.download=name;
     document.body.appendChild(a);a.click();a.remove();
@@ -9368,6 +9379,7 @@ function exportAsistencia(){
     periodo:`${rangoTexto(d1,d2)}   |   SEMANA ${sem}`, d1,
     h1:$('as-h1').value||'8:00', h2:$('as-h2').value||'17:00', h3:$('as-h3').value||'9:00', h4:$('as-h4').value||'13:00'};
   const wb=XLSX.utils.book_new(); const usados=new Set();
+  wb.__asistencia=true;
   /* Páginas equilibradas dentro de cada cuadrilla, sin mezclar trabajadores de
      otras cuadrillas; la numeración es la misma que usa el directorio. */
   const paginas=asPaginas(grupos);
