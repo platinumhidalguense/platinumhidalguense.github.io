@@ -76,7 +76,10 @@ as $function$
     v.puesto_historico, v.contratista_historico,
     case when p_fecha = (now() at time zone 'America/Mexico_City')::date
       then v.estado_capturado
-      when ultimo.tipo='BAJA' then 'BAJA'
+      when ultimo.tipo='BAJA' or (
+        ultimo.tipo='REINGRESO' and v.estado_capturado='BAJA'
+        and v.baja_actual<ingreso.fecha
+      ) then 'BAJA'
       when v.estado_capturado='PENDIENTE' then 'PENDIENTE'
       else 'ACTIVO' end,
     case when p_fecha = (now() at time zone 'America/Mexico_City')::date
