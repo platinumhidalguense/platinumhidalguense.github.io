@@ -10828,7 +10828,7 @@ function phFiltrar(){
     ${filas.length?`<div style="overflow:auto;max-height:55vh;border:1px solid var(--line);border-radius:8px"><table class="tbl" style="width:100%;min-width:720px"><thead><tr><th>Nombre completo</th><th>Puesto</th><th>Estatus</th><th>Fecha de alta</th><th>Fecha de baja</th></tr></thead><tbody>
       ${ordenados.map(g=>`<tr><td colspan="5" style="background:var(--hover);font-weight:800;color:var(--txt)">${esc(razonSocialEmpresa(g.empresa))} · ${esc(g.obra?.nombre||'Centro')} · ${esc(g.contratista)} (${g.gente.length})</td></tr>`+
         g.gente.sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9)||a.nombre.localeCompare(b.nombre,'es'))
-          .map(w=>`<tr><td><b>${esc(w.nombre||'—')}</b></td><td>${esc(w.puesto||'—')}</td><td>${esc(w.estatus)}</td><td>${esc(fmtD(w.fecha_alta))}${w.es_reingreso?' <small title="Fecha de reingreso">↻</small>':''}</td><td>${esc(fmtD(w.fecha_baja)||'—')}</td></tr>`).join('')).join('')}
+          .map(w=>`<tr><td><b>${esc(w.nombre||'—')}</b></td><td>${esc(w.puesto||'—')}</td><td>${esc(w.estatus)}</td><td>${esc(fmtD(w.fecha_alta))}${w.es_reingreso?' <small title="Fecha de reingreso">↻</small>':''}</td><td>${w.estatus==='BAJA'&&!w.fecha_baja?'⚠ POR ACLARAR':esc(fmtD(w.fecha_baja)||'—')}</td></tr>`).join('')).join('')}
       </tbody></table></div>`:'<div class="empty">No hay personal con esos filtros en la fecha seleccionada.</div>'}`;
 }
 function phPDFHTML(filas){
@@ -10849,7 +10849,7 @@ function phPDFHTML(filas){
     :codigos.map(c=>`<b>${esc(razonSocialEmpresa(c))}</b>`).join('<br>');
   const cuerpo=gs.map(g=>`<tr class="grupo"><td colspan="5">${esc(razonSocialEmpresa(g.empresa))} · ${esc(g.obra?.nombre||'Centro')} · CONTRATISTA: ${esc(g.contratista)} · ${g.gente.length}</td></tr>`+
     g.gente.sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9)||a.nombre.localeCompare(b.nombre,'es'))
-      .map(w=>`<tr><td class="nombre">${esc(w.nombre||'—')}</td><td>${esc(w.puesto||'—')}</td><td class="estado">${esc(w.estatus)}</td><td class="fecha">${esc(fmtD(w.fecha_alta))}${w.es_reingreso?' ↻':''}</td><td class="fecha">${esc(fmtD(w.fecha_baja)||'—')}</td></tr>`).join('')).join('');
+      .map(w=>`<tr><td class="nombre">${esc(w.nombre||'—')}</td><td>${esc(w.puesto||'—')}</td><td class="estado">${esc(w.estatus)}</td><td class="fecha">${esc(fmtD(w.fecha_alta))}${w.es_reingreso?' ↻':''}</td><td class="fecha">${w.estatus==='BAJA'&&!w.fecha_baja?'POR ACLARAR':esc(fmtD(w.fecha_baja)||'—')}</td></tr>`).join('')).join('');
   return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Personal histórico · ${esc(fmtD(h.fecha))}</title><style>
     @page{size:letter portrait;margin:12mm 11mm 12mm}*{box-sizing:border-box}
     body{margin:0;color:#172033;font-family:Arial,Helvetica,sans-serif;font-size:9pt}
