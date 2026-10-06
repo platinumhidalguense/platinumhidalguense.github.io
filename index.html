@@ -1668,7 +1668,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-05.1';
+const APP_VERSION='2026-10-06.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2510,7 +2510,7 @@ function openDetail(id){
         const fijos=DESC.filter(d=>d.trabajador_id===w.id&&d.recurrente&&d.activo);
         const inc=DESC.filter(d=>d.trabajador_id===w.id&&!d.recurrente&&d.activo).sort((a,b)=>String(b.semana).localeCompare(String(a.semana))).slice(0,8);
         return `<div class="sect">Descuentos <button class="btn" style="float:right;padding:3px 10px;font-size:11.5px;margin-top:-4px" onclick="openDescuento('${w.id}')">＋ Agregar descuento fijo</button></div>
-        ${fijos.length?fijos.map(d=>`<div class="kv"><b>${esc(d.tipo)} (fijo)</b><span>$${money(d.monto)} · ${String(d.tipo).toUpperCase()==='INFONAVIT'?`crédito ${numeroCreditoInfonavit(d)?esc(numeroCreditoInfonavit(d)):'<b style="color:var(--amber)">⚠ número sin cotejar</b>'} · `:''}${esc(d.motivo)||'sin nota'}${exResumen(d)} ${String(d.tipo).toUpperCase()==='INFONAVIT'?`<button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openCreditoNumero('${d.id}')">No. crédito</button>`:''} <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openExcepcion('${d.id}')">⏸/×2 Semana</button> <button class="btn danger" style="padding:2px 8px;font-size:11px;margin-left:8px" onclick="toggleDescuento('${d.id}',false)">Desactivar</button></span></div>`).join(''):'<div class="kv"><b>Fijos</b><span>Sin descuentos fijos activos</span></div>'}
+        ${fijos.length?fijos.map(d=>`<div class="kv"><b>${esc(d.tipo)} (fijo)</b><span>S${isoWeek()}: $${money(retencionEvaluada(d,w,'S'+isoWeek(),perDe(w)).monto)} · ${String(d.tipo).toUpperCase()==='INFONAVIT'?`crédito ${numeroCreditoInfonavit(d)?esc(numeroCreditoInfonavit(d)):'<b style="color:var(--amber)">⚠ número sin cotejar</b>'} · `:''}${esc(d.motivo)||'sin nota'}${exResumen(d)} <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openDescuento('${w.id}','${d.id}')">✏️ Editar</button> <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openAjusteRetencion('${d.id}')">＋ Días/importe</button> ${String(d.tipo).toUpperCase()==='INFONAVIT'?`<button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openCreditoNumero('${d.id}')">No. crédito</button>`:''} <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openExcepcion('${d.id}')">⏸/×2 Semana</button> <button class="btn danger" style="padding:2px 8px;font-size:11px;margin-left:8px" onclick="toggleDescuento('${d.id}',false)">Desactivar</button></span></div>`).join(''):'<div class="kv"><b>Fijos</b><span>Sin descuentos fijos activos</span></div>'}
         ${inc.length?inc.map(d=>`<div class="kv"><b>${esc(d.semana)} · ${esc(d.tipo)}</b><span>$${money(d.monto)} · ${esc(d.motivo)||''} <button class="btn danger" style="padding:2px 8px;font-size:11px;margin-left:8px" onclick="toggleDescuento('${d.id}',false)">Quitar</button></span></div>`).join(''):''}`;
       })()}
       ${(function(){
@@ -3781,13 +3781,38 @@ function perDe(w,dias){
   const d=Math.max(1,Math.round(Number(dias)||p.dias));
   return {...p,dias:d,fFalta:p.dias/p.lab};
 }
-/* Lleva un monto capturado en una periodicidad a los días que se pagan.
-   Es proporcional a los días a propósito: la cuota del INFONAVIT sale de
-   (cuota bimestral ÷ días del bimestre) × días del periodo, así que
-   pasar de 7 a 15 días multiplicando por 15/7 da EXACTAMENTE la misma
-   cifra que recalcular la fórmula del SUA desde cero. Lo mismo vale para
-   FONACOT y para un préstamo pactado por día. */
-function montoDescuento(d,P){
+/* FONACOT no usa la fórmula bimestral ni el seguro de daños INFONAVIT.
+   La cédula mensual manda; el prorrateo por calendario es una modalidad
+   explícita, no una regla legal universal. */
+function retFecha(iso){return new Date(String(iso).slice(0,10)+'T12:00:00Z');}
+function retISO(fecha){return fecha.toISOString().slice(0,10);}
+function retSumarDias(iso,dias){const f=retFecha(iso);f.setUTCDate(f.getUTCDate()+dias);return retISO(f);}
+function rangoRetencion(w,semStr){
+  const n=parseInt(String(semStr||'').replace(/\D/g,''))||isoWeek();
+  const [ini,fin]=semRange(n);
+  if(periodoPago(w)!=='QUINCENAL')return [ini,fin];
+  const f=retFecha(fin),a=f.getUTCFullYear(),m=f.getUTCMonth(),dia=f.getUTCDate();
+  return dia<=15?[`${a}-${String(m+1).padStart(2,'0')}-01`,`${a}-${String(m+1).padStart(2,'0')}-15`]
+    :[`${a}-${String(m+1).padStart(2,'0')}-16`,retISO(new Date(Date.UTC(a,m+1,0,12)))];
+}
+function cuotaFonacotCalendario(mensual,desde,hasta){
+  if(!(Number(mensual)>0)||!/^\d{4}-\d\d-\d\d$/.test(String(desde))||!/^\d{4}-\d\d-\d\d$/.test(String(hasta))||desde>hasta)return 0;
+  let bruto=0, fecha=desde, n=0;
+  while(fecha<=hasta&&n++<62){
+    const f=retFecha(fecha), diasMes=new Date(Date.UTC(f.getUTCFullYear(),f.getUTCMonth()+1,0,12)).getUTCDate();
+    bruto+=Number(mensual)/diasMes;
+    fecha=retSumarDias(fecha,1);
+  }
+  return redondearCentavos(bruto);
+}
+/* Convierte un importe periódico capturado, salvo FONACOT calendario, que
+   toma las fechas efectivas y el número real de días de cada mes. */
+function montoDescuento(d,P,semStr,w){
+  if(semStr&&w&&String(d?.tipo||'').toUpperCase()==='FONACOT'&&d.fonacot_prorrateo==='DIAS_CALENDARIO'&&Number(d.cuota_mensual)>0){
+    const [ini,fin]=rangoRetencion(w,semStr);
+    if(!d.fonacot_prorrateo_desde||fin>=d.fonacot_prorrateo_desde)
+      return cuotaFonacotCalendario(d.cuota_mensual,ini,fin);
+  }
   const base=PERIODOS[String((d&&d.periodicidad)||'SEMANAL').toUpperCase()]||PERIODOS.SEMANAL;
   const m=Number(d&&d.monto)||0;
   if(base.dias===P.dias)return Math.round(m*100)/100;
@@ -3795,12 +3820,55 @@ function montoDescuento(d,P){
 }
 
 function montoDobleDescuento(d,w,P,semStr){
-  const normal=montoDescuento(d,P);
+  const normal=montoDescuento(d,P,semStr,w);
   if(String(d&&d.tipo||'').toUpperCase()==='INFONAVIT'){
     const exacto=retencionInfonavitDesdeAviso(d,w,P.dias*2,fechaFinSemanaISO(semStr));
     if(exacto!=null)return exacto;
   }
   return redondearCentavos(normal*2);
+}
+function retencionDiasExtra(d,w,desde,dias){
+  if(!desde||!(dias>0))return 0;
+  const hasta=retSumarDias(desde,dias-1),tipo=String(d.tipo||'').toUpperCase();
+  if(tipo==='FONACOT'&&Number(d.cuota_mensual)>0)return cuotaFonacotCalendario(d.cuota_mensual,desde,hasta);
+  if(tipo==='INFONAVIT'&&Number(d.factor)>0){
+    let suma=0,fecha=desde,restantes=dias;
+    while(restantes>0){
+      const f=retFecha(fecha),ultimoMes=f.getUTCMonth()-(f.getUTCMonth()%2)+2;
+      const fin=retISO(new Date(Date.UTC(f.getUTCFullYear(),ultimoMes,0,12)));
+      let tramo=0;while(tramo<restantes&&retSumarDias(fecha,tramo)<=fin)tramo++;
+      suma+=retencionInfonavitDesdeAviso(d,w,tramo,retFecha(fecha))||0;
+      fecha=retSumarDias(fecha,tramo);restantes-=tramo;
+    }
+    return redondearCentavos(suma);
+  }
+  const base=PERIODOS[String(d.periodicidad||'SEMANAL').toUpperCase()]||PERIODOS.SEMANAL;
+  return redondearCentavos((Number(d.monto)||0)/base.dias*dias);
+}
+function retencionEvaluada(d,w,semStr,P){
+  let base=montoDescuento(d,P,semStr,w),estado='NORMAL';
+  const ex=(d.excepciones||{})[semStr];
+  if(ex==='SUSPENDER'){base=0;estado='PAUSADO';}
+  else if(ex==='DOBLE'){base=montoDobleDescuento(d,w,P,semStr);estado='DOBLE';}
+  const aj=(d.ajustes_semana||{})[semStr]||{};
+  if(aj.importe_base!=null&&aj.importe_base!==''){
+    base=redondearCentavos(Number(aj.importe_base)||0);estado='AJUSTADO';
+  }
+  const extra=aj.dias_extra_desde&&Number(aj.dias_extra)>0
+    ?retencionDiasExtra(d,w,aj.dias_extra_desde,Number(aj.dias_extra)):0;
+  return {monto:redondearCentavos(base+extra),base,extra,estado,aj};
+}
+function limiteFonacotPeriodo(w,semStr){
+  const [inicio,fin]=rangoRetencion(w,semStr);
+  const dias=Math.round((retFecha(fin)-retFecha(inicio))/86400000)+1;
+  const sd=Number(w.sd)||0;
+  if(!(sd>0))return null;
+  const tope=sd<=(Number(FISC().sm)||0)+.005?.10:.20;
+  return {monto:redondearCentavos(sd*dias*tope),porcentaje:tope*100,salario:sd*dias};
+}
+function otrosFonacotPeriodo(w,semStr,excluirId){
+  return DESC.filter(x=>x.activo&&x.recurrente&&x.tipo==='FONACOT'&&x.trabajador_id===w.id&&x.id!==excluirId)
+    .reduce((s,x)=>s+retencionEvaluada(x,w,semStr,perDe(w)).monto,0);
 }
 
 /* ---------- DESCUENTOS ---------- */
@@ -3812,27 +3880,29 @@ function descuentosDe(w,semStr,opts){
     // Solo el descuento FIJO se lleva al periodo: es una cuota por tiempo.
     // La incidencia ya se capturó como un monto de ESA semana/quincena, con
     // el motor del periodo correcto — volver a prorratearla la duplicaría.
-    let m=d.recurrente?montoDescuento(d,P):(Number(d.monto)||0), tag='';
+    let m=d.recurrente?montoDescuento(d,P,semStr,w):(Number(d.monto)||0), tag='';
     if(d.recurrente){
-      const ex=(d.excepciones||{})[semStr];
-      if(ex==='SUSPENDER'){m=0;tag=' (SUSPENDIDO '+semStr+')';}
-      else if(ex==='DOBLE'){m=montoDobleDescuento(d,w,P,semStr);tag=' (DOBLE '+semStr+')';}
+      const ev=retencionEvaluada(d,w,semStr,P);m=ev.monto;
+      if(ev.estado!=='NORMAL'||ev.extra)tag=` (${ev.estado} ${semStr}${ev.extra?`, ${ev.aj.dias_extra} día(s) adicionales $${money(ev.extra)}`:''})`;
     }
     total+=m;
     parts.push(d.tipo+(d.motivo&&d.motivo!==d.tipo?': '+d.motivo:'')+tag);
   });
   return {total:Math.round(total*100)/100,motivo:parts.join(' | '),ds,periodo:P.cve,dias:P.dias};
 }
-function openDescuento(trabId){
+function openDescuento(trabId,id){
   const w=WORKERS.find(x=>x.id===trabId); if(!w)return;
+  const anterior=id?DESC.find(x=>x.id===id&&x.trabajador_id===trabId&&x.obra_id===w.obra_id&&x.recurrente):null;
+  if(id&&!anterior){toast('No se encontró esa retención.','err');return;}
+  window._DSEDITID=anterior?.id||null;
   const P=perDe(w); window._DSPER=P; window._DSW=w;
   modal(`
-    <div class="m-head"><h2>＋ Descuento fijo · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-head"><h2>${anterior?'✏️ Editar':'＋ Nueva'} retención · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <p style="color:var(--mut);margin-bottom:14px">Se descuenta <b>en cada nómina</b> hasta que lo desactives (créditos Infonavit, Fonacot, préstamos). Con el botón <b>⏸/×2 Semana</b> de la ficha puedes suspender la retención una semana o retener doble para compensar. Las faltas se capturan con el botón 📉 Incidencias.</p>
       <div class="fhint" style="margin-bottom:10px">Este trabajador cobra <b>${P.etiqueta}</b> (${P.dias} días), así que el monto se captura <b>por ${P.unidad.toLowerCase()}</b>. Si más adelante cambia de periodo, la retención se ajusta sola.</div>
       <div class="grid" style="grid-template-columns:1fr 1fr">
-        <div><label>Tipo</label><select id="ds-tipo" onchange="dsModalidad()"><option>INFONAVIT</option><option>FONACOT</option><option>PRESTAMO</option><option>OTRO</option></select></div>
+        <div><label>Tipo</label><select id="ds-tipo" onchange="dsModalidad()" ${anterior?'disabled':''}><option>INFONAVIT</option><option>FONACOT</option><option>PRESTAMO</option><option>OTRO</option></select></div>
         <div id="ds-mod-wrap"><label>Modalidad del aviso</label>
           <select id="ds-mod" onchange="dsModalidad()">
             <option value="CUOTA_FIJA">CUOTA FIJA (pesos al mes)</option>
@@ -3840,26 +3910,38 @@ function openDescuento(trabId){
             <option value="PORCENTAJE">PORCENTAJE del salario</option>
           </select></div>
       </div>
+      <div id="ds-fonacot-wrap" style="margin-top:10px;display:none"><label>Cómo distribuir la cuota FONACOT</label><select id="ds-fonacot-metodo" onchange="dsCalc()"><option value="DIAS_CALENDARIO">Días calendario reales de cada mes (30/31/28/29)</option><option value="IMPORTE_CAPTURADO">Importe fijo capturado por periodo, como NOI</option></select><label style="margin-top:8px">Vigente desde (no recalcula periodos anteriores)</label><input id="ds-fonacot-desde" type="date" value="${today()}"></div>
       <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:10px">
         <div><label id="ds-lbl-factor">Cuota MENSUAL del aviso ($)</label><input id="ds-mensual" type="number" step="0.0001" min="0" oninput="dsCalc()"></div>
         <div><label>Monto por ${P.unidad} ($) *</label><input id="ds-monto" type="number" step="0.01" min="0"></div>
       </div>
-      <div class="fhint" id="ds-hint" style="margin-top:6px">Si capturas la cuota mensual del aviso, la de la ${P.unidad.toLowerCase()} se calcula sola: (mensual×2 + seguro) ÷ días del bimestre × ${P.dias} (fórmula SUA). Valida la primera retención contra la cédula del SUA.</div>
-      <div class="fhint" style="margin-top:6px;color:var(--navy)">🏠 <b>La modalidad y el factor son lo que hace posible el recálculo automático</b> de cada bimestre. Cópialos tal cual del aviso de retención del INFONAVIT.</div>
+      <div class="fhint" id="ds-hint" style="margin-top:6px">La cuota se calcula de acuerdo con el tipo de crédito y el periodo.</div>
+      <div class="fhint" id="ds-inf-hint" style="margin-top:6px;color:var(--navy)">🏠 <b>Modalidad y factor INFONAVIT:</b> cópialos del aviso para permitir el recálculo bimestral.</div>
       <div id="ds-credito-wrap" style="margin-top:12px"><label>No. de crédito INFONAVIT (10 dígitos) *</label><input id="ds-credito" inputmode="numeric" maxlength="10" placeholder="Según aviso de retención"></div>
       <div style="margin-top:10px"><label>Nota del aviso / observaciones</label><input id="ds-motivo" placeholder="Referencia del aviso o comentarios"></div>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn dark" onclick="saveDescuento('${trabId}')">💾 Guardar descuento</button>
+      <button class="btn dark" onclick="saveDescuento('${trabId}')">💾 ${anterior?'Actualizar':'Guardar'} retención</button>
     </div>`,'md');
+  if(anterior){
+    $('ds-tipo').value=anterior.tipo;
+    $('ds-mod').value=anterior.modalidad||'CUOTA_FIJA';
+    $('ds-mensual').value=anterior.factor??anterior.cuota_mensual??'';
+    $('ds-fonacot-metodo').value=anterior.fonacot_prorrateo||'IMPORTE_CAPTURADO';
+    $('ds-fonacot-desde').value=anterior.fonacot_prorrateo_desde||today();
+    $('ds-credito').value=anterior.numero_credito||'';
+    $('ds-motivo').value=anterior.motivo||'';
+  }
   dsModalidad();
+  if(anterior)$('ds-monto').value=anterior.monto;
 }
 async function saveDescuento(trabId){
   const w=WORKERS.find(x=>x.id===trabId);
   const monto=parseFloat($('ds-monto').value);
   const factor=parseFloat($('ds-mensual').value);
   const tipo=$('ds-tipo').value;
+  const editarId=window._DSEDITID;
   const mod=tipo==='INFONAVIT'?(($('ds-mod')||{}).value||'CUOTA_FIJA'):'CUOTA_FIJA';
   const numeroCredito=tipo==='INFONAVIT'?$('ds-credito').value.trim():'';
   if(tipo==='INFONAVIT'&&!/^\d{10}$/.test(numeroCredito)){
@@ -3875,20 +3957,38 @@ async function saveDescuento(trabId){
      · la MODALIDAD y el FACTOR (Script 63): son lo que le permite al cron
        bimestral recalcular esta retención sola. Sin ellos, el crédito se
        queda congelado en la cifra del bimestre en que se capturó. */
-  const fila={trabajador_id:trabId,obra_id:w.obra_id,tipo,numero_credito:numeroCredito||null,
-    motivo:$('ds-motivo').value.trim().toUpperCase(),monto,recurrente:true,creado_por:USER.email,
+   const fila={trabajador_id:trabId,obra_id:w.obra_id,tipo,numero_credito:numeroCredito||null,
+     motivo:$('ds-motivo').value.trim().toUpperCase(),monto,recurrente:true,actualizado_por:USER.email,
     periodicidad:periodoPago(w),cuota_mensual:(mensual>0?Math.round(mensual*100)/100:null),
     modalidad:mod,factor:(factor>0?factor:null),
-    recalculo_auto:(tipo==='INFONAVIT'&&factor>0)};
-  let {error}=await sb.from('descuentos').insert(fila);
+     recalculo_auto:(tipo==='INFONAVIT'&&factor>0),
+     fonacot_prorrateo:tipo==='FONACOT' ? $('ds-fonacot-metodo').value : 'IMPORTE_CAPTURADO',
+     fonacot_prorrateo_desde:tipo==='FONACOT'&&$('ds-fonacot-metodo').value==='DIAS_CALENDARIO' ? $('ds-fonacot-desde').value : null};
+  if(tipo==='FONACOT'&&fila.fonacot_prorrateo==='DIAS_CALENDARIO'&&!(mensual>0)){
+    toast('Para prorratear FONACOT captura la cuota mensual de la cédula.','err');return;
+  }
+  if(tipo==='FONACOT'&&fila.fonacot_prorrateo==='DIAS_CALENDARIO'&&!/^\d{4}-\d\d-\d\d$/.test(fila.fonacot_prorrateo_desde||'')){
+    toast('Indica la fecha de inicio del prorrateo FONACOT.','err');return;
+  }
+  if(tipo==='FONACOT'){
+    const sem='S'+isoWeek(),tope=limiteFonacotPeriodo(w,sem);
+    const previsto=montoDescuento(fila,perDe(w),sem,w);
+    if(tope&&previsto+otrosFonacotPeriodo(w,sem,editarId)>tope.monto+.005){
+      toast(`FONACOT excedería el límite conjunto del ${tope.porcentaje}% del salario de este periodo ($${money(tope.monto)}). Revisa cédula/NOI.`, 'err');return;
+    }
+  }
+  if(!editarId)fila.creado_por=USER.email;
+  let {error}=editarId
+    ?await sb.from('descuentos').update(fila).eq('id',editarId).eq('trabajador_id',trabId).eq('obra_id',w.obra_id)
+    :await sb.from('descuentos').insert(fila);
   if(error&&/modalidad|factor|recalculo_auto/i.test(error.message||'')&&/column|does not exist|schema cache|could not find/i.test(error.message||'')){
     // sin el Script 63 se guarda igual, pero este crédito no se recalculará solo
     const f2={...fila}; delete f2.modalidad; delete f2.factor; delete f2.recalculo_auto;
-    ({error}=await sb.from('descuentos').insert(f2));
+    if(!editarId)({error}=await sb.from('descuentos').insert(f2));
     if(!error)toast('Guardado, pero SIN recálculo automático: falta correr el Script 63 en Supabase.','err');
   }
   if(error){toast('Error: '+error.message,'err');return;}
-  closeModal();toast('Descuento fijo registrado: se aplicará en cada proyección.','ok');
+  closeModal();toast(editarId?'Retención actualizada y auditada.':'Retención registrada: se aplicará en cada proyección.','ok');
   await loadObraData(OBRA.id);
 }
 function openCreditoNumero(id){
@@ -4045,14 +4145,12 @@ function retFilasDe(semStr){
     if(!w||!asVigenteSemana(w,d1,d2)||sinServicio.has(w.id))return;
     // el monto se lleva al periodo del trabajador: el mismo crédito retiene
     // el doble en una quincena de oficina que en una semana de obra.
-    const P=perDe(w), mp=montoDescuento(d,P);
+    const P=perDe(w);
     if(d.recurrente){
       // el fijo cuenta desde la semana en que se capturó (si el registro trae fecha)
       if(d.created_at){const wc=isoWeek(new Date(d.created_at)); if(semN<wc)return;}
-      const ex=(d.excepciones||{})[semStr];
-      const estado=ex==='SUSPENDER'?'PAUSADO':ex==='DOBLE'?'DOBLE':'NORMAL';
-      const monto=ex==='SUSPENDER'?0:ex==='DOBLE'?montoDobleDescuento(d,w,P,semStr):mp;
-      filas.push({w,d,origen:'FIJO',estado,monto,periodo:P.cve});
+      const ev=retencionEvaluada(d,w,semStr,P);
+      filas.push({w,d,origen:'FIJO',estado:ev.estado,monto:ev.monto,extra:ev.extra,periodo:P.cve});
     }else if(d.semana===semStr){
       // una incidencia (faltas de ESA semana/quincena) ya viene calculada
       // con el motor del periodo correcto: no se vuelve a prorratear.
@@ -4109,7 +4207,8 @@ function renderCalRet(){
   const tTot=act.reduce((s,f)=>s+f.monto,0);
   const nFij=act.filter(f=>f.origen==='FIJO').length, nPau=act.filter(f=>f.estado==='PAUSADO').length,
         nDob=act.filter(f=>f.estado==='DOBLE').length, nInc=act.filter(f=>f.origen==='INCIDENCIA').length;
-  const tag=e=>e==='PAUSADO'?'<span style="background:var(--amber-bg);color:var(--amber);border-radius:10px;padding:1px 8px;font-size:10.5px;font-weight:700">⏸ PAUSADO</span>'
+  const tag=e=>e==='AJUSTADO'?'<span style="background:var(--amber-bg);color:var(--amber);border-radius:10px;padding:1px 8px;font-size:10.5px;font-weight:700">✏️ AJUSTADO</span>'
+            :e==='PAUSADO'?'<span style="background:var(--amber-bg);color:var(--amber);border-radius:10px;padding:1px 8px;font-size:10.5px;font-weight:700">⏸ PAUSADO</span>'
            :e==='DOBLE'?'<span style="background:var(--red-bg);color:var(--red);border-radius:10px;padding:1px 8px;font-size:10.5px;font-weight:700">×2 DOBLE</span>'
            :e==='NORMAL'?'<span style="background:var(--green-bg);color:var(--green);border-radius:10px;padding:1px 8px;font-size:10.5px;font-weight:700">NORMAL</span>':'—';
   $('cr-body').innerHTML=`
@@ -4130,8 +4229,8 @@ function renderCalRet(){
       <span>${f.origen==='FIJO'?'🔁 Fijo':'📉 Incidencia'}</span>
       <span>${tag(f.estado)}</span>
       <span style="font-weight:700;${f.monto===0?'color:var(--mut)':''}">$${money(f.monto)}</span>
-      <span style="font-size:11.5px">${esc(f.d.motivo||f.d.tipo)}</span>
-      <span>${f.origen==='FIJO'?`<button class="btn" style="padding:2px 8px;font-size:10.5px" onclick="openExcepcion('${f.d.id}')" title="Pausar o doblar esta retención en una semana">⏸/×2</button>`:''}</span>
+      <span style="font-size:11.5px">${esc(f.d.motivo||f.d.tipo)}${f.extra?` · <b>+${money(f.extra)} por días previos</b>`:''}</span>
+      <span>${f.origen==='FIJO'?`<button class="btn" style="padding:2px 8px;font-size:10.5px" onclick="openAjusteRetencion('${f.d.id}',${semN})">✏️ Ajustar</button>`:''}</span>
     </div>`).join('')}
     </div>`;
 }
@@ -4146,8 +4245,8 @@ function exportCalendarioRet(){
   filas.forEach(f=>{
     if(f.w.estatus==='ACTIVO')t+=f.monto;
     rows.push([f.w.no_trab??'',fullName(f.w),f.w.contratista||'',f.w.estatus,f.d.tipo,f.origen,
-      f.estado==='PAUSADO'?'PAUSADO (no se retiene)':f.estado==='DOBLE'?'DOBLE (compensación)':f.estado==='NORMAL'?'NORMAL':'—',
-      f.monto,f.d.motivo||f.d.tipo]);
+       f.estado==='PAUSADO'?'PAUSADO (no se retiene)':f.estado==='DOBLE'?'DOBLE (compensación)':f.estado==='AJUSTADO'?'AJUSTADO':f.estado==='NORMAL'?'NORMAL':'—',
+       f.monto,(f.d.motivo||f.d.tipo)+(f.extra?` · DÍAS ADICIONALES $${money(f.extra)}`:'')]);
     styles.push([ST.cellC,ST.cell,ST.cell,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.money,ST.cell]);
   });
   rows.push(['TOTAL A RETENER (SOLO ACTIVOS)','','','','','','',t,'']);
@@ -4169,8 +4268,8 @@ function buildRetDetalleWS(act,sem,colB){
   let t=0;
   filas.forEach(f=>{t+=f.monto;
     rows.push([f.w.no_trab??'',fullName(f.w),bVal(f.w),f.d.tipo,f.origen,
-      f.estado==='PAUSADO'?'PAUSADO (no se retiene)':f.estado==='DOBLE'?'DOBLE (compensación)':f.estado==='NORMAL'?'NORMAL':'—',
-      f.monto,f.d.motivo||f.d.tipo]);
+       f.estado==='PAUSADO'?'PAUSADO (no se retiene)':f.estado==='DOBLE'?'DOBLE (compensación)':f.estado==='AJUSTADO'?'AJUSTADO':f.estado==='NORMAL'?'NORMAL':'—',
+       f.monto,(f.d.motivo||f.d.tipo)+(f.extra?` · DÍAS ADICIONALES $${money(f.extra)}`:'')]);
     styles.push([ST.cellC,ST.cell,ST.cell,ST.cellC,ST.cellC,ST.cellC,ST.money,ST.cell]);
   });
   rows.push(['TOTAL RETENCIONES','','','','','',t,'']);
@@ -11301,12 +11400,14 @@ function recalcBadge(){
 /* La modalidad solo aplica al INFONAVIT: para lo demás se esconde y se
    captura el monto directo, como siempre. */
 function dsModalidad(){
-  const esInf=($('ds-tipo')||{}).value==='INFONAVIT';
+  const tipo=($('ds-tipo')||{}).value,esInf=tipo==='INFONAVIT',esFon=tipo==='FONACOT';
   const wrap=$('ds-mod-wrap'); if(wrap)wrap.style.display=esInf?'':'none';
   const creditoWrap=$('ds-credito-wrap');if(creditoWrap)creditoWrap.style.display=esInf?'':'none';
+  const fonWrap=$('ds-fonacot-wrap');if(fonWrap)fonWrap.style.display=esFon?'':'none';
+  const infHint=$('ds-inf-hint');if(infHint)infHint.style.display=esInf?'':'none';
   const mod=esInf?(($('ds-mod')||{}).value||'CUOTA_FIJA'):'CUOTA_FIJA';
   const lbl=$('ds-lbl-factor');
-  if(lbl)lbl.textContent=!esInf?'Cuota MENSUAL ($)'
+  if(lbl)lbl.textContent=esFon?'Cuota mensual de la cédula FONACOT ($)':!esInf?'Cuota mensual pactada, opcional ($)'
     :mod==='VSM_UMI'?'Factor: veces la UMI'
     :mod==='PORCENTAJE'?'Factor: % del salario'
     :'Cuota MENSUAL del aviso ($)';
@@ -11324,13 +11425,32 @@ function dsMensualEquivalente(mod,factor,w){
 function dsCalc(){
   const P=window._DSPER||PERIODOS.SEMANAL;
   const w=window._DSW||null;
-  const esInf=($('ds-tipo')||{}).value==='INFONAVIT';
+  const tipo=($('ds-tipo')||{}).value,esInf=tipo==='INFONAVIT',esFon=tipo==='FONACOT';
   const mod=esInf?(($('ds-mod')||{}).value||'CUOTA_FIJA'):'CUOTA_FIJA';
   const factor=parseFloat($('ds-mensual').value);
-  if(!(factor>0))return;
+  if(!(factor>0)){
+    $('ds-hint').textContent=esFon?'Captura la cuota mensual de la cédula FONACOT o cambia a importe fijo capturado.':esInf?'Captura el factor del aviso INFONAVIT.':'Puedes capturar directamente el monto por periodo.';
+    return;
+  }
   const men=dsMensualEquivalente(mod,factor,w);
   if(!(men>0)){
     if(mod==='PORCENTAJE')$('ds-hint').innerHTML='<b>Falta el SDI del trabajador</b> para poder calcular un crédito por porcentaje. Captúraselo en su ficha.';
+    return;
+  }
+  if(esFon){
+    const calendario=$('ds-fonacot-metodo').value==='DIAS_CALENDARIO';
+    const [desde,hasta]=rangoRetencion(w,'S'+isoWeek());
+    const c=calendario?cuotaFonacotCalendario(men,desde,hasta):redondearCentavos(men/(P.cve==='QUINCENAL'?2:30/P.dias));
+    $('ds-monto').value=c.toFixed(2);
+    $('ds-hint').innerHTML=calendario
+      ?`<b>Estimación para ${esc(desde)}–${esc(hasta)}: $${money(c)}</b>. En cada proyección se suma cuota mensual ÷ días reales del mes para cada fecha (sin seguro INFONAVIT). Coteja el total mensual con la cédula FONACOT y NOI.`
+      :`<b>Importe fijo de referencia: $${money(c)}</b>. Puedes editarlo para que coincida con NOI; no variará automáticamente entre meses.`;
+    return;
+  }
+  if(!esInf){
+    const c=redondearCentavos(men/(P.cve==='QUINCENAL'?2:30/P.dias));
+    $('ds-monto').value=c.toFixed(2);
+    $('ds-hint').textContent='Estimación orientativa desde la cuota mensual. Para préstamos u otros conceptos, captura el importe pactado por periodo y verifica la autorización del trabajador.';
     return;
   }
   const c=mod==='PORCENTAJE'
@@ -11548,6 +11668,84 @@ async function doPendiente(id){
 
 /* ---------- v11: EXCEPCIONES DE DESCUENTO POR SEMANA (suspender / doble) ---------- */
 function exResumen(d){const ex=d.excepciones||{};const ks=Object.keys(ex);return ks.length?' · '+ks.map(k=>k+(ex[k]==='DOBLE'?' ×2':' ⏸')).join(' '):'';}
+function openAjusteRetencion(id,semN){
+  const d=DESC.find(x=>x.id===id&&x.obra_id===OBRA.id&&x.recurrente);
+  if(!d)return;
+  const w=WORKERS.find(x=>x.id===d.trabajador_id);if(!w)return;
+  const sem='S'+(semN||isoWeek()),aj=(d.ajustes_semana||{})[sem]||{};
+  const [inicio]=rangoRetencion(w,sem);
+  modal(`<div class="m-head"><h2>🧮 Ajuste de retención · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">
+      <p class="fhint">${esc(d.tipo)} · Cuota de referencia $${money(d.monto)}. El cambio sólo aplica a la semana elegida; la cuota base y el historial permanecen intactos. Los días extra se valoran con el mes/bimestre de su <b>fecha de origen</b>, no con el mes de pago.</p>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+        <div><label>Semana de descuento</label><input id="ar-sem" type="number" min="1" max="53" value="${String(sem).slice(1)}" oninput="arCambiarSemana('${id}')"></div>
+        <div><label>Importe base de esta semana ($) — opcional</label><input id="ar-base" type="number" min="0" step="0.01" placeholder="Usar cálculo automático" value="${aj.importe_base??''}" oninput="arVistaPrevia('${id}')"></div>
+        <div><label>Primer día adicional de periodo anterior</label><input id="ar-desde" type="date" max="${inicio}" value="${aj.dias_extra_desde||''}" oninput="arVistaPrevia('${id}')"></div>
+        <div><label>Número de días adicionales</label><input id="ar-dias" type="number" min="0" max="31" step="1" value="${aj.dias_extra||0}" oninput="arVistaPrevia('${id}')"></div>
+      </div>
+      <div style="margin-top:10px"><label>Motivo y respaldo del ajuste *</label><input id="ar-motivo" maxlength="300" value="${esc(aj.motivo||'')}" placeholder="Ej. 4 días pendientes del 01 al 04/oct según cédula y NOI"></div>
+      <div id="ar-preview" class="fhint" style="margin-top:12px"></div>
+      <p style="font-size:11.5px;color:var(--mut);margin-top:10px">FONACOT: cotejar cédula y límite de la LFT. INFONAVIT: conservar aviso y verificar retención/seguro del bimestre. No cambia nóminas ya timbradas ni comprobantes emitidos.</p>
+    </div><div class="m-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn dark" onclick="saveAjusteRetencion('${id}')">💾 Guardar ajuste</button></div>`,'md');
+  arVistaPrevia(id);
+}
+function arCambiarSemana(id){
+  const d=DESC.find(x=>x.id===id),w=d&&WORKERS.find(x=>x.id===d.trabajador_id);
+  if(!w)return;
+  const sem='S'+(parseInt($('ar-sem').value)||isoWeek()),aj=(d.ajustes_semana||{})[sem]||{};
+  $('ar-base').value=aj.importe_base??'';$('ar-desde').value=aj.dias_extra_desde||'';
+  $('ar-dias').value=aj.dias_extra||0;$('ar-motivo').value=aj.motivo||'';
+  $('ar-desde').max=rangoRetencion(w,sem)[0];arVistaPrevia(id);
+}
+function arVistaPrevia(id){
+  const d=DESC.find(x=>x.id===id),w=d&&WORKERS.find(x=>x.id===d.trabajador_id),out=$('ar-preview');
+  if(!w||!out)return;
+  const sem='S'+(parseInt($('ar-sem').value)||isoWeek()),P=perDe(w);
+  const base=$('ar-base').value!==''?Number($('ar-base').value):retencionEvaluada(d,w,sem,P).base;
+  const desde=$('ar-desde').value,dias=Number($('ar-dias').value)||0;
+  const extra=desde&&dias>0?retencionDiasExtra(d,w,desde,dias):0;
+  const tope=d.tipo==='FONACOT'?limiteFonacotPeriodo(w,sem):null;
+  out.innerHTML=`<b>Semana ${esc(sem)}:</b> $${money(base)} base + $${money(extra)} ${dias>0?'('+dias+' día(s) '+esc(desde)+' a '+esc(retSumarDias(desde,dias-1))+')':''} = <b>$${money(base+extra)}</b>.${tope?` Tope FONACOT ${tope.porcentaje}%: $${money(tope.monto)}${base+extra>tope.monto+.005?' <b style="color:var(--red)">— EXCEDIDO</b>':''}.`:''}`;
+}
+async function saveAjusteRetencion(id){
+  const d=DESC.find(x=>x.id===id&&x.obra_id===OBRA.id&&x.recurrente),w=d&&WORKERS.find(x=>x.id===d.trabajador_id);
+  if(!w)return;
+  const num=parseInt($('ar-sem').value),sem='S'+num,baseTxt=$('ar-base').value.trim();
+  const desde=$('ar-desde').value,dias=Number($('ar-dias').value),motivo=$('ar-motivo').value.trim();
+  if(!(num>=1&&num<=53)||!Number.isInteger(dias)||dias<0||dias>31||baseTxt!==''&&(!Number.isFinite(Number(baseTxt))||Number(baseTxt)<0)){
+    toast('Revisa semana, importe y días (0 a 31).','err');return;
+  }
+  if((dias>0&&!desde)||(desde&&dias===0)){toast('Captura fecha y número de días juntos.','err');return;}
+  if(dias>0){
+    const [inicio]=rangoRetencion(w,sem);
+    if(!/^\d{4}-\d\d-\d\d$/.test(desde)||!Number.isFinite(retFecha(desde).getTime())||retISO(retFecha(desde))!==desde){toast('La fecha de los días adicionales no es válida.','err');return;}
+    const fin=retSumarDias(desde,dias-1);
+    if(fin>=inicio){toast('Los días adicionales deben ser anteriores al periodo que recibirá el descuento.','err');return;}
+    for(const [s,otro] of Object.entries(d.ajustes_semana||{})){
+      if(s===sem||!otro.dias_extra_desde||!(Number(otro.dias_extra)>0))continue;
+      const f2=retSumarDias(otro.dias_extra_desde,Number(otro.dias_extra)-1);
+      if(desde<=f2&&otro.dias_extra_desde<=fin){toast('Esos días ya están capturados como adicionales en '+s+'.','err');return;}
+    }
+  }
+  if((baseTxt!==''||dias>0)&&motivo.length<8){toast('Explica el motivo del ajuste (mínimo 8 caracteres).','err');return;}
+  if(d.tipo==='FONACOT'){
+    const P=perDe(w),base=baseTxt!==''?Number(baseTxt):retencionEvaluada(d,w,sem,P).base;
+    const extra=dias?retencionDiasExtra(d,w,desde,dias):0,tope=limiteFonacotPeriodo(w,sem);
+    if(tope&&base+extra+otrosFonacotPeriodo(w,sem,id)>tope.monto+.005){
+      toast(`El total conjunto FONACOT ($${money(base+extra+otrosFonacotPeriodo(w,sem,id))}) supera el ${tope.porcentaje}% del salario del periodo ($${money(tope.monto)}). Distribuye los días pendientes en otra nómina.`, 'err');return;
+    }
+  }
+  const ajustes={...(d.ajustes_semana||{})};
+  if(baseTxt===''&&dias===0)delete ajustes[sem];
+  else ajustes[sem]={importe_base:baseTxt===''?null:redondearCentavos(Number(baseTxt)),dias_extra_desde:dias?desde:null,dias_extra:dias,motivo,editado_por:USER.email,editado_en:new Date().toISOString()};
+  markWrite();
+  const {data,error}=await sb.from('descuentos').update({ajustes_semana:ajustes,actualizado_por:USER.email})
+    .eq('id',id).eq('obra_id',OBRA.id).eq('updated_at',d.updated_at).select('id');
+  if(error){toast('No se guardó el ajuste: '+error.message,'err');return;}
+  if(!data?.length){toast('Alguien modificó esta retención. Recarga la ficha antes de guardar.','err');await loadObraData(OBRA.id);return;}
+  closeModal();toast('Ajuste semanal guardado con historial. Verifica la proyección antes de cerrar NOI.','ok');
+  await loadObraData(OBRA.id);
+}
 function openExcepcion(id){
   const d=DESC.find(x=>x.id===id); if(!d)return;
   const w=WORKERS.find(x=>x.id===d.trabajador_id);
