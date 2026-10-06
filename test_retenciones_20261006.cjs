@@ -58,6 +58,9 @@ const adjusted = {
   ajustes_semana: { S41: { importe_base: 50, dias_extra_desde: '2026-10-01', dias_extra: 4 } },
 };
 assert.equal(c.retencionEvaluada(adjusted, semanal, 'S41', { dias: 7 }).monto, 450);
+assert.equal(c.retencionEvaluada({ ...adjusted, excepciones: { S41: 'SUSPENDER' } }, semanal, 'S41', { dias: 7 }).monto, 0);
 assert.equal(c.limiteFonacotPeriodo(semanal, 'S41').monto, 560);
 assert.equal(c.retencionDiasExtra({ tipo: 'INFONAVIT', factor: 1 }, semanal, '2026-10-30', 4), 42);
+assert.equal(c.descuentoVigenteSemana({ recurrente: true, created_at: '2026-10-06T12:00:00Z' }, 'S40'), false);
+assert.equal(c.descuentoVigenteSemana({ recurrente: true, created_at: '2026-10-06T12:00:00Z' }, 'S41'), true);
 console.log('OK: mes de 31 días, cambio de mes, febrero bisiesto, quincenas, días extra, importe manual y límite legal');
