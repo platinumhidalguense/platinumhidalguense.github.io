@@ -3857,6 +3857,7 @@ function retencionEvaluada(d,w,semStr,P){
   if(ex==='SUSPENDER'){base=0;estado='PAUSADO';}
   else if(ex==='DOBLE'){base=montoDobleDescuento(d,w,P,semStr);estado='DOBLE';}
   const aj=(d.ajustes_semana||{})[semStr]||{};
+  if(estado==='PAUSADO')return {monto:0,base:0,extra:0,estado,aj};
   if(aj.importe_base!=null&&aj.importe_base!==''){
     base=redondearCentavos(Number(aj.importe_base)||0);estado='AJUSTADO';
   }
@@ -11739,6 +11740,9 @@ async function saveAjusteRetencion(id){
     }
   }
   if((baseTxt!==''||dias>0)&&motivo.length<8){toast('Explica el motivo del ajuste (mínimo 8 caracteres).','err');return;}
+  if((baseTxt!==''||dias>0)&&(d.excepciones||{})[sem]==='SUSPENDER'){
+    toast('Esa retención está suspendida en la semana. Quita la suspensión antes de capturar un ajuste.','err');return;
+  }
   if(d.tipo==='FONACOT'){
     const P=perDe(w),base=baseTxt!==''?Number(baseTxt):retencionEvaluada(d,w,sem,P).base;
     const extra=dias?retencionDiasExtra(d,w,desde,dias):0,tope=limiteFonacotPeriodo(w,sem);
@@ -11782,6 +11786,16 @@ async function saveExcepcion(id){
   const acc=$('ex-acc').value;
   const ex={...(d.excepciones||{})};
   if(acc==='NORMAL')delete ex[sem]; else ex[sem]=acc;
+  if(acc==='SUSPENDER'&&(d.ajustes_semana||{})[sem]){
+    toast('La semana tiene un importe/días adicionales. Quita primero ese ajuste para suspender sin perderlo de vista.','err');return;
+  }
+  if(d.tipo==='FONACOT'&&acc==='DOBLE'){
+    const w=WORKERS.find(x=>x.id===d.trabajador_id),tope=w&&limiteFonacotPeriodo(w,sem);
+    const previsto=w?retencionEvaluada({...d,excepciones:ex},w,sem,perDe(w)).monto:0;
+    if(tope&&previsto+otrosFonacotPeriodo(w,sem,id)>tope.monto+.005){
+      toast(`La retención doble excedería el ${tope.porcentaje}% del salario del periodo. Usa un ajuste menor y justifícalo.`, 'err');return;
+    }
+  }
   markWrite();
   const {error}=await sb.from('descuentos').update({excepciones:ex}).eq('id',id);
   if(error){toast('Error: '+error.message,'err');return;}
