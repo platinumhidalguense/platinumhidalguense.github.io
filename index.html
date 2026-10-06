@@ -3797,13 +3797,19 @@ function rangoRetencion(w,semStr){
 }
 function cuotaFonacotCalendario(mensual,desde,hasta){
   if(!(Number(mensual)>0)||!/^\d{4}-\d\d-\d\d$/.test(String(desde))||!/^\d{4}-\d\d-\d\d$/.test(String(hasta))||desde>hasta)return 0;
-  let bruto=0, fecha=desde, n=0;
-  while(fecha<=hasta&&n++<62){
-    const f=retFecha(fecha), diasMes=new Date(Date.UTC(f.getUTCFullYear(),f.getUTCMonth()+1,0,12)).getUTCDate();
-    bruto+=Number(mensual)/diasMes;
-    fecha=retSumarDias(fecha,1);
+  let total=0,fecha=desde,tramos=0;
+  while(fecha<=hasta&&tramos++<3){
+    const f=retFecha(fecha),diasMes=new Date(Date.UTC(f.getUTCFullYear(),f.getUTCMonth()+1,0,12)).getUTCDate();
+    const finMes=retISO(new Date(Date.UTC(f.getUTCFullYear(),f.getUTCMonth()+1,0,12)));
+    const finTramo=hasta<finMes?hasta:finMes;
+    const ultimoDia=retFecha(finTramo).getUTCDate();
+    // La diferencia entre acumulados redondeados evita que las semanas o
+    // quincenas del mismo mes sumen un centavo de más/de menos a la cédula.
+    total+=redondearCentavos(Number(mensual)*ultimoDia/diasMes)
+      -redondearCentavos(Number(mensual)*(f.getUTCDate()-1)/diasMes);
+    fecha=retSumarDias(finTramo,1);
   }
-  return redondearCentavos(bruto);
+  return redondearCentavos(total);
 }
 /* Convierte un importe periódico capturado, salvo FONACOT calendario, que
    toma las fechas efectivas y el número real de días de cada mes. */
