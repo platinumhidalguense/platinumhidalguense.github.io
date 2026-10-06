@@ -42,6 +42,13 @@ for (const cuota of [2800.80, 1527, 1896, 1764.48]) {
   const uno = c.cuotaFonacotCalendario(cuota, '2026-10-01', '2026-10-15');
   const dos = c.cuotaFonacotCalendario(cuota, '2026-10-16', '2026-10-31');
   assert.equal(Math.round((uno + dos) * 100) / 100, cuota);
+  const semanas = [
+    ['2026-10-01', '2026-10-04'], ['2026-10-05', '2026-10-11'],
+    ['2026-10-12', '2026-10-18'], ['2026-10-19', '2026-10-25'],
+    ['2026-10-26', '2026-10-31'],
+  ];
+  const acumulado = semanas.reduce((s, [ini, fin]) => s + c.cuotaFonacotCalendario(cuota, ini, fin), 0);
+  assert.equal(Math.round(acumulado * 100) / 100, cuota);
 }
 assert.equal(c.rangoRetencion(quincenal, 'S41')[0], '2026-10-01');
 assert.equal(c.retencionDiasExtra(f, semanal, '2026-10-01', 4), 400);
