@@ -3873,14 +3873,19 @@ function limiteFonacotPeriodo(w,semStr){
   return {monto:redondearCentavos(sd*dias*tope),porcentaje:tope*100,salario:sd*dias};
 }
 function otrosFonacotPeriodo(w,semStr,excluirId){
-  return DESC.filter(x=>x.activo&&x.recurrente&&x.tipo==='FONACOT'&&x.trabajador_id===w.id&&x.id!==excluirId)
+  return DESC.filter(x=>x.activo&&x.recurrente&&x.tipo==='FONACOT'&&x.trabajador_id===w.id&&x.id!==excluirId&&descuentoVigenteSemana(x,semStr))
     .reduce((s,x)=>s+retencionEvaluada(x,w,semStr,perDe(w)).monto,0);
+}
+function descuentoVigenteSemana(d,semStr){
+  if(!d.recurrente||!d.created_at)return true;
+  const num=parseInt(String(semStr||'').replace(/\D/g,''))||0;
+  return num>=isoWeek(new Date(d.created_at));
 }
 
 /* ---------- DESCUENTOS ---------- */
 function descuentosDe(w,semStr,opts){
   const P=perDe(w,(opts||{}).dias);
-  const ds=DESC.filter(d=>d.trabajador_id===w.id&&d.activo&&(d.recurrente||d.semana===semStr));
+  const ds=DESC.filter(d=>d.trabajador_id===w.id&&d.activo&&(d.recurrente||d.semana===semStr)&&descuentoVigenteSemana(d,semStr));
   let total=0; const parts=[];
   ds.forEach(d=>{
     // Solo el descuento FIJO se lleva al periodo: es una cuota por tiempo.
@@ -4154,7 +4159,7 @@ function retFilasDe(semStr){
     const P=perDe(w);
     if(d.recurrente){
       // el fijo cuenta desde la semana en que se capturó (si el registro trae fecha)
-      if(d.created_at){const wc=isoWeek(new Date(d.created_at)); if(semN<wc)return;}
+      if(!descuentoVigenteSemana(d,semStr))return;
       const ev=retencionEvaluada(d,w,semStr,P);
       filas.push({w,d,origen:'FIJO',estado:ev.estado,monto:ev.monto,extra:ev.extra,periodo:P.cve});
     }else if(d.semana===semStr){
