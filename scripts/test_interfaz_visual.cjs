@@ -13,6 +13,10 @@ async function fixture(page){
     OBRAS=[{id:'p',nombre:'INFONAVIT SAN CRISTOBAL',tipo:'OBRA',empresa_codigo:'PLATINUM',registro_patronal:'RP-PRUEBA',registro_siroc:'SIROC-PRUEBA',fecha_inicio:'2026-03-30'},{id:'j',nombre:'OBRA BANCOMER',tipo:'OBRA',empresa_codigo:'JIRE',fecha_inicio:'2026-03-30'}];
     WORKERS=Array.from({length:80},(_,i)=>({id:'test-'+i,no_trab:i+1,obra_id:'p',primer_apellido:'APELLIDO',segundo_apellido:'DE PRUEBA',nombres:'TRABAJADOR '+(i+1),estatus:i===2?'BAJA':'ACTIVO',fecha_alta:'2026-09-01',fecha_baja:i===2?'2026-09-28':null,fecha_reingreso:i===3?'2026-09-28':null,contratista:i%2?'MG':'ARACELI',puesto:'AYUDANTE GENERAL',periodo_pago:'SEMANAL',sd:362,sdi:380,sal_semanal:2400,cuenta:'CREAR',telefono:'5555555555',correo:'prueba@example.test',docs:{}}));
     DOCSX=[{id:'doc-prueba',trabajador_id:'test-0',categoria:'ACUSE_IMSS',subtipo:'ALTA',fecha_doc:'2026-09-01',nombre_archivo:'acuse-prueba.pdf'}];
+    Object.assign(WORKERS[4],{fecha_alta:'2026-10-06',movimiento_imss:'ALTA CON ACUSE',fecha_mov_imss:'2026-10-05'});
+    DOCSX.push({id:'doc-lunes',trabajador_id:'test-4',categoria:'ACUSE_IMSS',subtipo:'ALTA',fecha_doc:'2026-10-05',nombre_archivo:'acuse-lunes.pdf'});
+    DOCSX.push({id:'doc-sin-fecha',trabajador_id:'test-5',categoria:'ACUSE_IMSS',subtipo:'ALTA',fecha_doc:null,created_at:'2026-10-07',nombre_archivo:'acuse-sin-fecha.pdf'});
+    DOCSX.push({id:'doc-antiguo',trabajador_id:'test-3',categoria:'ACUSE_IMSS',subtipo:'ALTA',fecha_doc:'2026-09-01',nombre_archivo:'acuse-antiguo.pdf'});
     CUADS=[{id:'q',nombre:'CUADRILLA DE PRUEBA'}];WORKERS[0].id_cuadrilla='q';
     CHEQUES=[];DESC=[];ACTAS=[];NOM=[];VAC=[];PAGOS=[];ALTAS_CORTAS=[];OBRA=null;
     refreshCounts=async()=>{};refrescaDocsDe=async()=>0;refrescaPagosDe=async()=>0;
@@ -47,6 +51,13 @@ async function metrics(page){return page.evaluate(()=>{
       assert.equal(await page.locator('#tbody tr').count(),80);assert.equal(await page.locator('.trab-table thead th').count(),6);
       const table=await page.locator('.worker-list').boundingBox();assert(table.width>=width-40,`Tabla estrecha: ${JSON.stringify(table)}`);assert(table.height>=height*.55,`Tabla sin espacio: ${JSON.stringify(table)}`);
       assert((await page.locator('#tbody tr').first().innerText()).includes('Alta con acuse'));
+      assert.equal(await page.locator('#tbody tr').first().locator('.imss-alert').count(),0,'Un acuse vigente confirma el alta aunque el campo de movimiento esté vacío');
+      assert.equal(await page.locator('#tbody tr').nth(1).locator('.imss-alert').count(),1,'Sin presentación ni acuse conserva el aviso amarillo');
+      assert.equal(await page.locator('#tbody tr').nth(3).locator('.imss-alert').count(),1,'Un acuse anterior no confirma el reingreso actual');
+      assert.equal(await page.locator('#tbody tr').nth(4).locator('.imss-alert').count(),0,'Primera alta lunes corroborada: no hay alerta falsa');
+      assert((await page.locator('#tbody tr').nth(4).innerText()).includes('Alta con acuse'));
+      assert.equal(await page.locator('#tbody tr').nth(5).locator('.imss-alert').count(),0,'Documento sin fecha no se presenta como alta pendiente cierta');
+      assert((await page.locator('#tbody tr').nth(5).innerText()).includes('por cotejar'));
       assert((await page.locator('#tbody tr').nth(2).innerText()).includes('Baja pendiente'));
       await page.screenshot({path:path.join(dir,`${width}_${theme}_trabajadores.png`)});
       await page.locator('#burger').click();assert(await page.locator('#sidebar').isVisible());
