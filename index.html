@@ -1683,7 +1683,7 @@ async function loadObraData(id){
   skeletonTabla('tbody',9,6,'Cargando trabajadores...');
   skeletonTabla('chq-tbody',6,10,'Cargando cheques...');
   skeletonTabla('pg-v-tbody',5,9,'Cargando pagos...');
-  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn},{data:ab},{data:ft,error:eFt}]=await Promise.all([
+  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx,error:eDx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn},{data:ab},{data:ft,error:eFt}]=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
     fetchAllRows(()=>sb.from('cheques').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id)),
@@ -1706,7 +1706,12 @@ async function loadObraData(id){
   ]);
   if(e1){toast('Error al cargar trabajadores: '+e1.message,'err');return false;}
   if(eFt){toast('No se pudo leer el control de finiquitos por transferencia: '+eFt.message,'err');return false;}
-  WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];PAGOS=pg||[];PRIMAS=(pr||[]).filter(p=>p.activo!==false);CUADS=cd||[];DIFS=df||[];BLOQUES=bq||[];SUELDOSINT=si||[];CIERRES=cc||[];CTRLNOI=cn||[];ALTAS_CORTAS=ab||[];FINTRANS=ft||[];
+  if(eDx){toast('No se pudieron comprobar los documentos: '+eDx.message,'err');return false;}
+  // El expediente pertenece al trabajador, incluso si el acuse se archivó
+  // antes de un cambio de centro. Consulta dirigida y paginada; respeta RLS.
+  const acuses=await cargarAcusesTrabajadores(tw||[]);
+  if(acuses.error){toast('No se pudieron comprobar los acuses IMSS: '+acuses.error.message,'err');return false;}
+  WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=(dx||[]).filter(d=>String(d.categoria||'').trim().toUpperCase()!=='ACUSE_IMSS').concat(acuses.data);VAC=vc||[];ACTAS=ac||[];NOM=nm||[];PAGOS=pg||[];PRIMAS=(pr||[]).filter(p=>p.activo!==false);CUADS=cd||[];DIFS=df||[];BLOQUES=bq||[];SUELDOSINT=si||[];CIERRES=cc||[];CTRLNOI=cn||[];ALTAS_CORTAS=ab||[];FINTRANS=ft||[];
   await activarProgramados();
   const cs=[...new Set(WORKERS.map(w=>w.contratista).filter(Boolean))].sort();
   const cur=$('flt-contratista').value;
@@ -1740,7 +1745,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-07.2';
+const APP_VERSION='2026-10-07.3';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2393,27 +2398,75 @@ function setSort(k){if(SORT.k===k)SORT.asc=!SORT.asc;else{SORT.k=k;SORT.asc=true
 /* El aviso de la TABLA significa una sola cosa: el alta todavía no se ha
    presentado. Al guardar "ALTA PRESENTADA" desaparece de la fila; la falta
    del PDF del acuse se controla por separado en las alertas generales. */
-function altaImssPendiente(w){
-  const mov=String(w&&w.movimiento_imss||'').trim().toUpperCase();
-  return !!(w&&w.estatus!=='BAJA'&&w.fecha_alta&&(!mov||mov==='SIN MOVIMIENTO'||mov==='PENDIENTE'));
+function fechaAcuseISO(valor){
+  const s=String(valor||'').slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return '';
+  const d=new Date(s+'T12:00:00Z');
+  return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===s?s:'';
 }
-function altaImssPresentada(w){
-  const mov=String(w&&w.movimiento_imss||'').trim().toUpperCase();
-  return mov==='ALTA PRESENTADA'||mov==='ALTA CON ACUSE';
-}
-function tieneAcuseAltaImportado(w){
-  if(!w)return false;
-  const inicio=String(w.fecha_reingreso||w.fecha_alta||'').slice(0,10);
-  return (DOCSX||[]).some(d=>{
-    if(d.trabajador_id!==w.id||String(d.categoria||'').toUpperCase()!=='ACUSE_IMSS'||d.anulado)return false;
-    const subtipo=String(d.subtipo||'').trim().toUpperCase();
-    if(subtipo!=='ALTA'&&subtipo!=='REINGRESO')return false;
-    const fecha=String(d.fecha_doc||d.created_at||'').slice(0,10);
-    return !inicio||!fecha||fecha>=inicio;
+function indiceAcusesIMSS(documentos){
+  const indice=new Map();
+  (documentos||[]).forEach(d=>{
+    if(d.anulado||String(d.categoria||'').trim().toUpperCase()!=='ACUSE_IMSS')return;
+    if(!indice.has(d.trabajador_id))indice.set(d.trabajador_id,[]);
+    indice.get(d.trabajador_id).push(d);
   });
+  return indice;
 }
-function acuseAltaPendiente(w){
-  return !!(w&&w.estatus!=='BAJA'&&altaImssPresentada(w)&&!tieneAcuseAltaImportado(w));
+function estadoAcuseIMSS(w,tipo='ALTA',indice){
+  if(!w)return {ok:false,porCotejar:false,presentada:false};
+  const baja=tipo==='BAJA',reingreso=fechaAcuseISO(w.fecha_reingreso);
+  const inicio=baja?fechaAcuseISO(w.fecha_baja):[fechaAcuseISO(w.fecha_alta),reingreso].sort().pop();
+  const movimiento=String(w.movimiento_imss||'').trim().toUpperCase();
+  const fechaMov=fechaAcuseISO(w.fecha_mov_imss);
+  const tipos=baja?['BAJA']:['ALTA','REINGRESO'];
+  const docs=(indice instanceof Map?indice.get(w.id)||[]:DOCSX||[]).filter(d=>
+    d.trabajador_id===w.id&&!d.anulado&&String(d.categoria||'').trim().toUpperCase()==='ACUSE_IMSS'&&tipos.includes(String(d.subtipo||'').trim().toUpperCase()));
+  // Excepción corroborada: primera alta procesada el lunes y fecha laboral
+  // martes/miércoles de ESA semana, con movimiento CON ACUSE y fecha exacta.
+  // Nunca se aplica por tolerancia general ni reutiliza un alta para reingreso.
+  const lunesCorroborado=fecha=>{
+    if(baja||reingreso||!inicio||movimiento!=='ALTA CON ACUSE'||fecha!==fechaMov)return false;
+    const d=new Date(inicio+'T12:00:00Z'),dia=d.getUTCDay();
+    if(dia!==2&&dia!==3)return false;
+    d.setUTCDate(d.getUTCDate()-(dia-1));
+    return fecha===d.toISOString().slice(0,10);
+  };
+  const corresponde=fecha=>!!(inicio&&fecha&&((fecha>=inicio&&
+    (!baja&&w.estatus==='BAJA'&&fechaAcuseISO(w.fecha_baja)?fecha<=fechaAcuseISO(w.fecha_baja):true))||lunesCorroborado(fecha)));
+  const ok=docs.some(d=>corresponde(fechaAcuseISO(d.fecha_doc)));
+  // La fecha de subida NUNCA prueba a qué movimiento corresponde un acuse.
+  const porCotejar=!ok&&docs.some(d=>!fechaAcuseISO(d.fecha_doc)||!inicio);
+  // Una modificación salarial presentada del episodio actual no equivale al
+  // PDF de ALTA, pero tampoco debe rotularse como alta sin presentar.
+  const declarada=(baja?['BAJA PRESENTADA','BAJA CON ACUSE']:['ALTA PRESENTADA','ALTA CON ACUSE','MODIFICACION PRESENTADA','MODIFICACION CON ACUSE']).includes(movimiento);
+  const presentada=ok||(declarada&&(corresponde(fechaMov)||(!fechaMov&&!reingreso&&!baja)));
+  return {ok,porCotejar,presentada};
+}
+function altaImssPendiente(w,indice){
+  const estado=estadoAcuseIMSS(w,'ALTA',indice);
+  return !!(w&&w.estatus!=='BAJA'&&(w.fecha_reingreso||w.fecha_alta)&&!estado.presentada&&!estado.porCotejar);
+}
+function altaImssPresentada(w,indice){
+  return estadoAcuseIMSS(w,'ALTA',indice).presentada;
+}
+function tieneAcuseAltaImportado(w,indice){
+  return estadoAcuseIMSS(w,'ALTA',indice).ok;
+}
+function acuseAltaPendiente(w,indice){
+  const estado=estadoAcuseIMSS(w,'ALTA',indice);
+  return !!(w&&w.estatus!=='BAJA'&&estado.presentada&&!estado.ok&&!estado.porCotejar);
+}
+async function cargarAcusesTrabajadores(trabajadores){
+  const ids=[...new Set((trabajadores||[]).map(w=>w.id).filter(Boolean))],data=[];
+  for(let i=0;i<ids.length;i+=100){
+    const lote=ids.slice(i,i+100);
+    const respuesta=await fetchAllRows(()=>sb.from('documentos').select('*')
+      .eq('categoria','ACUSE_IMSS').eq('anulado',false).in('trabajador_id',lote));
+    if(respuesta.error)return {data:[],error:respuesta.error};
+    data.push(...respuesta.data);
+  }
+  return {data,error:null};
 }
 function openResumen(){
   const cs=[...new Set(WORKERS.map(w=>w.contratista||'(SIN CONTRATISTA)'))];
@@ -2459,14 +2512,9 @@ function filtrarContratista(c){
   renderTable();
 }
 function marcadorAcuseIMSS(w,tipo,indice){
-  const baja=tipo==='BAJA',inicio=String(baja?w.fecha_baja:(w.fecha_reingreso||w.fecha_alta)||'').slice(0,10);
-  const tipos=baja?['BAJA']:(w.fecha_reingreso?['REINGRESO','ALTA']:['ALTA','REINGRESO']);
-  const docs=(indice?indice.get(w.id)||[]:DOCSX||[]).filter(d=>d.trabajador_id===w.id&&!d.anulado&&String(d.categoria||'').toUpperCase()==='ACUSE_IMSS'&&tipos.includes(String(d.subtipo||'').trim().toUpperCase()));
-  // Fecha del documento/movimiento, nunca fecha de subida: un acuse antiguo
-  // subido hoy no confirma un reingreso o una baja nuevos.
-  const ok=!!inicio&&docs.some(d=>/^\d{4}-\d{2}-\d{2}/.test(String(d.fecha_doc||''))&&String(d.fecha_doc).slice(0,10)>=inicio);
+  const baja=tipo==='BAJA',{ok,porCotejar}=estadoAcuseIMSS(w,tipo,indice);
   const nombre=baja?'Baja':w.fecha_reingreso?'Reingreso':'Alta';
-  const pendiente=!ok&&docs.some(d=>!d.fecha_doc)?'por cotejar':'pendiente';
+  const pendiente=porCotejar?'por cotejar':'pendiente';
   return `<span class="acuse-mark ${ok?'ok':'missing'}" title="${esc(nombre)}: ${ok?'acuse archivado del movimiento actual':pendiente==='por cotejar'?'hay un archivo sin fecha de movimiento; verifica su correspondencia':'falta acuse del movimiento actual'}">${ok?'✓':'⚠'} ${nombre} ${ok?'con acuse':pendiente}</span>`;
 }
 function marcadoresIMSS(w,indice){
@@ -2488,12 +2536,11 @@ function renderTable(){
   window._NAVIDS=rows.map(w=>w.id); // orden actual de la tabla, para las flechas ‹ › de la ficha
   if($('worker-count'))$('worker-count').textContent=rows.length+' visibles · '+WORKERS.length+' en el centro';
   if(!rows.length){$('tbody').innerHTML='<tr><td colspan="6"><div class="empty"><div class="big">🗂</div>Sin trabajadores que coincidan.<br>La opción <b>Nueva alta</b> está en el menú ☰ → Operación.</div></td></tr>';return;}
-  const acuses=new Map();
-  (DOCSX||[]).forEach(d=>{if(!d.anulado&&String(d.categoria||'').toUpperCase()==='ACUSE_IMSS'){if(!acuses.has(d.trabajador_id))acuses.set(d.trabajador_id,[]);acuses.get(d.trabajador_id).push(d);}});
+  const acuses=indiceAcusesIMSS(DOCSX);
   $('tbody').innerHTML=rows.map(w=>`
     <tr onclick="openDetail('${w.id}')">
       <td><button onclick="event.stopPropagation();openDetail('${w.id}')" aria-label="Abrir ficha de ${esc(fullName(w))}"><span class="worker-number">#${w.no_trab??'—'}</span>${esc(fullName(w))}</button></td>
-      <td><span class="estado-trab"><span class="badge ${w.estatus}">${w.estatus}</span>${altaImssPendiente(w)?'<span class="badge PENDIENTE imss-alert" title="Alta pendiente de presentar ante el IMSS">⚠ ALTA IMSS</span>':''}${ALTAS_CORTAS.some(a=>a.trabajador_id===w.id&&a.estado_servicio==='SIN_SERVICIO_CONFIRMADO')?'<span class="badge PENDIENTE" title="Alta y baja con registro IMSS; sin trabajo efectivo confirmado. Verifica acuses y fecha real.">SIN SERVICIO</span>':''}</span></td>
+      <td><span class="estado-trab"><span class="badge ${w.estatus}">${w.estatus}</span>${altaImssPendiente(w,acuses)?'<span class="badge PENDIENTE imss-alert" title="Alta o reingreso actual pendiente de presentar ante el IMSS">⚠ ALTA IMSS</span>':''}${ALTAS_CORTAS.some(a=>a.trabajador_id===w.id&&a.estado_servicio==='SIN_SERVICIO_CONFIRMADO')?'<span class="badge PENDIENTE" title="Alta y baja con registro IMSS; sin trabajo efectivo confirmado. Verifica acuses y fecha real.">SIN SERVICIO</span>':''}</span></td>
       <td>${esc(w.contratista)||'—'}</td>
       <td title="${w.fecha_reingreso?'Fecha de reingreso':'Fecha de ingreso'}">${w.fecha_reingreso?'<b style="color:var(--amber)">'+fmtD(w.fecha_reingreso)+'</b><small style="display:block;color:var(--amber)">REINGRESO</small>'+(w.fecha_alta&&w.fecha_alta!==w.fecha_reingreso?'<small style="display:block;color:var(--mut)">Alta inicial: '+fmtD(w.fecha_alta)+'</small>':''):'<b style="color:var(--green)">'+fmtD(w.fecha_alta)+'</b><small style="display:block;color:var(--green)">INGRESO</small>'}</td>
       <td>${w.fecha_baja?'<span style="color:var(--red)">'+fmtD(w.fecha_baja)+'</span>':'—'}</td>
@@ -2543,16 +2590,15 @@ function fichaDocsHTML(w){
    —son unas cuantas filas, no miles— y no toca ningún límite de paginación.
    Lo que llegue se mezcla en DOCSX para que el resto de la app también lo vea. */
 async function refrescaDocsDe(id){
-  if(!id||!sb)return 0;
+  if(!id||!sb)return null;
   const {data,error}=await fetchAllRows(()=>sb.from('documentos').select('*')
     .eq('trabajador_id',id).eq('anulado',false));
-  if(error||!data)return 0;
+  if(error||!data)return null;
   const conocidos=new Set((DOCSX||[]).map(d=>d.id));
   const nuevos=data.filter(d=>!conocidos.has(d.id));
-  if(nuevos.length)DOCSX=(DOCSX||[]).concat(nuevos);
-  // los que ya estaban se actualizan por si cambió el nombre o el subtipo
-  const porId=new Map(data.map(d=>[d.id,d]));
-  (DOCSX||[]).forEach((d,i)=>{ if(porId.has(d.id))DOCSX[i]=porId.get(d.id); });
+  // Sustituye su caché completa: un acuse anulado/retirado no puede seguir
+  // confirmando el alta por haber quedado en memoria. No toca otros expedientes.
+  DOCSX=(DOCSX||[]).filter(d=>d.trabajador_id!==id).concat(data);
   return nuevos.length;
 }
 function fichaPagosHTML(w){
@@ -2708,10 +2754,10 @@ function openDetail(id){
      Se comprueba que la ficha siga abierta y sea la misma persona: si el
      usuario ya se movió a otra, no se le repinta encima. */
   refrescaDocsDe(id).then(n=>{
+    if(n===null)return;
     renderTable();
     const principal=$('worker-overview');
     if(principal&&document.querySelector(`#modals [onclick*="openForm('${id}')"]`))principal.innerHTML=fichaResumenHTML(w);
-    if(!n)return;
     const cont=$('fd-docs');
     if(cont&&document.querySelector(`#modals [onclick*="openForm('${id}')"]`))
       cont.innerHTML=fichaDocsHTML(w);
@@ -5853,7 +5899,19 @@ async function applyPdfImport(){
     ok++;
     if(cat==='ACUSE_IMSS'&&w){
       const mv=subX==='ALTA'?'ALTA CON ACUSE':(subX==='BAJA'?'BAJA CON ACUSE':'MODIFICACION CON ACUSE');
-      await sb.from('trabajadores').update({movimiento_imss:mv,fecha_mov_imss:fdX||today()}).eq('id',w.id);
+      const candidato={...w,movimiento_imss:mv,fecha_mov_imss:fdX};
+      const actual=estadoAcuseIMSS(candidato,subX==='BAJA'?'BAJA':'ALTA',indiceAcusesIMSS([fila]));
+      const vigente=subX==='MODIFICACION SALARIAL'
+        ?fechaAcuseISO(fdX)>=([fechaAcuseISO(w.fecha_alta),fechaAcuseISO(w.fecha_reingreso)].sort().pop()||'9999')
+        :actual.ok;
+      // Archivar un documento histórico/sin fecha no sustituye el último
+      // movimiento por el de otro episodio ni inventa su fecha con "hoy".
+      if(fdX&&vigente&&(!fechaAcuseISO(w.fecha_mov_imss)||fdX>=w.fecha_mov_imss)){
+        const cambio={movimiento_imss:mv,fecha_mov_imss:fdX};
+        const {error:eMov}=await sb.from('trabajadores').update(cambio).eq('id',w.id);
+        if(!eMov)Object.assign(w,cambio);
+        else toast('Acuse archivado; no se actualizó el movimiento IMSS: '+eMov.message,'err');
+      }
     }
   }
   closeModal();
@@ -12416,8 +12474,9 @@ function computeAlertas(){
     {k:'REPSEF',icon:'🏗️',txt:'Contratistas sin registro REPSE capturado',items:CONTRATISTAS.filter(c=>!c.repse_no_aplica&&!c.repse_vigencia)},
     {k:'REPSEV',icon:'📆',txt:'Registros REPSE por vencer en 30 días',items:CONTRATISTAS.filter(c=>!c.repse_no_aplica&&c.repse_vigencia&&c.repse_vigencia>=hoy&&c.repse_vigencia<=en30)},
     {k:'REPSEX',icon:'🚫',txt:'Registros REPSE VENCIDOS',items:CONTRATISTAS.filter(c=>!c.repse_no_aplica&&c.repse_vigencia&&c.repse_vigencia<hoy)},
-    {k:'IMSSP',icon:'🏥',txt:'Altas pendientes de presentar ante el IMSS',items:WORKERS.filter(altaImssPendiente)},
+    {k:'IMSSP',icon:'🏥',txt:'Altas/reingresos actuales pendientes de presentar ante el IMSS',items:WORKERS.filter(altaImssPendiente)},
     {k:'IMSS',icon:'📎',txt:'Acuses de alta IMSS por importar (alta ya presentada)',items:WORKERS.filter(acuseAltaPendiente)},
+    {k:'IMSSC',icon:'🔎',txt:'Acuses IMSS archivados por cotejar: falta fecha del movimiento',items:WORKERS.filter(w=>estadoAcuseIMSS(w,'ALTA').porCotejar||(w.estatus==='BAJA'&&estadoAcuseIMSS(w,'BAJA').porCotejar))},
     {k:'RECIB',icon:'📥',txt:'Recibos de nómina por importar (PDF)',items:recFalt},
     {k:'RECIBB',icon:'📁',txt:'Recibos pendientes de trabajadores YA DADOS DE BAJA (expediente)',items:recFaltBaja},
     {k:'PAGOG',icon:'💸',txt:'Semanas sin pago global importado (revisa)',items:pagoFalt},
@@ -13496,10 +13555,12 @@ function _paletaObras(n){
 }
 async function openDashboard(){
   toast('Calculando indicadores...');
-  const [{data:tw},{data:ch},{data:ds}]=await Promise.all([
+  const [{data:tw,error:eTw},{data:ch},{data:ds}]=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('eliminado',false)),fetchAllRows(()=>sb.from('cheques').select('*')),fetchAllRows(()=>sb.from('descuentos').select('*').eq('activo',true))]);
-  if(!tw)return;
-  window._DASH={tw,ch:(ch||[]).filter(c=>!c.eliminado),ds:ds||[]};
+  if(!tw||eTw){toast('No se pudieron comprobar los trabajadores.','err');return;}
+  const acuses=await cargarAcusesTrabajadores(tw);
+  if(acuses.error){toast('No se pudieron comprobar los acuses IMSS: '+acuses.error.message,'err');return;}
+  window._DASH={tw,ch:(ch||[]).filter(c=>!c.eliminado),ds:ds||[],acuses:indiceAcusesIMSS(acuses.data)};
   modal(`
     <div class="m-head"><h2>📊 Dashboard ejecutivo</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
@@ -13521,7 +13582,7 @@ async function openDashboard(){
   await renderDash('');
 }
 async function renderDash(obraId){
-  const {tw,ch,ds}=window._DASH||{}; if(!tw)return;
+  const {tw,ch,ds,acuses}=window._DASH||{}; if(!tw)return;
   _destroyDashCharts();
   const g=obraId?tw.filter(w=>w.obra_id===obraId):tw;
   const a=g.filter(w=>w.estatus==='ACTIVO');
@@ -13539,7 +13600,7 @@ async function renderDash(obraId){
   const antArr=a.filter(w=>w.fecha_alta);
   const antProm=antArr.length?(antArr.reduce((s,w)=>s+((Date.now()-new Date(iniAntig(w)))/31557600000),0)/antArr.length):0;
   const docsOkP=a.length?Math.round(a.filter(w=>docsOk(w)===DOCS.length).length/a.length*100):0;
-  const sinAcuse=a.filter(w=>!String(w.movimiento_imss||'').includes('CON ACUSE')).length;
+  const sinAcuse=a.filter(w=>!tieneAcuseAltaImportado(w,acuses)).length;
 
   // altas/bajas últimas 12 semanas
   const semanas=[];
@@ -13593,7 +13654,7 @@ async function renderDash(obraId){
       <div class="stat"><div class="n">${edadProm}</div><div class="l">Edad promedio</div></div>
       <div class="stat"><div class="n">${antProm.toFixed(1)} años</div><div class="l">Antigüedad promedio</div></div>
       <div class="stat ${docsOkP>=80?'g':'a'}"><div class="n">${docsOkP}%</div><div class="l">Expedientes completos</div></div>
-      <div class="stat r"><div class="n">${sinAcuse}</div><div class="l">Sin acuse IMSS</div></div>
+      <div class="stat r"><div class="n">${sinAcuse}</div><div class="l">Sin acuse IMSS confirmado</div></div>
     </div>
     <div class="sect">Panorama visual</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:14px">
@@ -13677,7 +13738,7 @@ function imprimirDashboard(){
     <div class="stat"><div class="n">${F.edadProm}</div><div class="l">Edad promedio</div></div>
     <div class="stat"><div class="n">${F.antProm.toFixed(1)}a</div><div class="l">Antigüedad prom.</div></div>
     <div class="stat"><div class="n">${F.docsOkP}%</div><div class="l">Expedientes OK</div></div>
-    <div class="stat"><div class="n">${F.sinAcuse}</div><div class="l">Sin acuse IMSS</div></div>
+    <div class="stat"><div class="n">${F.sinAcuse}</div><div class="l">Sin acuse IMSS confirmado</div></div>
   </div>
   <div class="sect">Activos por obra</div>
   <table>${F.porObra.map(x=>`<tr><td style="width:220px">${esc(x.nombre)}</td><td>${bar(x.n,maxObra)}</td><td><b>${x.n}</b></td></tr>`).join('')}</table>
@@ -13788,7 +13849,7 @@ async function dlDashboardXlsx(wb,name,porHoja){
   }catch(e){console.error(e);dlPlain(wb,name);await registrarExportacion(wb,name);toast('Reporte generado, pero no fue posible incrustar la marca corporativa.','err');}
 }
 function exportReporteEjecutivo(){
-  const {tw,ch,ds}=window._DASH; if(!tw)return;
+  const {tw,ch,ds,acuses}=window._DASH; if(!tw)return;
   const wb=XLSX.utils.book_new();
   const porHoja={};
   const lastRow=tw.length+1;
@@ -13803,7 +13864,7 @@ function exportReporteEjecutivo(){
       w.fecha_alta?new Date(w.fecha_alta+'T12:00'):'', w.fecha_baja?new Date(w.fecha_baja+'T12:00'):'', w.fecha_nacimiento?new Date(w.fecha_nacimiento+'T12:00'):'',
       {t:'n',f:`IF(H${r}="","",DATEDIF(H${r},TODAY(),"y"))`,z:'0'},
       {t:'n',f:`IF(F${r}="","",ROUND((TODAY()-F${r})/365,2))`,z:'0.0'},
-      docsOk(w)===DOCS.length?'COMPLETO':'INCOMPLETO', String(w.movimiento_imss||'').includes('CON ACUSE')?'CON ACUSE':'SIN ACUSE']);
+      docsOk(w)===DOCS.length?'COMPLETO':'INCOMPLETO', tieneAcuseAltaImportado(w,acuses)?'CON ACUSE':estadoAcuseIMSS(w,'ALTA',acuses).porCotejar?'POR COTEJAR':'SIN ACUSE']);
     sbz.push(alt?[STX.cellAlt,STX.cellAltC,STX.cellAlt,STX.cellAltC,STX.moneyAlt,STX.cellAltC,STX.cellAltC,STX.cellAltC,STX.cellAltC,STX.cellAltC,STX.cellAltC,STX.cellAltC]
                 :[ST.cell,ST.cellC,ST.cell,ST.cellC,ST.money,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC,ST.cellC]);
   });
