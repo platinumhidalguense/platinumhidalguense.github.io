@@ -571,6 +571,45 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 }
 @media(min-width:2400px){:root{--sidebar-w:320px}.trab-table{font-size:clamp(13px,.42vw,16px)}}
 
+/* 2026-10-07 · Inicio progresivo y expediente por bloques. Solo presentación. */
+.app-shell{grid-template-columns:minmax(0,1fr)}
+.shell{grid-column:1}
+.sidebar{position:fixed;inset:0 auto 0 0;width:min(86vw,330px);height:100dvh;transform:translateX(-102%);transition:transform .2s ease;box-shadow:var(--shadow-lg)}
+.app-shell:not(.sb-oculto) .sidebar.open{transform:none;opacity:1;visibility:visible;pointer-events:auto}
+.sb-close{display:inline-flex;margin-left:auto;border:0;background:transparent;color:inherit;font-size:24px;cursor:pointer}
+.selection-step{width:100%;max-width:1240px;margin:auto;padding:clamp(24px,5vw,80px) clamp(18px,5vw,64px)}
+.selection-heading{margin-bottom:32px}.selection-heading h1{font-size:clamp(25px,3vw,42px);line-height:1.18;margin:14px 0;font-weight:800;color:var(--txt)}
+.selection-heading p{color:var(--mut);font-size:15px;line-height:1.6}.step-label{display:block;color:var(--brand-txt);font-size:11px;letter-spacing:1.4px;font-weight:800;margin-top:20px}
+.empresa-selector{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;width:100%}
+.empresa-btn{display:flex;flex-direction:column;align-items:flex-start;text-align:left;min-height:270px;padding:30px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--txt);gap:20px;white-space:normal;box-shadow:var(--shadow);transition:transform .15s ease,border-color .15s ease}
+.empresa-btn:hover{transform:translateY(-3px);border-color:var(--brand-txt)}.empresa-btn.on{background:var(--card);color:var(--txt)}
+.empresa-mark{width:110px;height:70px;background:#fff;border-radius:10px}.empresa-mark img{width:100%;height:100%;object-fit:contain}.empresa-copy b{font-size:23px}.empresa-copy small{font-size:13px;margin-top:8px;line-height:1.5;color:var(--mut)}.empresa-count{margin-top:auto;color:var(--brand-txt);background:var(--hover);font-size:12px}
+.obra-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:18px;overflow:visible;padding:0;border:0;background:transparent}
+.obra-tab{white-space:normal;display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:12px;padding:24px;min-height:165px;border:1px solid var(--border);border-radius:14px;background:var(--card);color:var(--txt);font-size:16px;font-weight:800;line-height:1.4}.obra-tab.on{background:var(--card);border-color:var(--brand-txt)}.obra-tab small{font-size:11px;color:var(--mut);font-weight:500}.obra-tab .cnt{margin:0;color:var(--green)}
+.empresa-nav{background:transparent;border:0;min-width:0}
+.app-shell:not([data-nav="trabajadores"]) .empresa-nav{display:flex;min-height:calc(100dvh - var(--topbar-h))}
+.app-shell[data-nav="empresa"] #obra-step,.app-shell[data-nav="obra"] #empresa-step,.app-shell[data-nav="trabajadores"] .selection-step{display:none}
+.app-shell:not([data-nav="trabajadores"]) .wrap,.app-shell:not([data-nav="trabajadores"]) #centro-meta,.app-shell:not([data-nav="trabajadores"]) .context-tool,.app-shell:not([data-nav="trabajadores"]) .sb-grp:not(.sb-navigation){display:none}
+.app-shell[data-nav="trabajadores"] #centro-meta{padding:8px 18px;font-size:11px;flex-wrap:wrap}
+.app-shell[data-nav="trabajadores"] .wrap{max-width:none;padding:10px 16px;width:100%;flex:1;min-height:0}
+#view-trab{display:flex;flex-direction:column;gap:8px;height:calc(100dvh - var(--topbar-h) - 65px);min-height:300px}
+#view-trab.hide{display:none}
+.worker-filters{flex:0 0 auto;border:1px solid var(--border);border-radius:10px;background:var(--card)}.worker-filters>summary{cursor:pointer;padding:9px 12px;font-size:12px;font-weight:700}.worker-filters>summary span{color:var(--mut);font-weight:500;margin-left:12px}.worker-filters .stats{padding:12px;margin:0;gap:8px}.worker-filters .toolbar{padding:0 12px 12px;margin:0;gap:8px}.worker-filters .stat{padding:10px}
+.worker-search{display:flex;align-items:center;gap:14px;flex:0 0 auto}.worker-search label{font-size:17px;font-weight:800;color:var(--txt);margin:0}.worker-search input{width:min(100%,520px);flex:1;min-width:0}.worker-hint{margin-left:auto;color:var(--mut);font-size:11px}
+.worker-list{flex:1;min-height:140px;max-height:none;height:auto;overflow:auto;overscroll-behavior:contain}
+.app-shell[data-nav="trabajadores"] .shell{height:100dvh}.app-shell[data-nav="trabajadores"] .appbar,.app-shell[data-nav="trabajadores"] .empresa-nav{flex:0 0 auto}.app-shell[data-nav="trabajadores"] .wrap{overflow:auto}#view-trab{height:100%}#view-trab .worker-list{max-height:none}
+.worker-actions{width:100%}.worker-actions>summary{font-size:12px;font-weight:700;cursor:pointer;padding:5px}.worker-actions>div{display:flex;flex-wrap:wrap;gap:8px;padding-top:12px}
+.trab-table{min-width:720px;table-layout:fixed;font-size:13px}.trab-table th:nth-child(1){width:30%}.trab-table th:nth-child(2){width:12%}.trab-table th:nth-child(3){width:16%}.trab-table th:nth-child(4){width:14%}.trab-table th:nth-child(5){width:12%}.trab-table th:nth-child(6){width:16%}
+.trab-table td,.trab-table th{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;padding:11px 12px}.trab-table th button{background:none;border:0;color:inherit;font:inherit;font-weight:inherit;cursor:pointer;text-align:left;padding:0;width:100%}.trab-table td:nth-child(1) button{background:none;border:0;color:var(--txt);font:inherit;font-weight:700;text-align:left;cursor:pointer;padding:0;line-height:1.5}.worker-number{font-size:10px;color:var(--mut);margin-right:7px;white-space:nowrap}
+.acuse-marks{display:flex;flex-wrap:wrap;gap:5px}.acuse-mark{display:inline-flex;align-items:center;gap:5px;font-size:10px;line-height:1.35;font-weight:700;padding:4px 7px;border-radius:7px;border:1px solid var(--border)}.acuse-mark.ok{color:var(--green);background:var(--green-bg)}.acuse-mark.missing{color:var(--amber);background:var(--amber-bg)}
+.modal.worker-ficha{width:1180px;max-width:calc(100vw - 24px)}.worker-ficha .m-head{align-items:center;flex-wrap:wrap}.worker-ficha .m-head h2{font-size:20px;line-height:1.35;flex:1;min-width:180px}.worker-ficha .m-body{padding:22px;background:var(--bg)}
+.worker-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:20px}.worker-block{border:1px solid var(--border);background:var(--card);border-radius:12px;padding:18px}.worker-block h3{font-size:15px;color:var(--brand-txt);font-weight:800;margin:0 0 16px;border-bottom:2px solid var(--gold);padding-bottom:10px}.worker-block dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:0}.worker-block dl div{min-width:0}.worker-block dt{font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--mut);text-transform:uppercase;margin-bottom:5px}.worker-block dd{margin:0;font-size:14px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.worker-more{border:1px solid var(--border);border-radius:12px;background:var(--card)}.worker-more>summary{padding:17px;cursor:pointer;font-size:15px;font-weight:800;color:var(--brand-txt)}.worker-more>summary small{display:block;font-size:11px;font-weight:400;color:var(--mut);margin:6px 0 0 16px}.worker-more-content{padding:0 16px 16px;display:grid;gap:10px}.worker-section{border:1px solid var(--border);border-radius:9px;overflow:hidden}.worker-section>summary{font-size:13px;font-weight:800;padding:13px 15px;cursor:pointer;background:var(--hover)}.worker-section-body{padding:12px 16px}.worker-section-body .kv{grid-template-columns:minmax(130px,28%) minmax(0,1fr);gap:12px;align-items:start;padding:10px 0}.worker-section-body .kv>b{font-size:11px;color:var(--mut);font-weight:700}.worker-section-body .kv>span{font-size:13px;line-height:1.6;overflow-wrap:anywhere}.ficha-section-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-bottom:12px}.worker-ficha .m-foot{gap:8px;padding:14px;max-height:25dvh;overflow:auto}.worker-ficha .m-foot .btn{font-size:11px}
+:is(button,input,select,summary,a):focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.ia-fab.nav-hidden{display:none!important}.app-shell #view-trab{height:100%}
+@media(max-width:760px){.empresa-selector{grid-template-columns:1fr}.empresa-btn{min-height:200px}.worker-overview{grid-template-columns:1fr}.worker-hint{display:none}.worker-search{flex-wrap:wrap}.worker-search label{width:100%}.worker-ficha .m-body{padding:12px}.worker-section-body .kv{grid-template-columns:1fr}.modal.worker-ficha{max-width:100%;width:100%}.app-shell[data-nav="trabajadores"] .wrap{padding:8px}#view-trab{height:calc(100dvh - var(--topbar-h) - 120px)}.worker-block{padding:14px}}
+@media(prefers-reduced-motion:reduce){.sidebar,.empresa-btn{transition:none}.empresa-btn:hover{transform:none}}
+
 /* ---------- TABLET / MÓVIL: el panel se vuelve cajón ---------- */
 @media(max-width:1024px){
   .app-shell{grid-template-columns:1fr}
@@ -735,7 +774,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
   </div>
 </div>
 
-<div id="scr-app" class="hide app-shell">
+<div id="scr-app" class="hide app-shell sb-oculto" data-nav="empresa">
 
   <!-- ======================= PANEL LATERAL ======================= -->
   <aside class="sidebar" id="sidebar">
@@ -745,10 +784,16 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
       <button class="sb-close" onclick="toggleSidebar(false)" title="Cerrar menú">×</button>
     </div>
 
-    <nav class="sb-nav">
+    <nav class="sb-nav" aria-label="Herramientas y navegación">
+      <details class="sb-grp sb-navigation" open>
+        <summary>Navegación</summary>
+        <button class="sb-item" onclick="showNavStep('empresa')"><span class="ic">🏢</span>Cambiar empresa</button>
+        <button class="sb-item" onclick="showNavStep('obra')"><span class="ic">🏗</span>Seleccionar centro de trabajo</button>
+      </details>
       <details class="sb-grp" open>
         <summary>Operación</summary>
         <button class="sb-item on" id="vb-trab" onclick="setView('trab')"><span class="ic">👷</span>Trabajadores</button>
+        <button class="sb-item" onclick="sbGo(()=>openForm(null))"><span class="ic">＋</span>Nueva alta</button>
         <button class="sb-item" id="vb-chq" onclick="setView('chq')"><span class="ic">🧾</span>Cheques</button>
         <button class="sb-item" id="vb-pagos" onclick="setView('pagos')"><span class="ic">💸</span>Pagos BBVA</button>
         <button class="sb-item" id="vb-audit" onclick="setView('audit')"><span class="ic">🔎</span>Auditoría de pagos</button>
@@ -761,6 +806,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 
       <details class="sb-grp">
         <summary>Documentos</summary>
+        <button class="sb-item" onclick="sbGo(exportExpedientesGlobal)"><span class="ic">📚</span>Exportar expedientes (filtro actual)</button>
         <button class="sb-item" onclick="sbGo(openAsistencia)"><span class="ic">📝</span>Listas de asistencia + directorio</button>
         <button class="sb-item" onclick="sbGo(openCuadrillas)"><span class="ic">👷</span>Cuadrillas por contratista</button>
         <button class="sb-item" onclick="sbGo(openRequisicion)"><span class="ic">🪪</span>Requisición de tarjetas</button>
@@ -819,6 +865,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <button class="sb-item" onclick="sbGo(openEditContratistas)"><span class="ic">👷</span>Editar contratistas</button>
         <button class="sb-item" onclick="sbGo(openAutorrellenar)"><span class="ic">🪄</span>Autorrellenar desde CURP</button>
         <button class="sb-item" onclick="sbGo(openNuevaObra)"><span class="ic">➕</span>Nueva obra / centro</button>
+        <button class="sb-item hide" id="btn-edit-centro" onclick="sbGo(()=>openEditObra(OBRA.id))"><span class="ic">✎</span>Editar centro seleccionado</button>
         <button class="sb-item" onclick="sbGo(()=>exportRespaldo(false))"><span class="ic">⬇</span>Respaldo Excel</button>
         <button class="sb-item" onclick="sbGo(()=>exportRespaldo(true))"><span class="ic">📧</span>Respaldo por correo</button>
         <button class="sb-item" onclick="sbGo(openIA)"><span class="ic">🤖</span>Asistente e índice de IA</button>
@@ -842,17 +889,20 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
       <nav class="crumbs" id="crumbs" aria-label="Ruta actual"></nav>
       <div class="appbar-right">
         <span id="rt-status" style="font-size:11.5px;color:var(--mut)"></span>
-        <button class="icon-btn" onclick="openAlertas()" title="Alertas">🔔<span id="alert-badge" style="position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:800;display:none"></span></button>
-        <button class="icon-btn" onclick="openDashboard()" title="Dashboard ejecutivo">📈</button>
+        <span class="context-tool" id="alert-badge" title="Avisos pendientes: consulta Menú → Reportes y control → Alertas" aria-live="polite" style="background:var(--amber-bg);color:var(--amber);border-radius:8px;padding:4px 8px;font-size:11px;font-weight:800;display:none"></span>
       </div>
     </header>
 
     <section class="empresa-nav" aria-label="Empresa y centro de trabajo">
-      <div class="empresa-row">
-        <div class="empresa-caption"><small>Empresa operativa</small><strong id="empresa-nombre">Selecciona una empresa</strong></div>
-        <div class="empresa-selector" id="empresa-selector" role="tablist" aria-label="Empresas"></div>
+      <div id="empresa-step" class="selection-step">
+        <div class="selection-heading"><span class="step-label">PASO 1 DE 3 · EMPRESA</span><h1 tabindex="-1">¿Con qué empresa vas a trabajar?</h1><p>Selecciona la razón social para consultar sus centros de trabajo.</p></div>
+        <div class="empresa-selector" id="empresa-selector" aria-label="Empresas"></div>
       </div>
-      <div class="obra-bar" id="obra-bar" role="tablist" aria-label="Centros de trabajo"></div>
+      <div id="obra-step" class="selection-step">
+        <div class="selection-heading"><button class="btn" onclick="showNavStep('empresa')">← Empresas</button><span class="step-label">PASO 2 DE 3 · CENTRO DE TRABAJO</span><h1 id="empresa-nombre" tabindex="-1">Selecciona un centro</h1><p>Elige una obra u oficina para abrir su personal y herramientas.</p></div>
+        <div class="obra-bar" id="obra-bar" aria-label="Centros de trabajo"></div>
+        <p id="nav-loading" role="status" class="hide">Cargando el centro de trabajo…</p>
+      </div>
       <div class="centro-meta" id="centro-meta"></div>
     </section>
 
@@ -860,9 +910,9 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 
     <!-- ===== VISTA TRABAJADORES ===== -->
     <div id="view-trab">
+      <details class="worker-filters"><summary>Filtros y resumen <span id="worker-count" aria-live="polite"></span></summary>
       <div class="stats" id="stats"></div>
       <div class="toolbar">
-        <div class="search"><input id="q" placeholder="Buscar nombre, CURP, RFC, NSS, puesto..." oninput="renderTable()"></div>
         <select id="f-estatus" onchange="renderTable()">
           <option value="">Estatus: todos</option><option>ACTIVO</option><option>BAJA</option><option>PENDIENTE</option>
         </select>
@@ -872,27 +922,22 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
           <option value="">Periodo: todos</option><option>SEMANAL</option><option>QUINCENAL</option>
         </select>
         <select id="f-semana" onchange="renderTable()"><option value="">Ingreso: todas</option></select>
-        <button class="btn gold" onclick="openForm(null)">＋ Nueva alta</button>
-        <button class="btn" onclick="openMovimientos(isoWeek())">📅 Movimientos</button>
-        <button class="btn dark" onclick="openAsistencia()">📝 Listas de asistencia</button>
-        <button class="btn" onclick="openProyeccion()">💰 Proyección de nómina</button>
-        <button class="btn" onclick="exportExpedientesGlobal()" title="Un Excel con una pestaña por trabajador activo (respeta el filtro de arriba)">📚 Exportar expedientes</button>
-        <button class="btn" onclick="toggleSidebar()" title="Muestra u oculta el panel lateral con todas las herramientas">☰ Menú de herramientas</button>
+        <button class="btn" onclick="setSort('no_trab')">Ordenar por número ↕</button>
+        <button class="btn" onclick="resetWorkerFilters()">Limpiar filtros</button>
       </div>
-      <div class="tbl-card">
+      </details>
+      <div class="worker-search"><label for="q">Trabajadores</label><input id="q" type="search" placeholder="Buscar nombre, número, CURP, RFC, NSS o puesto…" oninput="renderTable()"><span class="worker-hint">Selecciona un nombre para abrir su ficha</span></div>
+      <div class="tbl-card worker-list" tabindex="0" aria-label="Lista de trabajadores, desplázate para ver más filas">
         <table class="trab-table">
           <thead><tr>
-            <th onclick="setSort('no_trab')">No.</th>
-            <th onclick="setSort('nombre')">Nombre completo</th>
-            <th onclick="setSort('contratista')">Contratista</th>
-            <th onclick="setSort('puesto')">Puesto</th>
-            <th onclick="setSort('estatus')">Estatus</th>
-            <th onclick="setSort('fecha_alta')">Fecha de ingreso</th>
-            <th onclick="setSort('fecha_baja')">Fecha baja</th>
-            <th onclick="setSort('sal_semanal')">Salario</th>
-            <th>Cuenta</th><th>Teléfono</th>
+            <th data-sort="nombre"><button onclick="setSort('nombre')">Nombre completo ↕</button></th>
+            <th data-sort="estatus"><button onclick="setSort('estatus')">Estatus ↕</button></th>
+            <th data-sort="contratista"><button onclick="setSort('contratista')">Contratista ↕</button></th>
+            <th data-sort="fecha_alta"><button onclick="setSort('fecha_alta')">Ingreso / reingreso ↕</button></th>
+            <th data-sort="fecha_baja"><button onclick="setSort('fecha_baja')">Fecha baja ↕</button></th>
+            <th>Acuses IMSS</th>
           </tr></thead>
-          <tbody id="tbody"><tr class="loading-row"><td colspan="10">Cargando...</td></tr></tbody>
+          <tbody id="tbody"><tr class="loading-row"><td colspan="6">Selecciona un centro de trabajo.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -1367,18 +1412,14 @@ async function enterApp(){
   OBRAS=data;
   try{const guardada=localStorage.getItem('platinum_empresa_activa');if(EMPRESAS[guardada])EMPRESA_ACTIVA=guardada;}catch(e){}
   if(!obrasEmpresa().length&&OBRAS.length)EMPRESA_ACTIVA=empresaDeObra(OBRAS[0]);
-  const obraInicial=(function(){
-    const disponibles=obrasEmpresa();let id='';
-    try{id=localStorage.getItem('platinum_obra_'+EMPRESA_ACTIVA)||'';}catch(e){}
-    return disponibles.find(o=>o.id===id)||disponibles[0]||OBRAS[0];
-  })();
   renderObraBar();
   await loadConfig();
   chequearVersion();
   setInterval(chequearVersionEnVivo,10*60*1000);
   await cargarContratistas();
   if($('btn-papelera'))$('btn-papelera').classList.toggle('hide',!esAdmin());
-  if(obraInicial)await selectObra(obraInicial.id);
+  if($('btn-edit-centro'))$('btn-edit-centro').classList.toggle('hide',!esAdmin());
+  showNavStep('empresa');
   startRealtime();
 }
 
@@ -1421,22 +1462,40 @@ async function softRefresh(notify=true){
   const {data:ob}=await sb.from('obras').select('*').order('orden');
   if(ob){
     const actualId=OBRA&&OBRA.id;OBRAS=ob;
-    OBRA=OBRAS.find(o=>o.id===actualId)||obrasEmpresa()[0]||OBRAS[0]||null;
-    if(OBRA)EMPRESA_ACTIVA=empresaDeObra(OBRA);
+    OBRA=OBRAS.find(o=>o.id===actualId)||null;
+    if(OBRA&&NAV_STEP==='trabajadores')EMPRESA_ACTIVA=empresaDeObra(OBRA);
     renderObraBar();
   }
-  if(OBRA)await loadObraData(OBRA.id);
+  if(OBRA&&NAV_STEP==='trabajadores')await loadObraData(OBRA.id);
   if(notify)toast('🔄 Información actualizada por otro usuario.');
 }
 
 /* ---------- obras ---------- */
+let NAV_STEP='empresa',NAV_BUSY=false;
+function showNavStep(step){
+  if(NAV_BUSY)return;
+  if(!['empresa','obra','trabajadores'].includes(step))return;
+  if(step==='trabajadores'&&!OBRA)return;
+  NAV_STEP=step;
+  $('scr-app').setAttribute('data-nav',step);
+  const fab=$('ia-fab');if(fab)fab.classList.toggle('nav-hidden',step!=='trabajadores');
+  toggleSidebar(false);
+  renderObraBar();
+  const heading=document.querySelector(step==='empresa'?'#empresa-step h1':step==='obra'?'#obra-step h1':'#q');
+  if(heading)heading.focus({preventScroll:true});
+  window.scrollTo({top:0,behavior:'instant'});
+}
+function resetWorkerFilters(){
+  ['q','f-estatus','flt-contratista','flt-puesto','f-periodo','f-semana'].forEach(id=>{if($(id))$(id).value='';});
+  renderTable();
+}
 function renderEmpresaSelector(){
   const box=$('empresa-selector'),titulo=$('empresa-nombre');if(!box)return;
   const actual=EMPRESAS[EMPRESA_ACTIVA]||EMPRESAS.PLATINUM;
   if(titulo)titulo.textContent=actual.nombre;
   box.innerHTML=Object.values(EMPRESAS).filter(e=>obrasEmpresa(e.codigo).length||esVip()).map(e=>{
     const centros=obrasEmpresa(e.codigo).length;
-    return `<button class="empresa-btn ${e.codigo===EMPRESA_ACTIVA?'on':''}" role="tab" aria-selected="${e.codigo===EMPRESA_ACTIVA}" onclick="selectEmpresa('${e.codigo}')">
+    return `<button class="empresa-btn" onclick="selectEmpresa('${e.codigo}')">
       <span class="empresa-mark"><img src="${logoEmpresa(e.codigo)}" alt="Logo ${esc(e.corto)}"></span><span class="empresa-copy"><b>${esc(e.corto)}</b><small>${esc(e.nombre)}</small></span><span class="empresa-count">${centros} centro${centros===1?'':'s'}</span>
     </button>`;
   }).join('');
@@ -1454,9 +1513,9 @@ function renderObraBar(){
   renderEmpresaSelector();
   const obras=obrasEmpresa();
   $('obra-bar').innerHTML=(esAdmin()?`<button class="obra-tab" style="color:var(--gold)" onclick="openNuevaObra()" title="Agregar centro a ${esc(EMPRESAS[EMPRESA_ACTIVA].corto)}">➕ Centro</button>`:'')+obras.map(o=>`
-    <button class="obra-tab ${OBRA&&o.id===OBRA.id?'on':''}" role="tab" aria-selected="${!!(OBRA&&o.id===OBRA.id)}" onclick="selectObra('${o.id}')">
+    <button class="obra-tab ${OBRA&&o.id===OBRA.id?'on':''}" ${NAV_BUSY?'disabled':''} onclick="selectObra('${o.id}')">
       ${o.tipo==='OFICINA'?'🏢':'🏗'} ${esc(o.nombre)} <span class="cnt" id="cnt-${o.id}"></span>
-      ${esAdmin()?`<span class="obra-edit" title="Editar obra (solo administrador)" onclick="event.stopPropagation();openEditObra('${o.id}')">✎</span>`:''}
+      <small>Registro patronal: ${esc(o.registro_patronal||'Sin capturar')}${o.tipo!=='OFICINA'?' · SIROC: '+esc(o.registro_siroc||'Sin capturar'):''}</small>
     </button>`).join('');
   renderCentroMeta();
   refreshCounts();
@@ -1589,27 +1648,36 @@ async function execDeleteObra(id){
   toast(`Obra "${o.nombre}" eliminada.`,'ok');
 }
 async function selectObra(id){
+  if(NAV_BUSY)return;
   const nueva=OBRAS.find(o=>o.id===id);if(!nueva)return;
+  const anterior=OBRA;
+  NAV_BUSY=true;
   OBRA=nueva;EMPRESA_ACTIVA=empresaDeObra(nueva);
-  try{localStorage.setItem('platinum_empresa_activa',EMPRESA_ACTIVA);localStorage.setItem('platinum_obra_'+EMPRESA_ACTIVA,id);}catch(e){}
   renderObraBar();
-  await loadObraData(id);
+  $('nav-loading').classList.remove('hide');
+  try{
+    const loaded=await loadObraData(id);
+    if(loaded===false){OBRA=anterior;return;}
+    if(!anterior||anterior.id!==id)resetWorkerFilters();
+    try{localStorage.setItem('platinum_empresa_activa',EMPRESA_ACTIVA);localStorage.setItem('platinum_obra_'+EMPRESA_ACTIVA,id);}catch(e){}
+    NAV_BUSY=false;
+    setView('trab');
+  }catch(e){OBRA=anterior;toast('No se pudo abrir el centro: '+e.message,'err');}
+  finally{NAV_BUSY=false;$('nav-loading').classList.add('hide');renderObraBar();}
 }
 async function selectEmpresa(codigo){
+  if(NAV_BUSY)return;
   if(!EMPRESAS[codigo])return;
   const disponibles=obrasEmpresa(codigo);
   if(!disponibles.length){toast('Esta empresa todavía no tiene centros de trabajo.','err');return;}
   EMPRESA_ACTIVA=codigo;
   try{localStorage.setItem('platinum_empresa_activa',codigo);}catch(e){}
-  if(OBRA&&empresaDeObra(OBRA)===codigo){renderObraBar();return;}
-  let id='';try{id=localStorage.getItem('platinum_obra_'+codigo)||'';}catch(e){}
-  const destino=disponibles.find(o=>o.id===id)||disponibles[0];
-  await selectObra(destino.id);
+  showNavStep('obra');
 }
 async function loadObraData(id){
   /* v36: esqueletos mientras llegan los datos — la pantalla no se queda en
      blanco ni salta cuando aparecen las filas. */
-  skeletonTabla('tbody',9,10,'Cargando trabajadores...');
+  skeletonTabla('tbody',9,6,'Cargando trabajadores...');
   skeletonTabla('chq-tbody',6,10,'Cargando cheques...');
   skeletonTabla('pg-v-tbody',5,9,'Cargando pagos...');
   const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn},{data:ab},{data:ft,error:eFt}]=await Promise.all([
@@ -1633,8 +1701,8 @@ async function loadObraData(id){
     fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('id,trabajador_id,anio,semana,estado_servicio').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('control_finiquitos_transferencia').select('*').eq('obra_id',id))
   ]);
-  if(e1){toast('Error al cargar trabajadores: '+e1.message,'err');return;}
-  if(eFt){toast('No se pudo leer el control de finiquitos por transferencia: '+eFt.message,'err');return;}
+  if(e1){toast('Error al cargar trabajadores: '+e1.message,'err');return false;}
+  if(eFt){toast('No se pudo leer el control de finiquitos por transferencia: '+eFt.message,'err');return false;}
   WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=dx||[];VAC=vc||[];ACTAS=ac||[];NOM=nm||[];PAGOS=pg||[];PRIMAS=(pr||[]).filter(p=>p.activo!==false);CUADS=cd||[];DIFS=df||[];BLOQUES=bq||[];SUELDOSINT=si||[];CIERRES=cc||[];CTRLNOI=cn||[];ALTAS_CORTAS=ab||[];FINTRANS=ft||[];
   await activarProgramados();
   const cs=[...new Set(WORKERS.map(w=>w.contratista).filter(Boolean))].sort();
@@ -1654,6 +1722,7 @@ async function loadObraData(id){
   await cargarRecalcInfonavit();
   updateAlertas();
   renderVacViews();renderActasView();renderNomView();renderAnualView();renderPagosView();
+  return true;
 }
 let CFGEMP={};
 async function loadConfig(){
@@ -1668,7 +1737,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-06.1';
+const APP_VERSION='2026-10-07.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -1713,6 +1782,9 @@ const VISTAS={
   papeles:{ic:'📂',txt:'Control de papeles'}
 };
 function setView(v){
+  if(!OBRA||NAV_STEP!=='trabajadores'&&empresaDeObra(OBRA)!==EMPRESA_ACTIVA){showNavStep('obra');return;}
+  NAV_STEP='trabajadores';$('scr-app').setAttribute('data-nav',NAV_STEP);
+  if($('ia-fab'))$('ia-fab').classList.remove('nav-hidden');
   if(!VISTAS[v])v='trab';
   VIEW=v;
   Object.keys(VISTAS).forEach(k=>{
@@ -1724,7 +1796,7 @@ function setView(v){
   if(v==='audit')auCargar();
   if(v==='papeles')cpCargar();
   renderCrumbs();
-  cerrarCajonMovil();                         // en celular el cajón se cierra solo
+  toggleSidebar(false);
   window.scrollTo({top:0,behavior:'smooth'});
 }
 /* Migas de pan: siempre se ve dónde está uno parado */
@@ -1733,12 +1805,16 @@ function renderCrumbs(){
   const v=VISTAS[VIEW]||VISTAS.trab;
   const obra=(OBRA&&OBRA.nombre)||'—';
   const empresa=(EMPRESAS[EMPRESA_ACTIVA]||EMPRESAS.PLATINUM).corto;
+  if(NAV_STEP!=='trabajadores'){
+    c.innerHTML=`<span class="c-i"><a href="#" onclick="showNavStep('empresa');return false">🏢 Empresas</a></span>${NAV_STEP==='obra'?`<span class="sep">›</span><span class="c-i cur">${esc(empresa)} · Centros de trabajo</span>`:''}`;
+    return;
+  }
   c.innerHTML=`
-    <span class="c-i hide-sm"><a href="#" onclick="setView('trab');return false" title="Inicio">🏠 Inicio</a></span>
+    <span class="c-i hide-sm"><a href="#" onclick="showNavStep('empresa');return false" title="Inicio">🏠 Inicio</a></span>
     <span class="sep hide-sm">›</span>
-    <span class="c-i hide-sm"><a href="#" onclick="document.querySelector('.empresa-nav').scrollIntoView({behavior:'smooth',block:'nearest'});return false" title="Cambiar de empresa">🏢 ${esc(empresa)}</a></span>
+    <span class="c-i hide-sm"><a href="#" onclick="showNavStep('empresa');return false" title="Cambiar de empresa">🏢 ${esc(empresa)}</a></span>
     <span class="sep hide-sm">›</span>
-    <span class="c-i"><a href="#" onclick="document.querySelector('.obra-bar').scrollIntoView({behavior:'smooth',block:'nearest'});return false" title="Cambiar de obra">🏗 ${esc(obra)}</a></span>
+    <span class="c-i"><a href="#" onclick="showNavStep('obra');return false" title="Cambiar de obra">🏗 ${esc(obra)}</a></span>
     <span class="sep">›</span>
     <span class="c-i cur">${v.ic} ${esc(v.txt)}</span>`;
 }
@@ -2160,40 +2236,37 @@ const esPantallaChica=()=>window.matchMedia('(max-width:1024px)').matches;
 function sidebarVisible(){
   const app=$('scr-app'),sb=$('sidebar');
   if(!app||!sb)return false;
-  return esPantallaChica()?sb.classList.contains('open'):!app.classList.contains('sb-oculto');
+  return sb.classList.contains('open');
 }
 function toggleSidebar(forzar){
   const app=$('scr-app'),sb=$('sidebar'),sc=$('sb-scrim'),b=$('burger');
   if(!sb||!app)return;
   const abrir=(forzar===undefined)?!sidebarVisible():!!forzar;
-  if(esPantallaChica()){
-    sb.classList.toggle('open',abrir);
-    if(sc)sc.classList.toggle('on',abrir);
-  }else{
-    sb.classList.remove('open');
-    if(sc)sc.classList.remove('on');
-    app.classList.toggle('sb-oculto',!abrir);
-    try{localStorage.setItem('platinum_panel',abrir?'visible':'oculto');}catch(e){}
-  }
+  sb.classList.toggle('open',abrir);
+  if(sc)sc.classList.toggle('on',abrir);
+  app.classList.toggle('sb-oculto',!abrir);
   if(b){b.title=abrir?'Ocultar el menú':'Mostrar el menú';b.setAttribute('aria-expanded',abrir?'true':'false');}
 }
 /* Al entrar se respeta cómo lo dejó el usuario la última vez */
 function initSidebar(){
   const app=$('scr-app'); if(!app)return;
-  let g=''; try{g=localStorage.getItem('platinum_panel')||'';}catch(e){}
-  app.classList.toggle('sb-oculto',g==='oculto'&&!esPantallaChica());
+  toggleSidebar(false);
   const b=$('burger');
   if(b){const v=sidebarVisible();b.title=v?'Ocultar el menú':'Mostrar el menú';b.setAttribute('aria-expanded',v?'true':'false');}
 }
 /* Cierra SOLO el cajón de celular (en escritorio no debe plegarse al navegar) */
 function cerrarCajonMovil(){if(esPantallaChica())toggleSidebar(false);}
 /* Ejecuta una acción del panel y cierra el cajón (celular) */
-function sbGo(fn){try{fn();}catch(e){toast('No se pudo abrir: '+e.message,'err');}cerrarCajonMovil();}
+function sbGo(fn){
+  if(NAV_STEP!=='trabajadores'||!OBRA){showNavStep('obra');return;}
+  toggleSidebar(false);
+  try{fn();}catch(e){toast('No se pudo abrir: '+e.message,'err');}
+}
 /* Esc cierra primero el cajón; si no está abierto, cierra el modal de encima */
 document.addEventListener('keydown',e=>{
   if(e.key!=='Escape')return;
   const sb=$('sidebar');
-  if(sb&&sb.classList.contains('open')){toggleSidebar(false);return;}
+  if(sidebarVisible()){toggleSidebar(false);$('burger').focus();return;}
   if($('modals')&&$('modals').querySelector('.overlay'))closeModal2();
 });
 
@@ -2293,7 +2366,7 @@ function baseFiltered(){
     if(fpu&&w.puesto!==fpu)return false;
     if(fp&&(w.periodo_pago||'SEMANAL')!==fp)return false;
     if(fs&&w.semana_ingreso!==fs)return false;
-    if(q){const hay=[fullName(w),w.curp,w.rfc,w.nss,w.puesto,w.contratista,w.telefono,w.correo,w.semana_ingreso].join(' ').toUpperCase();if(!hay.includes(q))return false;}
+    if(q){const hay=[fullName(w),w.no_trab,w.curp,w.rfc,w.nss,w.puesto,w.contratista,w.telefono,w.correo,w.semana_ingreso].join(' ').toUpperCase();if(!hay.includes(q))return false;}
     return true;
   });
 }
@@ -2382,11 +2455,26 @@ function filtrarContratista(c){
   sel.value=[...sel.options].some(o=>o.value===c)?c:'';
   renderTable();
 }
+function marcadorAcuseIMSS(w,tipo,indice){
+  const baja=tipo==='BAJA',inicio=String(baja?w.fecha_baja:(w.fecha_reingreso||w.fecha_alta)||'').slice(0,10);
+  const tipos=baja?['BAJA']:(w.fecha_reingreso?['REINGRESO','ALTA']:['ALTA','REINGRESO']);
+  const docs=(indice?indice.get(w.id)||[]:DOCSX||[]).filter(d=>d.trabajador_id===w.id&&!d.anulado&&String(d.categoria||'').toUpperCase()==='ACUSE_IMSS'&&tipos.includes(String(d.subtipo||'').trim().toUpperCase()));
+  // Fecha del documento/movimiento, nunca fecha de subida: un acuse antiguo
+  // subido hoy no confirma un reingreso o una baja nuevos.
+  const ok=!!inicio&&docs.some(d=>/^\d{4}-\d{2}-\d{2}/.test(String(d.fecha_doc||''))&&String(d.fecha_doc).slice(0,10)>=inicio);
+  const nombre=baja?'Baja':w.fecha_reingreso?'Reingreso':'Alta';
+  const pendiente=!ok&&docs.some(d=>!d.fecha_doc)?'por cotejar':'pendiente';
+  return `<span class="acuse-mark ${ok?'ok':'missing'}" title="${esc(nombre)}: ${ok?'acuse archivado del movimiento actual':pendiente==='por cotejar'?'hay un archivo sin fecha de movimiento; verifica su correspondencia':'falta acuse del movimiento actual'}">${ok?'✓':'⚠'} ${nombre} ${ok?'con acuse':pendiente}</span>`;
+}
+function marcadoresIMSS(w,indice){
+  return `<span class="acuse-marks">${marcadorAcuseIMSS(w,'ALTA',indice)}${w.estatus==='BAJA'?marcadorAcuseIMSS(w,'BAJA',indice):''}</span>`;
+}
 function renderTable(){
   const fe=$('f-estatus').value;
   let rows=baseFiltered().filter(w=>!fe||w.estatus===fe);
   renderStats();
   const k=SORT.k;
+  document.querySelectorAll('.trab-table th[data-sort]').forEach(th=>th.setAttribute('aria-sort',th.dataset.sort===k?(SORT.asc?'ascending':'descending'):'none'));
   rows.sort((x,y)=>{
     let a=k==='nombre'?fullName(x):(k==='fecha_alta'?(x.fecha_reingreso||x.fecha_alta):x[k]),
         b=k==='nombre'?fullName(y):(k==='fecha_alta'?(y.fecha_reingreso||y.fecha_alta):y[k]);
@@ -2395,19 +2483,18 @@ function renderTable(){
     return SORT.asc?String(a).localeCompare(String(b)):String(b).localeCompare(String(a));
   });
   window._NAVIDS=rows.map(w=>w.id); // orden actual de la tabla, para las flechas ‹ › de la ficha
-  if(!rows.length){$('tbody').innerHTML='<tr><td colspan="10"><div class="empty"><div class="big">🗂</div>Sin trabajadores que coincidan.<br>Usa <b>＋ Nueva alta</b> para capturar el primero.</div></td></tr>';return;}
+  if($('worker-count'))$('worker-count').textContent=rows.length+' visibles · '+WORKERS.length+' en el centro';
+  if(!rows.length){$('tbody').innerHTML='<tr><td colspan="6"><div class="empty"><div class="big">🗂</div>Sin trabajadores que coincidan.<br>La opción <b>Nueva alta</b> está en el menú ☰ → Operación.</div></td></tr>';return;}
+  const acuses=new Map();
+  (DOCSX||[]).forEach(d=>{if(!d.anulado&&String(d.categoria||'').toUpperCase()==='ACUSE_IMSS'){if(!acuses.has(d.trabajador_id))acuses.set(d.trabajador_id,[]);acuses.get(d.trabajador_id).push(d);}});
   $('tbody').innerHTML=rows.map(w=>`
     <tr onclick="openDetail('${w.id}')">
-      <td>${w.no_trab??''}</td>
-      <td title="${esc(fullName(w))}"><b>${esc(fullName(w))}</b></td>
-      <td title="${esc(w.contratista)}">${esc(w.contratista)}</td>
-      <td title="${esc(w.puesto)}">${esc(w.puesto)}</td>
+      <td><button onclick="event.stopPropagation();openDetail('${w.id}')" aria-label="Abrir ficha de ${esc(fullName(w))}"><span class="worker-number">#${w.no_trab??'—'}</span>${esc(fullName(w))}</button></td>
       <td><span class="estado-trab"><span class="badge ${w.estatus}">${w.estatus}</span>${altaImssPendiente(w)?'<span class="badge PENDIENTE imss-alert" title="Alta pendiente de presentar ante el IMSS">⚠ ALTA IMSS</span>':''}${ALTAS_CORTAS.some(a=>a.trabajador_id===w.id&&a.estado_servicio==='SIN_SERVICIO_CONFIRMADO')?'<span class="badge PENDIENTE" title="Alta y baja con registro IMSS; sin trabajo efectivo confirmado. Verifica acuses y fecha real.">SIN SERVICIO</span>':''}</span></td>
-      <td title="${w.fecha_reingreso?'Fecha de reingreso':'Fecha de ingreso'}">${w.fecha_reingreso?'<b style="color:var(--amber)">'+fmtD(w.fecha_reingreso)+'</b><small style="display:block;color:var(--amber)">REINGRESO</small>':'<b style="color:var(--green)">'+fmtD(w.fecha_alta)+'</b><small style="display:block;color:var(--green)">INGRESO</small>'}</td>
+      <td>${esc(w.contratista)||'—'}</td>
+      <td title="${w.fecha_reingreso?'Fecha de reingreso':'Fecha de ingreso'}">${w.fecha_reingreso?'<b style="color:var(--amber)">'+fmtD(w.fecha_reingreso)+'</b><small style="display:block;color:var(--amber)">REINGRESO</small>'+(w.fecha_alta&&w.fecha_alta!==w.fecha_reingreso?'<small style="display:block;color:var(--mut)">Alta inicial: '+fmtD(w.fecha_alta)+'</small>':''):'<b style="color:var(--green)">'+fmtD(w.fecha_alta)+'</b><small style="display:block;color:var(--green)">INGRESO</small>'}</td>
       <td>${w.fecha_baja?'<span style="color:var(--red)">'+fmtD(w.fecha_baja)+'</span>':'—'}</td>
-      <td>$${money(w.sal_semanal)}</td>
-      <td title="${esc(w.cuenta)}">${String(w.cuenta).toUpperCase()==='CREAR'?'<b style="color:var(--amber)">CREAR</b>':esc(w.cuenta)}</td>
-      <td title="${esc(w.telefono)}">${esc(w.telefono)}</td>
+      <td>${marcadoresIMSS(w,acuses)}</td>
     </tr>`).join('');
 }
 
@@ -2477,6 +2564,44 @@ async function refrescaPagosDe(id){
   PAGOS=(PAGOS||[]).filter(p=>p.trabajador_id!==id).concat(data);
   return data.length;
 }
+async function openFichaIncidentes(id){
+  const w=WORKERS.find(x=>x.id===id);if(!w)return;
+  await openCtrlIncidentes();
+  const input=$('salud-buscar');if(input){input.value=fullName(w);ctrlFiltrarSalud(input.value);}
+}
+function fichaResumenHTML(w){
+  const dato=(l,v)=>`<div><dt>${esc(l)}</dt><dd>${v||'—'}</dd></div>`;
+  const bloque=(titulo,contenido)=>`<section class="worker-block"><h3>${esc(titulo)}</h3><dl>${contenido}</dl></section>`;
+  const cuad=CUADS.find(c=>c.id===w.id_cuadrilla);
+  return `<div class="worker-overview">
+    ${bloque('Identificación y asignación',dato('Número',esc(String(w.no_trab??'')))+dato('Puesto',esc(w.puesto))+dato('Contratista',esc(w.contratista))+dato('Cuadrilla',esc(cuad?.nombre))+dato('NSS',esc(w.nss))+dato('CURP',esc(w.curp))+dato('RFC',esc(w.rfc))+dato('Centro de trabajo',esc(OBRA.nombre)))}
+    ${bloque('Relación laboral',dato('Estatus',`<span class="badge ${esc(w.estatus)}">${esc(w.estatus)}</span>`)+dato('Fecha de alta',fmtD(w.fecha_alta))+dato('Reingreso',w.fecha_reingreso?`<span style="color:var(--amber)">${fmtD(w.fecha_reingreso)}</span>`:'—')+dato('Fecha de baja',w.fecha_baja?`<span style="color:var(--red)">${fmtD(w.fecha_baja)}</span>`:'—')+dato('Tipo de contrato',esc(w.tipo_contrato||'OBRA DETERMINADA'))+dato('Acuses IMSS',marcadoresIMSS(w)))}
+    ${bloque('Contacto',dato('Teléfono',esc(w.telefono))+dato('Correo electrónico',esc(w.correo))+dato('Beneficiario',esc(w.beneficiario))+dato('Parentesco',esc(w.benef_parentesco))+dato('Teléfono del beneficiario',esc(w.benef_telefono))+dato('Domicilio',esc(w.direccion)))}
+    ${bloque('Salario y forma de pago',dato('Salario diario','$'+money(w.sd))+dato('Salario integrado','$'+money(w.sdi))+dato('Periodo',esc(w.periodo_pago||'SEMANAL'))+dato('Salario del periodo','$'+money(w.sal_semanal))+dato('Forma de pago',esc(w.forma_pago))+dato('Banco',esc(w.banco)))}
+  </div>`;
+}
+function agruparExpedienteFicha(){
+  const raiz=$('worker-more-content');if(!raiz)return;
+  let cuerpo=null;
+  const seccion=titulo=>{
+    const detalle=document.createElement('details');detalle.className='worker-section';
+    const resumen=document.createElement('summary');resumen.textContent=titulo;detalle.appendChild(resumen);
+    const box=document.createElement('div');box.className='worker-section-body';detalle.appendChild(box);raiz.appendChild(detalle);return box;
+  };
+  // Mover nodos conserva IDs, eventos y actualizaciones dirigidas de documentos/pagos.
+  const nodos=Array.from(raiz.childNodes);
+  nodos.forEach(n=>{
+    if(n.nodeType===1&&n.classList.contains('sect')){
+      const label=n.cloneNode(true);label.querySelectorAll('button').forEach(b=>b.remove());
+      cuerpo=seccion(label.textContent.trim());
+      Array.from(n.childNodes).filter(x=>x.nodeType===3).forEach(x=>x.remove());
+      n.className='ficha-section-actions';
+      if(n.children.length)cuerpo.appendChild(n);
+    }else if(n.nodeType===1&&(n.id==='fd-pagos'||n.id==='fd-docs')){
+      cuerpo=seccion(n.id==='fd-pagos'?'Pagos bancarios':'Acuses IMSS, recibos y CFDI');cuerpo.appendChild(n);
+    }else if(cuerpo)cuerpo.appendChild(n);
+  });
+}
 function openDetail(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
   const d=w.docs||{};
@@ -2496,6 +2621,8 @@ function openDetail(id){
       <button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       ${w.estatus==='PENDIENTE'?`<div style="background:var(--amber-bg);border:1px solid #ecd9a0;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px"><b style="color:var(--amber)">⏳ PENDIENTE</b> — ${(function(){if(w.pendiente_manual)return 'Pausado manualmente — <b>'+esc(w.motivo_pendiente||'SIN MOTIVO')+'</b>. No sale en proyección ni requisición y NO se reactiva solo: usa "Marcar ACTIVO" cuando se resuelva.';const f=datosFaltantes(w);return f.length?'Falta capturar: <b>'+f.join(', ')+'</b>. Al completarlo pasará a ACTIVO solo, o usa el botón "Marcar ACTIVO".':'Ya tiene todos los datos: usa el botón "Marcar ACTIVO".';})()}</div>`:''}
+      <div id="worker-overview">${fichaResumenHTML(w)}</div>
+      <details class="worker-more"><summary>Mostrar más · Expediente completo<small>Datos personales y bancarios · IMSS · créditos y descuentos · incidencias · documentos · recibos · historial</small></summary><div id="worker-more-content" class="worker-more-content">
       <div class="sect">Obra y puesto</div>
       ${kv('Obra',esc(OBRA.nombre))}${kv('Contratista',esc(w.contratista))}${kv('No. trabajador',w.no_trab)}${kv('Puesto',esc(w.puesto))}${kv('Funciones',esc(w.funciones))}${kv('Turno',esc(w.turno))}${kv('Semana de ingreso',esc(w.semana_ingreso))}${kv('Fecha alta',fmtD(w.fecha_alta))}${w.fecha_reingreso?kv('Fecha de reingreso',fmtD(w.fecha_reingreso)+' (la antigüedad cuenta desde aquí)'):''}${kv('Tipo de contrato',esc(w.tipo_contrato||'OBRA DETERMINADA')+(w.fecha_fin_contrato?' · vence '+fmtD(w.fecha_fin_contrato):''))}${(w.estatus==='BAJA'||w.fecha_baja)?kv('Fecha baja'+(w.estatus!=='BAJA'?' anterior':''),fmtD(w.fecha_baja))+(w.estatus==='BAJA'?kv('Monto finiquito',w.monto_finiquito!=null?'$'+money(w.monto_finiquito):''):''):''}
       <div class="sect">Salario <button class="btn" style="padding:2px 10px;font-size:11.5px;float:right" onclick="openHistSalario('${w.id}')">📈 Historial de salario</button></div>
@@ -2506,6 +2633,8 @@ function openDetail(id){
       ${kv('Cuenta',esc(w.cuenta))}${kv('CLABE',esc(w.clabe))}${kv('Banco',esc(w.banco))}${kv('Forma de pago',esc(w.forma_pago))}${kv('Observaciones',esc(w.observaciones))}
       <div class="sect">IMSS</div>
       ${kv('Movimiento IMSS',esc(w.movimiento_imss||'SIN MOVIMIENTO'))}${kv('Fecha del movimiento',fmtD(w.fecha_mov_imss))}${kv('SBC (SDI)','$'+money(w.sdi))}${kv('Registro patronal',esc(rpDe(w))+(tieneRPpropio(w)?' <b style="color:var(--accent)">(propio)</b>':' <span style="color:var(--mut)">(de la obra)</span>'))}${tieneRPpropio(w)?kv('Prima RT','<b style="color:var(--accent)">'+primaDe(w)+'% (propia)</b>'):''}
+      <div class="sect">Incidentes e incapacidades IMSS</div>
+      ${kv('Expediente de salud',`<button class="btn" onclick="openFichaIncidentes('${w.id}')">Ver incidentes, certificados, calendario y ST-7</button>`)}
       ${(function(){
         const fijos=DESC.filter(d=>d.trabajador_id===w.id&&d.recurrente&&d.activo);
         const inc=DESC.filter(d=>d.trabajador_id===w.id&&!d.recurrente&&d.activo).sort((a,b)=>String(b.semana).localeCompare(String(a.semana))).slice(0,8);
@@ -2548,8 +2677,10 @@ function openDetail(id){
         ${chq.map(c=>`<div class="kv"><b>${esc(c.semana)} · ${esc(c.tipo_pago)}</b><span>$${money(c.importe)} · ${c.num_cheque?'Cheque '+esc(c.num_cheque):'sin número'} · <span class="badge ${c.estatus}">${c.estatus}</span></span></div>`).join('')}`:''}
       <div class="sect">Registro</div>
       ${kv('Capturado por',esc(w.creado_por))}${kv('Última modificación',esc(w.actualizado_por)+' · '+fmtD(w.updated_at))}
+      </div></details>
     </div>
     <div class="m-foot">
+      <details class="worker-actions"><summary>Herramientas de este trabajador · editar, documentos y movimientos</summary><div>
       <button class="btn" onclick="exportExpediente('${w.id}')">📊 Exportar expediente (Excel)</button>
       <button class="btn" onclick="openHistorial('${w.id}')">🕘 Historial</button>
       <button class="btn" onclick="openValidar('${w.id}')">🔍 Validar</button>
@@ -2566,12 +2697,17 @@ function openDetail(id){
            <button class="btn" onclick="doReactivar('${w.id}')">Reactivar (nueva alta)</button>`}
       <button class="btn dark" onclick="openForm('${w.id}')">✎ Modificar</button>
       ${esAdmin()?`<button class="btn danger" style="background:#7a1414;border-color:#7a1414" onclick="openEliminarTrabajador('${w.id}')">🗑 Eliminar (papelera)</button>`:''}
-    </div>`);
+      </div></details>
+    </div>`,'worker-ficha');
+  agruparExpedienteFicha();
   /* Consulta dirigida de SUS documentos, filtrando en el servidor. Si trae
      algo que la carga masiva no tenía, se vuelve a pintar solo esa sección.
      Se comprueba que la ficha siga abierta y sea la misma persona: si el
      usuario ya se movió a otra, no se le repinta encima. */
   refrescaDocsDe(id).then(n=>{
+    renderTable();
+    const principal=$('worker-overview');
+    if(principal&&document.querySelector(`#modals [onclick*="openForm('${id}')"]`))principal.innerHTML=fichaResumenHTML(w);
     if(!n)return;
     const cont=$('fd-docs');
     if(cont&&document.querySelector(`#modals [onclick*="openForm('${id}')"]`))
