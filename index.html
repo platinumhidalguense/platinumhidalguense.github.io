@@ -601,6 +601,18 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 .worker-list{flex:1;min-height:140px;max-height:none;height:auto;overflow:auto;overscroll-behavior:contain}
 .app-shell[data-nav="trabajadores"] .shell{height:100dvh}.app-shell[data-nav="trabajadores"] .appbar,.app-shell[data-nav="trabajadores"] .empresa-nav{flex:0 0 auto}.app-shell[data-nav="trabajadores"] .wrap{overflow:auto}#view-trab{height:100%}#view-trab .worker-list{max-height:none}
 .worker-actions{width:100%}.worker-actions>summary{font-size:12px;font-weight:700;cursor:pointer;padding:5px}.worker-actions>div{display:flex;flex-wrap:wrap;gap:8px;padding-top:12px}
+.modal.worker-form{width:1100px;max-width:calc(100vw - 24px);max-height:92dvh;display:flex;flex-direction:column;overflow:hidden}
+.worker-form [hidden]{display:none!important}.wf-context{font-size:11px;color:var(--mut);margin-top:5px;line-height:1.4}.wf-logo{width:60px;height:38px;object-fit:contain;background:#fff;border-radius:6px;padding:3px;flex:0 0 auto}
+.worker-form .m-head,.worker-form .m-foot{position:static;flex:0 0 auto}.worker-form .m-head h2{line-height:1.4;overflow-wrap:anywhere}.worker-form .m-body{flex:1;min-height:0;overflow:auto;background:var(--bg);padding:22px}.worker-form .m-foot{align-items:center}
+.wf-stepper{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:16px 22px;border-bottom:1px solid var(--border);background:var(--card);flex:0 0 auto}
+.wf-stepper button{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:10px;padding:11px 14px;text-align:left;background:var(--bg);color:var(--mut);cursor:pointer;font-size:13px;min-width:0;white-space:normal}.wf-stepper button span{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--hover);flex:0 0 auto;font-weight:800}.wf-stepper button[aria-current="step"]{border-color:var(--brand-txt);color:var(--brand-txt);background:var(--hover)}.wf-stepper button[aria-current="step"] span{color:var(--bg);background:var(--brand-txt)}
+.wf-panel[hidden]{display:none!important}.wf-panel>h2{font-size:21px;margin:0 0 7px;color:var(--txt);font-weight:800}.wf-panel>h2:focus{outline:none}.wf-intro{font-size:13px;color:var(--mut);line-height:1.6;margin-bottom:18px}.wf-card{border:1px solid var(--border);border-radius:12px;background:var(--card);padding:18px;margin:14px 0}.wf-card h3{font-size:14px;color:var(--brand-txt);margin:0 0 16px;font-weight:800;border-bottom:1px solid var(--border);padding-bottom:10px}
+#wf-step-1{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}#wf-step-1>h2,#wf-step-1>.wf-intro,#wf-step-1>.wf-wide,#wf-step-1>.wf-optional{grid-column:1/-1;margin:0}#wf-step-1>.wf-card{margin:0}.wf-grid.wf-salarios{grid-template-columns:repeat(3,minmax(0,1fr))}
+.wf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px 20px}.wf-grid>div{min-width:0;grid-column:auto!important}.wf-grid>.c2,.wf-grid>.c3,.wf-grid>.c4{grid-column:1/-1!important}.wf-grid label{font-size:11px;font-weight:700;letter-spacing:.25px;color:var(--mut);margin-bottom:7px}.wf-grid input,.wf-grid select{min-width:0;font-size:14px;min-height:42px}.wf-grid .fhint{line-height:1.5;margin-top:6px}
+.wf-optional{background:var(--card);border:1px solid var(--border);border-radius:12px;margin:14px 0}.wf-optional>summary{padding:15px 18px;cursor:pointer;font-size:13px;font-weight:700;color:var(--brand-txt)}.wf-optional>.wf-grid{padding:0 18px 18px}.wf-note{font-size:11.5px;line-height:1.6;color:var(--mut);background:var(--hover);border:1px solid var(--border);border-radius:9px;padding:12px 14px;margin:14px 0}.wf-note a{color:var(--brand-txt)}
+.wf-doc{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:14px;padding:16px 0;border-bottom:1px solid var(--border)}.wf-doc:last-child{border-bottom:0}.wf-doc>div{min-width:0}.wf-doc b{font-size:13px;display:block;line-height:1.5}.wf-doc-status{font-size:11px;color:var(--amber);display:block;margin-top:4px}.wf-doc[data-status="ENTREGADO"] .wf-doc-status{color:var(--green)}.wf-doc[data-status="NO APLICA"] .wf-doc-status{color:var(--mut)}.wf-doc label{display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;padding:10px;border:1px solid var(--border);border-radius:8px;margin:0;text-transform:none}.wf-doc label:has(input:checked){border-color:var(--brand-txt);background:var(--hover)}.wf-doc input[type="checkbox"]{width:18px;height:18px;accent-color:var(--brand-txt);margin:0}
+.wf-progress{margin-right:auto;font-size:11px;font-weight:700;color:var(--mut)}.wf-review{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.wf-review>div{min-width:0}.wf-review dt{font-size:10px;color:var(--mut);font-weight:700;text-transform:uppercase;margin-bottom:5px}.wf-review dd{font-size:13px;font-weight:600;margin:0;overflow-wrap:anywhere}.worker-form .btn{min-height:38px}.wf-panel input.err{border-color:var(--red)}
+@media(max-width:760px){.modal.worker-form{max-width:100%;width:100%;max-height:100dvh;height:100dvh;border-radius:0}.worker-form .m-body{padding:12px}.wf-stepper{padding:12px;gap:6px}.wf-stepper button{padding:9px 6px;gap:6px;flex-direction:column;text-align:center;font-size:10px}.wf-stepper button span{width:24px;height:24px}.wf-grid,.wf-review,#wf-step-1,.wf-grid.wf-salarios{grid-template-columns:1fr}.wf-doc{grid-template-columns:1fr 1fr;gap:8px}.wf-doc>div{grid-column:1/-1}.wf-doc label{justify-content:center}.worker-form .m-foot{padding:10px;gap:7px}.wf-progress{width:100%;order:-1}.wf-grid>.c4>div[style*="grid-template-columns"]{grid-template-columns:1fr!important}.wf-grid .c3>div[style*="display:flex"],.wf-grid .c2>div[style*="display:flex"]{flex-wrap:wrap}.wf-grid input{flex-basis:100%}.wf-card{padding:14px}.wf-logo{display:none}}
 .trab-table{min-width:720px;table-layout:fixed;font-size:13px}.trab-table th:nth-child(1){width:30%}.trab-table th:nth-child(2){width:12%}.trab-table th:nth-child(3){width:16%}.trab-table th:nth-child(4){width:14%}.trab-table th:nth-child(5){width:12%}.trab-table th:nth-child(6){width:16%}
 .trab-table td,.trab-table th{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;padding:11px 12px}.trab-table th button{background:none;border:0;color:inherit;font:inherit;font-weight:inherit;cursor:pointer;text-align:left;padding:0;width:100%}.trab-table td:nth-child(1) button{background:none;border:0;color:var(--txt);font:inherit;font-weight:700;text-align:left;cursor:pointer;padding:0;line-height:1.5}.worker-number{font-size:10px;color:var(--mut);margin-right:7px;white-space:nowrap}
 .acuse-marks{display:flex;flex-wrap:wrap;gap:5px}.acuse-mark{display:inline-flex;align-items:center;gap:5px;font-size:10px;line-height:1.35;font-weight:700;padding:4px 7px;border-radius:7px;border:1px solid var(--border)}.acuse-mark.ok{color:var(--green);background:var(--green-bg)}.acuse-mark.missing{color:var(--amber);background:var(--amber-bg)}
@@ -1193,6 +1205,7 @@ const EMPRESAS=Object.freeze({
 });
 
 let sb=null, USER=null, OBRAS=[], OBRA=null, EMPRESA_ACTIVA='PLATINUM', WORKERS=[], CHEQUES=[], DESC=[], DOCSX=[], VAC=[], ACTAS=[], NOM=[], PAGOS=[], PRIMAS=[], CUADS=[], CIERRES=[], CTRLNOI=[], ALTAS_CORTAS=[], FINTRANS=[], VIEW='trab';
+let PUEDE_EDITAR_TRABAJADORES=false; // solo presentación; la autorización real sigue en RLS
 /* Script 59: diferenciales de proyección, bloques de cheques y control interno
    salarial. SUELDOSINT solo trae filas si el usuario es VIP — lo decide la RLS
    de la base, no la app. */
@@ -1246,11 +1259,16 @@ function esAdmin(){return !!(USER&&USER.email&&USER.email.toLowerCase()===adminE
    que de verdad protege los datos es la RLS. */
 function esVip(){return ES_VIP||esAdmin();}
 async function cargaPermisos(){
+  PUEDE_EDITAR_TRABAJADORES=false;
   try{
-    const {data}=await sb.from('app_usuarios').select('full_access,activo,rol').eq('user_id',USER.id).limit(1);
+    const {data}=await sb.from('app_usuarios').select('full_access,activo,rol,puede_escribir').eq('user_id',USER.id).limit(1);
     const u=(data||[])[0];
     ES_VIP=!!(u&&u.full_access&&u.activo!==false);
-  }catch(e){ ES_VIP=false; }   // sin script 51 corrido: solo el administrador
+    PUEDE_EDITAR_TRABAJADORES=!!(u&&u.activo!==false&&u.puede_escribir);
+  }catch(e){ ES_VIP=false;PUEDE_EDITAR_TRABAJADORES=false; }   // sin script 51 corrido: solo el administrador
+}
+function puedeEditarTrabajador(){
+  return !!USER&&(esAdmin()||PUEDE_EDITAR_TRABAJADORES);
 }
 /* Diferencial vigente de un trabajador en una semana (Bloque 1). */
 function difDe(tid,sem){
@@ -1339,7 +1357,12 @@ function rangoTexto(d1,d2){if(!d1||!d2)return'';const a=new Date(d1+'T12:00'),b=
 /* v34: al cerrar, restaura el scroll del fondo exactamente donde estaba
    (en celular, position:fixed mueve el scroll a 0; lo devolvemos para que
    NO se vea "movido" todo al salir de una ficha). */
-function closeModal(){
+function closeModal(force=false){
+  const formulario=$('worker-form-body');
+  if(formulario&&!force){
+    if(formulario.dataset.busy==='1')return;
+    if(formulario.dataset.dirty==='1'&&!confirm('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))return;
+  }
   $('modals').innerHTML='';
   document.body.classList.remove('modal-abierto');
   if(window._scrollY!=null){const y=window._scrollY;window._scrollY=null;document.body.style.top='';window.scrollTo(0,y);}
@@ -1745,7 +1768,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-07.3';
+const APP_VERSION='2026-10-07.4';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -2680,7 +2703,7 @@ function openDetail(id){
       ${kv('CURP',esc(w.curp))}${kv('RFC',esc(w.rfc))}${kv('NSS',esc(w.nss))}${kv('Fecha de nacimiento',fmtD(w.fecha_nacimiento)+(w.fecha_nacimiento?' ('+edad(w.fecha_nacimiento)+' años)':''))}${kv('Género',esc(w.genero))}${kv('Estado civil',esc(w.estado_civil))}${kv('Escolaridad',esc(w.escolaridad))}${kv('Nacionalidad',esc(w.nacionalidad))}${kv('Edo. nacimiento',esc(w.edo_nacimiento))}${kv('Dirección',esc(w.direccion))}${kv('C.P.',esc(w.cp))}${kv('Teléfono',esc(w.telefono))}${kv('Correo',esc(w.correo))}${kv('Beneficiario',esc(w.beneficiario)+((w.benef_parentesco||w.benef_telefono||(w.benef_porcentaje!=null&&w.benef_porcentaje!==''))?` <span style="color:var(--mut);font-size:11.5px">(${[w.benef_parentesco?esc(w.benef_parentesco):'',w.benef_telefono?'tel. '+esc(w.benef_telefono):'',(w.benef_porcentaje!=null&&w.benef_porcentaje!=='')?esc(w.benef_porcentaje)+'%':''].filter(Boolean).join(' · ')})</span>`:''))}
       <div class="sect">Datos bancarios</div>
       ${kv('Cuenta',esc(w.cuenta))}${kv('CLABE',esc(w.clabe))}${kv('Banco',esc(w.banco))}${kv('Forma de pago',esc(w.forma_pago))}${kv('Observaciones',esc(w.observaciones))}
-      <div class="sect">IMSS</div>
+      <div class="sect">IMSS ${puedeEditarTrabajador()?`<button class="btn" onclick="openIMSSWorker('${w.id}')">⚙ Gestionar IMSS</button>`:''}</div>
       ${kv('Movimiento IMSS',esc(w.movimiento_imss||'SIN MOVIMIENTO'))}${kv('Fecha del movimiento',fmtD(w.fecha_mov_imss))}${kv('SBC (SDI)','$'+money(w.sdi))}${kv('Registro patronal',esc(rpDe(w))+(tieneRPpropio(w)?' <b style="color:var(--accent)">(propio)</b>':' <span style="color:var(--mut)">(de la obra)</span>'))}${tieneRPpropio(w)?kv('Prima RT','<b style="color:var(--accent)">'+primaDe(w)+'% (propia)</b>'):''}
       <div class="sect">Incidentes e incapacidades IMSS</div>
       ${kv('Expediente de salud',`<button class="btn" onclick="openFichaIncidentes('${w.id}')">Ver incidentes, certificados, calendario y ST-7</button>`)}
@@ -2732,6 +2755,7 @@ function openDetail(id){
       <details class="worker-actions"><summary>Herramientas de este trabajador · editar, documentos y movimientos</summary><div>
       <button class="btn" onclick="exportExpediente('${w.id}')">📊 Exportar expediente (Excel)</button>
       <button class="btn" onclick="openHistorial('${w.id}')">🕘 Historial</button>
+      ${puedeEditarTrabajador()?`<button class="btn" onclick="openIMSSWorker('${w.id}')">🏥 Control IMSS</button>`:''}
       <button class="btn" onclick="openValidar('${w.id}')">🔍 Validar</button>
       <button class="btn" onclick="openContrato('${w.id}')">📄 Contrato</button>
       <button class="btn" onclick="openConstanciaLaboral('${w.id}')">📜 Constancia laboral</button>
@@ -2857,14 +2881,20 @@ function cuadRefresca(idSel){
     :(contr?`${contr.toUpperCase()} no tiene cuadrillas — se administran en 👷 Cuadrillas`:'Escribe el contratista para ver sus cuadrillas');
 }
 function openForm(id){
+  if(!puedeEditarTrabajador()){toast('Tu usuario tiene acceso de consulta; no puede registrar ni modificar trabajadores.','err');return;}
   const w=id?WORKERS.find(x=>x.id===id):null;
+  if(id&&!w){toast('No se encontró el trabajador. Actualiza el centro antes de editar.','err');return;}
+  if(!OBRA){toast('Selecciona primero un centro de trabajo.','err');return;}
   const d=(w&&w.docs)||{};
   const nextNo=Math.max(0,...WORKERS.map(x=>x.no_trab||0))+1;
   const cuentaCrear=w?String(w.cuenta).toUpperCase()==='CREAR':true;
   const obrasAlta=obrasEmpresa(empresaDeObra(OBRA));
   modal(`
-    <div class="m-head"><h2>${w?'Modificar · '+esc(fullName(w)):'Nueva alta · '+esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
-    <div class="m-body">
+    <div class="m-head"><img class="wf-logo" src="${logoEmpresa(empresaDeObra(OBRA))}" alt="${esc(EMPRESAS[empresaDeObra(OBRA)].corto)}"><div><h2>${w?'Modificar · '+esc(fullName(w)):'Nueva alta'}</h2><p class="wf-context">${esc(EMPRESAS[empresaDeObra(OBRA)].corto)} · ${esc(OBRA.nombre)}</p></div><button class="x" onclick="closeModal()" aria-label="Cerrar registro">×</button></div>
+    <div class="wf-stepper" role="group" aria-label="Pasos del registro">
+      ${['Asignación','Datos personales','Documentos'].map((txt,i)=>`<button type="button" id="wf-tab-${i+1}" onclick="workerFormPaso(${i+1})"><span>${i+1}</span><b>${txt}</b></button>`).join('')}
+    </div>
+    <div class="m-body" id="worker-form-body" data-worker-id="${w?w.id:''}" data-step="1">
       <div class="sect">Obra y puesto</div>
       <div class="grid">
         <div class="c2"><label>Centro de trabajo · ${esc(EMPRESAS[EMPRESA_ACTIVA].corto)}</label><select id="f-obra_id">${obrasAlta.map(o=>`<option value="${o.id}" ${(w?w.obra_id:OBRA.id)===o.id?'selected':''}>${esc(o.nombre)}</option>`).join('')}</select><div class="fhint">Para cambiar de razón social usa “Transferir” y genera la baja/reingreso correspondiente.</div></div>
@@ -2886,10 +2916,6 @@ function openForm(id){
         ${(w&&w.estatus!=='BAJA'&&w.fecha_baja)?fld('fecha_baja','Fecha de baja anterior',w.fecha_baja||'',{type:'date',hint:'De una baja previa (fue reactivado). Déjala vacía para eliminarla.'}):''}
         ${fld('semana_ingreso','Semana ingreso',w?w.semana_ingreso:'NOMINA '+isoWeek())}
         <div><label>Periodo de pago</label><select id="f-periodo_pago">${['SEMANAL','QUINCENAL'].map(p=>`<option ${((w&&w.periodo_pago)||'SEMANAL')===p?'selected':''}>${p}</option>`).join('')}</select></div>
-        <div><label>Movimiento IMSS</label><select id="f-movimiento_imss">${['SIN MOVIMIENTO','ALTA PRESENTADA','ALTA CON ACUSE','MODIFICACION PRESENTADA','MODIFICACION CON ACUSE','BAJA PRESENTADA','BAJA CON ACUSE'].map(m2=>`<option ${((w&&w.movimiento_imss)||'SIN MOVIMIENTO')===m2?'selected':''}>${m2}</option>`).join('')}</select></div>
-        ${fld('fecha_mov_imss','Fecha mov. IMSS',w?(w.fecha_mov_imss||''):'',{type:'date'})}
-        ${fld('rp_trab','Registro patronal PROPIO (opcional)',w?(w.registro_patronal||''):'',{hint:'Solo si este trabajador cotiza con un registro patronal distinto al de la obra. Vacío = usa el de la obra.'})}
-        ${fld('prima_trab','Prima RT PROPIA % (opcional)',w?(w.prima_rt??''):'',{type:'number',extra:'step="0.00001"',hint:'Prima de riesgo de ese registro patronal. Vacío = usa la de la obra. No cambia el neto, sí el costo patronal y los movimientos IMSS.'})}
         ${w&&w.estatus==='BAJA'?`
         <div class="c4" style="grid-column:span 4;background:var(--red-bg);border-radius:8px;padding:10px 12px">
           <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:12px">
@@ -2907,7 +2933,7 @@ function openForm(id){
         ${fld('sal_semanal','Salario del periodo ($)',w?(w.sal_semanal??''):'',{type:'number',extra:'step="0.01"',hint:'Monto que cobra por semana o por quincena según su periodo.'})}
       </div>
       <div class="sect">Datos personales</div>
-      <div style="font-size:11.5px;color:var(--mut);margin:0 0 10px;line-height:1.45">Antes de capturar datos de la persona o su beneficiario, verifica que se entregó el <a href="privacidad.html" target="_blank" rel="noopener">aviso de privacidad integral</a> de la razón social correspondiente y que existe el consentimiento exigible para datos financieros o sensibles. No uses estado civil para decidir una contratación.</div>
+      <div id="wf-privacy" class="wf-note">Antes de capturar datos, entrega el <a href="privacidad.html" target="_blank" rel="noopener">aviso de privacidad</a> de la razón social y verifica el consentimiento exigible para datos financieros o sensibles. No uses estado civil para decidir una contratación.</div>
       <div class="grid">
         ${fld('primer_apellido','Primer apellido',w?w.primer_apellido:'')}
         ${fld('segundo_apellido','Segundo apellido',w?w.segundo_apellido:'')}
@@ -2941,11 +2967,9 @@ function openForm(id){
           <div class="fhint" id="h-correo">Si no tiene correo: CREAR CORREO genera la dirección, copia correo+contraseña y abre AtomicMail para darla de alta.</div>
         </div>
         ${fld('beneficiario','Beneficiario',w?w.beneficiario:'')}
-        ${(!w||w.benef_parentesco||w.benef_telefono||(w.benef_porcentaje!=null&&w.benef_porcentaje!==''))?`
-          ${fld('benef_parentesco','Parentesco del beneficiario',w?(w.benef_parentesco||''):'',{ph:'ej. ESPOSA, HIJO, MADRE'})}
-          ${fld('benef_telefono','Teléfono del beneficiario',w?(w.benef_telefono||''):'')}
-          ${fld('benef_porcentaje','Porcentaje asignado (%)',w?(w.benef_porcentaje??''):'',{type:'number',ph:'100'})}
-        `:''}
+        ${fld('benef_parentesco','Parentesco del beneficiario',w?(w.benef_parentesco||''):'',{ph:'ej. ESPOSA, HIJO, MADRE'})}
+        ${fld('benef_telefono','Teléfono del beneficiario',w?(w.benef_telefono||''):'')}
+        ${fld('benef_porcentaje','Porcentaje asignado (%)',w?(w.benef_porcentaje??''):'',{type:'number',ph:'100'})}
       </div>
       <div class="sect">Datos bancarios</div>
       <div class="grid">
@@ -2961,18 +2985,142 @@ function openForm(id){
         ${fld('observaciones','Observaciones',w?w.observaciones:'',{cls:'c3',hint:'Si el banco no es BBVA, aquí se anota qué banco es.'})}
       </div>
       <div class="sect">Documentación</div>
-      ${DOCS.map(k=>`<div class="doc-row"><span class="nm">${k}</span>
-        <select id="doc-${k.replace(/[^A-Z]/g,'')}">${['PENDIENTE','ENTREGADO','NO APLICA'].map(v=>`<option ${(d[k]||'PENDIENTE')===v?'selected':''}>${v}</option>`).join('')}</select></div>`).join('')}
-      <div style="margin-top:12px"><label>Link carpeta Drive del trabajador</label><input id="f-drive_link" value="${esc(w?w.drive_link:'')}" placeholder="https://drive.google.com/..."></div>
+      <div id="wf-documentos">${DOCS.map(k=>{
+        const clave=k.replace(/[^A-Z]/g,''),v=d[k]||'PENDIENTE';
+        return `<div class="wf-doc" data-status="${esc(v)}"><div><b>${esc(k)}</b><span id="doc-status-${clave}" class="wf-doc-status">${v==='ENTREGADO'?'Entregado':v==='NO APLICA'?'No aplica':'Pendiente'}</span></div>
+          <input type="hidden" id="doc-${clave}" value="${esc(v)}">
+          <label><input type="checkbox" id="doc-ent-${clave}" ${v==='ENTREGADO'?'checked':''} onchange="formDocEstado('${clave}','ENTREGADO',this.checked)"> Entregado</label>
+          <label><input type="checkbox" id="doc-na-${clave}" ${v==='NO APLICA'?'checked':''} onchange="formDocEstado('${clave}','NO APLICA',this.checked)"> No aplica</label></div>`;
+      }).join('')}</div>
+      <div id="wf-drive" style="margin-top:12px"><label>Carpeta Drive del trabajador (opcional)</label><input id="f-drive_link" value="${esc(w?w.drive_link:'')}" placeholder="https://drive.google.com/..."></div>
       <datalist id="dl-contr">${[...new Set([...WORKERS.map(x=>x.contratista).filter(Boolean),...CONTRATISTAS.map(c=>c.nombre)])].sort().map(c=>`<option>${esc(c)}</option>`).join('')}</datalist>
-      <datalist id="dl-puesto">${[...new Set([...Object.keys(CFGEMP['tabulador']||{}),...WORKERS.map(x=>x.puesto).filter(Boolean)])].sort().map(c=>`<option>${esc(c)}</option>`).join('')}</datalist>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
+      <span id="wf-progress" class="wf-progress" role="status"></span>
+      <button class="btn" id="wf-back" onclick="workerFormPaso(Number($('worker-form-body').dataset.step)-1)">← Anterior</button>
+      <button class="btn dark" id="wf-next" onclick="workerFormPaso(Number($('worker-form-body').dataset.step)+1)">Siguiente →</button>
       <button class="btn dark" id="save-btn" onclick="saveWorker(${w?`'${w.id}'`:'null'})">💾 Guardar ${w?'cambios':'alta'}</button>
-    </div>`);
+    </div>`,'worker-form');
+  organizarFormularioTrabajador();
   cuentaModo();
   cuadRefresca(w?(w.id_cuadrilla||''):'');
+  actualizarResumenFormulario();
+  workerFormPaso(1,false);
+}
+function organizarFormularioTrabajador(){
+  const root=$('worker-form-body');if(!root)return;
+  const grupos=new Map(),usados=new Set();
+  root.querySelectorAll('.grid input,.grid select').forEach(el=>{if(el.id)grupos.set(el.id.replace(/^f-/,''),el.closest('.grid > div'));});
+  const datalists=Array.from(root.querySelectorAll('datalist')),privacy=$('wf-privacy');
+  const titulos=['Asignación y condiciones de trabajo','Datos del trabajador','Documentos y revisión'];
+  const textos=['Selecciona contratista y cuadrilla, confirma las fechas y el salario.','Captura su identidad, contacto y forma de pago. Los datos complementarios están desplegables.','Marca lo recibido, revisa el resumen y guarda. Ninguna casilla significa pendiente.'];
+  const panels=titulos.map((titulo,i)=>{const p=document.createElement('section');p.id='wf-step-'+(i+1);p.className='wf-panel';p.innerHTML=`<h2 tabindex="-1">${titulo}</h2><p class="wf-intro">${textos[i]}</p>`;return p;});
+  const tarjeta=(paso,titulo,ids,opcional=false)=>{
+    const cont=document.createElement(opcional?'details':'article');cont.className=opcional?'wf-optional':'wf-card';
+    cont.innerHTML=`<${opcional?'summary':'h3'}>${titulo}</${opcional?'summary':'h3'}><div class="wf-grid"></div>`;
+    if(ids.includes('sd')){cont.classList.add('wf-wide');cont.lastElementChild.classList.add('wf-salarios');}
+    const grid=cont.lastElementChild;
+    ids.forEach(id=>{const g=grupos.get(id);if(g&&!usados.has(g)){if(id==='puesto')g.classList.remove('c2');usados.add(g);grid.appendChild(g);}});
+    if(grid.children.length)panels[paso-1].appendChild(cont);
+    return cont;
+  };
+  tarjeta(1,'Contratista y cuadrilla',['contratista','id_cuadrilla','puesto','no_trab']);
+  tarjeta(1,'Centro y fechas',['obra_id','fecha_alta','fecha_reingreso','fecha_baja','semana_ingreso','periodo_pago','turno']);
+  tarjeta(1,'Salario registrado',['sd','sdi','sal_semanal']);
+  tarjeta(1,'Contrato y funciones · datos complementarios',['tipo_contrato','fecha_fin_contrato','funciones'],true);
+  if(privacy)panels[1].appendChild(privacy);
+  tarjeta(2,'Identidad',['primer_apellido','segundo_apellido','nombres','curp','rfc','nss']);
+  tarjeta(2,'Contacto',['telefono','correo']);
+  tarjeta(2,'Datos bancarios y forma de pago',['cuenta-modo','cuenta','clabe','banco','forma_pago','observaciones']);
+  tarjeta(2,'Domicilio y datos personales complementarios',['fecha_nacimiento','genero','estado_civil','escolaridad','nacionalidad','edo_nacimiento','direccion','cp'],true);
+  tarjeta(2,'Beneficiario · contacto y porcentaje',['beneficiario','benef_parentesco','benef_telefono','benef_porcentaje'],true);
+  // Conserva cualquier campo legado/futuro que no esté en el mapeo explícito.
+  const extras=[...grupos].filter(([,g])=>g&&!usados.has(g)).map(([id])=>id);
+  tarjeta(2,'Otros datos del expediente',extras,true);
+  const documentos=document.createElement('article');documentos.className='wf-card';documentos.innerHTML='<h3>Recepción de documentos <span id="wf-doc-count"></span></h3>';
+  documentos.appendChild($('wf-documentos'));documentos.appendChild($('wf-drive'));panels[2].appendChild(documentos);
+  const revision=document.createElement('article');revision.className='wf-card';revision.innerHTML='<h3>Antes de guardar</h3><dl class="wf-review" id="wf-review"></dl><p class="wf-note">El alta IMSS, sus acuses, el registro patronal propio y la prima de riesgo se gestionan después desde la ficha → Control IMSS. Esta lista registra recepción; no sustituye el archivo del documento.</p>';panels[2].appendChild(revision);
+  root.replaceChildren(...panels,...datalists);
+  root.querySelectorAll('label').forEach(label=>{if(!label.htmlFor&&!label.querySelector('input')){const control=label.parentElement.querySelector('input:not([type="hidden"]),select');if(control&&control.id)label.htmlFor=control.id;}});
+  const cambio=()=>{root.dataset.dirty='1';actualizarResumenFormulario();};
+  root.addEventListener('input',cambio);root.addEventListener('change',cambio);
+}
+function workerFormPaso(paso,enfocar=true){
+  const root=$('worker-form-body');if(!root||root.dataset.busy==='1')return;
+  const n=Math.max(1,Math.min(3,Number(paso)||1));root.dataset.step=String(n);
+  [1,2,3].forEach(i=>{const p=$('wf-step-'+i),b=$('wf-tab-'+i);p.hidden=i!==n;if(i===n)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');});
+  $('wf-back').hidden=n===1;$('wf-next').hidden=n===3;$('save-btn').hidden=n!==3;
+  $('wf-progress').textContent='PASO '+n+' DE 3';root.scrollTop=0;
+  actualizarResumenFormulario();
+  if(enfocar)$('wf-step-'+n).querySelector('h2').focus({preventScroll:true});
+}
+function formDocEstado(clave,estado,marcado){
+  const valor=marcado?estado:'PENDIENTE';$('doc-'+clave).value=valor;
+  $('doc-ent-'+clave).checked=valor==='ENTREGADO';$('doc-na-'+clave).checked=valor==='NO APLICA';
+  const status=$('doc-status-'+clave);status.textContent=valor==='ENTREGADO'?'Entregado':valor==='NO APLICA'?'No aplica':'Pendiente';
+  status.closest('.wf-doc').dataset.status=valor;
+  $('worker-form-body').dataset.dirty='1';actualizarResumenFormulario();
+}
+function actualizarResumenFormulario(){
+  const resumen=$('wf-review');if(!resumen)return;
+  const valor=id=>($('f-'+id)?.value||'').trim();
+  let entregados=0,noAplica=0;DOCS.forEach(k=>{const v=$('doc-'+k.replace(/[^A-Z]/g,''))?.value;entregados+=Number(v==='ENTREGADO');noAplica+=Number(v==='NO APLICA');});
+  $('wf-doc-count').textContent=`· ${entregados} entregados · ${DOCS.length-entregados-noAplica} pendientes`;
+  const obra=OBRAS.find(o=>o.id===valor('obra_id')),cuad=CUADS.find(q=>q.id===valor('id_cuadrilla'));
+  const campos=[['Trabajador',[valor('primer_apellido'),valor('segundo_apellido'),valor('nombres')].filter(Boolean).join(' ')||'Nombre por capturar'],['Empresa y centro',`${EMPRESAS[empresaDeObra(obra||OBRA)].corto} · ${obra?.nombre||'—'}`],['Contratista y cuadrilla',[valor('contratista')||'Por capturar',cuad?.nombre||'Sin cuadrilla'].join(' · ')],['Ingreso / reingreso',fmtD(valor('fecha_reingreso')||valor('fecha_alta'))||'Por capturar'],['Salario del periodo',valor('sal_semanal')?'$'+money(valor('sal_semanal'))+' · '+valor('periodo_pago'):'Por capturar'],['Documentos',`${entregados} entregados · ${noAplica} no aplican · ${DOCS.length-entregados-noAplica} pendientes`]];
+  resumen.innerHTML=campos.map(([k,v])=>`<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
+}
+function formEnfocarError(){
+  const root=$('worker-form-body'),el=root&&root.querySelector('.err');if(!el)return;
+  const panel=el.closest('.wf-panel');if(panel)workerFormPaso(Number(panel.id.slice(-1)),false);
+  let p=el.parentElement;while(p&&p!==root){if(p.tagName==='DETAILS')p.open=true;p=p.parentElement;}
+  el.focus();
+}
+function formGuardando(valor){
+  const root=$('worker-form-body');if(root)root.dataset.busy=valor?'1':'0';
+  ['save-btn','wf-back','wf-next','wf-tab-1','wf-tab-2','wf-tab-3'].forEach(id=>{const b=$(id);if(b)b.disabled=!!valor;});
+  if($('save-btn'))$('save-btn').innerHTML=valor?'<span class="spin"></span> Guardando…':'💾 Guardar '+(root?.dataset.workerId?'cambios':'alta');
+}
+function openIMSSWorker(id){
+  if(!puedeEditarTrabajador()){toast('Tu usuario solo puede consultar.','err');return;}
+  const w=WORKERS.find(x=>x.id===id);if(!w)return;
+  const estados=['SIN MOVIMIENTO','ALTA PRESENTADA','ALTA CON ACUSE','MODIFICACION PRESENTADA','MODIFICACION CON ACUSE','BAJA PRESENTADA','BAJA CON ACUSE'];
+  const mov=w.movimiento_imss||'SIN MOVIMIENTO';if(!estados.includes(mov))estados.push(mov);
+  window._IMSS_WORKER_EDIT={id,updated_at:w.updated_at};
+  modal2(`<div class="m-head"><h2>🏥 Control IMSS · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal2()">×</button></div>
+    <div class="m-body"><p class="wf-note">Gestiona aquí la presentación del movimiento y las excepciones patronales. Marcar “ALTA PRESENTADA” no exige subir el acuse: su archivo se controla por separado. No cambies fechas para ocultar un aviso.</p>
+      <article class="wf-card"><h3>Movimiento afiliatorio</h3><div class="wf-grid">
+        <div><label for="imss-mov">Estado del movimiento</label><select id="imss-mov">${estados.map(s=>`<option value="${esc(s)}" ${s===mov?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
+        <div><label for="imss-fecha">Fecha del movimiento IMSS</label><input type="date" id="imss-fecha" value="${esc(w.fecha_mov_imss||'')}"><div class="fhint">Captura la fecha correspondiente al alta, reingreso, modificación o baja que estás presentando.</div></div>
+      </div><div style="margin-top:14px">${marcadoresIMSS(w)}</div></article>
+      <details class="wf-optional" ${tieneRPpropio(w)?'open':''}><summary>Registro patronal propio y prima de riesgo · excepciones</summary><div class="wf-grid">
+        <div><label for="imss-rp">Registro patronal propio</label><input id="imss-rp" maxlength="11" value="${esc(w.registro_patronal||'')}"><div class="fhint">Vacío = registro patronal del centro: ${esc(rpDe({...w,registro_patronal:null}))}.</div></div>
+        <div><label for="imss-prima">Prima RT propia (%)</label><input type="number" step="0.00001" min="0" max="100" id="imss-prima" value="${esc(w.prima_rt??'')}"><div class="fhint">Vacío = prima del centro. Solo modifica si corresponde a su registro patronal.</div></div>
+      </div></details>
+    </div><div class="m-foot"><button class="btn" onclick="closeModal2()">Cancelar</button><button class="btn dark" id="imss-save" onclick="saveIMSSWorker('${w.id}')">Guardar control IMSS</button></div>`,'lg');
+}
+async function saveIMSSWorker(id){
+  if(!puedeEditarTrabajador()){toast('Tu usuario solo puede consultar.','err');return;}
+  const w=WORKERS.find(x=>x.id===id),btn=$('imss-save');
+  if(!w||!btn||btn.disabled||window._IMSS_WORKER_EDIT?.id!==id)return;
+  const rp=$('imss-rp').value.trim().toUpperCase(),prima=$('imss-prima').value.trim(),fecha=$('imss-fecha').value,mov=$('imss-mov').value;
+  if(rp&&!/^[A-Z]\d{10}$/.test(rp)){toast('Registro patronal inválido: una letra y diez dígitos.','err');$('imss-rp').focus();return;}
+  if(prima!==''&&(!Number.isFinite(Number(prima))||Number(prima)<0||Number(prima)>100)){toast('La prima debe ser un porcentaje válido entre 0 y 100.','err');return;}
+  if(fecha&&!fechaAcuseISO(fecha)){toast('Fecha del movimiento inválida.','err');return;}
+  if(mov!=='SIN MOVIMIENTO'&&!fecha){toast('Indica la fecha de este movimiento para distinguirlo de altas o reingresos anteriores.','err');$('imss-fecha').focus();return;}
+  const cambios={movimiento_imss:mov,fecha_mov_imss:fecha||null,registro_patronal:rp||null,prima_rt:prima!==''?Number(prima):null,actualizado_por:USER.email};
+  btn.disabled=true;btn.textContent='Guardando…';markWrite();
+  try{
+    let q=sb.from('trabajadores').update(cambios).eq('id',id).eq('obra_id',w.obra_id);
+    if(window._IMSS_WORKER_EDIT.updated_at)q=q.eq('updated_at',window._IMSS_WORKER_EDIT.updated_at);
+    const {data,error}=await q.select('id,updated_at');
+    if(error)throw error;
+    if(!data||data.length!==1)throw new Error('El registro cambió o no tienes permiso. Actualiza la ficha antes de volver a guardar.');
+    Object.assign(w,cambios,{updated_at:data[0].updated_at});
+    closeModal2();renderTable();openDetail(id);toast('Control IMSS actualizado; los datos generales se conservaron.','ok');
+  }catch(e){toast('No se guardó: '+e.message,'err');}
+  finally{if($('imss-save')===btn){btn.disabled=false;btn.textContent='Guardar control IMSS';}}
 }
 function tabAssist(){
   const tab=CFGEMP['tabulador']||{};
@@ -3240,7 +3388,8 @@ function clabeAssist(){
 function valMark(id,ok){const el=$('f-'+id);if(el)el.classList.toggle('err',!ok);}
 function collectForm(){
   const g=id=>($('f-'+id)?$('f-'+id).value.trim():'');
-  const docs={};DOCS.forEach(k=>docs[k]=$('doc-'+k.replace(/[^A-Z]/g,'')).value);
+  const anterior=WORKERS.find(w=>w.id===$('worker-form-body')?.dataset.workerId);
+  const docs={...(anterior?.docs||{})};DOCS.forEach(k=>docs[k]=$('doc-'+k.replace(/[^A-Z]/g,'')).value);
   const crear=$('f-cuenta-modo').value==='CREAR';
   const out={
     obra_id:$('f-obra_id').value, contratista:g('contratista').toUpperCase(),
@@ -3249,7 +3398,6 @@ function collectForm(){
     puesto:g('puesto').toUpperCase(), turno:$('f-turno').value,
     funciones:g('funciones').toUpperCase(), fecha_alta:g('fecha_alta')||null, semana_ingreso:g('semana_ingreso').toUpperCase(),
     periodo_pago:$('f-periodo_pago').value,
-    movimiento_imss:$('f-movimiento_imss').value, fecha_mov_imss:g('fecha_mov_imss')||null,
     tipo_contrato:$('f-tipo_contrato').value, fecha_fin_contrato:g('fecha_fin_contrato')||null,
     sd:g('sd')?parseFloat(g('sd')):null, sdi:g('sdi')?parseFloat(g('sdi')):null, sal_semanal:g('sal_semanal')?parseFloat(g('sal_semanal')):null,
     primer_apellido:g('primer_apellido').toUpperCase(), segundo_apellido:g('segundo_apellido').toUpperCase(), nombres:g('nombres').toUpperCase(),
@@ -3263,6 +3411,11 @@ function collectForm(){
     forma_pago:$('f-forma_pago').value, observaciones:g('observaciones').toUpperCase(),
     docs, drive_link:g('drive_link')
   };
+  // IMSS se administra en la ficha. Editar datos generales no borra ni
+  // sobrescribe movimientos/registro patronal existentes (ni concurrentes).
+  if($('f-movimiento_imss'))out.movimiento_imss=$('f-movimiento_imss').value;
+  else if(!anterior)out.movimiento_imss='SIN MOVIMIENTO';
+  if($('f-fecha_mov_imss'))out.fecha_mov_imss=g('fecha_mov_imss')||null;
   // edición de baja (solo si el formulario los muestra)
   if($('f-fecha_baja'))out.fecha_baja=g('fecha_baja')||null;
   if($('f-monto_finiquito'))out.monto_finiquito=g('monto_finiquito')?parseFloat(g('monto_finiquito')):null;
@@ -3329,9 +3482,11 @@ async function activarProgramados(){
   }catch(e){/* si falla, se reintenta en la próxima carga */}
 }
 async function saveWorker(id){
+  if(!puedeEditarTrabajador()){toast('Tu usuario solo puede consultar.','err');return;}
+  if($('save-btn')?.disabled)return;
   const w=collectForm();
   const {errs,warns}=validateWorker(w,id);
-  if(errs.length){toast(errs[0],'err');if(errs.length>1)setTimeout(()=>toast(errs[1],'err'),350);return;}
+  if(errs.length){formEnfocarError();toast(errs[0],'err');if(errs.length>1)setTimeout(()=>toast(errs[1],'err'),350);return;}
   // advertencias: no bloquean, solo piden confirmar antes de guardar
   if(warns.length&&!confirm('⚠ Advertencia'+(warns.length>1?'s':'')+':\n\n• '+warns.join('\n\n• ')+'\n\n¿Guardar de todos modos?'))return;
   // candado de datos bancarios: avisa si se está CAMBIANDO una cuenta/CLABE que
@@ -3351,8 +3506,10 @@ async function saveWorker(id){
       }
     }
   }
-  $('save-btn').innerHTML='<span class="spin"></span> Guardando...';
+  const formularioGuardando=$('worker-form-body');
+  formGuardando(true);
   markWrite();
+  try{
   const falt=datosFaltantes(w);
   // v19: corte semanal — si la fecha de alta cae DESPUÉS del domingo de la semana
   // en curso, el ingreso es de la próxima semana (o de otra futura) y no debe
@@ -3363,7 +3520,7 @@ async function saveWorker(id){
   if(id){
     const prev=WORKERS.find(x=>x.id===id);
     if(prev&&prev.estatus==='PENDIENTE'&&!falt.length&&!prev.pendiente_manual&&!esFuturo)w.estatus='ACTIVO';
-    ({error}=await sb.from('trabajadores').update(w).eq('id',id));
+    ({error}=await guardarRegistroTrabajador(w,id));
     msg=w.estatus==='ACTIVO'&&prev&&prev.estatus==='PENDIENTE'
       ?'Expediente completo: el trabajador pasó automáticamente a ACTIVO.'
       :'Cambios guardados. Quedó registrado en el historial.';
@@ -3371,7 +3528,7 @@ async function saveWorker(id){
     w.creado_por=USER.email;
     w.estatus=(falt.length||esFuturo)?'PENDIENTE':'ACTIVO';
     if(esFuturo&&!falt.length)w.motivo_pendiente=`PROGRAMADO: ingresa el ${fmtD(w.fecha_alta)} (semana ${isoWeek(new Date(w.fecha_alta+'T12:00'))}). Pasa a ACTIVO solo automáticamente.`;
-    ({error}=await sb.from('trabajadores').insert(w));
+    ({error}=await guardarRegistroTrabajador(w,null));
     msg=esFuturo&&!falt.length
       ?`Alta guardada como PENDIENTE — su fecha de ingreso (${fmtD(w.fecha_alta)}) es de la próxima semana. No aparecerá en la dispersión de esta semana y pasará a ACTIVO solo cuando llegue su fecha.`
       :falt.length
@@ -3387,17 +3544,25 @@ async function saveWorker(id){
     const w2={...w}; delete w2.registro_patronal; delete w2.prima_rt; delete w2.benef_parentesco; delete w2.benef_telefono; delete w2.benef_porcentaje;
     const perdioCuad=/id_cuadrilla/i.test(error.message||'')&&w2.id_cuadrilla;
     if(perdioCuad)delete w2.id_cuadrilla;
-    if(id)({error}=await sb.from('trabajadores').update(w2).eq('id',id));
-    else ({error}=await sb.from('trabajadores').insert(w2));
+    ({error}=await guardarRegistroTrabajador(w2,id));
     if(!error)toast(perdioCuad
       ?'Guardado, pero SIN CUADRILLA: falta correr el Script 56 en Supabase. Vuelve a asignársela después de correrlo.'
       :'Guardado, pero algunos campos nuevos (registro patronal/prima o datos del beneficiario) NO se aplicaron: falta correr el Script 42 o 47 en Supabase.','err');
   }
-  if(error){$('save-btn').textContent='💾 Guardar';toast('Error al guardar: '+error.message,'err');return;}
-  closeModal();toast(msg,'ok');
+  if(error){toast('Error al guardar: '+error.message,'err');return;}
+  closeModal(true);toast(msg,'ok');
   await loadObraData(OBRA.id);refreshCounts();
   // Alta NUEVA: ¿esta persona ya venía en el control de papeles?
   if(!id)await cpAvisaAlta(fullName(w));
+  }catch(e){toast('No se pudo guardar: '+e.message,'err');}
+  finally{if($('worker-form-body')===formularioGuardando)formGuardando(false);}
+}
+async function guardarRegistroTrabajador(valores,id){
+  let q=id?sb.from('trabajadores').update(valores).eq('id',id):sb.from('trabajadores').insert(valores);
+  const {data,error}=await q.select('id');
+  if(error)return {error};
+  if(!data||data.length!==1)return {error:{message:'No se confirmó el registro. Verifica tus permisos y actualiza la ficha antes de reintentar.'}};
+  return {data,error:null};
 }
 /* ---------- ¿EL QUE ACABO DE DAR DE ALTA VENÍA EN PAPELES? -------------
    El control de papeles es la antesala del padrón, así que dar de alta a
