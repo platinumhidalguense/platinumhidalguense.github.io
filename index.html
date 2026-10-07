@@ -444,7 +444,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
    El botón ☰ de la barra superior lo oculta y lo vuelve a mostrar; el estado
    se recuerda por navegador. Al ocultarse, el contenido ocupa todo el ancho. */
 @media(min-width:1025px){
-  .app-shell.sb-oculto{grid-template-columns:0 minmax(0,1fr)}
+  /* El menú es flotante: ocultarlo nunca crea una pista de ancho cero. */
+  .app-shell.sb-oculto{grid-template-columns:minmax(0,1fr)}
   .app-shell.sb-oculto .sidebar{transform:translateX(-101%);opacity:0;visibility:hidden;pointer-events:none}
   .sidebar{transition:transform .22s var(--ease),opacity .16s ease}
 }
@@ -572,13 +573,14 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 @media(min-width:2400px){:root{--sidebar-w:320px}.trab-table{font-size:clamp(13px,.42vw,16px)}}
 
 /* 2026-10-07 · Inicio progresivo y expediente por bloques. Solo presentación. */
-.app-shell{grid-template-columns:minmax(0,1fr)}
+.app-shell,.app-shell.sb-oculto{grid-template-columns:minmax(0,1fr)}
 .shell{grid-column:1}
 .sidebar{position:fixed;inset:0 auto 0 0;width:min(86vw,330px);height:100dvh;transform:translateX(-102%);transition:transform .2s ease;box-shadow:var(--shadow-lg)}
 .app-shell:not(.sb-oculto) .sidebar.open{transform:none;opacity:1;visibility:visible;pointer-events:auto}
 .sb-close{display:inline-flex;margin-left:auto;border:0;background:transparent;color:inherit;font-size:24px;cursor:pointer}
 .selection-step{width:100%;max-width:1240px;margin:auto;padding:clamp(24px,5vw,80px) clamp(18px,5vw,64px)}
 .selection-heading{margin-bottom:32px}.selection-heading h1{font-size:clamp(25px,3vw,42px);line-height:1.18;margin:14px 0;font-weight:800;color:var(--txt)}
+.selection-heading h1:focus{outline:none} /* El foco de navegación está en un título, no en un control. */
 .selection-heading p{color:var(--mut);font-size:15px;line-height:1.6}.step-label{display:block;color:var(--brand-txt);font-size:11px;letter-spacing:1.4px;font-weight:800;margin-top:20px}
 .empresa-selector{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;width:100%}
 .empresa-btn{display:flex;flex-direction:column;align-items:flex-start;text-align:left;min-height:270px;padding:30px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--txt);gap:20px;white-space:normal;box-shadow:var(--shadow);transition:transform .15s ease,border-color .15s ease}
@@ -602,11 +604,12 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 .trab-table{min-width:720px;table-layout:fixed;font-size:13px}.trab-table th:nth-child(1){width:30%}.trab-table th:nth-child(2){width:12%}.trab-table th:nth-child(3){width:16%}.trab-table th:nth-child(4){width:14%}.trab-table th:nth-child(5){width:12%}.trab-table th:nth-child(6){width:16%}
 .trab-table td,.trab-table th{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;padding:11px 12px}.trab-table th button{background:none;border:0;color:inherit;font:inherit;font-weight:inherit;cursor:pointer;text-align:left;padding:0;width:100%}.trab-table td:nth-child(1) button{background:none;border:0;color:var(--txt);font:inherit;font-weight:700;text-align:left;cursor:pointer;padding:0;line-height:1.5}.worker-number{font-size:10px;color:var(--mut);margin-right:7px;white-space:nowrap}
 .acuse-marks{display:flex;flex-wrap:wrap;gap:5px}.acuse-mark{display:inline-flex;align-items:center;gap:5px;font-size:10px;line-height:1.35;font-weight:700;padding:4px 7px;border-radius:7px;border:1px solid var(--border)}.acuse-mark.ok{color:var(--green);background:var(--green-bg)}.acuse-mark.missing{color:var(--amber);background:var(--amber-bg)}
-.modal.worker-ficha{width:1180px;max-width:calc(100vw - 24px)}.worker-ficha .m-head{align-items:center;flex-wrap:wrap}.worker-ficha .m-head h2{font-size:20px;line-height:1.35;flex:1;min-width:180px}.worker-ficha .m-body{padding:22px;background:var(--bg)}
+.modal.worker-ficha{width:1180px;max-width:calc(100vw - 24px);display:flex;flex-direction:column;max-height:92dvh;overflow:hidden}.worker-ficha .m-head,.worker-ficha .m-foot{flex:0 0 auto;position:static}.worker-ficha .m-head{align-items:center;flex-wrap:wrap}.worker-ficha .m-head h2{font-size:20px;line-height:1.35;flex:1;min-width:180px}.worker-ficha .m-body{padding:22px;background:var(--bg);flex:1;min-height:0;overflow:auto}
 .worker-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:20px}.worker-block{border:1px solid var(--border);background:var(--card);border-radius:12px;padding:18px}.worker-block h3{font-size:15px;color:var(--brand-txt);font-weight:800;margin:0 0 16px;border-bottom:2px solid var(--gold);padding-bottom:10px}.worker-block dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:0}.worker-block dl div{min-width:0}.worker-block dt{font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--mut);text-transform:uppercase;margin-bottom:5px}.worker-block dd{margin:0;font-size:14px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
 .worker-more{border:1px solid var(--border);border-radius:12px;background:var(--card)}.worker-more>summary{padding:17px;cursor:pointer;font-size:15px;font-weight:800;color:var(--brand-txt)}.worker-more>summary small{display:block;font-size:11px;font-weight:400;color:var(--mut);margin:6px 0 0 16px}.worker-more-content{padding:0 16px 16px;display:grid;gap:10px}.worker-section{border:1px solid var(--border);border-radius:9px;overflow:hidden}.worker-section>summary{font-size:13px;font-weight:800;padding:13px 15px;cursor:pointer;background:var(--hover)}.worker-section-body{padding:12px 16px}.worker-section-body .kv{grid-template-columns:minmax(130px,28%) minmax(0,1fr);gap:12px;align-items:start;padding:10px 0}.worker-section-body .kv>b{font-size:11px;color:var(--mut);font-weight:700}.worker-section-body .kv>span{font-size:13px;line-height:1.6;overflow-wrap:anywhere}.ficha-section-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-bottom:12px}.worker-ficha .m-foot{gap:8px;padding:14px;max-height:25dvh;overflow:auto}.worker-ficha .m-foot .btn{font-size:11px}
 :is(button,input,select,summary,a):focus-visible{outline:3px solid var(--gold);outline-offset:3px}
 .ia-fab.nav-hidden{display:none!important}.app-shell #view-trab{height:100%}
+@media(max-width:760px){.modal.worker-ficha{height:100dvh;max-height:100dvh;min-height:0}}
 @media(max-width:760px){.empresa-selector{grid-template-columns:1fr}.empresa-btn{min-height:200px}.worker-overview{grid-template-columns:1fr}.worker-hint{display:none}.worker-search{flex-wrap:wrap}.worker-search label{width:100%}.worker-ficha .m-body{padding:12px}.worker-section-body .kv{grid-template-columns:1fr}.modal.worker-ficha{max-width:100%;width:100%}.app-shell[data-nav="trabajadores"] .wrap{padding:8px}#view-trab{height:calc(100dvh - var(--topbar-h) - 120px)}.worker-block{padding:14px}}
 @media(prefers-reduced-motion:reduce){.sidebar,.empresa-btn{transition:none}.empresa-btn:hover{transform:none}}
 
@@ -1737,7 +1740,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-07.1';
+const APP_VERSION='2026-10-07.2';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
