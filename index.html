@@ -1712,7 +1712,7 @@ async function loadObraData(id){
   skeletonTabla('tbody',9,6,'Cargando trabajadores...');
   skeletonTabla('chq-tbody',6,10,'Cargando cheques...');
   skeletonTabla('pg-v-tbody',5,9,'Cargando pagos...');
-  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds},{data:dx,error:eDx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn},{data:ab},{data:ft,error:eFt}]=await Promise.all([
+  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds,error:eDs},{data:dx,error:eDx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn},{data:ab},{data:ft,error:eFt}]=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
     fetchAllRows(()=>sb.from('cheques').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id)),
@@ -1734,6 +1734,7 @@ async function loadObraData(id){
     fetchAllRows(()=>sb.from('control_finiquitos_transferencia').select('*').eq('obra_id',id))
   ]);
   if(e1){toast('Error al cargar trabajadores: '+e1.message,'err');return false;}
+  if(eDs){toast('No se pudieron comprobar las incidencias y retenciones: '+eDs.message,'err');return false;}
   if(eFt){toast('No se pudo leer el control de finiquitos por transferencia: '+eFt.message,'err');return false;}
   if(eDx){toast('No se pudieron comprobar los documentos: '+eDx.message,'err');return false;}
   // El expediente pertenece al trabajador, incluso si el acuse se archivó
@@ -1774,7 +1775,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-08.2';
+const APP_VERSION='2026-10-08.3';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -8930,6 +8931,18 @@ function compararNumeroTrabajador(a,b){
   if(na!==nb)return na<nb?-1:1;
   return fullName(a).localeCompare(fullName(b),'es',{numeric:true,sensitivity:'base'})||String(a?.id||'').localeCompare(String(b?.id||''));
 }
+/* Incidencias ya aplicadas, no créditos recurrentes. La semana es la del
+   registro, no el estatus actual del trabajador ni la fecha de captura. */
+function incidenciasMovimientosSemana(n,contratista=''){
+  const mapa=new Map(WORKERS.filter(w=>w.obra_id===OBRA.id&&!w.eliminado).map(w=>[w.id,w]));
+  return DESC.filter(d=>d.activo===true&&d.recurrente===false&&d.semana==='S'+n&&
+    ['FALTA','INCIDENCIA'].includes(d.tipo)&&
+    (d.obra_id===OBRA.id||(!d.obra_id&&mapa.has(d.trabajador_id))))
+    .map(d=>({d,w:mapa.get(d.trabajador_id)}))
+    .filter(({w})=>!contratista||w?.contratista===contratista)
+    .sort((a,b)=>compararNumeroTrabajador(a.w||{},b.w||{})||
+      String(a.d.created_at||'').localeCompare(String(b.d.created_at||''))||String(a.d.id).localeCompare(String(b.d.id)));
+}
 function movimientosSemana(n,contratista=''){
   n=Math.max(1,parseInt(n)||isoWeek());
   const [d1,d2]=semRange(n);
@@ -8944,12 +8957,13 @@ function movimientosSemana(n,contratista=''){
   const altas=ingresos.filter(w=>w.estatus!=='PENDIENTE').sort(compararNumeroTrabajador); // ACTIVOS y bajas de la misma semana cuentan como alta
   const pend=ingresos.filter(w=>w.estatus==='PENDIENTE').sort(compararNumeroTrabajador);
   const bajas=trabajadores.filter(w=>enR(w.fecha_baja)&&!reIds.has(w.id)).sort(compararNumeroTrabajador);
-  return {n,d1,d2,altas,reingresos,pend,bajas};
+  return {n,d1,d2,altas,reingresos,pend,bajas,incidencias:incidenciasMovimientosSemana(n,contratista)};
 }
 function openMovimientos(n,contratista=''){
-  const disponibles=[...new Set(WORKERS.map(w=>w.contratista).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  const disponibles=[...new Set(WORKERS.filter(w=>w.obra_id===OBRA.id&&!w.eliminado).map(w=>w.contratista).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
   if(contratista&&!disponibles.includes(contratista))contratista='';
-  const {n:sem,d1,d2,altas,reingresos,pend,bajas}=movimientosSemana(n,contratista);
+  const {n:sem,d1,d2,altas,reingresos,pend,bajas,incidencias}=movimientosSemana(n,contratista);
+  const personasInc=new Set(incidencias.map(({d})=>d.trabajador_id)).size;
   const entradas=altas.length+reingresos.length;
   const porDia={};bajas.forEach(w=>{const k=fmtD(w.fecha_baja);porDia[k]=(porDia[k]||0)+1;});
   const item=(w,extra)=>`<div class="kv"><b>#${w.no_trab??'—'}</b><span>${esc(fullName(w))} · ${esc(w.contratista)}${extra?` · <b>${extra}</b>`:''}</span></div>`;
@@ -8970,7 +8984,7 @@ function openMovimientos(n,contratista=''){
             <option value="">Todos los contratistas</option>
             ${disponibles.map(c=>`<option value="${esc(c)}" ${c===contratista?'selected':''}>${esc(c)}</option>`).join('')}
           </select></div>
-        <span class="fhint" style="flex:1 1 260px">${contratista?`Mostrando sólo movimientos de <b>${esc(contratista)}</b>.`:'Vista global de la obra; selecciona un contratista para aislar sus movimientos.'}</span>
+        <span class="fhint" style="flex:1 1 260px">${contratista?`Mostrando movimientos e incidencias de <b>${esc(contratista)}</b>.`:'Vista global de la obra; selecciona un contratista para aislar sus movimientos e incidencias.'}</span>
       </div>
       <div class="stats" style="margin-bottom:16px">
         <div class="stat g"><div class="n">+${altas.length}</div><div class="l">Altas nuevas${(function(){const m=altas.filter(x=>x.estatus==='BAJA').length;return m?` (${altas.length-m} vigentes + ${m} con baja misma sem.)`:'';})()}</div></div>
@@ -8978,6 +8992,7 @@ function openMovimientos(n,contratista=''){
         <div class="stat r"><div class="n">−${bajas.length}</div><div class="l">Bajas de la semana</div></div>
         <div class="stat a"><div class="n">${pend.length}</div><div class="l">Pendientes (aparte)</div></div>
         <div class="stat b"><div class="n">${entradas-bajas.length>=0?'+':''}${entradas-bajas.length}</div><div class="l">Diferencia neta (altas + reingresos − bajas)</div></div>
+        <div class="stat a"><div class="n">${incidencias.length}</div><div class="l">Incidencias aplicadas · ${personasInc} trabajador(es)</div></div>
       </div>
       ${bajas.length?`<div class="sect">Bajas (${bajas.length})${Object.keys(porDia).length>1?` — ${Object.entries(porDia).map(([k,v])=>`${v} el ${k}`).join(', ')}`:''}</div>
         ${bajas.map(w=>item(w,'baja '+fmtD(w.fecha_baja)+(w.monto_finiquito?' · finiquito $'+money(w.monto_finiquito):''))).join('')}`:''}
@@ -8987,12 +9002,22 @@ function openMovimientos(n,contratista=''){
         ${reingresos.map(w=>item(w,'reingresó '+fmtD(w.fecha_reingreso)+' · alta original '+fmtD(w.fecha_alta)+(w.fecha_baja?' · baja previa '+fmtD(w.fecha_baja):''))).join('')}`:''}
       ${pend.length?`<div class="sect">Pendientes (${pend.length}) — no cuentan como alta hasta activarse</div>
         ${pend.map(w=>item(w,'capturado '+fmtD(w.fecha_alta))).join('')}`:''}
-      ${!altas.length&&!reingresos.length&&!bajas.length&&!pend.length?'<div class="empty"><div class="big">📭</div>Sin movimientos en esta semana.</div>':''}
+      <section id="mov-incidencias" aria-label="Incidencias aplicadas de la semana">
+        <div class="sect">Incidencias aplicadas (${incidencias.length}) · ${personasInc} trabajador(es)</div>
+        <p class="fhint" style="margin-bottom:10px">Faltas y otras incidencias registradas en S${sem}. El importe es el descuento guardado, sin recalcularlo. No incluye créditos recurrentes ni registros cancelados.</p>
+        ${incidencias.map(({d,w})=>`<article class="mov-incidencia" style="padding:12px 0;border-bottom:1px solid var(--bd)">
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><b>#${esc(w?.no_trab??'—')} · ${esc(w?fullName(w):'Trabajador no disponible; revisar referencia')}</b>
+            <span class="badge ${d.tipo==='FALTA'?'a':'b'}">${d.tipo==='FALTA'?'Falta':'Incidencia'}</span>
+            <span style="margin-left:auto;white-space:nowrap">Descuento: <b>$${money(Number(d.monto)||0)}</b></span></div>
+          <div class="fhint" style="margin:4px 0">${esc(w?.contratista||'Contratista no disponible')} · ${esc(w?.puesto||'Puesto no disponible')}</div>
+          <div style="overflow-wrap:anywhere;white-space:pre-wrap">${esc(d.motivo||'Sin detalle registrado')}</div></article>`).join('')||'<div class="fhint">Sin incidencias aplicadas para esta semana y filtro.</div>'}
+      </section>
+      ${!altas.length&&!reingresos.length&&!bajas.length&&!pend.length&&!incidencias.length?'<div class="empty"><div class="big">📭</div>Sin movimientos ni incidencias en esta semana.</div>':''}
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cerrar</button>
       <button class="btn dark" ${entradas+bajas.length+pend.length?'':'disabled'} onclick="exportMovimientos()">⬇ Exportar Excel</button>
-      <button class="btn dark" ${entradas+bajas.length+pend.length?'':'disabled'} onclick="exportMovimientosPDF()">📄 Exportar PDF</button>
+      <button class="btn dark" ${entradas+bajas.length+pend.length+incidencias.length?'':'disabled'} onclick="exportMovimientosPDF()">📄 Exportar PDF</button>
     </div>`);
 }
 function exportMovimientos(){
@@ -9016,7 +9041,7 @@ function exportMovimientos(){
   toast('Excel de movimientos generado.','ok');
 }
 function movimientosPDFHTML(mov,contratista=''){
-  const {n,d1,d2,altas,reingresos,pend,bajas}=mov;
+  const {n,d1,d2,altas,reingresos,pend,bajas,incidencias=[]}=mov;
   const codigo=empresaDeObra(OBRA),empresa=CFGEMP['empresa_'+codigo]||{};
   const razon=empresa.razon||razonSocialEmpresa(codigo);
   const secciones=[['ALTAS NUEVAS',altas,'fecha_alta'],['REINGRESOS',reingresos,'fecha_reingreso'],
@@ -9026,13 +9051,24 @@ function movimientosPDFHTML(mov,contratista=''){
     gente.map(w=>`<tr><td class="numero">${esc(w.no_trab??'—')}</td><td class="nombre">${esc(fullName(w))}</td>`+
       `<td>${esc(w.puesto||'—')}</td><td>${esc(w.contratista||'—')}</td><td>${esc(cuadNombre(w)||'—')}</td><td class="fecha">${esc(fmtD(w[fecha]))}</td></tr>`).join('')).join('');
   const neto=altas.length+reingresos.length-bajas.length;
+  const membrete=`<tr><td class="membrete" colspan="6"><div class="membrete-box"><img src="${logoEmpresa(codigo)}" alt="${esc(codigo)}"><div class="empresa"><b>${esc(razon)}</b><br>RFC ${esc(empresa.rfc||'—')}<br>${esc(empresa.domicilio||'')}</div></div></td></tr>`;
+  const contexto=`<tr><td class="contexto" colspan="6"><b>Centro:</b> ${esc(OBRA.nombre)} &nbsp; <b>Periodo:</b> ${esc(fmtD(d1))} al ${esc(fmtD(d2))}${contratista?` &nbsp; <b>Contratista:</b> ${esc(contratista)}`:''}</td></tr>`;
+  const tablaIncidencias=incidencias.length?`<section class="incidencias-seccion"><table class="incidencias-tabla">
+    <colgroup><col style="width:8%"><col style="width:28%"><col style="width:14%"><col style="width:12%"><col style="width:25%"><col style="width:13%"></colgroup>
+    <thead>${membrete}<tr><td class="titulo" colspan="6">INCIDENCIAS APLICADAS · SEMANA ${esc(n)}</td></tr>${contexto}
+      <tr><td class="resumen" colspan="6">${incidencias.length} registro(s) · ${new Set(incidencias.map(({d})=>d.trabajador_id)).size} trabajador(es) · Descuentos registrados, sin recalcular.</td></tr>
+      <tr class="columnas"><th>NO.</th><th>NOMBRE / PUESTO</th><th>CONTRATISTA</th><th>TIPO</th><th>DETALLE</th><th>DESCUENTO</th></tr></thead>
+    <tbody>${incidencias.map(({d,w})=>`<tr><td class="numero">${esc(w?.no_trab??'—')}</td>
+      <td><div class="nombre">${esc(w?fullName(w):'Trabajador no disponible; revisar referencia')}</div><div class="puesto">${esc(w?.puesto||'—')}</div></td>
+      <td>${esc(w?.contratista||'—')}</td><td>${d.tipo==='FALTA'?'Falta':'Incidencia'}</td>
+      <td class="detalle">${esc(d.motivo||'Sin detalle registrado')}</td><td class="importe">$${money(Number(d.monto)||0)}</td></tr>`).join('')}</tbody></table></section>`:'';
   return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Movimientos semana ${n} · ${esc(OBRA.nombre)}</title>
   <style>
   @page{size:letter portrait;margin:12mm 11mm 12mm}*{box-sizing:border-box}
   body{margin:0;color:#172033;font-family:Arial,Helvetica,sans-serif;font-size:9pt}
   .accion{position:fixed;top:12px;right:12px;background:#193659;color:#fff;border:0;border-radius:5px;padding:9px 14px;font-weight:bold;cursor:pointer}
   table{width:100%;border-collapse:collapse;table-layout:fixed}
-  thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}
+  thead{display:table-header-group;break-inside:avoid;page-break-inside:avoid}tr{break-inside:avoid;page-break-inside:avoid}
   .membrete{border-bottom:2px solid #193659;padding-bottom:4mm}
   .membrete-box{display:flex;align-items:center;gap:6mm;min-height:20mm}
   .membrete img{width:29mm;height:17mm;object-fit:contain}
@@ -9046,23 +9082,25 @@ function movimientosPDFHTML(mov,contratista=''){
   tbody td{border-bottom:1px solid #dbe3ec;padding:2.2mm 1.5mm;vertical-align:top;overflow-wrap:anywhere;line-height:1.25}
   tbody .grupo td{background:#e9eff7;color:#193659;font-weight:bold;padding:2.4mm 1.5mm;break-after:avoid;page-break-after:avoid}
   .numero,.fecha{text-align:center;white-space:nowrap}.nombre{font-weight:bold}
+  .puesto{font-size:7.5pt;color:#475569;margin-top:1mm}.detalle{white-space:pre-wrap}.importe{text-align:right;white-space:nowrap}
+  .incidencias-seccion{break-before:page;page-break-before:always}
   .vacio{text-align:center;color:#64748b;padding:10mm}
   @media print{.accion{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-  </style></head><body><button class="accion" onclick="window.print()">Imprimir / Guardar PDF</button><table>
+  </style></head><body><button class="accion" onclick="window.print()">Imprimir / Guardar PDF</button>${filas||!incidencias.length?`<table class="movimientos-tabla">
   <colgroup><col style="width:8%"><col style="width:29%"><col style="width:20%"><col style="width:15%"><col style="width:18%"><col style="width:10%"></colgroup>
-  <thead><tr><td class="membrete" colspan="6"><div class="membrete-box"><img src="${logoEmpresa(codigo)}" alt="${esc(codigo)}"><div class="empresa"><b>${esc(razon)}</b><br>RFC ${esc(empresa.rfc||'—')}<br>${esc(empresa.domicilio||'')}</div></div></td></tr>
+  <thead>${membrete}
   <tr><td class="titulo" colspan="6">MOVIMIENTOS DE PERSONAL · SEMANA ${esc(n)}</td></tr>
-  <tr><td class="contexto" colspan="6"><b>Centro:</b> ${esc(OBRA.nombre)} &nbsp; <b>Periodo:</b> ${esc(fmtD(d1))} al ${esc(fmtD(d2))}${contratista?` &nbsp; <b>Contratista:</b> ${esc(contratista)}`:''}</td></tr>
-  <tr><td class="resumen" colspan="6">${altas.length} altas · ${reingresos.length} reingresos · ${bajas.length} bajas · ${pend.length} pendientes · Variación neta ${neto>=0?'+':''}${neto}</td></tr>
+  ${contexto}
+  <tr><td class="resumen" colspan="6">${altas.length} altas · ${reingresos.length} reingresos · ${bajas.length} bajas · ${pend.length} pendientes · Variación neta ${neto>=0?'+':''}${neto} · ${incidencias.length} incidencias</td></tr>
   <tr class="columnas"><th>NO.</th><th>NOMBRE COMPLETO</th><th>PUESTO</th><th>CONTRATISTA</th><th>CUADRILLA</th><th>FECHA</th></tr></thead>
-  <tbody>${filas||'<tr><td class="vacio" colspan="6">Sin movimientos en esta semana.</td></tr>'}</tbody></table>
+  <tbody>${filas||'<tr><td class="vacio" colspan="6">Sin movimientos en esta semana.</td></tr>'}</tbody></table>`:''}${tablaIncidencias}${!filas&&incidencias.length?'<style>.incidencias-seccion{break-before:auto;page-break-before:auto}</style>':''}
   <script>window.onload=()=>setTimeout(()=>window.print(),450)<\/script></body></html>`;
 }
 function exportMovimientosPDF(){
   const contratista=window._MOVCONTR||'';
   const mov=movimientosSemana(window._MOVSEM||isoWeek(),contratista);
-  if(!mov.altas.length&&!mov.reingresos.length&&!mov.bajas.length&&!mov.pend.length){
-    toast('No hay movimientos para exportar en esta semana.','err');return;
+  if(!mov.altas.length&&!mov.reingresos.length&&!mov.bajas.length&&!mov.pend.length&&!mov.incidencias?.length){
+    toast('No hay movimientos ni incidencias para exportar en esta semana.','err');return;
   }
   const win=window.open('','_blank');
   if(!win){toast('Permite ventanas emergentes para generar el PDF.','err');return;}
