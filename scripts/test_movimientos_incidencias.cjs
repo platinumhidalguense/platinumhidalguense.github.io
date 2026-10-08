@@ -31,7 +31,7 @@ async function run(){
     const rows=await page.evaluate(()=>qaRows.rows);for(const [tipo,nums] of [['ALTA',['3',12,'']],['REINGRESO',[4,21]],['BAJA',[2,'10']],['PENDIENTE',[5,31]]])assert.deepEqual(rows.filter(r=>r[0]===tipo).map(r=>r[1]),nums);
     const widths=await page.evaluate(()=>qaRows.widths);assert.deepEqual(widths,[13,10,36,15,24,12,15,12]);
     await page.evaluate(()=>exportMovimientosPDF());
-    const pdfNums=await page.evaluate(()=>{const d=new DOMParser().parseFromString(qaPDF,'text/html');return [...d.querySelectorAll('tbody tr:not(.grupo)')].map(r=>r.cells[0].textContent);});
+    const pdfNums=await page.evaluate(()=>{const d=new DOMParser().parseFromString(qaPDF,'text/html');return [...d.querySelectorAll('.movimientos-tabla tbody tr:not(.grupo)')].map(r=>r.cells[0].textContent);});
     assert.deepEqual(pdfNums,['3','12','—','4','21','2','10','5','31']);
     const filtered=await page.evaluate(()=>{const m=movimientosSemana(28,'OTRO');return m.altas.length+m.bajas.length+m.reingresos.length+m.pend.length;});assert.equal(filtered,0);
     await page.evaluate(()=>openIncidencias());assert(await page.locator('#inc-panel-aplicadas').isVisible());assert.equal(await page.locator('#inc-panel-captura').isVisible(),false);assert.equal(await page.locator('#inc-save').isVisible(),false);
