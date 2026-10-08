@@ -1768,7 +1768,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-07.4';
+const APP_VERSION='2026-10-08.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -4384,35 +4384,62 @@ async function toggleDescuento(id,estado){
 
 /* ---------- INCIDENCIAS DE LA SEMANA ---------- */
 function openIncidencias(){
-  const [d1,d2]=semRange(semObra());
-  const act=asActivosSemana(d1,d2);
-  if(!act.length){toast('No hay trabajadores activos en esta obra.','err');return;}
-  window._INC=act;
+  if(!OBRA){toast('Selecciona un centro de trabajo.','err');return;}
+  window._INCSEM=semObra();window._INCTAB='aplicadas';
   modal(`
     <div class="m-head"><h2>📉 Incidencias de la semana · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <div class="grid" style="grid-template-columns:180px 1fr;align-items:end;margin-bottom:12px">
-        <div><label>No. de semana</label><input id="inc-sem" type="number" value="${semObra()}" onchange="incExistentes();incRenderRows()"></div>
-        <div><label>Buscar trabajador</label><input id="inc-q" placeholder="Escribe nombre, no. o contratista…" oninput="incFiltra()"></div>
+      <style>.inc-modulo [hidden]{display:none!important}.inc-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 18px}.inc-tabs [aria-selected="true"]{background:var(--navy);border-color:var(--navy);color:#fff}.inc-aplicada{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:8px 14px;padding:14px;border:1px solid var(--border);border-radius:9px;margin:8px 0;background:var(--card)}.inc-aplicada .inc-detalle{grid-column:2/-1;color:var(--mut);font-size:12px;line-height:1.6;overflow-wrap:anywhere}.inc-aplicada b{overflow-wrap:anywhere}.inc-lista{max-height:420px;overflow:auto}.inc-captura-scroll{overflow-x:auto}.inc-captura-scroll .imp-row{min-width:850px}@media(max-width:600px){.inc-aplicada{grid-template-columns:42px minmax(0,1fr)}.inc-aplicada .inc-importe{grid-column:2}.inc-tabs .btn{flex:1}}</style>
+      <div class="inc-modulo">
+      <div class="grid" style="grid-template-columns:160px 1fr;align-items:end;margin-bottom:12px">
+        <div><label for="inc-sem">No. de semana</label><input id="inc-sem" type="number" min="1" step="1" value="${semObra()}" onchange="incCambioSemana()"></div>
+        <div class="fhint">${esc(OBRA.nombre)} · Las dos secciones corresponden a la semana seleccionada.</div>
       </div>
+      <div class="inc-tabs" role="tablist" aria-label="Incidencias de la semana">
+        <button class="btn" role="tab" id="inc-tab-aplicadas" aria-controls="inc-panel-aplicadas" onclick="incMostrar('aplicadas')">Aplicadas <span id="inc-total"></span></button>
+        <button class="btn" role="tab" id="inc-tab-captura" aria-controls="inc-panel-captura" onclick="incMostrar('captura')">Capturar incidencias</button>
+      </div>
+      <section id="inc-panel-aplicadas" role="tabpanel" aria-labelledby="inc-tab-aplicadas">
+        <h3 style="margin-bottom:8px">Faltas e incidencias ya aplicadas</h3>
+        <p class="fhint" style="margin-bottom:12px">Ordenadas por número de trabajador. Aquí sólo aparecen descuentos activos de esta semana; los créditos recurrentes se consultan en retenciones.</p>
+        <label for="inc-ya-q">Buscar en aplicadas</label><input id="inc-ya-q" placeholder="Número, nombre, contratista o motivo…" oninput="incExistentes()">
+        <div id="inc-exist" class="inc-lista" aria-live="polite"></div>
+      </section>
+      <section id="inc-panel-captura" role="tabpanel" aria-labelledby="inc-tab-captura" hidden>
+      <h3 style="margin-bottom:8px">Aplicar nuevas incidencias</h3>
+      <label for="inc-q">Buscar para capturar</label><input id="inc-q" placeholder="Escribe nombre, no. o contratista…" oninput="incFiltra()" style="margin-bottom:12px">
       <p style="color:var(--mut);font-size:12px;margin-bottom:8px">Distingue <b>faltas injustificadas</b> de <b>días de incapacidad que no paga la empresa</b>. Una falta semanal afecta el descanso proporcional; esos días de incapacidad no. Si un certificado cubre 7 días y la empresa paga 3, captura <b>4</b> en la columna IMSS; registra aparte los 7 días, fechas y folio del certificado en Incidentes e incapacidades. Si hay premios u otros conceptos especiales, contrasta el resultado con NOI.</p>
-      <div id="inc-exist"></div>
+      <div class="inc-captura-scroll">
       <div class="imp-row head" style="grid-template-columns:2fr .5fr .55fr .65fr .6fr .8fr 1.5fr"><span>Trabajador</span><span>SD</span><span>Faltas</span><span>Días IMSS sin sueldo</span><span>Premio $</span><span>Descuento $</span><span>Motivo</span></div>
       <div id="inc-nores" style="display:none;color:var(--mut);padding:14px;text-align:center;font-size:12.5px">Ningún trabajador coincide con la búsqueda.</div>
       <div id="inc-rows" style="max-height:380px;overflow:auto"></div>
+      </div></section></div>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn dark" onclick="saveIncidencias()">💾 Guardar incidencias</button>
+      <button class="btn dark" id="inc-save" onclick="saveIncidencias()" ${puedeEditarTrabajador()?'':'disabled'}>💾 Guardar incidencias</button>
     </div>`,'lg');
-  incExistentes();incRenderRows();
+  incExistentes();incRenderRows();incMostrar('aplicadas');
+}
+function incMostrar(tab){
+  tab=tab==='captura'?'captura':'aplicadas';window._INCTAB=tab;
+  ['aplicadas','captura'].forEach(t=>{$('inc-panel-'+t).hidden=t!==tab;$('inc-tab-'+t).setAttribute('aria-selected',String(t===tab));});
+  $('inc-save').style.display=tab==='captura'?'':'none';
+}
+function incCambioSemana(){
+  const n=Number($('inc-sem').value);
+  if(!Number.isInteger(n)||n<1){$('inc-sem').value=window._INCSEM;toast('Indica una semana entera mayor que cero.','err');return;}
+  if(n===window._INCSEM)return;
+  const capturado=[...$('inc-rows').querySelectorAll('input')].some(el=>el.value.trim()!=='');
+  if(capturado&&!confirm('Hay incidencias capturadas sin guardar. ¿Descartarlas y cambiar de semana?')){$('inc-sem').value=window._INCSEM;return;}
+  window._INCSEM=n;incExistentes();incRenderRows();
 }
 function incRenderRows(){
   const n=Number($('inc-sem')?.value)||semObra(),[d1,d2]=semRange(n);
-  const act=asActivosSemana(d1,d2);
+  const act=asActivosSemana(d1,d2).slice().sort(compararNumeroTrabajador);
   window._INC=act;
   $('inc-rows').innerHTML=act.map((w,i)=>`<div class="imp-row inc-row" data-buscar="${esc((fullName(w)+' '+(w.contratista||'')+' '+(w.no_trab||'')).toUpperCase())}" style="grid-template-columns:2fr .5fr .55fr .65fr .6fr .8fr 1.5fr">
-        <span><b>${esc(fullName(w))}</b><br><span style="color:var(--mut);font-size:11px">${esc(w.contratista)}</span></span>
+        <span><b>#${esc(w.no_trab??'—')} · ${esc(fullName(w))}</b><br><span style="color:var(--mut);font-size:11px">${esc(w.contratista)}</span></span>
         <span>$${money(w.sd)}</span>
         <input id="inc-f-${i}" type="number" min="0" step="1" placeholder="0" oninput="incCalc(${i})">
         <input id="inc-i-${i}" type="number" min="0" step="1" placeholder="0" title="Días del periodo cubiertos por incapacidad IMSS que NO paga la empresa; no son necesariamente todos los días del certificado" oninput="incCalc(${i})">
@@ -4422,12 +4449,13 @@ function incRenderRows(){
       </div>`).join('');
   if($('inc-nores'))$('inc-nores').style.display=act.length?'none':'block';
   incFiltra();
+  if(!puedeEditarTrabajador())$('inc-rows').querySelectorAll('input').forEach(el=>el.disabled=true);
 }
 function incFiltra(){
-  const q=($('inc-q').value||'').trim().toUpperCase();
+  const q=incTextoBusqueda($('inc-q').value);
   let visibles=0;
-  document.querySelectorAll('.inc-row').forEach(r=>{
-    const ok=!q||(r.getAttribute('data-buscar')||'').includes(q);
+  $('inc-rows').querySelectorAll('.inc-row').forEach(r=>{
+    const ok=!q||incTextoBusqueda(r.getAttribute('data-buscar')).includes(q);
     r.style.display=ok?'':'none'; if(ok)visibles++;
   });
   if($('inc-nores'))$('inc-nores').style.display=visibles?'none':'block';
@@ -4454,16 +4482,37 @@ function incCalc(i){
     $('inc-m-'+i).value='';$('inc-x-'+i).value='';
   }
 }
+function incTextoBusqueda(v){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();}
 function incExistentes(){
-  const sem='S'+($('inc-sem').value||isoWeek());
-  const ya=DESC.filter(d=>!d.recurrente&&d.activo&&d.semana===sem);
-  $('inc-exist').innerHTML=ya.length?`
-    <div style="background:var(--blue-bg);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12.5px">
-      <b>Ya capturadas en ${sem}:</b> ${ya.map(d=>{const w=WORKERS.find(x=>x.id===d.trabajador_id);
-        return `${w?fullName(w):'?'} $${money(d.monto)} (${esc(d.motivo||d.tipo)}) <button class="btn danger" style="padding:1px 7px;font-size:10.5px" onclick="toggleDescuento('${d.id}',false)">quitar</button>`;}).join(' · ')}
-    </div>`:'';
+  const sem='S'+(Number($('inc-sem').value)||window._INCSEM),q=incTextoBusqueda($('inc-ya-q')?.value);
+  const mapa=new Map(WORKERS.filter(w=>w.obra_id===OBRA.id).map(w=>[w.id,w]));
+  const ya=DESC.filter(d=>!d.recurrente&&d.activo&&d.semana===sem&&(d.obra_id===OBRA.id||(!d.obra_id&&mapa.has(d.trabajador_id))))
+    .map(d=>({d,w:mapa.get(d.trabajador_id)})).sort((a,b)=>compararNumeroTrabajador(a.w||{},b.w||{})||String(a.d.created_at||'').localeCompare(String(b.d.created_at||''))||String(a.d.id).localeCompare(String(b.d.id)));
+  $('inc-total').textContent=`(${ya.length})`;
+  const visibles=ya.filter(({d,w})=>!q||incTextoBusqueda(`${w?.no_trab??''} ${w?fullName(w):d.trabajador_id} ${w?.contratista||''} ${d.motivo||''} ${d.tipo||''}`).includes(q));
+  $('inc-exist').innerHTML=visibles.map(({d,w})=>`<article class="inc-aplicada" data-inc-id="${esc(d.id)}">
+    <b>#${esc(w?.no_trab??'—')}</b><div><b>${w?esc(fullName(w)):'Trabajador no disponible en la lista'}</b><div class="fhint">${esc(w?.contratista||'Sin contratista disponible')} · ${esc(d.tipo)} · ${esc(sem)}</div></div>
+    <div class="inc-importe"><b>$${money(d.monto)}</b> ${puedeEditarTrabajador()?`<button class="btn danger" onclick="incQuitar('${esc(d.id)}')">Quitar</button>`:''}</div>
+    <div class="inc-detalle">${esc(d.motivo||d.tipo)}${!w?` · ID: ${esc(d.trabajador_id)}`:''}</div></article>`).join('')||`<div class="empty">${ya.length?'Ninguna incidencia aplicada coincide con la búsqueda.':'No hay faltas ni incidencias activas aplicadas en '+esc(sem)+'.'}</div>`;
+}
+async function incQuitar(id){
+  if(!puedeEditarTrabajador()){toast('Tu usuario sólo puede consultar.','err');return;}
+  const sem='S'+(Number($('inc-sem')?.value)||window._INCSEM),obraId=OBRA.id;
+  const d=DESC.find(x=>x.id===id&&x.activo&&!x.recurrente&&x.semana===sem&&x.obra_id===obraId);if(!d)return;
+  if(window._INCQUITANDO)return;
+  if(!confirm('¿Desactivar esta incidencia de '+sem+'? Dejará de aplicarse; se conserva en el historial.'))return;
+  window._INCQUITANDO=true;markWrite();
+  try{
+    const {data,error}=await sb.from('descuentos').update({activo:false}).eq('id',id).eq('obra_id',obraId).eq('semana',sem).eq('recurrente',false).eq('activo',true).select('id');
+    if(error)throw error;if(data?.length!==1)throw new Error('No se confirmó la desactivación. Actualiza y verifica tus permisos.');
+    d.activo=false;
+    if(OBRA?.id===obraId){renderTable();if($('inc-exist'))incExistentes();}
+    toast('Incidencia desactivada; se conserva en el historial.','ok');
+  }catch(e){toast('No se quitó: '+e.message,'err');}finally{window._INCQUITANDO=false;}
 }
 async function saveIncidencias(){
+  if(!puedeEditarTrabajador()){toast('Tu usuario sólo puede consultar.','err');return;}
+  if($('inc-save')?.disabled)return;
   const sem='S'+($('inc-sem').value||isoWeek());
   const inserts=[];let invalid='';
   window._INC.forEach((w,i)=>{
@@ -8869,20 +8918,26 @@ function semSincroniza(semId,d1Id,d2Id,cb){
   if($(d2Id))$(d2Id).value=d2;
   if(cb)cb();
 }
+function compararNumeroTrabajador(a,b){
+  const numero=w=>{const s=String(w?.no_trab??'').trim();return /^\d+$/.test(s)&&Number.isSafeInteger(Number(s))?Number(s):Infinity;};
+  const na=numero(a),nb=numero(b);
+  if(na!==nb)return na<nb?-1:1;
+  return fullName(a).localeCompare(fullName(b),'es',{numeric:true,sensitivity:'base'})||String(a?.id||'').localeCompare(String(b?.id||''));
+}
 function movimientosSemana(n,contratista=''){
   n=Math.max(1,parseInt(n)||isoWeek());
   const [d1,d2]=semRange(n);
   const enR=f=>f&&f>=d1&&f<=d2;
-  const trabajadores=contratista?WORKERS.filter(w=>w.contratista===contratista):WORKERS;
+  const trabajadores=WORKERS.filter(w=>w.obra_id===OBRA.id&&(!contratista||w.contratista===contratista));
   /* REINGRESOS: quien vuelve a entrar tras una baja. Su fecha_alta es la ORIGINAL
      (de hace meses), así que filtrando solo por fecha_alta no aparecía en ninguna
      parte. Va en su propio apartado y NUNCA como alta nueva. */
-  const reingresos=trabajadores.filter(w=>enR(w.fecha_reingreso)).sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+  const reingresos=trabajadores.filter(w=>enR(w.fecha_reingreso)).sort(compararNumeroTrabajador);
   const reIds=new Set(reingresos.map(w=>w.id));
   const ingresos=trabajadores.filter(w=>enR(w.fecha_alta)&&!reIds.has(w.id));
-  const altas=ingresos.filter(w=>w.estatus!=='PENDIENTE').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9)); // ACTIVOS y bajas de la misma semana cuentan como alta
-  const pend=ingresos.filter(w=>w.estatus==='PENDIENTE').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
-  const bajas=trabajadores.filter(w=>enR(w.fecha_baja)&&!reIds.has(w.id)).sort((a,b)=>String(a.fecha_baja).localeCompare(String(b.fecha_baja)));
+  const altas=ingresos.filter(w=>w.estatus!=='PENDIENTE').sort(compararNumeroTrabajador); // ACTIVOS y bajas de la misma semana cuentan como alta
+  const pend=ingresos.filter(w=>w.estatus==='PENDIENTE').sort(compararNumeroTrabajador);
+  const bajas=trabajadores.filter(w=>enR(w.fecha_baja)&&!reIds.has(w.id)).sort(compararNumeroTrabajador);
   return {n,d1,d2,altas,reingresos,pend,bajas};
 }
 function openMovimientos(n,contratista=''){
@@ -8930,8 +8985,8 @@ function openMovimientos(n,contratista=''){
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cerrar</button>
-      <button class="btn dark" ${entradas+bajas.length?'':'disabled'} onclick="exportMovimientos()">⬇ Exportar Excel</button>
-      <button class="btn dark" ${entradas+bajas.length?'':'disabled'} onclick="exportMovimientosPDF()">📄 Exportar PDF</button>
+      <button class="btn dark" ${entradas+bajas.length+pend.length?'':'disabled'} onclick="exportMovimientos()">⬇ Exportar Excel</button>
+      <button class="btn dark" ${entradas+bajas.length+pend.length?'':'disabled'} onclick="exportMovimientosPDF()">📄 Exportar PDF</button>
     </div>`);
 }
 function exportMovimientos(){
