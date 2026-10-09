@@ -4821,6 +4821,7 @@ function pyCandidatos(d1,d2,periodo){
    contrario una incidencia corregida por otra sesión puede quedar obsoleta en
    WORKERS/DESC/DIFS aunque la base ya tenga el valor correcto. */
 async function pyDatosFrescos(){
+  globalThis._PY_FRESCOS=false;
   const id=OBRA&&OBRA.id;
   if(!id)return false;
   const [{data:tw,error:e1},{data:ds,error:e2},{data:df,error:e3},{data:ab,error:e4},{data:ft,error:e5}]=await Promise.all([
@@ -4835,10 +4836,12 @@ async function pyDatosFrescos(){
     const error=e1||e2||e3||e4||e5;
     if($('py-prev'))$('py-prev').innerHTML='<div class="fhint" style="color:var(--red)">No se pudieron actualizar los datos de la proyección. Cierra y vuelve a abrir esta ventana antes de exportar.</div>';
     if($('py-btn'))$('py-btn').disabled=true;
+    if($('py-ambas'))$('py-ambas').disabled=true;
     toast('No se generó la proyección con datos obsoletos: '+error.message,'err');
     return false;
   }
   WORKERS=tw||[];DESC=ds||[];DIFS=df||[];ALTAS_CORTAS=ab||[];FINTRANS=ft||[];
+  globalThis._PY_FRESCOS=true;
   if($('py-prev'))pyPreview();
   return true;
 }
@@ -4857,51 +4860,206 @@ function openProyeccion(){
         </select></div>
       </div>
       <div id="py-prev" style="margin-top:14px">Actualizando trabajadores y retenciones...</div>
+      ${proySelector('py-destino')}
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn" onclick="openProyContratista()">👷 Por contratista</button>
       <button class="btn" onclick="openDiferenciales()" title="Monto extra por trabajador para esta semana (opcional)">➕ Agregar diferencial</button>
       <button class="btn dark" id="py-btn" onclick="exportProyeccion()" disabled>⬇ Generar Excel</button>
+      <button class="btn" id="py-ambas" onclick="exportProyeccion('AMBAS')" disabled>Generar ambas</button>
     </div>`,'md');
   pyDatosFrescos();
 }
-function pyPreview(){
-  const sem='S'+($('py-sem').value||semObra());
+async function pyPreview(){
+  const version=(window._PY_PREVIEW_VERSION||0)+1;window._PY_PREVIEW_VERSION=version;
+  if(!$('py-prev'))return;
+  for(const id of ['py-btn','py-ambas'])if($(id))$(id).disabled=true;
+  if(globalThis._PY_FRESCOS===false)return;
+  const sem='S'+($('py-sem').value||semObra()),destino=$('py-destino')?.value||'DISPERSION';
   const {act,fins}=pyCandidatos($('py-d1').value,$('py-d2').value,$('py-periodo').value);
-  const tS=act.reduce((s,w)=>s+(Number(w.sal_semanal)||0),0);
-  const tDif=act.reduce((s,w)=>s+difDe(w.id,sem),0);
-  const tD=act.reduce((s,w)=>s+descuentosDe(w,sem).total,0);
-  const tF=fins.reduce((s,w)=>s+(Number(w.monto_finiquito)||0),0);
-  const nDesc=act.filter(w=>descuentosDe(w,sem).total>0).length;
-  // v29: desglose de a quién y por qué (petición de contabilidad)
-  const ids=new Set(act.map(w=>w.id));
-  const filasRet=retFilasDe(sem).filter(f=>ids.has(f.w.id));
-  const desglose=filasRet.length?`
-    <details style="margin-top:12px;border:1px solid var(--border);border-radius:8px;padding:8px 12px">
-      <summary style="cursor:pointer;font-weight:700;font-size:12.5px;color:var(--navy)">Ver desglose: a quién se le descuenta y por qué (${filasRet.length} retenciones)</summary>
-      <div style="max-height:220px;overflow:auto;margin-top:8px">
-      ${filasRet.map(f=>`<div style="display:grid;grid-template-columns:2fr .8fr .7fr .7fr 2fr;gap:8px;padding:3px 0;font-size:11.5px;border-bottom:1px solid var(--border)">
-        <span><b>${esc(fullName(f.w))}</b></span>
-        <span>${esc(f.d.tipo)}</span>
-        <span>${f.estado==='PAUSADO'?'⏸ pausado':f.estado==='DOBLE'?'×2 doble':f.origen==='FIJO'?'normal':'incidencia'}</span>
-        <span style="font-weight:700;${f.monto===0?'color:var(--mut)':''}">−$${money(f.monto)}</span>
-        <span style="color:var(--mut)">${esc(f.d.motivo||f.d.tipo)}</span>
-      </div>`).join('')}
-      </div>
-      <div style="font-size:11px;color:var(--mut);margin-top:6px">Este mismo desglose se incluye como hoja "RETENCIONES" en el Excel. El registro completo por semana está en 📅 Calendario de retenciones.</div>
-    </details>`:'';
-  $('py-prev').innerHTML=`
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <div class="stat g" style="flex:1"><div class="n">${act.length}</div><div class="l">Activos · $${money(tS)}</div></div>
-      <div class="stat b" style="flex:1"><div class="n">$${money(tDif)}</div><div class="l">Previsión social</div></div>
-      <div class="stat a" style="flex:1"><div class="n">${nDesc}</div><div class="l">Con descuento · −$${money(tD)}</div></div>
-      <div class="stat r" style="flex:1"><div class="n">${fins.length}</div><div class="l">Finiquitos (según método autorizado) · $${money(tF)}</div></div>
-      <div class="stat b" style="flex:1"><div class="n">$${money(tS+tDif-tD+tF)}</div><div class="l">Total general (neto)</div></div>
-    </div>${desglose}`;
-  $('py-btn').disabled=!(act.length+fins.length);
+  try{
+    const audits=await proyLeerFiniquitos(fins);
+    if(version!==window._PY_PREVIEW_VERSION||!$('py-prev'))return;
+    const m=proyModelo(act,fins,sem,audits),inc=m.filas.reduce((s,x)=>s+x.incidencias,0),creditos=m.filas.reduce((s,x)=>s+x.creditos,0);
+    $('py-prev').innerHTML=`<div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div class="stat g" style="flex:1"><div class="n">${m.filas.length}</div><div class="l">Trabajadores · incluye ${fins.length} finiquitos</div></div>
+      <div class="stat a" style="flex:1"><div class="n">$${money(inc)}</div><div class="l">Descuentos por incidencias</div></div>
+      <div class="stat b" style="flex:1"><div class="n">$${money(creditos)}</div><div class="l">Créditos · no reducen importe del contratista</div></div>
+      <div class="stat b" style="flex:1"><div class="n">$${money(destino==='CONTRATISTA'?m.costo:m.neto)}</div><div class="l">${destino==='CONTRATISTA'?'Total para contratista · sin previsión social':'Total para dispersión · incluye previsión social aparte'}</div></div>
+    </div>`;
+    for(const id of ['py-btn','py-ambas'])if($(id))$(id).disabled=window._PROY_EXPORTANDO||!m.filas.length;
+  }catch(e){
+    if(version!==window._PY_PREVIEW_VERSION||!$('py-prev'))return;
+    $('py-prev').innerHTML=`<div class="fhint" style="color:var(--red)">${esc(e.message)}</div>`;
+  }
 }
 /* ---------- v12: núcleo compartido de proyección (con fórmulas vivas) ---------- */
+/* Dos presentaciones de la MISMA instantánea. No recalculan salario, ISR,
+   incidencias ni créditos: usan los importes que ya guarda el motor. */
+function proySelector(id){
+  return `<div class="sect" style="margin-top:14px">Destino de la proyección</div>
+    <select id="${id}" onchange="${id==='py-destino'?'pyPreview()':''}">
+      <option value="CONTRATISTA">Para presentar al contratista</option>
+      <option value="DISPERSION" selected>Para dispersión de nómina</option>
+    </select>
+    <div class="fhint">Contratista: sueldo registrado menos incidencias; finiquito antes de créditos. Sin previsión social ni separación por forma de pago. Dispersión: neto, créditos, previsión social aparte y totales por forma de pago. Ambas incluyen el detalle de retenciones en su segunda hoja.</div>`;
+}
+function proyRetenciones(w,sem){
+  const P=perDe(w), d=descuentosDe(w,sem);
+  return d.ds.map(x=>{
+    const ev=x.recurrente?retencionEvaluada(x,w,sem,P):{monto:Number(x.monto)||0,estado:'NORMAL',extra:0};
+    const tipo=String(x.tipo||'').toUpperCase();
+    const clase=['INFONAVIT','FONACOT'].includes(tipo)?'CREDITO':['FALTA','INCIDENCIA'].includes(tipo)?'INCIDENCIA':'OTRA';
+    return {w,tipo,clase,monto:redondearCentavos(ev.monto),estado:ev.estado,
+      motivo:(x.motivo||tipo)+(ev.extra?` · Días extra: $${money(ev.extra)}`:''),origen:x.recurrente?'CRÉDITO / AJUSTE SEMANAL':'INCIDENCIA GUARDADA'};
+  });
+}
+async function proyLeerFiniquitos(fins){
+  if(!fins.length)return [];
+  const out=[];
+  // Consulta filtrada y paginada. No trae toda la bitácora ni calcula un
+  // crédito semanal para un finiquito cuyo proporcional ya fue aplicado.
+  for(let i=0;i<fins.length;i+=100){
+    const {data,error}=await fetchAllRows(()=>sb.from('auditoria_calculos_nomina')
+      .select('id,obra_id,trabajador_id,periodo,resultado,monto_aplicado,created_at')
+      .in('trabajador_id',fins.slice(i,i+100).map(w=>w.id)).eq('tipo_calculo','FINIQUITO_APLICADO').order('created_at',{ascending:false}));
+    if(error)throw Error('No se pudo consultar el desglose de finiquitos: '+error.message);
+    out.push(...(data||[]));
+  }
+  return out.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))||String(b.id||'').localeCompare(String(a.id||'')));
+}
+function proyFiniquito(w,audits){
+  const neto=redondearCentavos(Number(w.monto_finiquito)||0);
+  const a=audits.find(x=>x.trabajador_id===w.id&&x.obra_id===w.obra_id&&x.periodo===w.fecha_baja&&
+    x.monto_aplicado!=null&&redondearCentavos(Number(x.monto_aplicado))===neto);
+  const creditos=DESC.filter(d=>d.trabajador_id===w.id&&['INFONAVIT','FONACOT'].includes(String(d.tipo||'').toUpperCase()));
+  const r=a&&a.resultado||{}, items=[];
+  for(const tipo of ['INFONAVIT','FONACOT']){
+    const key=tipo.toLowerCase(), valor=r[key];
+    if(valor==null&&creditos.some(d=>String(d.tipo||'').toUpperCase()===tipo)){
+      throw Error(`Falta el desglose ${tipo} del finiquito #${w.no_trab} (${fullName(w)}). No se estimará ni duplicará una retención: valida y guarda el desglose del finiquito antes de exportarlo.`);
+    }
+    const monto=valor==null?0:Number(valor);
+    if(!Number.isFinite(monto)||monto<0)throw Error(`Retención ${tipo} inválida en el finiquito #${w.no_trab}.`);
+    if(monto>0)items.push({w,tipo,clase:'CREDITO',monto:redondearCentavos(monto),estado:'APLICADO',
+      motivo:'Proporcional retenido en el finiquito registrado',origen:'FINIQUITO APLICADO'});
+  }
+  const credito=redondearCentavos(items.reduce((s,x)=>s+x.monto,0));
+  return {w,fin:true,sueldo:redondearCentavos(neto+credito),incidencias:0,creditos:credito,otras:0,prevision:0,
+    costo:redondearCentavos(neto+credito),neto,items,fuente:a?'FINIQUITO APLICADO':'NETO GUARDADO SIN CRÉDITO',
+    pago:'CHEQUE'};
+}
+function proyModelo(act,fins,sem,audits=[]){
+  const suma=xs=>redondearCentavos(xs.reduce((s,x)=>s+x.monto,0));
+  const normales=act.map(w=>{
+    const items=proyRetenciones(w,sem), sueldo=redondearCentavos(Number(w.sal_semanal)||0);
+    const incidencias=suma(items.filter(x=>x.clase==='INCIDENCIA')),creditos=suma(items.filter(x=>x.clase==='CREDITO')),
+      otras=suma(items.filter(x=>x.clase==='OTRA')),prevision=redondearCentavos(difDe(w.id,sem));
+    const tieneCuenta=String(w.cuenta||'').toUpperCase()!=='CREAR'&&String(w.cuenta||'').replace(/\D/g,'').length>=6||String(w.clabe||'').replace(/\D/g,'').length>=10;
+    return {w,fin:false,sueldo,incidencias,creditos,otras,prevision,
+      costo:redondearCentavos(Math.max(0,sueldo-incidencias)),
+      neto:redondearCentavos(Math.max(0,sueldo+prevision-incidencias-creditos-otras)),items,
+      pago:tieneCuenta&&(w.forma_pago||'TRANSFERENCIA')==='TRANSFERENCIA'?'TRANSFERENCIA':'CHEQUE',sinCuenta:!tieneCuenta};
+  });
+  const bajas=fins.map(w=>({...proyFiniquito(w,audits),pago:finTransDe(w,sem)?'TRANSFERENCIA':'CHEQUE'}));
+  const filas=[...normales,...bajas];
+  return {filas,items:filas.flatMap(x=>x.items),act,fins,sem,
+    costo:redondearCentavos(filas.reduce((s,x)=>s+x.costo,0)),neto:redondearCentavos(filas.reduce((s,x)=>s+x.neto,0))};
+}
+function buildProyDestinoWS({titulo,sub,pie,colB,modelo,destino}){
+  const dispersion=destino==='DISPERSION', prevision=dispersion&&modelo.filas.some(x=>x.prevision!==0),otras=dispersion&&modelo.filas.some(x=>x.otras!==0);
+  const cols=dispersion?['NO.','CONTRATISTA','NOMBRE COMPLETO','CLABE','CUENTA','BANCO','SUELDO REGISTRADO / FINIQUITO',
+    ...(prevision?['PREVISIÓN SOCIAL']:[]),'RETENCIÓN POR INCIDENCIAS','RETENCIÓN INFONAVIT / FONACOT',...(otras?['OTRAS RETENCIONES']:[]),'NETO A PAGAR','FORMA DE PAGO']:
+    ['NO.','CONTRATISTA','NOMBRE COMPLETO','CONCEPTO','SUELDO REGISTRADO / FINIQUITO','DESCUENTOS POR INCIDENCIAS','IMPORTE PARA CONTRATISTA'];
+  cols[1]=colB==='OBRA'?'OBRA':'CONTRATISTA';
+  const rows=[[titulo],[sub],cols],styles=[{...ST.title,font:{...ST.title.font,sz:12},alignment:{...ST.title.alignment,wrapText:true}},ST.sub,ST.head],hs=[{hpt:42},{hpt:24},{hpt:44}],merges=[];
+  const idx={};cols.forEach((c,i)=>idx[c]=i);
+  const totalI=cols.length-(dispersion?2:1),dataRows=[],grupoRows={TRANSFERENCIA:[],CHEQUE:[]};
+  const bVal=w=>colB==='OBRA'?(OBRAS.find(o=>o.id===w.obra_id)?.nombre||''):w.contratista||'';
+  const orden=(a,b)=>colB==='OBRA'?String(bVal(a.w)).localeCompare(String(bVal(b.w)),'es')||(Number(a.w.no_trab)||0)-(Number(b.w.no_trab)||0):(Number(a.w.no_trab)||0)-(Number(b.w.no_trab)||0);
+  const add=x=>{
+    const w=x.w, info=[w.no_trab??'',bVal(w),fullName(w)];
+    const clabe=String(w.clabe||'').replace(/\D/g,''),cuenta=String(w.cuenta||'').trim();
+    const row=dispersion?[...info,clabe.length>=10?'/'+clabe:'—',cuenta.toUpperCase()!=='CREAR'&&cuenta.replace(/\D/g,'').length>=6?cuenta:'—',w.banco||'—',x.sueldo,
+      ...(prevision?[x.prevision]:[]),x.incidencias,x.creditos,...(otras?[x.otras]:[]),x.neto,x.pago]:
+      [...info,x.fin?'FINIQUITO':'NÓMINA',x.sueldo,x.incidencias,x.costo];
+    rows.push(row);dataRows.push(rows.length);grupoRows[x.pago].push(rows.length);
+    styles.push(row.map((v,i)=>{const st=typeof v==='number'&&i>0?(x.fin?ST.finMoney:ST.money):x.fin?ST.fin:i===0?ST.cellC:ST.cell;
+      return {...st,alignment:{...st.alignment,...(i===0?{horizontal:'center'}:typeof v==='string'?{wrapText:true}:{} )},fill:st.fill||{patternType:'solid',fgColor:{rgb:'FFFFFF'}}};}));hs.push({hpt:28});
+  };
+  if(dispersion){
+    for(const pago of ['TRANSFERENCIA','CHEQUE']){
+      const grupo=modelo.filas.filter(x=>x.pago===pago).sort(orden);
+      if(!grupo.length)continue;
+      merges.push({s:{r:rows.length,c:0},e:{r:rows.length,c:cols.length-1}});
+      rows.push([`${pago} · ${grupo.length} trabajadores${pago==='CHEQUE'?' (incluye finiquitos y personal sin cuenta)':''}`]);styles.push(ST.sect);hs.push({hpt:22});grupo.forEach(add);
+    }
+  }else modelo.filas.slice().sort(orden).forEach(add);
+  const L=i=>XLSX.utils.encode_col(i),sum=(col,rs=dataRows)=>{
+    if(!rs.length)return '0';
+    const bloques=[];let inicio=rs[0],fin=inicio;
+    for(const r of rs.slice(1)){if(r===fin+1)fin=r;else{bloques.push(L(col)+inicio+':'+L(col)+fin);inicio=fin=r;}}
+    bloques.push(L(col)+inicio+':'+L(col)+fin);return `SUM(${bloques.join(',')})`;
+  };
+  const fx=[];
+  dataRows.forEach(r=>fx.push([L(totalI)+r,dispersion?
+    `ROUND(MAX(0,SUM(G${r}${prevision?':H'+r:''})-SUM(${L(idx['RETENCIÓN POR INCIDENCIAS'])}${r},${L(idx['RETENCIÓN INFONAVIT / FONACOT'])}${r}${otras?','+L(idx['OTRAS RETENCIONES'])+r:''})),2)`:
+    `ROUND(MAX(0,SUM(E${r})-SUM(F${r})),2)`]));
+  const totalRow=Array(cols.length).fill('');totalRow[0]=`TOTAL · ${modelo.filas.length} TRABAJADORES`;
+  if(dispersion){
+    for(let c=6;c<=totalI;c++){totalRow[c]=redondearCentavos(rows.reduce((s,row,i)=>s+(dataRows.includes(i+1)?Number(row[c])||0:0),0));fx.push([L(c)+(rows.length+1),sum(c)]);}
+    rows.push(totalRow);styles.push(cols.map((_,i)=>i>=6&&i<=totalI?ST.totalMoney:ST.total));hs.push({hpt:28});
+    for(const pago of ['TRANSFERENCIA','CHEQUE']){
+      const row=Array(cols.length).fill('');row[0]='TOTAL '+pago;row[totalI]=redondearCentavos(modelo.filas.filter(x=>x.pago===pago).reduce((s,x)=>s+x.neto,0));
+      fx.push([L(totalI)+(rows.length+1),sum(totalI,grupoRows[pago])]);rows.push(row);styles.push(cols.map((_,i)=>i===totalI?ST.totalMoney:ST.total));hs.push({hpt:26});
+      merges.push({s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:totalI-1}});
+    }
+    const resumen=[['TOTAL DESCUENTOS POR INCIDENCIAS',idx['RETENCIÓN POR INCIDENCIAS'],'incidencias'],['TOTAL RETENCIONES INFONAVIT / FONACOT',idx['RETENCIÓN INFONAVIT / FONACOT'],'creditos']];
+    if(prevision)resumen.push(['TOTAL PREVISIÓN SOCIAL (APARTE)',idx['PREVISIÓN SOCIAL'],'prevision']);
+    if(otras)resumen.push(['TOTAL OTRAS RETENCIONES',idx['OTRAS RETENCIONES'],'otras']);
+    for(const [label,col,key] of resumen){
+      const row=Array(cols.length).fill('');row[0]=label;row[totalI]=redondearCentavos(modelo.filas.reduce((s,x)=>s+x[key],0));
+      fx.push([L(totalI)+(rows.length+1),sum(col)]);rows.push(row);styles.push(cols.map((_,i)=>i===totalI?ST.totalMoney:ST.total));hs.push({hpt:26});
+      merges.push({s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:totalI-1}});
+    }
+  }
+  const row=Array(cols.length).fill('');row[0]=dispersion?'TOTAL GENERAL A PAGAR':'TOTAL PARA CONTRATISTA';row[totalI]=dispersion?modelo.neto:modelo.costo;
+  fx.push([L(totalI)+(rows.length+1),sum(totalI)]);rows.push(row);styles.push(cols.map((_,i)=>i===totalI?ST.totalMoney:ST.total));hs.push({hpt:28});
+  merges.push({s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:totalI-1}});
+  rows.push([pie]);styles.push(ST.sub);hs.push({hpt:22});
+  // La última celda de la franja superior queda reservada al logo.
+  for(const r of [0,1,rows.length-1])merges.push({s:{r,c:0},e:{r,c:cols.length-(r===0?2:1)}});
+  const widths=dispersion?[8,20,38,24,17,12,20,...(prevision?[17]:[]),18,20,...(otras?[17]:[]),18,18]:[8,22,40,15,23,23,25];
+  const ws=buildSheet(rows,styles,widths,merges,hs);
+  ws[L(cols.length-1)+'1']={t:'s',v:'',s:ST.title};
+  for(const [a,f] of fx){if(ws[a]){ws[a].t='n';ws[a].f=f;}}
+  return ws;
+}
+function buildProyRetencionesWS(modelo,colB){
+  const rows=[[`DETALLE DE RETENCIONES · ${modelo.sem}`],['NO.','NOMBRE COMPLETO',colB==='OBRA'?'OBRA':'CONTRATISTA','TIPO','CONCEPTO','ESTADO','MONTO RETENIDO','MOTIVO']],styles=[ST.title,ST.head];
+  const items=modelo.items.slice().sort((a,b)=>(Number(a.w.no_trab)||0)-(Number(b.w.no_trab)||0)||String(a.tipo).localeCompare(String(b.tipo)));
+  for(const x of items){rows.push([x.w.no_trab??'',fullName(x.w),colB==='OBRA'?(OBRAS.find(o=>o.id===x.w.obra_id)?.nombre||''):x.w.contratista||'',x.tipo,x.origen,x.estado,x.monto,x.motivo]);styles.push([ST.cellC,ST.cell,ST.cell,ST.cell,ST.cell,ST.cellC,ST.money,ST.cell].map((st,i)=>({...st,alignment:{...st.alignment,...([1,2,4,7].includes(i)?{wrapText:true}:{})},fill:{patternType:'solid',fgColor:{rgb:'FFFFFF'}}})));}
+  if(!items.length){rows.push(['Sin retenciones registradas en el personal seleccionado.']);styles.push(ST.sub);}
+  const t=rows.length+1;rows.push(['TOTAL RETENCIONES','','','','','',redondearCentavos(items.reduce((s,x)=>s+x.monto,0)),'']);styles.push([ST.total,ST.total,ST.total,ST.total,ST.total,ST.total,ST.totalMoney,ST.total]);
+  const ws=buildSheet(rows,styles,[8,38,23,16,27,17,18,54],[{s:{r:0,c:0},e:{r:0,c:6}}],[{hpt:32},{hpt:34},...items.map(x=>({hpt:Math.max(34,Math.ceil(String(x.motivo).length/50)*14)}))]);
+  ws.H1={t:'s',v:'',s:ST.title};
+  if(ws['G'+t]){ws['G'+t].t='n';ws['G'+t].f=items.length?`SUM(G3:G${2+items.length})`:'0';}
+  return ws;
+}
+function proyLibro(modelo,destino,meta){
+  const wb=XLSX.utils.book_new(),label=destino==='CONTRATISTA'?'PARA CONTRATISTA':'PARA DISPERSIÓN';
+  XLSX.utils.book_append_sheet(wb,buildProyDestinoWS({...meta,modelo,destino,titulo:meta.titulo+' · '+label}),`SEMANA ${String(modelo.sem).replace('S','')}`);
+  XLSX.utils.book_append_sheet(wb,buildProyRetencionesWS(modelo,meta.colB),'RETENCIONES');
+  wb.__empresaPorHoja={};wb.SheetNames.forEach(n=>wb.__empresaPorHoja[n]=meta.codigo);wb.__auditObraIds=[...new Set(modelo.filas.map(x=>x.w.obra_id))];
+  return wb;
+}
+function proyAuditoria(modelo,destinos){
+  return modelo.filas.map(x=>({obra_id:x.w.obra_id,empresa_codigo:empresaDeTrabajador(x.w),trabajador_id:x.w.id,trabajador_numero:x.w.no_trab,trabajador_nombre:fullName(x.w),
+    tipo_calculo:x.fin?'FINIQUITO_EN_PROYECCION':'PROYECCION_NOMINA',periodo:modelo.sem,
+    entradas:{destinos,sueldo_registrado:x.sueldo,incidencias:x.incidencias,creditos:x.creditos,otras:x.otras,prevision_social:x.prevision,fuente_finiquito:x.fuente||null},
+    resultado:{importe_contratista:x.costo,neto:x.neto,forma_pago:x.pago},monto_modelo:x.neto,monto_aplicado:x.neto,ajuste_noi:0}));
+}
 function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
   /* MONTO TOTAL = SUELDO NÓMINA + PREVISIÓN SOCIAL − RETENCIONES.
      El diferencial se muestra separado como PREVISIÓN SOCIAL para que Excel
@@ -5709,103 +5867,126 @@ async function dfGuardar(){
   try{ if(typeof pyPreview==='function'&&$('py-prev'))pyPreview(); }catch(e){}
   toast(`Diferenciales de la semana ${st.sem}: ${alta.length} guardado(s)${baja.length?`, ${baja.length} quitado(s)`:''}.`,'ok');
 }
-async function exportProyeccion(){
-  const btn=$('py-btn');if(btn)btn.disabled=true;
-  if(!await pyDatosFrescos())return;
-  if(btn)btn.disabled=true;
-  const semN=$('py-sem').value||semObra(), sem='S'+semN, d1=$('py-d1').value, d2=$('py-d2').value, periodo=$('py-periodo').value;
-  const {act,fins}=pyCandidatos(d1,d2,periodo);
-  const codigo=empresaDeObra(OBRA);
-  const emp=CFGEMP['empresa_'+codigo]||{razon:EMPRESAS[codigo].nombre,rfc:''};
-  const tag=periodo==='TODOS'?'':(periodo==='QUINCENAL'?'  (QUINCENAL)':'');
-  const r=buildProyWS({
-    titulo:`PROYECCIÓN DE NÓMINA  —  SEMANA ${semN}  |  ${rangoTexto(d1,d2)}${tag}`,
-    sub:`${emp.razon||''}${emp.rfc?'  |  RFC: '+emp.rfc:''}  |  ${OBRA.nombre}`,
-    pie:`Semana ${semN} | ${fmtD(d1)} – ${fmtD(d2)} | Generado el ${new Date().toLocaleDateString('es-MX')}`,
-    act,fins,sem,colB:'CONTRATISTA'});
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,r.ws,`SEMANA ${semN}`);
-  const det=buildRetDetalleWS(act,sem,'CONTRATISTA');
-  if(det)XLSX.utils.book_append_sheet(wb,det,'RETENCIONES');
-  wb.__empresaPorHoja={};wb.SheetNames.forEach(n=>wb.__empresaPorHoja[n]=codigo);wb.__auditObraIds=[OBRA.id];
-  await registrarBitacoraNomina(r.auditoria,{silencioso:false});
-  await dl(wb,`PROYECCION_NOMINA_${codigo}_SEMANA${semN}${periodo==='QUINCENAL'?'_QUINCENAL':''}.xlsx`);
-  closeModal();toast(`Proyección S${semN}: ${r.nTot} trabajadores · retenciones $${money(r.tR)} · total $${money(r.total)}${det?' · incluye hoja RETENCIONES con el desglose por trabajador y motivo':''}.`,'ok');
-}
-/* ---------- v12: proyección por contratista (todas las obras) ---------- */
-async function openProyContratista(){
-  const [d1,d2]=weekBounds();
-  const ids=obrasEmpresa().map(o=>o.id);
-  if(!ids.length){toast('Esta empresa no tiene centros de trabajo disponibles.','err');return;}
-  const [{data:tw,error:e1},{data:ds,error:e2},{data:df,error:e3},{data:ab,error:e4}]=await Promise.all([
-    fetchAllRows(()=>sb.from('trabajadores').select('*').in('obra_id',ids).eq('eliminado',false)),
-    fetchAllRows(()=>sb.from('descuentos').select('*').in('obra_id',ids).eq('activo',true)),
-    fetchAllRows(()=>sb.from('diferenciales').select('*').in('obra_id',ids).eq('activo',true)),
-    fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('obra_id,trabajador_id,anio,semana,estado_servicio').in('obra_id',ids))]);
-  if(e1||e2||e3||e4){toast('Error al cargar: '+String((e1||e2||e3||e4).message),'err');return;}
-  window._PC=tw||[]; window._PCDESC=ds||[]; window._PCDIFS=df||[];window._PCALTAS=ab||[];
-  const cts=[...new Set(window._PC.filter(w=>String(w.contratista||'').trim()).map(w=>String(w.contratista).trim()))].sort();
-  window._PCCT=cts;
-  modal(`
-    <div class="m-head"><h2>👷 Proyección por contratista · ${esc(EMPRESAS[EMPRESA_ACTIVA].corto)}</h2><button class="x" onclick="closeModal()">×</button></div>
-    <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:12px">Genera <b>un Excel por contratista</b> con SOLO su gente de los centros de <b>${esc(razonSocialEmpresa(EMPRESA_ACTIVA))}</b> (columna OBRA en lugar de contratista), con finiquitos, retenciones, previsión social cuando aplique y fórmulas en los totales. Nunca mezcla razones sociales.</p>
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
-        <div><label>No. de semana</label><input id="pc-sem" type="number" value="${isoWeek()}" oninput="semSincroniza('pc-sem','pc-d1','pc-d2')"></div>
-        <div><label>Del día</label><input id="pc-d1" type="date" value="${d1}"></div>
-        <div><label>Al día</label><input id="pc-d2" type="date" value="${d2}"></div>
-        <div><label>Periodo</label><select id="pc-periodo">
-          <option value="SEMANAL">Solo semanales</option><option value="QUINCENAL">Solo quincenales</option><option value="TODOS">Todos</option>
-        </select></div>
-      </div>
-      <div class="sect" style="margin-top:14px">Contratistas (${cts.length}) — desmarca los que no</div>
-      ${cts.map((c,i)=>{const n=window._PC.filter(w=>String(w.contratista||'').trim()===c&&asVigenteSemana(w,d1,d2)&&!asSinServicioSemana(d1,OBRAS.find(o=>o.id===w.obra_id),window._PCALTAS).has(w.id)&&(w.estatus==='ACTIVO'||(w.estatus==='BAJA'&&w.fecha_baja>d2))).length;
-        return `<label style="display:inline-block;min-width:220px;padding:3px 6px;font-size:12.5px"><input type="checkbox" id="pc-ct-${i}" checked> ${esc(c)} <span style="color:var(--mut)">(${n} activos)</span></label>`;}).join('')}
-    </div>
-    <div class="m-foot">
-      <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn dark" onclick="exportProyContratista()">⬇ Generar un Excel por contratista</button>
-    </div>`,'lg');
-}
-async function exportProyContratista(){
-  const all=window._PC||[];
-  const semN=$('pc-sem').value||isoWeek(), sem='S'+semN, d1=$('pc-d1').value, d2=$('pc-d2').value, periodo=$('pc-periodo').value;
-  const cts=(window._PCCT||[]).filter((c,i)=>$('pc-ct-'+i)&&$('pc-ct-'+i).checked);
-  if(!cts.length){toast('No hay contratistas seleccionados.','err');return;}
-  const codigo=EMPRESA_ACTIVA;
-  const emp=CFGEMP['empresa_'+codigo]||{razon:EMPRESAS[codigo].nombre,rfc:''};
-  const _D=DESC, _DF=DIFS;
-  DESC=window._PCDESC||_D; DIFS=window._PCDIFS||_DF; // retenciones y diferenciales de TODAS las obras
-  let n=0;
+async function exportProyeccion(eleccion){
+  if(window._PROY_EXPORTANDO)return;
+  window._PROY_EXPORTANDO=true;
+  const semN=$('py-sem').value||semObra(),sem='S'+semN,d1=$('py-d1').value,d2=$('py-d2').value,periodo=$('py-periodo').value;
+  const destino=eleccion==='AMBAS'?'AMBAS':$('py-destino')?.value||'DISPERSION',obra=OBRA;
+  for(const id of ['py-btn','py-ambas'])if($(id))$(id).disabled=true;
   try{
-    for(const ct of cts){
-      let a=all.filter(w=>String(w.contratista||'').trim()===ct&&asVigenteSemana(w,d1,d2)&&!asSinServicioSemana(d1,OBRAS.find(o=>o.id===w.obra_id),window._PCALTAS).has(w.id)&&(w.estatus==='ACTIVO'||(w.estatus==='BAJA'&&w.fecha_baja>d2)));
-      if(periodo!=='TODOS')a=a.filter(w=>(w.periodo_pago||'SEMANAL')===periodo);
-      const f=all.filter(w=>w.estatus==='BAJA'&&String(w.contratista||'').trim()===ct&&w.fecha_baja&&d1&&d2&&w.fecha_baja>=d1&&w.fecha_baja<=d2&&Number(w.monto_finiquito)>0&&!asSinServicioSemana(d1,OBRAS.find(o=>o.id===w.obra_id),window._PCALTAS).has(w.id));
-      if(!a.length&&!f.length)continue;
-      const r=buildProyWS({
-        titulo:`PROYECCIÓN DE NÓMINA  —  ${ct}  —  SEMANA ${semN}  |  ${rangoTexto(d1,d2)}`,
-        sub:`${emp.razon||''}${emp.rfc?'  |  RFC: '+emp.rfc:''}  |  TODAS LAS OBRAS — SOLO PERSONAL DE ${ct}`,
-        pie:`Semana ${semN} | ${fmtD(d1)} – ${fmtD(d2)} | ${ct} | Generado el ${new Date().toLocaleDateString('es-MX')}`,
-        act:a,fins:f,sem,colB:'OBRA'});
-      const wb=XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb,r.ws,`SEMANA ${semN}`);
-      // v29: WORKERS también se sustituye temporalmente para que el desglose
-      // encuentre a la gente de TODAS las obras de este contratista
-      const _W=WORKERS; WORKERS=all;
-      try{
-        const det=buildRetDetalleWS(a,sem,'OBRA');
-        if(det)XLSX.utils.book_append_sheet(wb,det,'RETENCIONES');
-      }finally{WORKERS=_W;}
-      wb.__empresaPorHoja={};wb.SheetNames.forEach(nm=>wb.__empresaPorHoja[nm]=codigo);
-      wb.__auditObraIds=[...new Set([...a,...f].map(w=>w.obra_id))];
-      await registrarBitacoraNomina(r.auditoria,{silencioso:false});
-      await dl(wb,`PROYECCION_${codigo}_${ct.replace(/[^A-ZÑ0-9]+/gi,'_')}_SEMANA${semN}.xlsx`);
-      n++;
+    if(!d1||!d2||d1>d2)throw Error('Revisa las fechas de la proyección.');
+    if(!await pyDatosFrescos())return;
+    if(OBRA.id!==obra.id)throw Error('Cambió la obra. Abre nuevamente la proyección.');
+    const {act,fins}=pyCandidatos(d1,d2,periodo);
+    if(!act.length&&!fins.length)throw Error('No hay trabajadores en el periodo seleccionado.');
+    const fuentes={DESC,DIFS,FINTRANS};
+    const audits=await proyLeerFiniquitos(fins);
+    if(OBRA.id!==obra.id)throw Error('Cambió la obra. Abre nuevamente la proyección.');
+    const actual={DESC,DIFS,FINTRANS};let m;
+    try{DESC=fuentes.DESC;DIFS=fuentes.DIFS;FINTRANS=fuentes.FINTRANS;m=proyModelo(act,fins,sem,audits);}
+    finally{DESC=actual.DESC;DIFS=actual.DIFS;FINTRANS=actual.FINTRANS;}
+    const codigo=empresaDeObra(obra);
+    const emp=CFGEMP['empresa_'+codigo]||{razon:EMPRESAS[codigo].nombre,rfc:''};
+    const destinos=destino==='AMBAS'?['CONTRATISTA','DISPERSION']:[destino];
+    const meta={codigo,colB:'CONTRATISTA',
+      titulo:`PROYECCIÓN DE NÓMINA · SEMANA ${semN} · ${rangoTexto(d1,d2)}${periodo==='QUINCENAL'?' (QUINCENAL)':''}`,
+      sub:`${emp.razon||''}${emp.rfc?' · RFC: '+emp.rfc:''} · ${obra.nombre}`,
+      pie:`Semana ${semN} · ${fmtD(d1)} – ${fmtD(d2)} · ${new Date().toLocaleDateString('es-MX')}`};
+    const libros=destinos.map(d=>({destino:d,wb:proyLibro(m,d,meta)}));
+    await registrarBitacoraNomina(proyAuditoria(m,destinos),{silencioso:false});
+    for(const x of libros)await dl(x.wb,`PROYECCION_${x.destino}_${codigo}_SEMANA${semN}${periodo==='QUINCENAL'?'_QUINCENAL':''}.xlsx`);
+    closeModal();toast(`${libros.length} archivo(s) de S${semN} generado(s), con detalle de retenciones.`,'ok');
+  }catch(e){toast('No se generó la proyección: '+e.message,'err');}
+  finally{window._PROY_EXPORTANDO=false;if($('py-prev')&&globalThis._PY_FRESCOS!==false)pyPreview();}
+}
+/* Contratistas de una sola razón social, con filtro de obra opcional. */
+async function pcDatosFrescos(codigo){
+  const ids=obrasEmpresa(codigo).map(o=>o.id);
+  if(!ids.length)throw Error('Esta empresa no tiene centros de trabajo disponibles.');
+  const rs=await Promise.all([
+    fetchAllRows(()=>sb.from('trabajadores').select('*').in('obra_id',ids).eq('eliminado',false)),
+    fetchAllRows(()=>sb.from('descuentos').select('*').in('obra_id',ids)),
+    fetchAllRows(()=>sb.from('diferenciales').select('*').in('obra_id',ids).eq('activo',true)),
+    fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('obra_id,trabajador_id,anio,semana,estado_servicio').in('obra_id',ids)),
+    fetchAllRows(()=>sb.from('control_finiquitos_transferencia').select('*').in('obra_id',ids))
+  ]);
+  const error=rs.find(r=>r.error)?.error;if(error)throw Error('No se pudieron actualizar los datos: '+error.message);
+  if(codigo!==EMPRESA_ACTIVA)throw Error('Cambió la empresa. Abre nuevamente la proyección.');
+  return {all:rs[0].data||[],desc:rs[1].data||[],difs:rs[2].data||[],altas:rs[3].data||[],fintrans:rs[4].data||[]};
+}
+async function openProyContratista(){
+  const [d1,d2]=weekBounds(),codigo=EMPRESA_ACTIVA;
+  try{
+    const datos=await pcDatosFrescos(codigo);
+    window._PCEMP=codigo;window._PC=datos.all;
+    const cts=[...new Set(datos.all.filter(w=>String(w.contratista||'').trim()).map(w=>String(w.contratista).trim()))].sort();
+    window._PCCT=cts;
+    modal(`
+      <div class="m-head"><h2>Proyección por contratista · ${esc(EMPRESAS[codigo].corto)}</h2><button class="x" onclick="closeModal()">×</button></div>
+      <div class="m-body">
+        <p class="fhint">Un libro por contratista y por destino seleccionado. Nunca mezcla razones sociales.</p>
+        <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
+          <div><label>No. de semana</label><input id="pc-sem" type="number" value="${isoWeek()}" oninput="semSincroniza('pc-sem','pc-d1','pc-d2')"></div>
+          <div><label>Del día</label><input id="pc-d1" type="date" value="${d1}"></div>
+          <div><label>Al día</label><input id="pc-d2" type="date" value="${d2}"></div>
+          <div><label>Periodo</label><select id="pc-periodo"><option value="SEMANAL">Solo semanales</option><option value="QUINCENAL">Solo quincenales</option><option value="TODOS">Todos</option></select></div>
+        </div>
+        <div style="margin-top:12px"><label>Centro de trabajo</label><select id="pc-obra">
+          <option value="">Todos los centros de esta empresa</option>
+          ${obrasEmpresa(codigo).map(o=>`<option value="${o.id}" ${OBRA?.id===o.id?'selected':''}>${esc(o.nombre)}</option>`).join('')}
+        </select></div>
+        ${proySelector('pc-destino')}
+        <div class="sect" style="margin-top:14px">Contratistas — selecciona los que necesites</div>
+        ${cts.map((c,i)=>`<label style="display:inline-block;min-width:220px;padding:5px 6px"><input type="checkbox" id="pc-ct-${i}" checked> ${esc(c)}</label>`).join('')}
+      </div>
+      <div class="m-foot">
+        <button class="btn" onclick="closeModal()">Cancelar</button>
+        <button class="btn dark" id="pc-btn" onclick="exportProyContratista()">Generar seleccionada</button>
+        <button class="btn" id="pc-ambas" onclick="exportProyContratista('AMBAS')">Generar ambas</button>
+      </div>`,'lg');
+  }catch(e){toast(e.message,'err');}
+}
+async function exportProyContratista(eleccion){
+  if(window._PROY_EXPORTANDO)return;
+  const cts=(window._PCCT||[]).filter((c,i)=>$('pc-ct-'+i)?.checked);
+  if(!cts.length){toast('Selecciona al menos un contratista.','err');return;}
+  const codigo=window._PCEMP;
+  if(!codigo||codigo!==EMPRESA_ACTIVA){toast('Abre nuevamente la proyección de esta empresa.','err');return;}
+  const semN=$('pc-sem').value||isoWeek(),sem='S'+semN,d1=$('pc-d1').value,d2=$('pc-d2').value,periodo=$('pc-periodo').value,oid=$('pc-obra').value;
+  const destino=eleccion==='AMBAS'?'AMBAS':$('pc-destino').value;
+  const destinos=destino==='AMBAS'?['CONTRATISTA','DISPERSION']:[destino];let previo=null;
+  window._PROY_EXPORTANDO=true;for(const id of ['pc-btn','pc-ambas'])if($(id))$(id).disabled=true;
+  try{
+    if(!d1||!d2||d1>d2)throw Error('Revisa las fechas de la proyección.');
+    const datos=await pcDatosFrescos(codigo),all=datos.all.filter(w=>!oid||w.obra_id===oid);
+    const candidatos=cts.map(ct=>{
+      const personal=all.filter(w=>String(w.contratista||'').trim()===ct&&!asSinServicioSemana(d1,OBRAS.find(o=>o.id===w.obra_id),datos.altas).has(w.id));
+      let act=personal.filter(w=>asVigenteSemana(w,d1,d2)&&(w.estatus==='ACTIVO'||(w.estatus==='BAJA'&&w.fecha_baja>d2)));
+      if(periodo!=='TODOS')act=act.filter(w=>(w.periodo_pago||'SEMANAL')===periodo);
+      const fins=personal.filter(w=>w.estatus==='BAJA'&&w.fecha_baja>=d1&&w.fecha_baja<=d2&&Number(w.monto_finiquito)>0);
+      return {ct,act,fins};
+    }).filter(c=>c.act.length+c.fins.length);
+    if(!candidatos.length)throw Error('No hay personal para esos contratistas y fechas.');
+    const audits=await proyLeerFiniquitos(candidatos.flatMap(c=>c.fins));
+    if(codigo!==EMPRESA_ACTIVA)throw Error('Cambió la empresa. Abre nuevamente la proyección.');
+    previo={DESC,DIFS,FINTRANS};DESC=datos.desc;DIFS=datos.difs;FINTRANS=datos.fintrans;
+    const emp=CFGEMP['empresa_'+codigo]||{razon:EMPRESAS[codigo].nombre,rfc:''},libros=[],registros=[];
+    // Primero validar y construir TODOS; un desglose incompleto no deja un lote parcial.
+    for(const c of candidatos){
+      const m=proyModelo(c.act,c.fins,sem,audits);
+      const meta={codigo,colB:'OBRA',titulo:`PROYECCIÓN DE NÓMINA · ${c.ct} · SEMANA ${semN} · ${rangoTexto(d1,d2)}`,
+        sub:`${emp.razon||''}${emp.rfc?' · RFC: '+emp.rfc:''} · ${oid?(OBRAS.find(o=>o.id===oid)?.nombre||''):'TODOS LOS CENTROS'} · ${c.ct}`,
+        pie:`Semana ${semN} · ${fmtD(d1)} – ${fmtD(d2)} · ${c.ct} · ${new Date().toLocaleDateString('es-MX')}`};
+      for(const d of destinos)libros.push({wb:proyLibro(m,d,meta),nombre:`PROYECCION_${d}_${codigo}_${c.ct.replace(/[^A-ZÑ0-9]+/gi,'_')}_SEMANA${semN}${periodo==='QUINCENAL'?'_QUINCENAL':''}.xlsx`});
+      registros.push(...proyAuditoria(m,destinos));
     }
-  }finally{DESC=_D;DIFS=_DF;}
-  closeModal();
-  toast(n?`${n} proyección(es) generadas — un Excel por contratista, con fórmulas en los totales.`:'Ningún contratista con personal en ese filtro.',n?'ok':'err');
+    // Restaurar ANTES de las operaciones asíncronas de auditoría/descarga.
+    DESC=previo.DESC;DIFS=previo.DIFS;FINTRANS=previo.FINTRANS;previo=null;
+    await registrarBitacoraNomina(registros,{silencioso:false});
+    for(const x of libros)await dl(x.wb,x.nombre);
+    closeModal();toast(`${libros.length} archivo(s) generado(s) con detalle de retenciones.`,'ok');
+  }catch(e){toast('No se generó la proyección: '+e.message,'err');}
+  finally{if(previo){DESC=previo.DESC;DIFS=previo.DIFS;FINTRANS=previo.FINTRANS;}window._PROY_EXPORTANDO=false;for(const id of ['pc-btn','pc-ambas'])if($(id))$(id).disabled=false;}
 }
 /* ---------- IMPORTAR PDFs (acuses IMSS y recibos de nómina) ---------- */
 /* Detecta la SEMANA de un recibo NOI desde su periodo ("Del DD/Mmm/AA al ...").
