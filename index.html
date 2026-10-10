@@ -4926,6 +4926,17 @@ async function proyLeerFiniquitos(fins){
       .in('trabajador_id',fins.slice(i,i+100).map(w=>w.id)).eq('tipo_calculo','FINIQUITO_APLICADO').order('created_at',{ascending:false}));
     if(error)throw Error('No se pudo consultar el desglose de finiquitos: '+error.message);
     out.push(...(data||[]));
+    const hr=await fetchAllRows(()=>sb.from('historial')
+      .select('id,obra_id,trabajador_id,datos_despues,fecha')
+      .in('trabajador_id',fins.slice(i,i+100).map(w=>w.id)).eq('accion','AJUSTE_FINIQUITO_NOI')
+      .order('fecha',{ascending:false}));
+    if(hr.error)throw Error('No se pudieron consultar los ajustes de finiquitos NOI: '+hr.error.message);
+    for(const h of hr.data||[]){
+      const r=h.datos_despues||{};
+      if(r.version!=='AJUSTE_NOI_CONCEPTOS_V1'||!r.periodo||!r.resultado||r.monto_aplicado==null)continue;
+      out.push({id:'hist-'+h.id,obra_id:h.obra_id,trabajador_id:h.trabajador_id,
+        periodo:r.periodo,monto_aplicado:r.monto_aplicado,resultado:r.resultado,created_at:h.fecha});
+    }
   }
   return out.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))||String(b.id||'').localeCompare(String(a.id||'')));
 }
@@ -13839,9 +13850,37 @@ function numeroCreditoInfonavit(d){
   if(/^\d{10}$/.test(estructurado))return estructurado;
   return String(d.motivo||'').match(/(?:^|\D)(\d{10})(?!\d)/)?.[1]||'';
 }
+async function prCargarAjusteNoi(id,estado){
+  try{
+    const w=WORKERS.find(x=>x.id===id);if(!w)return;
+    const {data,error}=await sb.from('historial').select('datos_despues')
+      .eq('obra_id',w.obra_id).eq('trabajador_id',id).eq('accion','AJUSTE_FINIQUITO_NOI')
+      .order('fecha',{ascending:false}).order('id',{ascending:false}).limit(1).maybeSingle();
+    if(globalThis._PR_NOI_AJUSTE!==estado||!$('pr-out'))return;
+    if(error)throw Error(error.message);
+    estado.estado='LISTO';estado.datos=data&&data.datos_despues||null;
+    const a=estado.datos;
+    if(a&&a.version==='AJUSTE_NOI_CONCEPTOS_V1'&&w.estatus==='BAJA'&&a.periodo===w.fecha_baja
+      &&$('pr-fecha'))$('pr-fecha').value=a.periodo;
+    calcPrestaciones(id);
+  }catch(e){
+    if(globalThis._PR_NOI_AJUSTE!==estado||!$('pr-out'))return;
+    estado.estado='ERROR';estado.error=e.message;calcPrestaciones(id);
+  }
+}
+function prAjusteNoiAplicable(w,fecha){
+  const a=globalThis._PR_NOI_AJUSTE;
+  if(!a||a.trabajador_id!==w.id||a.estado!=='LISTO')return null;
+  const r=a.datos,v=r&&r.validacion_noi;
+  if(!r||r.version!=='AJUSTE_NOI_CONCEPTOS_V1'||!v||r.periodo!==fecha
+    ||v.fecha_antiguedad!==iniAntig(w)||Number(v.sd)!==Number(w.sd))return null;
+  return v;
+}
 function openPrestaciones(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
   globalThis._PR_REVISION_ENTRADAS=null;
+  const estadoNoi={trabajador_id:id,estado:'CARGANDO'};
+  globalThis._PR_NOI_AJUSTE=estadoNoi;
   const infoDesc=creditoInfonavitActivo(w);
   const numeroCredito=numeroCreditoInfonavit(infoDesc);
   modal(`
@@ -13899,6 +13938,7 @@ function openPrestaciones(id){
       <button class="btn dark" id="pr-usar" onclick="usarEnBaja('${id}')">Usar total como finiquito en BAJA</button>
     </div>`,'lg prestaciones-form');
   calcPrestaciones(id);
+  prCargarAjusteNoi(id,estadoNoi);
 }
 let PR_TOTAL=0;
 function prMotivoSeparacion(escenario){
@@ -14030,6 +14070,15 @@ function prProponerIntegracion(id){
 function calcPrestaciones(id){
   const w=WORKERS.find(x=>x.id===id);
   if(!w)return;
+  const cargaNoi=globalThis._PR_NOI_AJUSTE;
+  if(cargaNoi&&cargaNoi.trabajador_id===id&&cargaNoi.estado!=='LISTO'){
+    globalThis._PR_AUDIT={invalido:true};PR_TOTAL=NaN;
+    if($('pr-usar'))$('pr-usar').disabled=true;
+    $('pr-out').innerHTML=cargaNoi.estado==='ERROR'
+      ?'<div class="fhint" style="color:var(--red)">No se pudieron verificar los ajustes NOI. Cierra y vuelve a abrir antes de aplicar el cálculo.</div>'
+      :'<div class="fhint">Verificando ajustes NOI del trabajador…</div>';
+    return;
+  }
   const escenario=$('pr-despido').value;
   const conSeparacion=escenario!=='NO';
   if(conSeparacion&&$('pr-validado-legal').checked&&globalThis._PR_REVISION_ENTRADAS!==prHuellaRevision()){
@@ -14060,7 +14109,12 @@ function calcPrestaciones(id){
   // injustificada registrados durante el tiempo efectivamente laborado del año.
   // Vacaciones y prima conservan los días inclusivos ya conciliados.
   const faltasAg=Math.min(Math.max(0,diasEsteAnio-1),faltasAguinaldo(w,fin));
-  const diasAgAnio=Math.max(0,diasEsteAnio-1-faltasAg);
+  const diasAgAutomaticos=Math.max(0,diasEsteAnio-1-faltasAg);
+  const validacionNoi=conSeparacion?null:prAjusteNoiAplicable(w,f);
+  const diasAgValidos=validacionNoi&&validacionNoi.dias_aguinaldo;
+  const usaDiasNoi=diasAgValidos!=null&&Number.isInteger(Number(diasAgValidos))
+    &&Number(diasAgValidos)>=0&&Number(diasAgValidos)<=Math.max(0,diasEsteAnio-1);
+  const diasAgAnio=usaDiasNoi?Number(diasAgValidos):diasAgAutomaticos;
   // NOI presenta y suma cada percepción del finiquito a centavos. Conservar
   // precisión interna hasta el TOTAL cambia selectivamente el neto ±$0.01.
   const aguinaldoRaw=sd*15*(diasAgAnio/365);
@@ -14073,7 +14127,8 @@ function calcPrestaciones(id){
     ['Antigüedad',`${anios} año(s) y ${diasAnio} día(s)`],
     ['Salarios pendientes',`$${money(salarioPend)} (${diasPend} días × $${money(sd)})`],
     ...(faltasAg?[['Faltas que reducen aguinaldo',`−${faltasAg} día(s) (incidencias activas del periodo laborado)`]]:[]),
-    ['Aguinaldo proporcional',`$${money(aguinaldo)} (15 días × ${diasAgAnio}/365 · sin día de baja${faltasAg?` ni ${faltasAg} falta(s)`:''})`],
+    ...(usaDiasNoi?[['Días de aguinaldo confirmados',`${diasAgAnio} días · ${esc(validacionNoi.motivo||'Validación NOI')} · cálculo automático ${diasAgAutomaticos} días; no crea ni altera incidencias`]]:[]),
+    ['Aguinaldo proporcional',`$${money(aguinaldo)} (15 días × ${diasAgAnio}/365 · ${usaDiasNoi?'días validados con NOI':`sin día de baja${faltasAg?` ni ${faltasAg} falta(s)`:''}`})`],
     ['Vacaciones proporcionales',`$${money(vacProp)} (${diasVacAct} días del año en curso, proporcional)`],
     ['Prima vacacional 25%',`$${money(primaVac)}`]
   ];
@@ -14143,11 +14198,18 @@ function calcPrestaciones(id){
   if(infoDesc&&diasInfo>0){
     const infoExacta=retencionInfonavitDesdeAviso(infoDesc,w,diasInfo,fin);
     const Pinfo=perDe(w), cuotaPeriodo=montoDescuento(infoDesc,Pinfo);
-    const infoProp=infoExacta==null?redondearCentavos(cuotaPeriodo/Pinfo.dias*diasInfo):infoExacta;
+    const infoModelo=infoExacta==null?redondearCentavos(cuotaPeriodo/Pinfo.dias*diasInfo):infoExacta;
+    const infoValidado=validacionNoi&&validacionNoi.infonavit;
+    const usaInfoNoi=infoValidado!=null&&Number.isFinite(Number(infoValidado))&&Number(infoValidado)>=0
+      &&validacionNoi.credito_infonavit_id===infoDesc.id&&Number(validacionNoi.dias_infonavit)===diasInfo
+      &&Number(validacionNoi.factor_infonavit)===Number(infoDesc.factor);
+    const infoProp=usaInfoNoi?redondearCentavos(Number(infoValidado)):infoModelo;
+    if(usaInfoNoi)rows.push(['INFONAVIT validado con NOI',`$${money(infoProp)} · modelo $${money(infoModelo)} · sólo este finiquito; aviso pendiente de cotejar`]);
     if(infoProp>0){
       rows.push([`Retención INFONAVIT (${diasInfo} día(s) × $${money(infoProp/diasInfo)} aprox.; redondeo único)`,`−$${money(infoProp)}`]);
       total-=infoProp;
       infoAplicado=infoProp;infoOrigen=(infoManual?'MANUAL_':'AUTO_LUNES_')+(infoExacta==null?'PRORRATEO_PERIODO':'AVISO_CREDITO');
+      if(usaInfoNoi)infoOrigen='NOI_CONFIRMADO_POR_ADMIN';
     }
   }
   if(infoDesc&&diasInfo===0)rows.push(['Retención INFONAVIT adicional','$0.00 (sin días pendientes de retener)']);
@@ -14180,7 +14242,8 @@ function calcPrestaciones(id){
       dias_vacaciones_tabla:diasVacAct,dias_salario_pendiente:diasPend,dias_infonavit_no_retenidos:diasInfo,dias_infonavit_captura_manual:!!infoManual,
       credito_infonavit_id:infoDesc?infoDesc.id:null,numero_credito_infonavit:numeroCreditoInfonavit(infoDesc)||null,
       factor_infonavit:infoDesc?Number(infoDesc.factor)||null:null,origen_infonavit:infoOrigen,
-      despido_injustificado:escenario==='SI',escenario_separacion:escenario,separacion_legal:entradasSeparacion,noi_manual:noiV,isr_noi_manual:isrManual?isrFin:null},
+      despido_injustificado:escenario==='SI',escenario_separacion:escenario,separacion_legal:entradasSeparacion,noi_manual:noiV,isr_noi_manual:isrManual?isrFin:null,
+      ...(validacionNoi?{validacion_noi:validacionNoi,dias_aguinaldo_automaticos:diasAgAutomaticos}: {})},
     resultado:{salarios_pendientes:salarioPend,aguinaldo, vacaciones:vacProp,prima_vacacional:primaVac,isr:isrFin,
       isr_calculado:isrCalculado,isr_separacion:separacion?separacion.isr:0,separacion_legal:separacion,infonavit:infoAplicado,indemnizacion,modelo_total:modeloTotal,aplicado:PR_TOTAL},
     monto_modelo:modeloTotal,monto_aplicado:PR_TOTAL,ajuste_noi:dif,requiere_noi_manual:requiereNoiManual,requiere_revision_legal:requiereRevisionLegal
