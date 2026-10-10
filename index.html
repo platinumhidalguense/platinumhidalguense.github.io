@@ -3626,19 +3626,39 @@ async function doActivar(id){
 }
 
 /* ---------- baja / reactivar (con cheque de finiquito) ---------- */
-async function doReactivar(id){
-  if(!confirm('¿Reactivar a este trabajador? Volverá a ACTIVO con fecha de REINGRESO de hoy. Se conservan su alta original y su baja anterior para el historial; la antigüedad se cuenta desde el reingreso.'))return;
-  markWrite();
-  // v35: conservamos fecha_alta original y fecha_baja anterior; solo marcamos
-  // el reingreso. La antigüedad usa fecha_reingreso (ver iniAntig).
-  const upd={estatus:'ACTIVO',fecha_reingreso:today(),monto_finiquito:null,actualizado_por:USER.email};
-  let {error}=await sb.from('trabajadores').update(upd).eq('id',id);
-  if(error&&/fecha_reingreso/i.test(error.message||'')){ // por si falta el Script 39, cae al comportamiento anterior
-    ({error}=await sb.from('trabajadores').update({estatus:'ACTIVO',fecha_alta:today(),fecha_baja:null,monto_finiquito:null}).eq('id',id));
+function doReactivar(id){
+  if(!puedeEditarTrabajador()){toast('Tu usuario sólo puede consultar.','err');return;}
+  const w=WORKERS.find(x=>x.id===id);
+  if(!w||w.estatus!=='BAJA'){toast('Actualiza la ficha: el trabajador ya no está en baja.','err');return;}
+  window._REINGRESO={id:w.id,obra_id:w.obra_id,updated_at:w.updated_at,baja:w.fecha_baja,alta:w.fecha_alta};
+  modal(`<div class="m-head"><h2>Reingreso · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body"><label>Fecha efectiva de reingreso</label><input id="reingreso-fecha" type="date" required>
+      <p class="fhint">Selecciona el día en que realmente reingresa, incluso si es una fecha futura. No se usará automáticamente la fecha de hoy. Se conservan el alta original, la baja anterior y sus comprobantes.</p></div>
+    <div class="m-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn dark" id="reingreso-guardar" onclick="saveReingreso()">Confirmar reingreso</button></div>`);
+}
+async function saveReingreso(){
+  if(!puedeEditarTrabajador()){toast('Tu usuario sólo puede consultar.','err');return;}
+  const r=window._REINGRESO,btn=$('reingreso-guardar'),fecha=$('reingreso-fecha')?.value||'';
+  if(!r||!btn||btn.disabled)return;
+  const d=new Date(fecha+'T12:00:00Z');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)||!Number.isFinite(d.getTime())||d.toISOString().slice(0,10)!==fecha
+    ||(r.baja&&fecha<=r.baja)||(r.alta&&fecha<r.alta)){
+    toast('Selecciona una fecha válida, posterior a la última baja.','err');return;
   }
-  if(error){toast('Error: '+error.message,'err');return;}
-  closeModal();toast('Trabajador reactivado (reingreso registrado).','ok');
-  await loadObraData(OBRA.id);refreshCounts();
+  if(!r.updated_at){toast('Actualiza la ficha antes de registrar el reingreso.','err');return;}
+  if(!confirm('¿Confirmar el reingreso efectivo el '+fmtD(fecha)+'? Se conservarán el alta y la baja anteriores.'))return;
+  btn.disabled=true;
+  try{
+    markWrite();
+    const {data,error}=await sb.from('trabajadores').update({estatus:'ACTIVO',fecha_reingreso:fecha,monto_finiquito:null,actualizado_por:USER.email})
+      .eq('id',r.id).eq('obra_id',r.obra_id).eq('estatus','BAJA').eq('updated_at',r.updated_at).select('id');
+    if(error)throw error;
+    if(!data||data.length!==1)throw Error('La ficha cambió o no tienes permiso. Actualiza antes de intentar nuevamente.');
+    window._REINGRESO=null;closeModal();toast('Reingreso registrado para '+fmtD(fecha)+'.','ok');
+    if(OBRA?.id===r.obra_id)await loadObraData(r.obra_id);
+    refreshCounts();
+  }catch(e){toast('No se pudo completar el reingreso: '+e.message,'err');}
+  finally{if($('reingreso-guardar')===btn)btn.disabled=false;}
 }
 
 /* ---------- historial ---------- */
@@ -4804,6 +4824,21 @@ function exportReporteDocs(){
 }
 
 /* ---------- PROYECCIÓN DE NÓMINA (descuentos + neto + finiquitos) ---------- */
+function proyFiniquitosSemana(personal,d1,d2,historicos=[]){
+  if(!d1||!d2||d1>d2)return [];
+  return personal.flatMap(w=>{
+    if(!w.fecha_baja||w.fecha_baja<d1||w.fecha_baja>d2)return [];
+    if(w.estatus==='BAJA'&&Number(w.monto_finiquito)>0)return [w];
+    // Reingreso posterior al corte: rescatar el finiquito de la baja anterior,
+    // sin volver a colocarlo en la ficha vigente ni en la nómina del reingreso.
+    if(w.estatus!=='ACTIVO'||!w.fecha_reingreso||w.fecha_reingreso<=d2)return [];
+    const a=historicos.find(x=>x.trabajador_id===w.id&&x.obra_id===w.obra_id&&x.periodo===w.fecha_baja);
+    return a&&Number(a.monto_aplicado)>0?[{...w,monto_finiquito:Number(a.monto_aplicado)}]:[];
+  });
+}
+async function proyCargarHistoricos(personal){
+  return proyLeerFiniquitos(personal.filter(w=>w.estatus==='ACTIVO'&&w.fecha_baja&&w.fecha_reingreso>w.fecha_baja));
+}
 function pyCandidatos(d1,d2,periodo){
   // En una semana histórica, el estado actual no sustituye a las fechas de
   // alta, baja y reingreso. Una baja de esa semana va solo a finiquitos.
@@ -4812,7 +4847,7 @@ function pyCandidatos(d1,d2,periodo){
     &&(w.estatus==='ACTIVO'||(w.estatus==='BAJA'&&w.fecha_baja>d2)));
   if(periodo!=='TODOS')act=act.filter(w=>(w.periodo_pago||'SEMANAL')===periodo);
   act.sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
-  const fins=WORKERS.filter(w=>w.estatus==='BAJA'&&w.fecha_baja&&d1&&d2&&w.fecha_baja>=d1&&w.fecha_baja<=d2&&Number(w.monto_finiquito)>0&&!sinServicio.has(w.id));
+  const fins=proyFiniquitosSemana(WORKERS.filter(w=>!sinServicio.has(w.id)),d1,d2,globalThis._PY_FINIQUITOS_HISTORICOS||[]);
   fins.sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
   return {act,fins};
 }
@@ -4839,6 +4874,15 @@ async function pyDatosFrescos(){
     if($('py-ambas'))$('py-ambas').disabled=true;
     toast('No se generó la proyección con datos obsoletos: '+error.message,'err');
     return false;
+  }
+  try{
+    const historicos=await proyCargarHistoricos(tw||[]);
+    if(OBRA.id!==id)return false;
+    globalThis._PY_FINIQUITOS_HISTORICOS=historicos;
+  }catch(e){
+    if($('py-prev'))$('py-prev').innerHTML='<div class="fhint" style="color:var(--red)">No se pudieron consultar los finiquitos históricos. Vuelve a abrir la proyección.</div>';
+    for(const bid of ['py-btn','py-ambas'])if($(bid))$(bid).disabled=true;
+    toast(e.message,'err');return false;
   }
   WORKERS=tw||[];DESC=ds||[];DIFS=df||[];ALTAS_CORTAS=ab||[];FINTRANS=ft||[];
   globalThis._PY_FRESCOS=true;
@@ -5933,7 +5977,9 @@ async function pcDatosFrescos(codigo){
   ]);
   const error=rs.find(r=>r.error)?.error;if(error)throw Error('No se pudieron actualizar los datos: '+error.message);
   if(codigo!==EMPRESA_ACTIVA)throw Error('Cambió la empresa. Abre nuevamente la proyección.');
-  return {all:rs[0].data||[],desc:rs[1].data||[],difs:rs[2].data||[],altas:rs[3].data||[],fintrans:rs[4].data||[]};
+  const historicos=await proyCargarHistoricos(rs[0].data||[]);
+  if(codigo!==EMPRESA_ACTIVA)throw Error('Cambió la empresa. Abre nuevamente la proyección.');
+  return {all:rs[0].data||[],desc:rs[1].data||[],difs:rs[2].data||[],altas:rs[3].data||[],fintrans:rs[4].data||[],historicos};
 }
 async function openProyContratista(){
   const [d1,d2]=weekBounds(),codigo=EMPRESA_ACTIVA;
@@ -5984,7 +6030,7 @@ async function exportProyContratista(eleccion){
       const personal=all.filter(w=>String(w.contratista||'').trim()===ct&&!asSinServicioSemana(d1,OBRAS.find(o=>o.id===w.obra_id),datos.altas).has(w.id));
       let act=personal.filter(w=>asVigenteSemana(w,d1,d2)&&(w.estatus==='ACTIVO'||(w.estatus==='BAJA'&&w.fecha_baja>d2)));
       if(periodo!=='TODOS')act=act.filter(w=>(w.periodo_pago||'SEMANAL')===periodo);
-      const fins=personal.filter(w=>w.estatus==='BAJA'&&w.fecha_baja>=d1&&w.fecha_baja<=d2&&Number(w.monto_finiquito)>0);
+      const fins=proyFiniquitosSemana(personal,d1,d2,datos.historicos);
       return {ct,act,fins};
     }).filter(c=>c.act.length+c.fins.length);
     if(!candidatos.length)throw Error('No hay personal para esos contratistas y fechas.');
@@ -14166,14 +14212,17 @@ function calcPrestaciones(id){
   const isrCalculado=isrMensual(gravado);
   const isrRaw=$('pr-isr-noi')?$('pr-isr-noi').value:'';
   const isrManual=isrRaw!=='';
-  const isrFin=isrManual?Number(isrRaw):isrCalculado;
+  const isrValidado=validacionNoi&&validacionNoi.isr;
+  const usaIsrNoi=!isrManual&&isrValidado!=null;
+  const isrFin=isrManual?Number(isrRaw):usaIsrNoi?Number(isrValidado):isrCalculado;
   if(!Number.isFinite(isrFin)||isrFin<0||isrFin>total||Math.abs(Math.round(isrFin*100)-isrFin*100)>1e-7){
     globalThis._PR_AUDIT={invalido:true};PR_TOTAL=NaN;
     $('pr-out').innerHTML='<div class="fhint" style="color:var(--red)">El ISR D001 debe ser un importe no negativo, con máximo dos decimales y no mayor que las percepciones.</div>';
     if($('pr-usar'))$('pr-usar').disabled=true;
     return;
   }
-  rows.push(['Retención de ISR (Anexo 8, gravado $'+money(gravado)+(isrManual?' · D001 NOI capturado manualmente':'')+')',`−$${money(isrFin)}`]);
+  if(usaIsrNoi)rows.push(['ISR validado con NOI',`$${money(isrFin)} · modelo $${money(isrCalculado)} · sólo este finiquito`]);
+  rows.push(['Retención de ISR (Anexo 8, gravado $'+money(gravado)+(isrManual?' · D001 NOI capturado manualmente':usaIsrNoi?' · NOI validado':'')+')',`−$${money(isrFin)}`]);
   total-=isrFin+(separacion&&separacion.isr!=null?separacion.isr:0);
   // La retención del lunes de baja es INDEPENDIENTE de salarios pendientes.
   // Se propone un día si hay crédito activo y fecha de baja lunes; escribir 0
