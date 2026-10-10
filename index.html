@@ -4850,7 +4850,7 @@ function openProyeccion(){
   modal(`
     <div class="m-head"><h2>💰 Proyección de nómina</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:14px">Obra: <b>${esc(OBRA.nombre)}</b>. Incluye activos y bajas de la semana. Los finiquitos son por cheque salvo excepción de transferencia autorizada por el administrador. Quien no tenga cuenta ni CLABE sale como pendiente de cheque. Los totales del Excel llevan fórmulas.</p>
+      <p style="color:var(--mut);margin-bottom:14px">Obra: <b>${esc(OBRA.nombre)}</b>. Incluye activos y bajas de la semana. Los finiquitos son por cheque salvo excepción de transferencia autorizada por el administrador. En dispersión, la nómina sin cuenta ni CLABE aparece al final con método POR DEFINIR. La proyección para contratistas conserva únicamente el total general. Los totales del Excel llevan fórmulas.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
         <div><label>No. de semana</label><input id="py-sem" type="number" value="${semObra()}" oninput="semSincroniza('py-sem','py-d1','py-d2',pyPreview)"></div>
         <div><label>Del día</label><input id="py-d1" type="date" value="${d1}" oninput="pyPreview()"></div>
@@ -4960,7 +4960,7 @@ function proyModelo(act,fins,sem,audits=[]){
     return {w,fin:false,sueldo,incidencias,creditos,otras,prevision,
       costo:redondearCentavos(Math.max(0,sueldo-incidencias)),
       neto:redondearCentavos(Math.max(0,sueldo+prevision-incidencias-creditos-otras)),items,
-      pago:tieneCuenta&&(w.forma_pago||'TRANSFERENCIA')==='TRANSFERENCIA'?'TRANSFERENCIA':'CHEQUE',sinCuenta:!tieneCuenta};
+      pago:!tieneCuenta?'POR DEFINIR':(w.forma_pago||'TRANSFERENCIA')==='TRANSFERENCIA'?'TRANSFERENCIA':'CHEQUE',sinCuenta:!tieneCuenta};
   });
   const bajas=fins.map(w=>({...proyFiniquito(w,audits),pago:finTransDe(w,sem)?'TRANSFERENCIA':'CHEQUE'}));
   const filas=[...normales,...bajas];
@@ -4975,7 +4975,7 @@ function buildProyDestinoWS({titulo,sub,pie,colB,modelo,destino}){
   cols[1]=colB==='OBRA'?'OBRA':'CONTRATISTA';
   const rows=[[titulo],[sub],cols],styles=[{...ST.title,font:{...ST.title.font,sz:12},alignment:{...ST.title.alignment,wrapText:true}},ST.sub,ST.head],hs=[{hpt:42},{hpt:24},{hpt:44}],merges=[];
   const idx={};cols.forEach((c,i)=>idx[c]=i);
-  const totalI=cols.length-(dispersion?2:1),dataRows=[],grupoRows={TRANSFERENCIA:[],CHEQUE:[]};
+  const totalI=cols.length-(dispersion?2:1),dataRows=[],grupoRows={TRANSFERENCIA:[],CHEQUE:[],'POR DEFINIR':[]};
   const bVal=w=>colB==='OBRA'?(OBRAS.find(o=>o.id===w.obra_id)?.nombre||''):w.contratista||'';
   const orden=(a,b)=>colB==='OBRA'?String(bVal(a.w)).localeCompare(String(bVal(b.w)),'es')||(Number(a.w.no_trab)||0)-(Number(b.w.no_trab)||0):(Number(a.w.no_trab)||0)-(Number(b.w.no_trab)||0);
   const add=x=>{
@@ -4989,11 +4989,17 @@ function buildProyDestinoWS({titulo,sub,pie,colB,modelo,destino}){
       return {...st,alignment:{...st.alignment,...(i===0?{horizontal:'center'}:typeof v==='string'?{wrapText:true}:{} )},fill:st.fill||{patternType:'solid',fgColor:{rgb:'FFFFFF'}}};}));hs.push({hpt:28});
   };
   if(dispersion){
-    for(const pago of ['TRANSFERENCIA','CHEQUE']){
-      const grupo=modelo.filas.filter(x=>x.pago===pago).sort(orden);
+    const secciones=[
+      ['NÓMINA POR TRANSFERENCIA',x=>!x.fin&&!x.sinCuenta&&x.pago==='TRANSFERENCIA'],
+      ['NÓMINA POR CHEQUE',x=>!x.fin&&!x.sinCuenta&&x.pago==='CHEQUE'],
+      ['FINIQUITOS',x=>x.fin],
+      ['NÓMINA SIN CUENTA · POR DEFINIR',x=>!x.fin&&x.sinCuenta]
+    ];
+    for(const [nombre,seleccionar] of secciones){
+      const grupo=modelo.filas.filter(seleccionar).sort(orden);
       if(!grupo.length)continue;
       merges.push({s:{r:rows.length,c:0},e:{r:rows.length,c:cols.length-1}});
-      rows.push([`${pago} · ${grupo.length} trabajadores${pago==='CHEQUE'?' (incluye finiquitos y personal sin cuenta)':''}`]);styles.push(ST.sect);hs.push({hpt:22});grupo.forEach(add);
+      rows.push([`${nombre} · ${grupo.length} trabajadores`]);styles.push(ST.sect);hs.push({hpt:22});grupo.forEach(add);
     }
   }else modelo.filas.slice().sort(orden).forEach(add);
   const L=i=>XLSX.utils.encode_col(i),sum=(col,rs=dataRows)=>{
@@ -5010,7 +5016,7 @@ function buildProyDestinoWS({titulo,sub,pie,colB,modelo,destino}){
   if(dispersion){
     for(let c=6;c<=totalI;c++){totalRow[c]=redondearCentavos(rows.reduce((s,row,i)=>s+(dataRows.includes(i+1)?Number(row[c])||0:0),0));fx.push([L(c)+(rows.length+1),sum(c)]);}
     rows.push(totalRow);styles.push(cols.map((_,i)=>i>=6&&i<=totalI?ST.totalMoney:ST.total));hs.push({hpt:28});
-    for(const pago of ['TRANSFERENCIA','CHEQUE']){
+    for(const pago of ['TRANSFERENCIA','CHEQUE','POR DEFINIR']){
       const row=Array(cols.length).fill('');row[0]='TOTAL '+pago;row[totalI]=redondearCentavos(modelo.filas.filter(x=>x.pago===pago).reduce((s,x)=>s+x.neto,0));
       fx.push([L(totalI)+(rows.length+1),sum(totalI,grupoRows[pago])]);rows.push(row);styles.push(cols.map((_,i)=>i===totalI?ST.totalMoney:ST.total));hs.push({hpt:26});
       merges.push({s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:totalI-1}});
