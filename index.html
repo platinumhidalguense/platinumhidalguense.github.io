@@ -5001,7 +5001,11 @@ function buildProyDestinoWS({titulo,sub,pie,colB,modelo,destino}){
       merges.push({s:{r:rows.length,c:0},e:{r:rows.length,c:cols.length-1}});
       rows.push([`${nombre} · ${grupo.length} trabajadores`]);styles.push(ST.sect);hs.push({hpt:22});grupo.forEach(add);
     }
-  }else modelo.filas.slice().sort(orden).forEach(add);
+  }else{
+    // Mismo acomodo que dispersión, pero sin subtotales por método de pago.
+    const secciones=[x=>!x.fin&&!x.sinCuenta,x=>x.fin,x=>!x.fin&&x.sinCuenta];
+    for(const seleccionar of secciones)modelo.filas.filter(seleccionar).sort(orden).forEach(add);
+  }
   const L=i=>XLSX.utils.encode_col(i),sum=(col,rs=dataRows)=>{
     if(!rs.length)return '0';
     const bloques=[];let inicio=rs[0],fin=inicio;
