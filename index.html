@@ -2901,7 +2901,7 @@ function openForm(id){
     <div class="wf-stepper" role="group" aria-label="Pasos del registro">
       ${['Asignación','Datos personales','Documentos'].map((txt,i)=>`<button type="button" id="wf-tab-${i+1}" onclick="workerFormPaso(${i+1})"><span>${i+1}</span><b>${txt}</b></button>`).join('')}
     </div>
-    <div class="m-body" id="worker-form-body" data-worker-id="${w?w.id:''}" data-step="1">
+    <div class="m-body" id="worker-form-body" data-worker-id="${w?w.id:''}" data-user-id="${esc(USER.id)}" data-step="1">
       <div class="sect">Obra y puesto</div>
       <div class="grid">
         <div class="c2"><label>Centro de trabajo · ${esc(EMPRESAS[EMPRESA_ACTIVA].corto)}</label><select id="f-obra_id">${obrasAlta.map(o=>`<option value="${o.id}" ${(w?w.obra_id:OBRA.id)===o.id?'selected':''}>${esc(o.nombre)}</option>`).join('')}</select><div class="fhint">Para cambiar de razón social usa “Transferir” y genera la baja/reingreso correspondiente.</div></div>
@@ -3488,6 +3488,57 @@ async function activarProgramados(){
     listos.forEach(w=>w.estatus='ACTIVO');
   }catch(e){/* si falla, se reintenta en la próxima carga */}
 }
+function formPedirSesion(){
+  const root=$('worker-form-body');if(!root||!USER?.email)return;
+  window._WF_RECONEXION={root,user_id:root.dataset.userId||USER.id,email:USER.email};
+  modal2(`<div class="m-head"><h2>Reconectar sesión</h2><button class="x" onclick="closeModal2()">×</button></div>
+    <div class="m-body"><p class="fhint">Tu captura permanece intacta. Inicia sesión con la misma cuenta y después vuelve a presionar Guardar.</p>
+      <label>Correo</label><input type="email" value="${esc(USER.email)}" readonly autocomplete="username">
+      <label>Contraseña</label><input id="wf-sesion-pass" type="password" autocomplete="current-password">
+      <div id="wf-sesion-error" class="fhint" style="color:var(--red)" role="alert"></div></div>
+    <div class="m-foot"><button class="btn" onclick="closeModal2()">Cancelar</button><button id="wf-sesion-conectar" class="btn dark" onclick="formReconectarSesion()">Reconectar</button></div>`,'md');
+}
+async function formReconectarSesion(){
+  const ctx=window._WF_RECONEXION,btn=$('wf-sesion-conectar'),pass=$('wf-sesion-pass'),out=$('wf-sesion-error');
+  if(!ctx||!btn||btn.disabled||$('worker-form-body')!==ctx.root)return;
+  if(!pass?.value){if(out)out.textContent='Captura tu contraseña.';return;}
+  btn.disabled=true;if(out)out.textContent='';
+  try{
+    const {data,error}=await sb.auth.signInWithPassword({email:ctx.email,password:pass.value});
+    if(error)throw error;
+    if(!data?.session||data.user?.id!==ctx.user_id)throw Error('La sesión no corresponde a la cuenta que inició esta captura.');
+    USER=data.user;await cargaPermisos();
+    if($('worker-form-body')!==ctx.root)return;
+    closeModal2();window._WF_RECONEXION=null;
+    toast('Sesión reconectada. Tus datos siguen capturados; vuelve a presionar Guardar.','ok');
+  }catch(e){if(out)out.textContent='No se pudo reconectar. Verifica tu contraseña y conexión.';}
+  finally{if(pass)pass.value='';if($('wf-sesion-conectar')===btn)btn.disabled=false;}
+}
+async function formValidarSesion(){
+  const root=$('worker-form-body'),esperado=root?.dataset.userId||USER?.id;
+  if(!root||!esperado){toast('Abre nuevamente la ficha antes de guardar.','err');return false;}
+  try{
+    const actual=await sb.auth.getSession();
+    if(actual.error)throw actual.error;
+    if(!actual.data?.session){formPedirSesion();return false;}
+    let r=await sb.auth.getUser();
+    if(r.error&&[401,403].includes(Number(r.error.status))){
+      const refresco=await sb.auth.refreshSession();
+      if(refresco.error||!refresco.data?.session){formPedirSesion();return false;}
+      r=await sb.auth.getUser();
+    }
+    if(r.error)throw r.error;
+    if(!r.data?.user){formPedirSesion();return false;}
+    if(r.data.user.id!==esperado){toast('Cambió la cuenta de esta sesión. No se guardó; la captura sigue abierta.','err');return false;}
+    USER=r.data.user;await cargaPermisos();
+    if(!puedeEditarTrabajador()){toast('Tu usuario no tiene permiso para guardar trabajadores. La captura permanece abierta.','err');return false;}
+    return true;
+  }catch(e){
+    if([401,403].includes(Number(e.status))||/AuthSessionMissing|session.*missing|refresh.*token/i.test(e.name+' '+e.message))formPedirSesion();
+    else toast('No se pudo validar tu sesión. Revisa la conexión e intenta guardar otra vez; tu captura no se borró.','err');
+    return false;
+  }
+}
 async function saveWorker(id){
   if(!puedeEditarTrabajador()){toast('Tu usuario solo puede consultar.','err');return;}
   if($('save-btn')?.disabled)return;
@@ -3515,8 +3566,10 @@ async function saveWorker(id){
   }
   const formularioGuardando=$('worker-form-body');
   formGuardando(true);
-  markWrite();
   try{
+  if(!await formValidarSesion())return;
+  if($('worker-form-body')!==formularioGuardando)return;
+  markWrite();
   const falt=datosFaltantes(w);
   // v19: corte semanal — si la fecha de alta cae DESPUÉS del domingo de la semana
   // en curso, el ingreso es de la próxima semana (o de otra futura) y no debe
