@@ -1212,6 +1212,7 @@ const EMPRESAS=Object.freeze({
 
 let sb=null, USER=null, OBRAS=[], OBRA=null, EMPRESA_ACTIVA='PLATINUM', WORKERS=[], CHEQUES=[], DESC=[], DOCSX=[], VAC=[], ACTAS=[], NOM=[], PAGOS=[], PRIMAS=[], CUADS=[], CIERRES=[], CTRLNOI=[], ALTAS_CORTAS=[], FINTRANS=[], VIEW='trab';
 let PUEDE_EDITAR_TRABAJADORES=false; // solo presentación; la autorización real sigue en RLS
+let PUEDE_ELIMINAR_CHEQUES=false; // permiso puntual; no convierte al usuario en administrador
 /* Script 59: diferenciales de proyección, bloques de cheques y control interno
    salarial. SUELDOSINT solo trae filas si el usuario es VIP — lo decide la RLS
    de la base, no la app. */
@@ -1266,13 +1267,19 @@ function esAdmin(){return !!(USER&&USER.email&&USER.email.toLowerCase()===adminE
 function esVip(){return ES_VIP||esAdmin();}
 async function cargaPermisos(){
   PUEDE_EDITAR_TRABAJADORES=false;
+  PUEDE_ELIMINAR_CHEQUES=false;
   try{
     const {data}=await sb.from('app_usuarios').select('full_access,activo,rol,puede_escribir').eq('user_id',USER.id).limit(1);
     const u=(data||[])[0];
     ES_VIP=!!(u&&u.full_access&&u.activo!==false);
     PUEDE_EDITAR_TRABAJADORES=!!(u&&u.activo!==false&&u.puede_escribir);
   }catch(e){ ES_VIP=false;PUEDE_EDITAR_TRABAJADORES=false; }   // sin script 51 corrido: solo el administrador
+  try{
+    const {data,error}=await sb.rpc('control_puede_eliminar_cheques');
+    PUEDE_ELIMINAR_CHEQUES=!error&&data===true;
+  }catch(e){PUEDE_ELIMINAR_CHEQUES=false;}
 }
+function puedeEliminarCheque(){return !!USER&&(esAdmin()||PUEDE_ELIMINAR_CHEQUES);}
 function puedeEditarTrabajador(){
   return !!USER&&(esAdmin()||PUEDE_EDITAR_TRABAJADORES);
 }
@@ -7643,7 +7650,10 @@ function exportPagoLote(){
 async function pagoCancelarCheque(id){
   const c=(CHEQUES||[]).find(x=>x.id===id); if(!c){toast('Cheque no encontrado.','err');return;}
   if(c.tipo_pago==='FINIQUITO'){
-    if(!esAdmin()){toast('Solo el administrador puede cambiar el método de un finiquito.','err');return;}
+    if(!esAdmin()){
+      if(puedeEliminarCheque()){eliminarChequeErroneo(id);return;}
+      toast('No tienes permiso para retirar este cheque. El cambio de método de finiquito sigue reservado al administrador.','err');return;
+    }
     openFiniquitoTransferenciaAdmin(c.trabajador_id);return;
   }
   if(!confirm(`¿CANCELAR el cheque${c.num_cheque?' #'+c.num_cheque:''} de ${c.nombre||''} (semana ${c.semana}, $${money(c.importe)})?\n\nQueda marcado como CANCELADO (no se borra) porque a este trabajador ya se le pagó por transferencia esa semana.`))return;
@@ -9056,7 +9066,7 @@ function openChequeForm(id){
       <p style="margin-top:12px;font-size:12px;color:var(--mut)">Un cheque que sí se expidió y luego se anula se marca <b>CANCELADO</b> (queda en el historial). <b>Eliminar</b> es solo para <b>capturas por error</b> que nunca existieron: se van a la papelera y dejan de contar en todo (recuperable por el admin).</p>
     </div>
     <div class="m-foot">
-      ${c&&esAdmin()?`<button class="btn danger" style="background:#7a1414;border-color:#7a1414;margin-right:auto" onclick="eliminarChequeErroneo('${c.id}')">🗑 Eliminar (captura errónea)</button>`:''}
+      ${c&&puedeEliminarCheque()?`<button class="btn danger" style="background:#7a1414;border-color:#7a1414;margin-right:auto" onclick="eliminarChequeErroneo('${c.id}')">🗑 Eliminar (captura errónea)</button>`:''}
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn dark" id="c-save" onclick="saveCheque(${c?`'${c.id}'`:'null'})">💾 Guardar</button>
     </div>`,'md');
@@ -9148,12 +9158,12 @@ async function saveCheque(id){
   closeModal();toast('Cheque guardado.','ok');
   await loadObraData(OBRA.id);
 }
-/* v.9: eliminar cheque = mover a la papelera (eliminado=true). Solo admin.
+/* Eliminar cheque = mover a la papelera (eliminado=true). Admin o permiso puntual.
    No borra físicamente (la base lo prohíbe con un trigger): deja de aparecer
    y de contar en todo, pero es recuperable desde Supabase. Pensado para
    capturas por error que nunca existieron. */
 async function eliminarChequeErroneo(id){
-  if(!esAdmin()){toast('Solo el administrador puede eliminar cheques.','err');return;}
+  if(!puedeEliminarCheque()){toast('No tienes permiso para eliminar cheques.','err');return;}
   const c=CHEQUES.find(x=>x.id===id); if(!c)return;
   const tieneDatos=(c.num_cheque&&c.num_cheque.trim())||(Number(c.importe)>0)||c.estatus==='ENTREGADO';
   const aviso=tieneDatos
@@ -9169,8 +9179,8 @@ async function eliminarChequeErroneo(id){
       <div class="kv"><b>Número de cheque</b><span>${esc(c.num_cheque)||'(vacío)'}</span></div>
       <div class="kv"><b>Importe</b><span>$${money(c.importe)}</span></div>
       <div class="kv"><b>Estatus</b><span>${esc(c.estatus)}</span></div>
-      <label style="margin-top:12px">Motivo (queda registrado)</label>
-      <input id="del-motivo" placeholder="Ej. capturado por error, nunca se expidió">
+      <label style="margin-top:12px">Motivo obligatorio (queda registrado)</label>
+      <input id="del-motivo" maxlength="1000" placeholder="Ej. finiquito pagado por transferencia; cheque no expedido">
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
@@ -9178,20 +9188,27 @@ async function eliminarChequeErroneo(id){
     </div>`,'md');
 }
 async function doEliminarCheque(id){
+  if(!puedeEliminarCheque()){toast('No tienes permiso para eliminar cheques.','err');return;}
   const motivo=($('del-motivo')&&$('del-motivo').value.trim())||'';
-  $('del-chq-btn').innerHTML='<span class="spin"></span> Eliminando...';
+  if(!motivo){toast('Indica el motivo de eliminación.','err');return;}
+  const btn=$('del-chq-btn');if(!btn||btn.disabled)return;
+  btn.disabled=true;btn.innerHTML='<span class="spin"></span> Eliminando...';
   markWrite();
-  const {error}=await sb.from('cheques').update({
-    eliminado:true, eliminado_por:USER.email, eliminado_en:new Date().toISOString(),
-    motivo_eliminado:motivo.toUpperCase()||null
-  }).eq('id',id);
-  if(error){
-    $('del-chq-btn').innerHTML='🗑 Sí, eliminar';
-    toast(/column .*eliminado/i.test(error.message)?'Falta correr el Script 40 (papelera de cheques) en Supabase.':'Error: '+error.message,'err');
+  try{
+    const {data,error}=await sb.rpc('control_eliminar_cheque',{p_cheque_id:id,p_motivo:motivo});
+    if(error)throw error;
+    if(data?.id!==id||data?.eliminado!==true)throw new Error('No se confirmó la eliminación del cheque.');
+  }catch(error){
+    btn.disabled=false;btn.innerHTML='🗑 Sí, eliminar';
+    toast('No se confirmó la operación: '+error.message,'err');
     return;
   }
-  closeModal();toast('Cheque movido a la papelera.','ok');
-  await loadObraData(OBRA.id);
+  closeModal();toast('Cheque movido a la papelera; comprobantes y pagos conservados.','ok');
+  try{
+    await loadObraData(OBRA.id);
+    if($('pg-out')&&PAGOIMP)pgRender();
+    else if($('cp-out'))cpBuild();
+  }catch(error){toast('El cheque sí se eliminó, pero no se pudo actualizar el listado. Recarga la página.','err');}
 }
 function exportCheques(){
   const rows_=chqFiltered();
