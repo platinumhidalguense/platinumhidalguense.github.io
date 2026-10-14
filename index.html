@@ -11761,8 +11761,10 @@ function openPlantillaFecha(){
   modal(`
     <div class="m-head"><h2>📸 Plantilla a una fecha · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <div class="grid" style="grid-template-columns:1fr 1fr"><div><label>¿Cuántos ACTIVOS había el día...?</label><input id="pf-fecha" type="date" value="${today()}" onchange="pfCalcular()"></div>
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))"><div><label>¿Cuántos ACTIVOS había el día...?</label><input id="pf-fecha" type="date" value="${today()}" onchange="pfCalcular()"></div>
+      <div><label>Contratista</label><select id="pf-contratista" onchange="pfCalcular()"><option value="">Todos los contratistas</option>${[...new Set(WORKERS.filter(w=>!w.eliminado&&w.obra_id===OBRA.id).map(w=>String(w.contratista||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es')).map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select></div>
       <div style="display:flex;align-items:end"><button class="btn dark" style="width:100%" onclick="pfCalcular()">Calcular</button></div></div>
+      <p class="fhint" style="margin-top:10px">El PDF contiene sólo los datos necesarios para revisar el personal con el contratista. Descarga directa en carta vertical, con el logo y razón social del centro seleccionado.</p>
       <div id="pf-out" style="margin-top:14px"></div>
     </div>
     <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`,'md');
@@ -11777,23 +11779,26 @@ function activoEn(w,f){
     return w.estatus!=='BAJA'||!w.fecha_baja||w.fecha_baja>f;
   return !w.fecha_baja||w.fecha_baja>f;                       // periodo original
 }
-function pfActivos(f){
-  return WORKERS.filter(w=>activoEn(w,f))
-    .sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
+function pfActivos(f,contratista=''){
+  const ct=String(contratista||'').trim().toUpperCase();
+  return WORKERS.filter(w=>!w.eliminado&&(!OBRA?.id||w.obra_id===OBRA.id)&&activoEn(w,f)
+    &&(!ct||String(w.contratista||'').trim().toUpperCase()===ct))
+    .sort((a,b)=>(a.no_trab??9e9)-(b.no_trab??9e9)||fullName(a).localeCompare(fullName(b),'es'));
 }
 function pfCalcular(){
-  const f=$('pf-fecha').value; if(!f)return;
-  const act=pfActivos(f);
+  const f=$('pf-fecha').value;
+  if(!f){$('pf-out').innerHTML='<div class="empty">Selecciona la fecha de consulta.</div>';return;}
+  const act=pfActivos(f,$('pf-contratista')?.value||'');
   const por=(k)=>{const m={};act.forEach(w=>{const key=w[k]||'—';m[key]=(m[key]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]);};
   $('pf-out').innerHTML=`
     <div class="stats"><div class="stat g"><div class="n">${act.length}</div><div class="l">Trabajadores activos el ${fmtD(f)}</div></div></div>
-    <div style="margin:10px 0"><button class="btn dark" onclick="exportPlantillaFecha()" ${act.length?'':'disabled'}>⬇ Exportar Excel (quién estaba activo)</button></div>
+    <div style="margin:10px 0;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="exportPlantillaFecha()" ${act.length?'':'disabled'}>⬇ Exportar Excel</button><button class="btn dark" id="pf-pdf" onclick="exportPlantillaFechaPDF()" ${act.length&&!window._PF_EXPORTANDO?'':'disabled'}>📄 Descargar PDF</button></div>
     <div class="sect">Por contratista</div>${por('contratista').map(([k,v])=>`<div class="kv"><b>${esc(k)}</b><span>${v}</span></div>`).join('')}
     <div class="sect">Por puesto</div>${por('puesto').map(([k,v])=>`<div class="kv"><b>${esc(k)}</b><span>${v}</span></div>`).join('')}`;
 }
 function exportPlantillaFecha(){
   const f=$('pf-fecha').value; if(!f){toast('Elige una fecha.','err');return;}
-  const act=pfActivos(f);
+  const act=pfActivos(f,$('pf-contratista')?.value||'');
   if(!act.length){toast('No había trabajadores activos en esa fecha.','err');return;}
   const rows=[],styles=[];
   rows.push([`PLANTILLA ACTIVA AL ${fmtD(f)} — ${OBRA.nombre}`]); styles.push(ST.title);
@@ -11815,6 +11820,114 @@ function exportPlantillaFecha(){
   XLSX.utils.book_append_sheet(wb,ws,('PLANTILLA '+f).slice(0,31));
   dl(wb,`PLANTILLA_ACTIVA_${f}_${OBRA.nombre.slice(0,16).replace(/\s+/g,'_')}.xlsx`);
   toast(`Exportados ${act.length} trabajadores activos al ${fmtD(f)}.`,'ok');
+}
+async function pfCargarPDF(){
+  if(window.PDFLib?.PDFDocument)return window.PDFLib;
+  if(window._PF_PDF_LIB)return window._PF_PDF_LIB;
+  window._PF_PDF_LIB=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    let terminado=false;
+    const fallar=()=>{if(terminado)return;terminado=true;clearTimeout(timer);script.remove();window._PF_PDF_LIB=null;reject(Error('No se pudo cargar el generador PDF. Revisa la conexión y vuelve a intentar.'));};
+    const timer=setTimeout(fallar,20000);
+    script.src='https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+    script.integrity='sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI';
+    script.crossOrigin='anonymous';
+    script.onload=()=>{if(terminado)return;if(!window.PDFLib?.PDFDocument){fallar();return;}terminado=true;clearTimeout(timer);resolve(window.PDFLib);};
+    script.onerror=fallar;document.head.appendChild(script);
+  });
+  return window._PF_PDF_LIB;
+}
+function pfPDFAncho(texto,font,size){
+  // Las fuentes estándar se dibujan por glifo; no descontar kerning al medir
+  // evita que una cadena larga invada la columna o el margen siguiente.
+  return [...String(texto)].reduce((n,ch)=>n+font.widthOfTextAtSize(ch,size),0);
+}
+function pfPDFLineas(valor,font,size,ancho){
+  const texto=String(valor??'').normalize('NFC').replace(/[\u2010-\u2015]/g,'-').replace(/\s+/g,' ').trim()||'-';
+  const out=[];let linea='';
+  for(const palabra of texto.split(' ')){
+    if(pfPDFAncho(palabra,font,size)>ancho){
+      if(linea){out.push(linea);linea='';}
+      for(const ch of palabra){if(linea&&pfPDFAncho(linea+ch,font,size)>ancho){out.push(linea);linea='';}linea+=ch;}
+    }else if(linea&&pfPDFAncho(linea+' '+palabra,font,size)>ancho){out.push(linea);linea=palabra;}
+    else linea+=(linea?' ':'')+palabra;
+  }
+  if(linea)out.push(linea);return out;
+}
+async function pfConstruirPDF(lib,{fecha,obra,empresa,logo,filas}){
+  if(!filas.length)throw Error('No hay personal para exportar.');
+  const {PDFDocument,StandardFonts,rgb}=lib,doc=await PDFDocument.create();
+  const normal=await doc.embedFont(StandardFonts.Helvetica),bold=await doc.embedFont(StandardFonts.HelveticaBold);
+  const imagen=await (/^data:image\/jpe?g/i.test(logo)?doc.embedJpg(logo):doc.embedPng(logo)),navy=rgb(.10,.20,.35),gris=rgb(.29,.34,.41),linea=rgb(.84,.88,.92),claro=rgb(.94,.96,.98);
+  const anchos=[35,186,124,105,94],xs=[34];anchos.forEach((w,i)=>xs.push(xs[i]+w));
+  const grupos=new Map();
+  filas.forEach(w=>{const ct=String(w.contratista||'').trim()||'SIN CONTRATISTA',key=ct.toUpperCase();if(!grupos.has(key))grupos.set(key,{ct,gente:[]});grupos.get(key).gente.push(w);});
+  const gs=[...grupos.values()].sort((a,b)=>a.ct.localeCompare(b.ct,'es'));
+  const texto=(page,t,x,y,font=normal,size=8.5,color=gris)=>page.drawText(t,{x,y,font,size,color});
+  const bloquear=(page,ls,x,y,font=normal,size=8.5,color=gris)=>ls.forEach((t,i)=>texto(page,t,x,y-i*(size+2.5),font,size,color));
+  let page,y;
+  const nuevaPagina=g=>{
+    page=doc.addPage([612,792]);
+    const dim=imagen.scale(Math.min(86/imagen.width,48/imagen.height));
+    page.drawImage(imagen,{x:34,y:758-dim.height,width:dim.width,height:dim.height});
+    const razon=pfPDFLineas(empresa.razon,bold,10,428),datos=[...razon,
+      ...pfPDFLineas('RFC: '+(empresa.rfc||'-'),normal,8,428),
+      ...(empresa.domicilio?pfPDFLineas(empresa.domicilio,normal,8,428):[])];
+    let hy=758;datos.forEach((t,i)=>{const font=i<razon.length?bold:normal,size=i<razon.length?10:8;texto(page,t,578-pfPDFAncho(t,font,size),hy,font,size,navy);hy-=12;});
+    y=Math.min(699,hy-10);page.drawLine({start:{x:34,y},end:{x:578,y},thickness:1.4,color:navy});
+    const titulo='PLANTILLA ACTIVA A UNA FECHA';y-=23;texto(page,titulo,306-pfPDFAncho(titulo,bold,13)/2,y,bold,13,navy);
+    y-=20;const contexto=pfPDFLineas('Centro: '+obra.nombre+' | Corte al '+fmtD(fecha),normal,9,544);bloquear(page,contexto,34,y,normal,9);y-=contexto.length*11.5+10;
+    const ct=pfPDFLineas('CONTRATISTA: '+g.ct,bold,10,544);bloquear(page,ct,34,y,bold,10,navy);y-=ct.length*12.5+7;
+    texto(page,g.gente.length+' trabajador(es) activos en el corte | Total del reporte: '+filas.length,34,y,normal,8);y-=19;
+    if(y<200)throw Error('El encabezado es demasiado extenso. Revisa los datos corporativos.');
+    page.drawRectangle({x:34,y:y-26,width:544,height:26,color:navy});
+    [['NO.'],['NOMBRE COMPLETO'],['PUESTO'],['CUADRILLA'],['INGRESO /','REINGRESO']].forEach((ls,i)=>bloquear(page,ls,xs[i]+4,y-10,bold,7.2,rgb(1,1,1)));
+    y-=26;
+  };
+  for(const g of gs){
+    nuevaPagina(g);
+    g.gente.sort((a,b)=>(a.no_trab??9e9)-(b.no_trab??9e9)||fullName(a).localeCompare(fullName(b),'es'));
+    for(let n=0;n<g.gente.length;n++){
+      const w=g.gente[n],reingreso=w.fecha_reingreso&&w.fecha_reingreso<=fecha;
+      const valores=[w.no_trab??'-',fullName(w),w.puesto||'-',w.cuadrilla_pdf||'-',fmtD(reingreso?w.fecha_reingreso:w.fecha_alta)+(reingreso?' (R)':'')];
+      const ls=valores.map((v,i)=>pfPDFLineas(v,i===1?bold:normal,8.5,anchos[i]-8));
+      const alto=Math.max(23,Math.max(...ls.map(x=>x.length))*11+10);
+      if(alto>y-65){nuevaPagina(g);if(alto>y-65)throw Error('Los datos de un trabajador son demasiado extensos para una hoja.');}
+      if(n%2===0)page.drawRectangle({x:34,y:y-alto,width:544,height:alto,color:claro});
+      ls.forEach((l,i)=>bloquear(page,l,xs[i]+4,y-14,i===1?bold:normal,8.5));
+      page.drawLine({start:{x:34,y:y-alto},end:{x:578,y:y-alto},thickness:.4,color:linea});y-=alto;
+    }
+  }
+  const pages=doc.getPages();pages.forEach((p,i)=>{
+    p.drawLine({start:{x:34,y:49},end:{x:578,y:49},thickness:.5,color:linea});
+    texto(p,'Control de personal: informa cambios a Administración. (R) = reingreso.',34,37,normal,7);
+    const pie='Página '+(i+1)+' de '+pages.length;texto(p,pie,578-pfPDFAncho(pie,normal,7),24,normal,7);
+  });
+  doc.setTitle('Plantilla activa al '+fmtD(fecha)+' - '+obra.nombre);doc.setAuthor(empresa.razon);
+  return doc.save();
+}
+async function exportPlantillaFechaPDF(){
+  if(window._PF_EXPORTANDO)return;
+  const f=$('pf-fecha')?.value,ct=$('pf-contratista')?.value||'',obra=OBRA&&{...OBRA};
+  const date=new Date(f+'T12:00:00Z');
+  if(!f||!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==f){toast('Elige una fecha válida.','err');return;}
+  if(!obra){toast('Selecciona el centro de trabajo.','err');return;}
+  const act=pfActivos(f,ct).map(w=>({...w,cuadrilla_pdf:cuadNombre(w)||''}));
+  if(!act.length){toast('No había trabajadores activos con esos filtros.','err');return;}
+  const codigo=empresaDeObra(obra),empresa={...(CFGEMP['empresa_'+codigo]||{})};
+  empresa.razon=empresa.razon||razonSocialEmpresa(codigo);
+  const logo=logoEmpresa(codigo);
+  window._PF_EXPORTANDO=true;if($('pf-pdf'))$('pf-pdf').disabled=true;
+  try{
+    const lib=await pfCargarPDF(),bytes=await pfConstruirPDF(lib,{fecha:f,obra,empresa,logo,filas:act});
+    if(OBRA?.id!==obra.id)throw Error('Cambió el centro de trabajo. Vuelve a generar el PDF.');
+    const nombre='PLANTILLA_ACTIVA_'+f+'_'+obra.nombre+'_'+(ct||'GENERAL');
+    const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'})),a=document.createElement('a');
+    a.href=url;a.download=nombre.replace(/[^\p{L}\p{N}_-]/gu,'_')+'.pdf';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    toast('PDF descargado: '+act.length+' trabajadores al '+fmtD(f)+'.','ok');
+  }catch(e){toast('No se pudo generar el PDF: '+e.message,'err');}
+  finally{window._PF_EXPORTANDO=false;if($('pf-out')&&$('pf-fecha'))pfCalcular();}
 }
 /* --- NUEVA OBRA --- */
 function openNuevaObra(){
