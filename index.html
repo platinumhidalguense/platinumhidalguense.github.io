@@ -4253,6 +4253,10 @@ function cuotaFonacotCalendario(mensual,desde,hasta){
 /* Convierte un importe periódico capturado, salvo FONACOT calendario, que
    toma las fechas efectivas y el número real de días de cada mes. */
 function montoDescuento(d,P,semStr,w){
+  if(String(d?.tipo||'').toUpperCase()==='INFONAVIT'&&d.infonavit_avisos_historial?.length){
+    const fecha=semStr&&w?rangoRetencion(w,semStr)[1]:today();
+    d=infonavitCreditoAFecha(d,fecha);
+  }
   if(semStr&&w&&String(d?.tipo||'').toUpperCase()==='FONACOT'&&d.fonacot_prorrateo==='DIAS_CALENDARIO'&&Number(d.cuota_mensual)>0){
     const [ini,fin]=rangoRetencion(w,semStr);
     if(!d.fonacot_prorrateo_desde||fin>=d.fonacot_prorrateo_desde)
@@ -4267,7 +4271,8 @@ function montoDescuento(d,P,semStr,w){
 function montoDobleDescuento(d,w,P,semStr){
   const normal=montoDescuento(d,P,semStr,w);
   if(String(d&&d.tipo||'').toUpperCase()==='INFONAVIT'){
-    const exacto=retencionInfonavitDesdeAviso(d,w,P.dias*2,fechaFinSemanaISO(semStr));
+    const fecha=d.infonavit_avisos_historial?.length?new Date(rangoRetencion(w,semStr)[1]+'T12:00'):fechaFinSemanaISO(semStr);
+    const exacto=retencionInfonavitDesdeAviso(d,w,P.dias*2,fecha);
     if(exacto!=null)return exacto;
   }
   return redondearCentavos(normal*2);
@@ -4281,8 +4286,11 @@ function retencionDiasExtra(d,w,desde,dias){
     while(restantes>0){
       const f=retFecha(fecha),ultimoMes=f.getUTCMonth()-(f.getUTCMonth()%2)+2;
       const fin=retISO(new Date(Date.UTC(f.getUTCFullYear(),ultimoMes,0,12)));
-      let tramo=0;while(tramo<restantes&&retSumarDias(fecha,tramo)<=fin)tramo++;
-      suma+=retencionInfonavitDesdeAviso(d,w,tramo,retFecha(fecha))||0;
+      const siguiente=(d.infonavit_avisos_historial||[]).map(x=>x.desde).filter(x=>x>fecha).sort()[0];
+      let tramo=0;while(tramo<restantes&&retSumarDias(fecha,tramo)<=fin&&(!siguiente||retSumarDias(fecha,tramo)<siguiente))tramo++;
+      const exacto=retencionInfonavitDesdeAviso(d,w,tramo,retFecha(fecha));
+      if(exacto!=null)suma+=exacto;
+      else if(d.infonavit_avisos_historial?.length){const v=infonavitCreditoAFecha(d,fecha),p=PERIODOS[v.periodicidad]||PERIODOS.SEMANAL;suma+=(Number(v.monto)||0)*tramo/p.dias;}
       fecha=retSumarDias(fecha,tramo);restantes-=tramo;
     }
     return redondearCentavos(suma);
@@ -11591,6 +11599,7 @@ function cuotaPeriodoInfonavit(mensual,dias,fecha){
 }
 function cuotaSemanalInfonavit(mensual,fecha){return cuotaPeriodoInfonavit(mensual,7,fecha);}
 function retencionInfonavitDesdeAviso(d,w,dias,fecha){
+  if(d?.infonavit_avisos_historial?.length)d=infonavitCreditoAFecha(d,fecha||new Date());
   const factor=Number(d&&d.factor), dp=Math.max(0,Number(dias)||0);
   if(!(factor>0)||!(dp>0))return null;
   const f=FISC(), db=diasBimestreActual(fecha||new Date());
@@ -14082,8 +14091,9 @@ function faltasAguinaldo(w,fechaCalculo){
     return total+Math.max(0,Math.round(dias||0));
   },0);
 }
-function creditoInfonavitActivo(w){
-  return (typeof DESC!=='undefined'?DESC:[]).find(d=>d.trabajador_id===w.id&&d.activo===true&&d.recurrente===true&&String(d.tipo||'').toUpperCase()==='INFONAVIT')||null;
+function creditoInfonavitActivo(w,fecha){
+  const d=(typeof DESC!=='undefined'?DESC:[]).find(d=>d.trabajador_id===w.id&&d.activo===true&&d.recurrente===true&&String(d.tipo||'').toUpperCase()==='INFONAVIT')||null;
+  return d?.infonavit_avisos_historial?.length?infonavitCreditoAFecha(d,fecha||today()):d;
 }
 function numeroCreditoInfonavit(d){
   if(!d)return '';
@@ -14332,7 +14342,7 @@ function calcPrestaciones(id){
   if($('pr-contrato-legal'))$('pr-contrato-legal').disabled=escenario!=='ART50';
   if($('pr-sdi-legal'))$('pr-sdi-legal').disabled=!['SI','ART50'].includes(escenario);
   const sd=Number(w.sd)||0, sdi=Number(w.sdi)||sd;
-  const infoDesc=creditoInfonavitActivo(w);
+  const infoDesc=creditoInfonavitActivo(w,$('pr-fecha').value);
   const f=$('pr-fecha').value; if(!f||!iniAntig(w)){
     globalThis._PR_AUDIT={invalido:true};PR_TOTAL=NaN;
     if($('pr-usar'))$('pr-usar').disabled=true;
@@ -16067,7 +16077,16 @@ function openManualControl(){
     <div style="padding:10px;background:var(--amber-bg);border-radius:8px;font-size:11px">Antes de presentar, confirma días inhábiles, criterios de la autoridad y versión vigente de los sistemas oficiales. Esta guía organiza evidencia y autorizaciones; no sustituye asesoría legal ni el acuse oficial.</div></div>`,'lg');
 }
 
-/* AVISOS INFONAVIT POR REGISTRO PATRONAL — etapa de comparación, sin escrituras de nómina. */
+/* Condiciones anteriores del mismo crédito: no sustituir historia por el aviso recién confirmado. */
+function infonavitCreditoAFecha(d,fecha){
+  if(!d||!Array.isArray(d.infonavit_avisos_historial)||!d.infonavit_avisos_historial.length)return d;
+  const iso=fecha instanceof Date?`${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}`:String(fecha||today()).slice(0,10);
+  const cambios=d.infonavit_avisos_historial.slice().sort((a,b)=>a.desde.localeCompare(b.desde));
+  const posterior=cambios.find(x=>iso<x.desde);
+  return posterior?{...d,...posterior.antes,id:d.id}:d;
+}
+
+/* AVISOS INFONAVIT POR REGISTRO PATRONAL — comparación y confirmación explícita. */
 let INFAVI=null;
 function infAvisoNorm(s){return String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();}
 function infAvisoFecha(s){
@@ -16138,13 +16157,14 @@ async function openAvisosInfonavit(nss='',rpHint=''){
   const st={empresa:EMPRESA_ACTIVA,registros:[],historial:[],actual:null,archivo:null,busy:false,filtroNss:nss};INFAVI=st;
   modal(`<div class="m-head"><h2>Avisos INFONAVIT · por registro patronal</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body"><p>${esc(EMPRESAS[st.empresa]?.nombre||st.empresa)}</p>
-    <div style="padding:12px;background:var(--amber-bg);border-radius:8px;margin-bottom:14px"><b>Sólo comparación · sin aplicar a nómina.</b> Primero revisa diferencias y avisos originales. Los cambios y fechas se aprobarán después. No se cancela un crédito por no aparecer en un reporte.</div>
+    <div style="padding:12px;background:var(--amber-bg);border-radius:8px;margin-bottom:14px"><b>Importar → revisar → confirmar cambios.</b> Al confirmar se actualizan números de crédito y cuotas con su vigencia y bitácora. No se cancela un crédito por no aparecer en el reporte. Créditos nuevos, suspensiones e identidades ambiguas requieren revisión individual.</div>
     <details style="margin-bottom:12px"><summary>Ayuda y fundamento</summary><p style="font-size:12px">Puedes consultar cualquier día; no existe un corte obligatorio de miércoles. La fecha de corte y la fecha del aviso no sustituyen la recepción ni la vigencia. Una suspensión por obligado solidario no equivale a crédito liquidado. El estimado usa el motor actual, sin recalibrarlo, y no determina subsidios, ausencias ni límites individuales. Antes de aplicar retenciones revisa el aviso/cédula y su vigencia conforme al art. 29 de la Ley del INFONAVIT y arts. 44 y 46 del Reglamento. <a href="https://www.diputados.gob.mx/LeyesBiblio/pdf/LIFNVT.pdf" target="_blank" rel="noopener">Ley vigente</a> · <a href="https://portalmx.infonavit.org.mx/" target="_blank" rel="noopener">Portal INFONAVIT</a>. Los originales y la fotografía de cada importación son privados e inmutables. El acceso completo a la empresa es necesario para abrir un reporte de varios centros.</p></details>
     <label>Registro patronal (incluye todos sus centros autorizados)</label><select id="ia-rp" onchange="infAvisoCambiarRP()"><option>Cargando permisos…</option></select>
     ${puedeEditarTrabajador()?`<div style="margin:12px 0"><label>Reporte de avisos original del portal · PDF con texto, máximo 2 MB</label><input id="ia-file" type="file" accept="application/pdf,.pdf" onchange="infAvisoImportar(this)"></div>`:''}
     <div id="ia-msg" role="status" style="margin:12px 0"></div><div id="ia-hist"></div>
     <div id="ia-tools" class="hide" style="margin:14px 0;display:flex;gap:8px;flex-wrap:wrap"><input id="ia-search" aria-label="Buscar aviso" placeholder="Buscar nombre, número, NSS o crédito" oninput="infAvisoRender()" style="flex:1;min-width:220px" value="${esc(nss)}"><select id="ia-filter" aria-label="Filtrar diferencias" onchange="infAvisoRender()"><option value="">Todos los avisos</option><option value="diferencias">Sólo por revisar</option><option value="SUSPENSION">Suspensiones</option></select><button class="btn" id="ia-actualizar" onclick="infAvisoActualizar()">Actualizar comparación</button><button class="btn" id="ia-original" onclick="infAvisoOriginal()">Descargar original</button></div>
-    <div id="ia-out"></div></div><div class="m-foot"><span style="font-size:12px;color:var(--mut)">No modifica fichas, créditos, nóminas ni pagos.</span><button class="btn" onclick="closeModal()">Cerrar</button></div>`,'lg');
+    <div id="ia-confirm-bar" class="hide" style="margin:12px 0"><button class="btn dark" onclick="infAvisoPreparar()">Confirmar cambios detectados</button> <small>Primero revisa números, cuotas, recepción y fecha de aplicación.</small></div>
+    <div id="ia-out"></div></div><div class="m-foot"><span style="font-size:12px;color:var(--mut)">Importar no aplica cambios: se requiere confirmación explícita.</span><button class="btn" onclick="closeModal()">Cerrar</button></div>`,'lg');
   try{
     const rps=[...new Set(OBRAS.filter(o=>o.empresa_codigo===st.empresa&&o.registro_patronal).map(o=>infAvisoNorm(o.registro_patronal).replace(/[^A-Z0-9]/g,'')))];
     for(const rp of rps){const {data,error}=await sb.rpc('infonavit_puede_ver_registro',{p_empresa:st.empresa,p_rp:rp});if(error)throw error;if(data===true)st.registros.push(rp);}
@@ -16173,10 +16193,12 @@ async function infAvisoAbrir(id){
     const {data,error}=await sb.from('infonavit_avisos_importaciones').select('id,empresa_codigo,registro_patronal,archivo_nombre,archivo_sha256,fecha_corte,avisos,comparacion,creado_en').eq('id',id).eq('empresa_codigo',st.empresa).eq('registro_patronal',rp).single();if(error)throw error;
     if(INFAVI!==st||st.rp!==rp||st.request!==request||!$('ia-out'))return;
     st.actual=data;st.archivo=null;st.resultado=data.comparacion;st.fresca=false;$('ia-history').value=id;infAvisoRender();
+    await infAvisoActualizar();
   }catch(e){if(INFAVI===st&&$('ia-msg'))$('ia-msg').textContent='No se pudo abrir la comparación: '+e.message;}
 }
 function infAvisoRender(){
   const st=INFAVI;if(!st?.actual||!$('ia-out'))return;const q=infAvisoNorm($('ia-search')?.value),f=$('ia-filter')?.value;
+  if($('ia-confirm-bar'))$('ia-confirm-bar').classList.toggle('hide',!st.actual.id||!puedeEditarTrabajador());
   $('ia-tools').classList.remove('hide');$('ia-original').disabled=!st.actual.id;
   const all=st.resultado||[],rs=all.filter(r=>{const d=infAvisoDiagnostico(r),a=r.aviso,w=r.trabajador;
     return (!q||infAvisoNorm([a.nombre,a.nss,a.credito,w?.nombre,w?.no_trab,w?.centro].join(' ')).includes(q))&&(!f||(f==='diferencias'?!['COINCIDE','YA SIN RETENCIÓN ACTIVA'].includes(d):a.tipo===f));});
@@ -16208,7 +16230,11 @@ async function infAvisoImportar(input){
     let b64='';for(let i=0;i<bytes.length;i+=8192)b64+=String.fromCharCode(...bytes.subarray(i,i+8192));
     const saved=await sb.rpc('infonavit_guardar_comparacion',{p_empresa:st.empresa,p_rp:rp,p_fecha_corte:p.fecha_corte,p_archivo_nombre:file.name.slice(0,180),p_archivo_base64:btoa(b64),p_avisos:p.avisos});if(saved.error)throw saved.error;
     st.busy=false;await infAvisoHistorial(st,rp);await infAvisoAbrir(saved.data);
-    if(INFAVI===st&&$('ia-msg'))$('ia-msg').textContent='Comparación archivada. Si el PDF ya existía se abrió el registro original, sin duplicarlo. Ninguna retención fue cambiada.';
+    if(INFAVI===st&&$('ia-msg')){
+      $('ia-msg').textContent='Comparación archivada. Revisa y confirma los cambios detectados para actualizar las fichas. Importar por sí solo no cambia retenciones.';
+      await infAvisoActualizar();
+      if(st.resultado.some(r=>/FALTA NÚMERO|NÚMERO DE CRÉDITO DISTINTO|CAMBIO DE CUOTA|REVISAR MONTO/.test(infAvisoDiagnostico(r))))infAvisoPreparar();
+    }
   }catch(e){if(INFAVI===st&&$('ia-msg'))$('ia-msg').textContent='No se completó la importación: '+e.message;}
   finally{st.busy=false;if(INFAVI===st){if($('ia-file')){$('ia-file').disabled=false;$('ia-file').value='';}if($('ia-rp'))$('ia-rp').disabled=false;}}
 }
@@ -16220,6 +16246,54 @@ async function infAvisoOriginal(){
     const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'})),a=document.createElement('a');a.href=url;a.download=actual.archivo_nombre;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
   }catch(e){if(INFAVI===st&&$('ia-msg'))$('ia-msg').textContent='No se pudo descargar el PDF: '+e.message;}finally{st.busy=false;}
 }
+/* Confirmación de avisos: nunca ejecutar la actualización durante la lectura del archivo. */
+function infAvisoPreparar(){
+  const st=INFAVI;if(!st?.actual?.id||st.busy||!puedeEditarTrabajador())return;
+  st.aprobacion={importacion:st.actual.id,plan:[],busy:false};
+  modal2(`<div class="m-head"><h2>Confirmar cambios INFONAVIT</h2><button class="x" onclick="closeModal2()">×</button></div><div class="m-body">
+    <p>Se actualizarán los números faltantes o distintos y las cuotas detectadas, sólo de trabajadores activos con un crédito único. Se conservarán el documento, los valores anteriores y la bitácora.</p>
+    <div class="grid" style="grid-template-columns:1fr 1fr"><div><label>Fecha real de recepción del aviso / cédula *</label><input id="ia-rec" type="date" max="${today()}" oninput="infAvisoInvalidarPlan()"></div><div><label>Aplicar en nómina desde *</label><input id="ia-desde" type="date" oninput="infAvisoInvalidarPlan()"></div></div>
+    <p class="fhint">Para cambios de cuota selecciona el inicio de un periodo abierto: lunes para semanal, día 1 o 16 para quincenal. Si hay días intermedios pendientes, usa “Días/importe” en la ficha para su proporcional, sin inventar salarios. No se cambiarán cierres revisados, CFDI, pagos ni finiquitos guardados. La fecha de corte del reporte no sustituye la recepción del aviso.</p>
+    <label>Motivo / referencia del respaldo *</label><input id="ia-motivo" placeholder="Ej. Actualización confirmada contra aviso del portal" maxlength="500">
+    <button class="btn" id="ia-plan-btn" style="margin:12px 0" onclick="infAvisoPlan()">Revisar cambios antes de confirmar</button><div id="ia-plan-msg" role="status"></div><div id="ia-plan-out"></div>
+    </div><div class="m-foot"><button class="btn" onclick="closeModal2()">Cancelar</button><button class="btn dark" id="ia-aplicar" disabled onclick="infAvisoAplicar()">Confirmar y actualizar fichas</button></div>`,'lg');
+}
+function infAvisoInvalidarPlan(){
+  if(INFAVI?.aprobacion){INFAVI.aprobacion.plan=[];INFAVI.aprobacion.request=(INFAVI.aprobacion.request||0)+1;}
+  if($('ia-aplicar'))$('ia-aplicar').disabled=true;if($('ia-plan-out'))$('ia-plan-out').innerHTML='';
+}
+async function infAvisoPlan(){
+  const st=INFAVI,a=st?.aprobacion;if(!a||a.busy)return;
+  const recepcion=$('ia-rec').value,desde=$('ia-desde').value;
+  if(!recepcion||!desde||recepcion>today()||desde<recepcion){$('ia-plan-msg').textContent='Captura recepción real y aplicación igual o posterior; la recepción no puede ser futura.';return;}
+  a.busy=true;const req=a.request=(a.request||0)+1;$('ia-plan-btn').disabled=true;$('ia-aplicar').disabled=true;
+  try{const {data,error}=await sb.rpc('infonavit_plan_cambios',{p_importacion:a.importacion,p_desde:desde});if(error)throw error;
+    if(INFAVI!==st||st.aprobacion!==a||a.request!==req||!$('ia-plan-out'))return;
+    a.plan=data||[];a.desde=desde;a.recepcion=recepcion;
+    $('ia-plan-msg').textContent=a.plan.length?`${a.plan.length} cambio(s) por confirmar. Desmarca los que no quieras aplicar.`:'No hay cambios aplicables: ya coinciden, ya se aplicaron o requieren revisión individual (crédito nuevo, suspensión o identidad ambigua).';
+    $('ia-plan-out').innerHTML=`<div style="overflow:auto"><table style="width:100%;font-size:12px"><thead><tr><th>Aplicar</th><th>Trabajador / centro</th><th>Antes</th><th>Después</th></tr></thead><tbody>${a.plan.map((x,i)=>`<tr><td><input type="checkbox" class="ia-seleccion" data-index="${i}" checked aria-label="Aplicar cambio a ${esc(x.trabajador.nombre)}" style="width:auto"></td><td style="white-space:normal">#${esc(x.trabajador.no_trab)} · ${esc(x.trabajador.nombre)}<br>${esc(x.trabajador.centro)}</td><td style="white-space:normal">Crédito: ${esc(x.antes.numero_credito||'Sin número')}<br>${esc(x.antes.modalidad)} · factor ${money(x.antes.factor)}<br>Retención: $${money(x.antes.monto)} / ${esc(x.antes.periodicidad)}</td><td style="white-space:normal">Crédito: ${esc(x.despues.numero_credito)}<br>${esc(x.despues.modalidad)} · factor ${money(x.despues.factor)}<br>Retención: $${money(x.despues.monto)} / ${esc(x.despues.periodicidad)}<br>Desde ${esc(desde)}</td></tr>`).join('')}</tbody></table></div>`;
+    $('ia-aplicar').disabled=!a.plan.length;
+  }catch(e){if(INFAVI===st&&$('ia-plan-msg'))$('ia-plan-msg').textContent='No se pudo preparar: '+e.message;}finally{a.busy=false;if(INFAVI===st&&$('ia-plan-btn'))$('ia-plan-btn').disabled=false;}
+}
+async function infAvisoAplicar(){
+  const st=INFAVI,a=st?.aprobacion;if(!a||a.busy||!puedeEditarTrabajador())return;
+  const motivo=$('ia-motivo').value.trim();
+  if(motivo.length<8){$('ia-plan-msg').textContent='Indica el motivo o referencia (mínimo 8 caracteres).';return;}
+  if(a.desde!==$('ia-desde').value||a.recepcion!==$('ia-rec').value||!a.plan.length){$('ia-plan-msg').textContent='Las fechas cambiaron. Vuelve a revisar el plan.';return;}
+  const seleccion=[...document.querySelectorAll('.ia-seleccion:checked')].map(el=>a.plan[Number(el.dataset.index)]).filter(Boolean).map(x=>({folio:x.folio,descuento_id:x.descuento_id,huella:x.huella}));
+  if(!seleccion.length){$('ia-plan-msg').textContent='Selecciona al menos un cambio.';return;}
+  if(!confirm(`¿CONFIRMAR ${seleccion.length} cambio(s) desde ${a.desde}? Se actualizarán las fichas y la retención de periodos abiertos. Esta acción quedará en la bitácora.`))return;
+  a.busy=true;st.busy=true;$('ia-aplicar').disabled=true;$('ia-plan-btn').disabled=true;
+  try{const {data,error}=await sb.rpc('infonavit_confirmar_cambios',{p_importacion:a.importacion,p_recepcion:a.recepcion,p_desde:a.desde,p_motivo:motivo,p_seleccion:seleccion});if(error)throw error;
+    if(!data||Number(data.aplicados)!==seleccion.length)throw Error('Respuesta de confirmación incompleta; consulta la bitácora antes de reintentar.');
+    markWrite();
+    // Refresca los créditos de todas las obras autorizadas, no sólo los de la obra abierta.
+    if(OBRA){const r=await fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',OBRA.id));if(r.error)throw Error('Los cambios se guardaron, pero no se pudo refrescar la ficha: '+r.error.message);DESC=r.data||[];}
+    if(INFAVI!==st||!$('ia-out'))return;if($('ia-plan-msg'))closeModal2();st.busy=false;await infAvisoActualizar();
+    if($('ia-msg'))$('ia-msg').textContent=`${data.aplicados} cambio(s) confirmado(s) desde ${a.desde}. Fichas actualizadas; periodos anteriores conservan sus condiciones. Reabre o regenera los borradores abiertos para revisarlos.`;
+  }catch(e){if(INFAVI===st&&$('ia-plan-msg'))$('ia-plan-msg').textContent='No se completó la confirmación: '+e.message;}finally{a.busy=false;st.busy=false;if(INFAVI===st){if($('ia-aplicar'))$('ia-aplicar').disabled=false;if($('ia-plan-btn'))$('ia-plan-btn').disabled=false;}}
+}
+/* FIN CONFIRMACION AVISOS */
 /* FIN AVISOS INFONAVIT */
 
 init();
