@@ -5085,7 +5085,8 @@ function proyModelo(act,fins,sem,audits=[]){
 function buildProyDestinoWS({titulo,sub,pie,colB,modelo,destino}){
   const dispersion=destino==='DISPERSION', prevision=dispersion&&modelo.filas.some(x=>x.prevision!==0),otras=dispersion&&modelo.filas.some(x=>x.otras!==0);
   const cols=dispersion?['NO.','CONTRATISTA','NOMBRE COMPLETO','CLABE','CUENTA','BANCO','SUELDO REGISTRADO / FINIQUITO',
-    ...(prevision?['PREVISIÓN SOCIAL']:[]),'RETENCIÓN POR INCIDENCIAS','RETENCIÓN INFONAVIT / FONACOT',...(otras?['OTRAS RETENCIONES']:[]),'NETO A PAGAR','FORMA DE PAGO']:
+    ...(prevision?['PREVISIÓN SOCIAL']:[]),'RETENCIÓN POR INCIDENCIAS','TOTAL SUELDO MENOS INCIDENCIAS',
+    'RETENCIÓN INFONAVIT / FONACOT','TOTAL SUELDO MENOS CRÉDITOS',...(otras?['OTRAS RETENCIONES']:[]),'NETO A PAGAR','FORMA DE PAGO']:
     ['NO.','CONTRATISTA','NOMBRE COMPLETO','CONCEPTO','SUELDO REGISTRADO / FINIQUITO','DESCUENTOS POR INCIDENCIAS','IMPORTE PARA CONTRATISTA'];
   cols[1]=colB==='OBRA'?'OBRA':'CONTRATISTA';
   const rows=[[titulo],[sub],cols],styles=[{...ST.title,font:{...ST.title.font,sz:12},alignment:{...ST.title.alignment,wrapText:true}},ST.sub,ST.head],hs=[{hpt:42},{hpt:24},{hpt:44}],merges=[];
@@ -5097,7 +5098,8 @@ function buildProyDestinoWS({titulo,sub,pie,colB,modelo,destino}){
     const w=x.w, info=[w.no_trab??'',bVal(w),fullName(w)];
     const clabe=String(w.clabe||'').replace(/\D/g,''),cuenta=String(w.cuenta||'').trim();
     const row=dispersion?[...info,clabe.length>=10?'/'+clabe:'—',cuenta.toUpperCase()!=='CREAR'&&cuenta.replace(/\D/g,'').length>=6?cuenta:'—',w.banco||'—',x.sueldo,
-      ...(prevision?[x.prevision]:[]),x.incidencias,x.creditos,...(otras?[x.otras]:[]),x.neto,x.pago]:
+      ...(prevision?[x.prevision]:[]),x.incidencias,x.costo,x.creditos,redondearCentavos(Math.max(0,x.sueldo-x.creditos)),
+      ...(otras?[x.otras]:[]),x.neto,x.pago]:
       [...info,x.fin?'FINIQUITO':'NÓMINA',x.sueldo,x.incidencias,x.costo];
     rows.push(row);dataRows.push(rows.length);grupoRows[x.pago].push(rows.length);
     styles.push(row.map((v,i)=>{const st=typeof v==='number'&&i>0?(x.fin?ST.finMoney:ST.money):x.fin?ST.fin:i===0?ST.cellC:ST.cell;
@@ -5130,6 +5132,12 @@ function buildProyDestinoWS({titulo,sub,pie,colB,modelo,destino}){
     bloques.push(L(col)+inicio+':'+L(col)+fin);return `SUM(${bloques.join(',')})`;
   };
   const fx=[];
+  // Subtotales independientes sobre el sueldo registrado: no se suman entre sí
+  // ni incluyen previsión social. El neto final conserva todas las retenciones.
+  if(dispersion)for(const r of dataRows){
+    fx.push([L(idx['TOTAL SUELDO MENOS INCIDENCIAS'])+r,`ROUND(MAX(0,SUM(G${r})-SUM(${L(idx['RETENCIÓN POR INCIDENCIAS'])}${r})),2)`]);
+    fx.push([L(idx['TOTAL SUELDO MENOS CRÉDITOS'])+r,`ROUND(MAX(0,SUM(G${r})-SUM(${L(idx['RETENCIÓN INFONAVIT / FONACOT'])}${r})),2)`]);
+  }
   dataRows.forEach(r=>fx.push([L(totalI)+r,dispersion?
     `ROUND(MAX(0,SUM(G${r}${prevision?':H'+r:''})-SUM(${L(idx['RETENCIÓN POR INCIDENCIAS'])}${r},${L(idx['RETENCIÓN INFONAVIT / FONACOT'])}${r}${otras?','+L(idx['OTRAS RETENCIONES'])+r:''})),2)`:
     `ROUND(MAX(0,SUM(E${r})-SUM(F${r})),2)`]));
@@ -5157,7 +5165,7 @@ function buildProyDestinoWS({titulo,sub,pie,colB,modelo,destino}){
   rows.push([pie]);styles.push(ST.sub);hs.push({hpt:22});
   // La última celda de la franja superior queda reservada al logo.
   for(const r of [0,1,rows.length-1])merges.push({s:{r,c:0},e:{r,c:cols.length-(r===0?2:1)}});
-  const widths=dispersion?[8,20,38,24,17,12,20,...(prevision?[17]:[]),18,20,...(otras?[17]:[]),18,18]:[8,22,40,15,23,23,25];
+  const widths=dispersion?[8,20,38,24,17,12,20,...(prevision?[17]:[]),18,24,20,24,...(otras?[17]:[]),18,18]:[8,22,40,15,23,23,25];
   const ws=buildSheet(rows,styles,widths,merges,hs);
   ws[L(cols.length-1)+'1']={t:'s',v:'',s:ST.title};
   for(const [a,f] of fx){if(ws[a]){ws[a].t='n';ws[a].f=f;}}
