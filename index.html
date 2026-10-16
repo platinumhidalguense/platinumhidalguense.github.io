@@ -2889,7 +2889,9 @@ function cuadRefresca(idSel){
   const sel=$('f-id_cuadrilla'); if(!sel)return;
   const contr=($('f-contratista')?$('f-contratista').value:'').trim();
   const actual=idSel!==undefined?idSel:sel.value;
-  const lista=cuadsDe(contr);
+  // No ofrecer cuadrillas retiradas en nuevas asignaciones; conservar la actual
+  // al editar un registro histórico para no desasignarlo accidentalmente.
+  const lista=cuadsDe(contr).filter(c=>c.activa!==false||c.id===actual);
   sel.innerHTML='<option value="">— sin cuadrilla —</option>'+
     lista.map(c=>`<option value="${c.id}" ${c.id===actual?'selected':''}>${esc(c.nombre)}${c.lider_id?' · cabeza: '+esc(cuadLider(c)):''}</option>`).join('');
   const h=$('h-id_cuadrilla');
@@ -9661,7 +9663,7 @@ function asPaginas(grupos){
 
 /* ---------- ADMINISTRAR CUADRILLAS ---------- */
 function openCuadrillas(){
-  const cs=(CUADS||[]).slice().sort((a,b)=>String(a.contratista).localeCompare(String(b.contratista),'es')
+  const cs=(CUADS||[]).filter(c=>c.activa!==false).slice().sort((a,b)=>String(a.contratista).localeCompare(String(b.contratista),'es')
     ||(a.orden??9999)-(b.orden??9999)||String(a.nombre).localeCompare(String(b.nombre),'es'));
   const cuenta=id=>(WORKERS||[]).filter(w=>w.id_cuadrilla===id&&w.estatus==='ACTIVO').length;
   const contrs=[...new Set((WORKERS||[]).map(w=>String(w.contratista||'').trim()).filter(Boolean))].sort();
