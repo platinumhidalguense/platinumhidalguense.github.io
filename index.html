@@ -4271,7 +4271,12 @@ function montoDescuento(d,P,semStr,w){
 function montoDobleDescuento(d,w,P,semStr){
   const normal=montoDescuento(d,P,semStr,w);
   if(String(d&&d.tipo||'').toUpperCase()==='INFONAVIT'){
-    const fecha=d.infonavit_avisos_historial?.length?new Date(rangoRetencion(w,semStr)[1]+'T12:00'):fechaFinSemanaISO(semStr);
+    let fecha=fechaFinSemanaISO(semStr);
+    if(d.infonavit_avisos_historial?.length){
+      const fin=rangoRetencion(w,semStr)[1];
+      const cambio=d.infonavit_avisos_historial.some(x=>x.desde<=fin&&['factor','modalidad','monto','periodicidad'].some(k=>String(x.antes?.[k]??'')!==String(x.despues?.[k]??'')));
+      if(cambio)fecha=new Date(fin+'T12:00');
+    }
     const exacto=retencionInfonavitDesdeAviso(d,w,P.dias*2,fecha);
     if(exacto!=null)return exacto;
   }
@@ -4286,7 +4291,7 @@ function retencionDiasExtra(d,w,desde,dias){
     while(restantes>0){
       const f=retFecha(fecha),ultimoMes=f.getUTCMonth()-(f.getUTCMonth()%2)+2;
       const fin=retISO(new Date(Date.UTC(f.getUTCFullYear(),ultimoMes,0,12)));
-      const siguiente=(d.infonavit_avisos_historial||[]).map(x=>x.desde).filter(x=>x>fecha).sort()[0];
+      const siguiente=(d.infonavit_avisos_historial||[]).filter(x=>['factor','modalidad'].some(k=>String(x.antes?.[k]??'')!==String(x.despues?.[k]??''))).map(x=>x.desde).filter(x=>x>fecha).sort()[0];
       let tramo=0;while(tramo<restantes&&retSumarDias(fecha,tramo)<=fin&&(!siguiente||retSumarDias(fecha,tramo)<siguiente))tramo++;
       const exacto=retencionInfonavitDesdeAviso(d,w,tramo,retFecha(fecha));
       if(exacto!=null)suma+=exacto;
