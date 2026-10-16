@@ -5099,7 +5099,76 @@ function proyModelo(act,fins,sem,audits=[]){
   return {filas,items:filas.flatMap(x=>x.items),act,fins,sem,
     costo:redondearCentavos(filas.reduce((s,x)=>s+x.costo,0)),neto:redondearCentavos(filas.reduce((s,x)=>s+x.neto,0))};
 }
+/* Dispersión compacta: el motor sigue siendo la única fuente de los importes.
+   Las deducciones se consultan en RETENCIONES, no se vuelven a descontar aquí. */
+function proyTransferenciaOtroBanco(w){
+  const banco=String(w.banco||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+  const clabe=String(w.clabe||'').replace(/\D/g,'');
+  if(/^\d{18}$/.test(clabe))return clabe.slice(0,3)!=='012';
+  if(/BBVA|BANCOMER/.test(banco)||/^0?12$/.test(banco))return false;
+  return !!banco&&!/^(?:—|-|N\/A|SIN BANCO|SIN ASIGNAR|POR DEFINIR|PENDIENTE|CREAR)$/.test(banco);
+}
+function buildProyDispersionWS({titulo,sub,pie,colB,modelo}){
+  const cols=['NO.',colB==='OBRA'?'OBRA':'CONTRATISTA','NOMBRE COMPLETO','CLABE','CUENTA','BANCO','NETO A PAGAR','FORMA DE PAGO'];
+  const rows=[[titulo],[sub],cols],styles=[{...ST.title,font:{...ST.title.font,sz:12},alignment:{...ST.title.alignment,wrapText:true}},ST.sub,ST.head];
+  const hs=[{hpt:42},{hpt:24},{hpt:44}],merges=[],dataRows=[],fx=[];
+  const bVal=w=>colB==='OBRA'?(OBRAS.find(o=>o.id===w.obra_id)?.nombre||''):w.contratista||'';
+  const orden=(a,b)=>(colB==='OBRA'?String(bVal(a.w)).localeCompare(String(bVal(b.w)),'es'):0)
+    ||(Number(a.w.no_trab)||0)-(Number(b.w.no_trab)||0);
+  const suma=rs=>{
+    if(!rs.length)return '0';
+    const bloques=[];let a=rs[0],b=a;
+    for(const r of rs.slice(1)){if(r===b+1)b=r;else{bloques.push(`G${a}:G${b}`);a=b=r;}}
+    bloques.push(`G${a}:G${b}`);return `SUM(${bloques.join(',')})`;
+  };
+  const secciones=[
+    ['NÓMINA POR TRANSFERENCIA',x=>!x.fin&&!x.sinCuenta&&x.pago==='TRANSFERENCIA'],
+    ['FINIQUITOS POR TRANSFERENCIA',x=>x.fin&&x.pago==='TRANSFERENCIA'],
+    ['NÓMINA POR CHEQUE',x=>!x.fin&&!x.sinCuenta&&x.pago==='CHEQUE'],
+    ['FINIQUITOS POR CHEQUE',x=>x.fin&&x.pago==='CHEQUE'],
+    ['NÓMINA SIN CUENTA · POR DEFINIR',x=>!x.fin&&x.sinCuenta]
+  ];
+  for(const [nombre,elegir] of secciones){
+    const grupo=modelo.filas.filter(elegir).sort(orden);if(!grupo.length)continue;
+    merges.push({s:{r:rows.length,c:0},e:{r:rows.length,c:7}});
+    rows.push([`${nombre} · ${grupo.length} trabajadores`]);
+    styles.push({...ST.sect,font:{...ST.sect.font,color:{rgb:'000000'}},
+      fill:{patternType:'solid',fgColor:{rgb:nombre==='NÓMINA POR TRANSFERENCIA'?'D8E4BC':'FFF3D6'}}});hs.push({hpt:22});
+    const rs=[];
+    for(const x of grupo){
+      if(!Number.isFinite(x.neto))throw Error(`Neto inválido para el trabajador #${x.w.no_trab}. Revisa su cálculo antes de exportar.`);
+      const w=x.w,clabe=String(w.clabe||'').replace(/\D/g,''),cuenta=String(w.cuenta||'').trim();
+      rows.push([w.no_trab??'',bVal(w),fullName(w),clabe.length>=10?'/'+clabe:'—',
+        cuenta.toUpperCase()!=='CREAR'&&cuenta.replace(/\D/g,'').length>=6?cuenta:'—',w.banco||'—',x.neto,x.pago]);
+      dataRows.push(rows.length);rs.push(rows.length);
+      const otroBanco=x.pago==='TRANSFERENCIA'&&proyTransferenciaOtroBanco(w);
+      styles.push(cols.map((_,i)=>{
+        const st=i===6?(x.fin?ST.finMoney:ST.money):x.fin?ST.fin:i===0?ST.cellC:ST.cell;
+        return {...st,alignment:{...st.alignment,...(i===0?{horizontal:'center'}:i!==6?{wrapText:true}:{})},
+          fill:otroBanco?{patternType:'solid',fgColor:{rgb:'FFFF00'}}:st.fill||{patternType:'solid',fgColor:{rgb:'FFFFFF'}}};
+      }));hs.push({hpt:28});
+    }
+    rows.push([`SUBTOTAL ${nombre}`,'','','','','',redondearCentavos(grupo.reduce((s,x)=>s+x.neto,0)),'']);
+    styles.push(cols.map((_,i)=>i===6?ST.totalMoney:ST.total));hs.push({hpt:28});
+    merges.push({s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:5}});fx.push(['G'+rows.length,suma(rs)]);
+  }
+  if(dataRows.length!==modelo.filas.length)throw Error('Hay trabajadores con método de pago sin clasificar. No se generó una dispersión incompleta.');
+  rows.push([`TOTAL · ${modelo.filas.length} TRABAJADORES`,'','','','','',modelo.neto,'']);
+  styles.push(cols.map((_,i)=>i===6?ST.totalMoney:ST.total));hs.push({hpt:28});
+  merges.push({s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:5}});fx.push(['G'+rows.length,suma(dataRows)]);
+  rows.push([pie]);styles.push(ST.sub);hs.push({hpt:22});
+  merges.push({s:{r:0,c:0},e:{r:0,c:6}},{s:{r:1,c:0},e:{r:1,c:7}},
+    {s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:7}});
+  const ws=buildSheet(rows,styles,[8,20,38,24,17,12,18,18],merges,hs);
+  ws.H1={t:'s',v:'',s:ST.title};
+  for(const r of dataRows)for(const col of ['D','E']){
+    const cell=ws[col+r];cell.t='s';cell.v=String(cell.v??'');cell.z='@';cell.s={...cell.s,numFmt:'@'};
+  }
+  for(const [a,f] of fx){ws[a].t='n';ws[a].f=f;}
+  return ws;
+}
 function buildProyDestinoWS({titulo,sub,pie,colB,modelo,destino}){
+  if(destino==='DISPERSION')return buildProyDispersionWS({titulo,sub,pie,colB,modelo});
   const dispersion=destino==='DISPERSION', prevision=dispersion&&modelo.filas.some(x=>x.prevision!==0),otras=dispersion&&modelo.filas.some(x=>x.otras!==0);
   const cols=dispersion?['NO.','CONTRATISTA','NOMBRE COMPLETO','CLABE','CUENTA','BANCO','SUELDO REGISTRADO / FINIQUITO',
     ...(prevision?['PREVISIÓN SOCIAL']:[]),'RETENCIÓN POR INCIDENCIAS','TOTAL SUELDO MENOS INCIDENCIAS',
