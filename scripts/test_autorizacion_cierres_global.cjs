@@ -1,5 +1,5 @@
 // Adaptador al flujo transaccional; permisos comprobados en PostgreSQL.
-const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),html=fs.readFileSync('index.html','utf8');
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),html=require('./fuente_frontend.cjs').html();
 const a=html.indexOf('async function ctrlCambiarCierre('),b=html.indexOf('async function openCtrlConciliacionSelector(',a);
 (async()=>{
  const messages=[],calls=[],ctx={window:{},toast:m=>messages.push(m)};vm.createContext(ctx);vm.runInContext(html.slice(a,b),ctx);

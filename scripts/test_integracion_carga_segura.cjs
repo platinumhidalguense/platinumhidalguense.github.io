@@ -1,5 +1,5 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const html=fs.readFileSync('index.html','utf8');
+const html=require('./fuente_frontend.cjs').html();
 const start=html.indexOf('let OBRA_CARGA_SECUENCIA='),end=html.indexOf('let CFGEMP={}',start);
 const select=html.slice(html.indexOf('async function selectObra('),html.indexOf('async function selectEmpresa('));
 const tables=['trabajadores','cheques','descuentos','documentos','vacaciones','actas','nom035','pagos','prima_pagos','cuadrillas','diferenciales','bloques_cheques','sueldos_internos','control_cierres_nomina','control_conciliacion_noi','control_altas_bajas_cortas','control_finiquitos_transferencia'];

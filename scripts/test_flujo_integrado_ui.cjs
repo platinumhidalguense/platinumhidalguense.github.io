@@ -1,6 +1,6 @@
 // VM de JavaScript: sin navegador, cuentas, red ni datos reales.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const html=fs.readFileSync('index.html','utf8'),source=fs.readFileSync('platinum-workflows.js','utf8');
+const html=require('./fuente_frontend.cjs').html(),source=fs.readFileSync('platinum-workflows.js','utf8');
 let checks=0;
 for(const s of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g))if(!/src=|application\/json/.test(s[1])){new vm.Script(s[2]);checks++;}
 const elements={'flow-reason':{value:'Motivo ficticio suficiente'},'flow-decision':{value:'Decisión ficticia suficiente'}};

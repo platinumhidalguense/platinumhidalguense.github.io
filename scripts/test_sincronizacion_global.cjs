@@ -1,5 +1,5 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const code=fs.readFileSync('platinum-sync.js','utf8'),html=fs.readFileSync('index.html','utf8');
+const code=fs.readFileSync('platinum-sync.js','utf8'),html=require('./fuente_frontend.cjs').html();
 const box={setTimeout,clearTimeout};vm.createContext(box);vm.runInContext(code,box);const core=box.PLATINUM_SYNC;
 function fn(name){const start=html.indexOf(name);assert(start>=0,name);const next=/\n(?:async )?function |\n\/\* /g;next.lastIndex=start+name.length;return html.slice(start,next.exec(html).index);}
 function clock(){let n=0;const tasks=new Map();return {setTimer:f=>{tasks.set(++n,f);return n;},clearTimer:id=>tasks.delete(id),async tick(){const all=[...tasks.values()];tasks.clear();await Promise.all(all.map(f=>f()));},get size(){return tasks.size;}};}

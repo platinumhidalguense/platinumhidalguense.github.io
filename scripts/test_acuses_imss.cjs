@@ -1,6 +1,6 @@
 // Pruebas sin credenciales ni escrituras de producción.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const html=fs.readFileSync('index.html','utf8');
+const html=require('./fuente_frontend.cjs').html();
 const fn=n=>{const m=html.match(new RegExp('(?:async )?function '+n+'\\([^\\n]*\\)[^{]*\\{[\\s\\S]*?\\n\\}'));assert(m,n);return m[0];};
 const c={Date,Number,String,Map,Set,DOCSX:[],sb:{},console};vm.createContext(c);
 ['fechaAcuseISO','indiceAcusesIMSS','estadoAcuseIMSS','altaImssPendiente','altaImssPresentada','tieneAcuseAltaImportado','acuseAltaPendiente','fetchAllRows','cargarAcusesTrabajadores','refrescaDocsDe'].forEach(n=>vm.runInContext(fn(n),c));

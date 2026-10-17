@@ -1,7 +1,7 @@
 // Pruebas con datos ficticios: no accede a Supabase ni modifica trabajadores reales.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
 const {pathToFileURL}=require('node:url'),{chromium}=require('playwright');
-const html=fs.readFileSync('index.html','utf8');
+const html=require('./fuente_frontend.cjs').html();
 function fn(marker){const start=html.indexOf(marker);assert(start>=0,marker);const next=html.indexOf('\nfunction ',start+1);return html.slice(start,next<0?html.length:next);}
 const box={Date,Number,Math,Error};vm.createContext(box);
 const isr=html.match(/const ISR_M=\[.*?\];/)[0];
@@ -52,8 +52,8 @@ console.log('OK cálculos por escenarios, bases, prima, antigüedad calendario, 
     const page=await browser.newPage({viewport:{width:1366,height:900}});await page.route(/^https?:/,r=>r.abort());
     await page.goto(pathToFileURL(path.resolve('index.html')).href,{waitUntil:'domcontentloaded'});
     await page.evaluate(()=>{
-      OBRA={id:'qa',nombre:'PRUEBA',empresa_codigo:'PLATINUM'};OBRAS=[OBRA];CFGEMP={};DESC=[];PUEDE_EDITAR_TRABAJADORES=true;
-      USER={id:'admin-qa',email:'darieljtg@gmail.com'};
+      OBRA={id:'qa',nombre:'PRUEBA',empresa_codigo:'PLATINUM'};OBRAS=[OBRA];CFGEMP={};CFGEMP.admin_papelera={email:'admin@example.test'};DESC=[];PUEDE_EDITAR_TRABAJADORES=true;
+      USER={id:'admin-qa',email:'admin@example.test'};
       WORKERS=[{id:'qa',obra_id:'qa',no_trab:1,primer_apellido:'TRABAJADOR',nombres:'FICTICIO',fecha_alta:'2025-10-09',sd:1000,sdi:1050,estatus:'ACTIVO',periodo_pago:'SEMANAL'}];
       window._qaLogs=[];window._qaAplicado=null;window._qaGuardar=true;window._qaConfirm=true;
       window.confirm=()=>window._qaConfirm;toast=(msg)=>window._qaLogs.push(msg);
@@ -77,9 +77,9 @@ console.log('OK cálculos por escenarios, bases, prima, antigüedad calendario, 
     await page.fill('#pr-isr-noi',String(result.resultado.isr));await page.check('#pr-validado-legal');assert(await page.locator('#pr-usar').isEnabled());
     await page.check('#pr-litigo-legal');assert(await page.locator('#pr-usar').isDisabled());await page.uncheck('#pr-litigo-legal');
     assert.equal(await page.locator('#pr-validado-legal').isChecked(),false);await page.check('#pr-validado-legal');
-    await page.evaluate(async()=>{USER.email='lectura@ejemplo.invalid';await usarEnBaja('qa');});
+    await page.evaluate(async()=>{USER.email='admin@example.test';await usarEnBaja('qa');});
     assert.equal(await page.evaluate(()=>window._qaAplicado),null);
-    await page.evaluate(()=>{USER.email='darieljtg@gmail.com';calcPrestaciones('qa');});
+    await page.evaluate(()=>{USER.email='admin@example.test';calcPrestaciones('qa');});
     await page.evaluate(async()=>{window._qaConfirm=false;await usarEnBaja('qa');});assert.equal(await page.evaluate(()=>window._qaAplicado),null);
     await page.evaluate(async()=>{window._qaConfirm=true;window._qaGuardar=false;await usarEnBaja('qa');});assert.equal(await page.evaluate(()=>window._qaAplicado),null);
     assert(await page.locator('#pr-usar').isEnabled());

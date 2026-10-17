@@ -1,0 +1,164 @@
+{
+  "version": "2026-10-16.3",
+  "entry": "assets/platinum-app.3bd1b89bc190323a.js",
+  "sha256": "3bd1b89bc190323a6f05093dcf6a9fbdd91858fbd0e6b19c871611a5cdf47294",
+  "integrity": "sha384-PGVZ/7jFmDHP+oFD7NE6AP81VJY/btESMi17dLFdksNUpWP/WiF6z+zxfiWYYYUS",
+  "modules": [
+    {
+      "path": "frontend/modulos/00-configuracion-utilidades.js",
+      "sha256": "99ad8efbd8f2041d621863d7239a083af74d533bac9557a3808ce823c33c2919"
+    },
+    {
+      "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
+      "sha256": "c07a464bcb59940e34bd80605f43b739120981e90b0d215b1636399cf9d624d4"
+    },
+    {
+      "path": "frontend/modulos/02-asistente-extractores.js",
+      "sha256": "f288fc074fce1acd7d32fb79a6120e7842edfca944c783060d9b8d9743f826b1"
+    },
+    {
+      "path": "frontend/modulos/03-navegacion-presentacion.js",
+      "sha256": "5e59f5d7e44fec292fee9bcf6535fa8d062ca195609fcca8b539c8c95b67a851"
+    },
+    {
+      "path": "frontend/modulos/04-padron-expedientes.js",
+      "sha256": "78388f9300459d15127d6d068e8fbaa6974ada80eeba93a566f0c8550e6a0556"
+    },
+    {
+      "path": "frontend/modulos/05-alta-edicion.js",
+      "sha256": "78fc03e204969ee9bd813ad90e3b79a64b1d6408e3defa0ca97d767b5ae16508"
+    },
+    {
+      "path": "frontend/modulos/06-movimientos-historial.js",
+      "sha256": "e5f0112a28318fe970f40e7fb57640e5d845950e3d43c3e2a14b9cc917e85d60"
+    },
+    {
+      "path": "frontend/modulos/07-exportacion-corporativa.js",
+      "sha256": "90dc2a9e198f4bc164caafb8981ec7274aa54b31a1a9b5e8ba9453a0131af189"
+    },
+    {
+      "path": "frontend/modulos/08-retenciones-incidencias.js",
+      "sha256": "605c31bc302f20cd1c8bc630c4cf5265e1ff01b95a2125055b286879effc702c"
+    },
+    {
+      "path": "frontend/modulos/09-documentacion-reportes.js",
+      "sha256": "0980f7d4360115db625a14bd1931437e6aebc665f21c8d95ee0235559315ca73"
+    },
+    {
+      "path": "frontend/modulos/10-proyeccion-nomina.js",
+      "sha256": "f6173e6ac46b7ebb455bf4ac24e0104767b96c611979ffbe1e34cfd2cf1ea316"
+    },
+    {
+      "path": "frontend/modulos/11-expedientes-excel.js",
+      "sha256": "a66a8dacfa85d821912e393617829c1c837c57c96ab5393d86747cf93a236d65"
+    },
+    {
+      "path": "frontend/modulos/12-bloques-entregas.js",
+      "sha256": "0731af724d9b690e555bfbb04b8535760fd720406138cde47e1a143651c51c42"
+    },
+    {
+      "path": "frontend/modulos/13-control-salarial-diferenciales.js",
+      "sha256": "a8988dfb4f3389b2a0944616ec4661487319a84d0a96f9231d10c0ceb05aafa2"
+    },
+    {
+      "path": "frontend/modulos/14-importacion-documental.js",
+      "sha256": "bd397023b406f6f51c0fda882087886f30c96076b9b7f43608cab82d4a91393f"
+    },
+    {
+      "path": "frontend/modulos/15-banca-conciliacion.js",
+      "sha256": "4e4df7037e4a13cb184fc7787efcee6a49c4004e2349c383fec9b4e146db4fc9"
+    },
+    {
+      "path": "frontend/modulos/16-control-pagos-folios.js",
+      "sha256": "b7d686ce961fec463a2a92b1d875f4f27212709d86ae545cd8eb41f188d1e67d"
+    },
+    {
+      "path": "frontend/modulos/17-recepcion-papeles.js",
+      "sha256": "7c637b156dccb12aafedb98132e496e59ad3b1bebeca1c2dbb8afc61a6236126"
+    },
+    {
+      "path": "frontend/modulos/18-exportacion-banca-tarjetas.js",
+      "sha256": "06b80b13cd4a7202d1d6341b10e5a13bc1898555324820b57b29b57c50caa572"
+    },
+    {
+      "path": "frontend/modulos/19-cheques.js",
+      "sha256": "bdb609a1e6171dfd0f46eb8e1571338b5065e8ba0d99d36380d02442a532f2f0"
+    },
+    {
+      "path": "frontend/modulos/20-movimientos-semanales.js",
+      "sha256": "7950d9c961f4beb95a501a596f8388abb6d3ba66785ac43aeb5e688afdc0c15f"
+    },
+    {
+      "path": "frontend/modulos/21-cuadrillas.js",
+      "sha256": "02a9266a53a2168c050ba4fc9bc723ee6b98e9ecdd4351c7e089ab6debaface8"
+    },
+    {
+      "path": "frontend/modulos/22-asistencia-directorio.js",
+      "sha256": "f13a01dd40ed245a0f2f177c4ccabefa4b5b9b28e6a2f45fc6c3d1923d71ec7e"
+    },
+    {
+      "path": "frontend/modulos/23-vacaciones.js",
+      "sha256": "2e1c1b93ed2e07e5705fadeca6c193b075ccdaae27f93a8f268d6e2c5b3181b6"
+    },
+    {
+      "path": "frontend/modulos/24-actas-nom035.js",
+      "sha256": "dd6cc5da68ee70d68d3e47907542e88becffab67aa32615fb59db48750240599"
+    },
+    {
+      "path": "frontend/modulos/25-validaciones-cfdi.js",
+      "sha256": "6ccf2916b0fe25940a240d288a139996bf8eb6125d6adb949e1a52094944f1fc"
+    },
+    {
+      "path": "frontend/modulos/26-prestaciones-anuales.js",
+      "sha256": "ff689cb9193dc8bbb357b1412332afbde2db69609defa209a921035aac294fb1"
+    },
+    {
+      "path": "frontend/modulos/27-fiscal-costos.js",
+      "sha256": "f671f8af74e93c360f9ba02fdd52812a1e8e2272e41c34c160449f536c3ca0b0"
+    },
+    {
+      "path": "frontend/modulos/28-personal-historico-plantilla.js",
+      "sha256": "509ad3041d9cf28a366209f0d70d1aaf403062e13fc1f46de2520bfb01d6be6e"
+    },
+    {
+      "path": "frontend/modulos/29-bajas-creditos-motor.js",
+      "sha256": "9986fcd0e823f956eb67103349bde1841178ba6f8bacb3d3849bab9b9a938aba"
+    },
+    {
+      "path": "frontend/modulos/30-contratistas-alertas.js",
+      "sha256": "56ecb725c2bbcfa5d7601ab6108b56cc4da680485416696220ec9f7fed6732c6"
+    },
+    {
+      "path": "frontend/modulos/31-documentos-laborales.js",
+      "sha256": "2b0bfe41dc9a2e5dfd20168d6f17afc5f93a48fa684249d0dbc4448d2677f8c8"
+    },
+    {
+      "path": "frontend/modulos/32-legajos.js",
+      "sha256": "194bb7a1888a7bbecab80921391e11532242717bfa3fd770eb064a75defed5f2"
+    },
+    {
+      "path": "frontend/modulos/33-finiquitos.js",
+      "sha256": "24a5265c1c20044964d27a7739c07cd72bd28468ca55dd603912d280ebef7b3f"
+    },
+    {
+      "path": "frontend/modulos/34-dashboard-respaldos.js",
+      "sha256": "d0b88b93cc76401787455aa8d190654ecee1c45199782dccbd1a657fe3d895de"
+    },
+    {
+      "path": "frontend/modulos/35-centro-control.js",
+      "sha256": "2bd682c5988685605673aa7b3bbc66d981c58a8c88d0e1147c5fb3e0e3a88cdd"
+    },
+    {
+      "path": "frontend/modulos/36-imss-sin-servicio-st7.js",
+      "sha256": "c3ef85abec65a38297ee19ab081e973d779a06e378aca6d2c372c5fa62728969"
+    },
+    {
+      "path": "frontend/modulos/37-avisos-infonavit.js",
+      "sha256": "77ea06c1b5ed1f16e52b33817ecc11331e68ca59e751a440d9b7ac6f6129940d"
+    },
+    {
+      "path": "frontend/modulos/38-adaptadores-arranque.js",
+      "sha256": "cd3eaf1ecff4e5f981094194761c74a18d585d5d22e93574b23c77930cce2fc8"
+    }
+  ]
+}

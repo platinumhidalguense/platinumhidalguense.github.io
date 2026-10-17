@@ -1,4 +1,4 @@
-const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),html=fs.readFileSync('index.html','utf8');
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),html=require('./fuente_frontend.cjs').html();
 function fn(name){const start=html.indexOf(name);const next=/\n(?:async )?function |\n\/\* /g;next.lastIndex=start+name.length;return html.slice(start,next.exec(html).index);}
 (async()=>{
  for(const result of ['ok','error','empty','null','throw']){

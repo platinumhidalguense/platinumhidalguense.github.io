@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
-const source=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+const source=require('./fuente_frontend.cjs').html();
 function block(start,end){const a=source.indexOf(start),b=source.indexOf(end,a+start.length);assert(a>=0&&b>a,`Bloque faltante: ${start}`);return source.slice(a,b);}
 const box={
   WORKERS:[],ALTAS_CORTAS:[],FINTRANS:[],OBRA:{id:'obra',fecha_inicio:'2026-03-30'},
@@ -11,7 +11,7 @@ const box={
 };
 vm.createContext(box);
 vm.runInContext(block('function asVigenteSemana(w,d1,d2){','/* Los mismos de arriba'),box);
-vm.runInContext(block('function pyCandidatos(d1,d2,periodo){','/* La proyección usa importes'),box);
+vm.runInContext(block('function proyFiniquitosSemana(','/* La proyección usa importes'),box);
 vm.runInContext(block('function reqCandidatos(d1,d2,sem,incluirRezago){','function openRequisicion(){'),box);
 vm.runInContext(block('function retFilasDe(semStr){','function buildRetDetalleWS('),box);
 vm.runInContext(block('function ctrlCierreDeSemana(sem){','function conciliaSemanaDatos(sem){'),box);

@@ -1,0 +1,6 @@
+node_modules/
+work/
+tmp/
+docs/AUDITORIA_FINAL.md
+docs/auditoria-funciones.json
+supabase/migrations/20261017043734_integracion_seguridad_heredada_y_revision_historica.sql

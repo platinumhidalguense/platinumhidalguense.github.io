@@ -1,0 +1,24 @@
+name: Verificación aislada de integración
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contratos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci --prefix scripts
+      - run: node scripts/construir_frontend.cjs
+      - run: node scripts/guardar_inventario.cjs
+      - run: git diff --exit-code -- index.html frontend/build.json
+      - run: npm test --prefix scripts

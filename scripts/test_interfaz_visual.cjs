@@ -9,7 +9,7 @@ async function fixture(page){
   await page.evaluate(()=>{
     document.querySelectorAll('.gate').forEach(e=>e.classList.add('hide'));
     $('scr-app').classList.remove('hide');
-    USER={id:'test-admin',email:'darieljtg@gmail.com'};
+    USER={id:'test-admin',email:'admin@example.test'};
     OBRAS=[{id:'p',nombre:'INFONAVIT SAN CRISTOBAL',tipo:'OBRA',empresa_codigo:'PLATINUM',registro_patronal:'RP-PRUEBA',registro_siroc:'SIROC-PRUEBA',fecha_inicio:'2026-03-30'},{id:'j',nombre:'OBRA BANCOMER',tipo:'OBRA',empresa_codigo:'JIRE',fecha_inicio:'2026-03-30'}];
     WORKERS=Array.from({length:80},(_,i)=>({id:'test-'+i,no_trab:i+1,obra_id:'p',primer_apellido:'APELLIDO',segundo_apellido:'DE PRUEBA',nombres:'TRABAJADOR '+(i+1),estatus:i===2?'BAJA':'ACTIVO',fecha_alta:'2026-09-01',fecha_baja:i===2?'2026-09-28':null,fecha_reingreso:i===3?'2026-09-28':null,contratista:i%2?'MG':'ARACELI',puesto:'AYUDANTE GENERAL',periodo_pago:'SEMANAL',sd:362,sdi:380,sal_semanal:2400,cuenta:'CREAR',telefono:'5555555555',correo:'prueba@example.test',docs:{}}));
     DOCSX=[{id:'doc-prueba',trabajador_id:'test-0',categoria:'ACUSE_IMSS',subtipo:'ALTA',fecha_doc:'2026-09-01',nombre_archivo:'acuse-prueba.pdf'}];

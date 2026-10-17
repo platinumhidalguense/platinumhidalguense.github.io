@@ -7,15 +7,16 @@ async function preparar(page){
   await page.goto(pathToFileURL(path.resolve('index.html')).href,{waitUntil:'domcontentloaded'});
   await page.evaluate(()=>{
     document.querySelectorAll('.gate').forEach(e=>e.classList.add('hide'));$('scr-app').classList.remove('hide');
-    USER={id:'qa-admin',email:'darieljtg@gmail.com'};PUEDE_EDITAR_TRABAJADORES=true;
-    OBRAS=[{id:'obra',nombre:'INFONAVIT SAN CRISTOBAL',empresa_codigo:'PLATINUM',tipo:'OBRA',registro_patronal:'B6918617105',prima_rt:7.5,fecha_inicio:'2026-03-30'},{id:'jire',nombre:'OBRA BANCOMER',empresa_codigo:'JIRE',tipo:'OBRA'}];OBRA=OBRAS[0];EMPRESA_ACTIVA='PLATINUM';CFGEMP={tabulador:{'AYUDANTE GENERAL':362}};
+    USER={id:'qa-admin',email:'admin@example.test'};PUEDE_EDITAR_TRABAJADORES=true;
+    OBRAS=[{id:'obra',nombre:'INFONAVIT SAN CRISTOBAL',empresa_codigo:'PLATINUM',tipo:'OBRA',registro_patronal:'B6918617105',prima_rt:7.5,fecha_inicio:'2026-03-30'},{id:'jire',nombre:'OBRA BANCOMER',empresa_codigo:'JIRE',tipo:'OBRA'}];OBRA=OBRAS[0];EMPRESA_ACTIVA='PLATINUM';CFGEMP={tabulador:{'AYUDANTE GENERAL':362}};CFGEMP.admin_papelera={email:'admin@example.test'};
     CONTRATISTAS=[{nombre:'MG'},{nombre:'ARACELI'}];CUADS=[{id:'cuad',contratista:'MG',nombre:'MG GENERAL',activa:true}];
     WORKERS=[{id:'worker',obra_id:'obra',no_trab:12,primer_apellido:'VAZQUEZ',segundo_apellido:'RODRIGUEZ',nombres:'EMILIO',estatus:'ACTIVO',contratista:'MG',id_cuadrilla:'cuad',puesto:'AYUDANTE GENERAL',turno:'DIURNO',funciones:'APOYO',fecha_alta:'2026-09-01',fecha_reingreso:null,fecha_baja:null,semana_ingreso:'NOMINA 23',periodo_pago:'SEMANAL',tipo_contrato:'OBRA DETERMINADA',fecha_fin_contrato:null,sd:362,sdi:380,sal_semanal:2400,curp:'VAZR900101HHGZDX09',rfc:'VAZR900101AB1',nss:'12345678901',fecha_nacimiento:'1990-01-01',genero:'MASCULINO',estado_civil:'SOLTERO',escolaridad:'PREPA',nacionalidad:'MEXICANA',edo_nacimiento:'HIDALGO',direccion:'DOMICILIO DE PRUEBA',cp:'42086',telefono:'5555555555',correo:'qa@example.test',beneficiario:'PERSONA DE PRUEBA',benef_parentesco:'MADRE',benef_telefono:'5555555555',benef_porcentaje:100,cuenta:'1234567890',clabe:'',banco:'BBVA',forma_pago:'TRANSFERENCIA',observaciones:'OBSERVACION DE PRUEBA',movimiento_imss:'ALTA CON ACUSE',fecha_mov_imss:'2026-09-01',registro_patronal:'B6918617105',prima_rt:4.12345,updated_at:'2026-10-07T00:00:00Z',docs:{'INE':'ENTREGADO','SOLICITUD DE EMPLEO':'NO APLICA','DATO_LEGADO':'CONSERVAR'},drive_link:'https://drive.google.com/qa'}];
     CHEQUES=[];DESC=[];VAC=[];ACTAS=[];NOM=[];PAGOS=[];ALTAS_CORTAS=[];
     DOCSX=[{id:'acuse',trabajador_id:'worker',categoria:'ACUSE_IMSS',subtipo:'ALTA',fecha_doc:'2026-09-01',nombre_archivo:'acuse-prueba.pdf'}];
     window.qaWrites=[];window.qaToasts=[];window.qaError=null;window.qaZero=false;
     toast=(m,t)=>window.qaToasts.push({m,t});loadObraData=async()=>true;refreshCounts=async()=>{};cpAvisaAlta=async()=>{};refrescaDocsDe=async()=>0;refrescaPagosDe=async()=>0;
-    sb={from:table=>{let payload,op,filters={};const q={update:v=>{payload=v;op='update';return q;},insert:v=>{payload=v;op='insert';return q;},eq:(k,v)=>{filters[k]=v;return q;},select:async()=>{
+    cargaPermisos=async()=>{};
+    sb={auth:{getSession:async()=>({data:{session:{user:USER}},error:null}),getUser:async()=>({data:{user:USER},error:null})},from:table=>{let payload,op,filters={};const q={update:v=>{payload=v;op='update';return q;},insert:v=>{payload=v;op='insert';return q;},eq:(k,v)=>{filters[k]=v;return q;},select:async()=>{
       window.qaWrites.push({table,payload:structuredClone(payload),op,filters});
       if(window.qaGate)await new Promise(r=>window.qaRelease=r);
       return {data:window.qaZero?[]:[{id:op==='insert'?'created':'worker',updated_at:'2026-10-07T01:00:00Z'}],error:window.qaError};

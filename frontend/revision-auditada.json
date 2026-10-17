@@ -1,0 +1,22 @@
+{
+  "openAutorrellenar": "Lectura paginada por razón social e invalidación de selección anterior.",
+  "openForm": "Retirar indicación insegura de copiar una contraseña compartida; captura y validaciones intactas.",
+  "correoCfg": "Eliminar contraseña incrustada y no leer claves de configuración compartida.",
+  "crearCorreo": "Mantener creación de dirección sin copiar contraseñas; acceso al proveedor sin opener.",
+  "openCorreos": "Directorio por razón social paginado, sin exposición de contraseñas.",
+  "exportCorreos": "Conservar directorio y retirar la columna de contraseñas de los Excel.",
+  "fetchCambiosSalario": "Paginación estable y alcance de empresa del historial.",
+  "openControlSalarios": "Padrón completo y bloqueo ante error de lectura.",
+  "cpCargar": "Paginación y descarte de respuesta de otro centro.",
+  "parseImportExp": "Padrón por empresa completo, invalida importación anterior.",
+  "parseImport": "Padrón por empresa completo, invalida importación anterior.",
+  "openAltasSemana": "Padrón y selector limitados a la razón social activa.",
+  "guardarCuadrilla": "Recarga paginada, control de error y de centro de origen.",
+  "guardarEditCuadrilla": "Recarga paginada, control de error y de centro de origen.",
+  "parseImportVac": "Padrón y vacaciones completos; no tratar un error como ausencia de duplicados.",
+  "openPTU": "Aclarar etiqueta de alcance: obras de esta empresa.",
+  "ptuCargar": "Cargar personal de la razón social seleccionada sin truncarlo. Aritmética intacta.",
+  "verificarNOI": "Padrón completo por empresa y bloqueo de comparación fallida. Parser intacto.",
+  "aplicarVN": "Comprobar números ocupados con paginación y detenerse si falla la consulta. No se ejecuta ninguna actualización en esta auditoría.",
+  "ctrlAplicarSemanaIMSS": "Exigir reapertura sólo para cierre autorizado/timbrado/pagado. Fórmula de incidencia intacta."
+}
