@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-16.3",
-  "entry": "assets/platinum-app.3bd1b89bc190323a.js",
-  "sha256": "3bd1b89bc190323a6f05093dcf6a9fbdd91858fbd0e6b19c871611a5cdf47294",
-  "integrity": "sha384-PGVZ/7jFmDHP+oFD7NE6AP81VJY/btESMi17dLFdksNUpWP/WiF6z+zxfiWYYYUS",
+  "version": "2026-10-17.1",
+  "entry": "assets/platinum-app.bfed7462613ac5d9.js",
+  "sha256": "bfed7462613ac5d9168f72e4adba57e6eeb72ac0aa4134fb37dfb820f30487e9",
+  "integrity": "sha384-kF+Odgsv6MyfoEJsKZalXm0AaeIb+bNZ8hAXA90/c6VOUKUDtaP65sE1bqFEJaY3",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "c07a464bcb59940e34bd80605f43b739120981e90b0d215b1636399cf9d624d4"
+      "sha256": "a363a15b7044558eedc1f17df3e8c45f42414f94f47021e451f6c4345b17e5b4"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -22,7 +22,7 @@
     },
     {
       "path": "frontend/modulos/04-padron-expedientes.js",
-      "sha256": "78388f9300459d15127d6d068e8fbaa6974ada80eeba93a566f0c8550e6a0556"
+      "sha256": "78e469435900b1850fcc3a20be7f142fa27a94e480b9ffa106fa7ca1990cdc6e"
     },
     {
       "path": "frontend/modulos/05-alta-edicion.js",
@@ -146,7 +146,7 @@
     },
     {
       "path": "frontend/modulos/35-centro-control.js",
-      "sha256": "2bd682c5988685605673aa7b3bbc66d981c58a8c88d0e1147c5fb3e0e3a88cdd"
+      "sha256": "28534539b5363d8cffbfa2656550b0e2c07b9c023af42ef8b425507e069ca51c"
     },
     {
       "path": "frontend/modulos/36-imss-sin-servicio-st7.js",
@@ -158,7 +158,11 @@
     },
     {
       "path": "frontend/modulos/38-adaptadores-arranque.js",
-      "sha256": "cd3eaf1ecff4e5f981094194761c74a18d585d5d22e93574b23c77930cce2fc8"
+      "sha256": "56612587ff111d57aa37c21862beee2f1203bfc3fe97f48ea526224d7e98b499"
+    },
+    {
+      "path": "frontend/modulos/39-rrhh-adaptadores.js",
+      "sha256": "6f3fbe828adbbb97e88583840bfde87401095fa6e36d9051a90473111b1d88c2"
     }
   ]
 }

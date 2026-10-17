@@ -60,7 +60,7 @@ function startRealtime(){
     getObraId:()=>OBRA?.id,
     canRefresh:()=>!NAV_BUSY&&!$('modals').innerHTML,
     refresh:()=>softRefresh(Date.now()-lastLocalWrite>=3000),
-    onDeferred:()=>{window._pendingRT=true;window.PLATINUM_FLOWS?.avisarCambio();},
+    onDeferred:()=>{window._pendingRT=true;window.PLATINUM_FLOWS?.avisarCambio();window.PLATINUM_RRHH?.avisarCambio();},
     onStatus:({transport,dataState,online})=>{
       const el=$('rt-status');if(!el)return;
       el.textContent=dataState==='pending'?'Cambios pendientes':dataState==='error'?'Sin actualizar':dataState==='loading'?'Actualizando…':transport==='connected'?`${online||1} en línea`:transport==='offline'?'Sin conexión en vivo':'Conectando…';
@@ -406,7 +406,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-16.3';
+const APP_VERSION='2026-10-17.1';
 window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){

@@ -365,6 +365,7 @@ function openDetail(id){
       <details class="worker-actions"><summary>Herramientas de este trabajador · editar, documentos y movimientos</summary><div>
       <button class="btn" onclick="exportExpediente('${w.id}')">📊 Exportar expediente (Excel)</button>
       <button class="btn" onclick="openHistorial('${w.id}')">🕘 Historial</button>
+      ${window.PLATINUM_RRHH?`<button class="btn" onclick="PLATINUM_RRHH.abrir('expediente','${w.id}')">🗂 Expediente 360</button><button class="btn" onclick="PLATINUM_RRHH.abrir('importe','${w.id}')">🔎 Explicar nómina</button>`:''}
       ${puedeEditarTrabajador()?`<button class="btn" onclick="openIMSSWorker('${w.id}')">🏥 Control IMSS</button>`:''}
       <button class="btn" onclick="openValidar('${w.id}')">🔍 Validar</button>
       <button class="btn" onclick="openContrato('${w.id}')">📄 Contrato</button>

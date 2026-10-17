@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "version": "2026-10-16.3",
+  "version": "2026-10-17.1",
   "modules": [
     "frontend/modulos/00-configuracion-utilidades.js",
     "frontend/modulos/01-sesion-centros-sincronizacion.js",
@@ -40,7 +40,8 @@
     "frontend/modulos/35-centro-control.js",
     "frontend/modulos/36-imss-sin-servicio-st7.js",
     "frontend/modulos/37-avisos-infonavit.js",
-    "frontend/modulos/38-adaptadores-arranque.js"
+    "frontend/modulos/38-adaptadores-arranque.js",
+    "frontend/modulos/39-rrhh-adaptadores.js"
   ],
   "originalSha256": "9c8d55e50d79a8c1d4dda73f83ff26f8b1c9f200e3f6e8c6b96624b12857af04"
 }

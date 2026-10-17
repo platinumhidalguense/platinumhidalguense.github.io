@@ -72,6 +72,7 @@ async function openControlEmpresarial(){
       <p style="font-size:12px;color:var(--mut);margin:12px 0">Cada módulo trabaja únicamente con la razón social y centro seleccionados. Los plazos legales se controlan aparte de la regla interna de procesamiento en lunes.</p>
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
         ${[
+          ['⚙','Operación RRHH','Corte semanal, explicación de importes, expediente 360 y procesos conectados','PLATINUM_RRHH.abrir()'],
           ['🧭','Pendientes y aprobaciones','Control por empresa/obra y consolidado exclusivo del administrador','PLATINUM_FLOWS.bandeja(false)'],
           ['🔐','Cierre de nómina','Versión autorizada, conciliación, comprobantes, saldos y entrega','openCtrlCierres()'],
           ['⚖️','Conciliación NOI','Compara netos por trabajador y detecta diferencias al centavo','openCtrlConciliacionSelector()'],

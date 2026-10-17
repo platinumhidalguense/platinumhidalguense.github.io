@@ -1,0 +1,34 @@
+const assert=require('node:assert/strict'),crypto=require('node:crypto');
+const {makeDatabase,ids,rrhh,owner,actor}=require('./soporte_rrhh_pg.cjs');
+let count=0;const ok=(v,m)=>{assert.ok(v,m);count++;};
+(async()=>{const db=await makeDatabase();try{
+ const o=ids.obra;const day=(await owner(db,'select fecha_inicio::text d from obras where id=$1',[o])).rows[0].d;
+ const cid=crypto.randomUUID();await owner(db,"insert into control_casos_imss(id,obra_id,trabajador_id,tipo_caso,fecha_evento,certificado_desde,certificado_hasta,dias_certificados,ramo_certificado,tipo_certificado,probable_riesgo_trabajo,certificado_archivo) values($1,$2,$3,'INCAPACIDAD',$4,$4,$4,1,'ENFERMEDAD_GENERAL','INICIAL',false,$5)",[cid,o,ids.w,day,`${o}/${ids.w}/${crypto.randomUUID()}.pdf`]);
+ await rrhh(db,'conta','SINCRONIZAR',{obra_id:o,semana:1});
+ let l=await rrhh(db,'conta','SEMANA',{obra_id:o,semana:1});const p=l.procesos.find(x=>x.tipo==='INCAPACIDAD');ok(!!p,'Certificado enlazado por semana');
+ ok((await rrhh(db,'consulta','SEMANA',{obra_id:o,semana:1})).total===0,'Consulta sin salud no recibe casos');
+ await assert.rejects(()=>rrhh(db,'consulta','PROCESO',{obra_id:o,id:p.id}),/encontrado|permiso/i);count++;
+ let d=await rrhh(db,'conta','PROCESO',{obra_id:o,id:p.id});const cer=d.tareas.find(x=>x.codigo==='CER'),cal=d.tareas.find(x=>x.codigo==='CAL'),st7=d.tareas.find(x=>x.codigo==='ST7');
+ ok(cer.evidencia.valida&&!cal.evidencia.valida,'Certificado no supone calendario aplicado');
+ await rrhh(db,'conta','TAREA',{proceso_id:p.id,tarea_id:cer.id,revision:1,estado:'HECHO',nota:'Certificado ficticio revisado'});
+ await assert.rejects(()=>rrhh(db,'conta','TAREA',{proceso_id:p.id,tarea_id:st7.id,revision:1,estado:'NO_APLICA',nota:'No aplica en este caso'}),/omitir/i);count++;
+ await rrhh(db,'admin','TAREA',{proceso_id:p.id,tarea_id:st7.id,revision:1,estado:'NO_APLICA',nota:'Sin probable riesgo en certificado'});
+ await owner(db,'update control_casos_imss set probable_riesgo_trabajo=true where id=$1',[cid]);
+ d=await rrhh(db,'conta','PROCESO',{obra_id:o,id:p.id});ok(d.tareas.find(x=>x.codigo==='ST7').requiere_revision,'Cambio probable riesgo invalida no aplica');
+ await owner(db,"insert into control_casos_imss_semanas(caso_id,anio,semana,dias_pagados_empresa,dias_sin_salario_patronal,dias_sin_subsidio,detalle_dias,estado) values($1,2026,1,0,1,1,$2,'APLICADO')",[cid,JSON.stringify([{fecha:day,pagador:'SIN_PAGO'}])]);
+ d=await rrhh(db,'conta','PROCESO',{obra_id:o,id:p.id});ok(d.tareas.find(x=>x.codigo==='CAL').evidencia.valida,'Calendario real localizado sin inventar subsidio');
+ await actor(db,'conta');await db.query('update trabajadores set fecha_reingreso=$1 where id=$2',[day,ids.w2]);
+ l=await rrhh(db,'conta','SEMANA',{obra_id:o,semana:1});ok(l.procesos.some(x=>x.tipo==='REINGRESO'&&x.trabajador_id===ids.w2),'Nuevo evento crea proceso sin sincronización manual');
+ const r=l.procesos.find(x=>x.tipo==='REINGRESO');d=await rrhh(db,'conta','PROCESO',{obra_id:o,id:r.id});ok(!d.tareas.find(x=>x.codigo==='ACU').evidencia.valida,'No reutiliza acuse inexistente');
+ await owner(db,"insert into documentos(obra_id,trabajador_id,categoria,subtipo,fecha_doc,archivo,nombre_archivo) values($1,$2,'ACUSE_IMSS','ALTA',$3::date-7,'ARCHIVO_FICTICIO.pdf','acuse.pdf')",[o,ids.w2,day]);
+ d=await rrhh(db,'conta','PROCESO',{obra_id:o,id:r.id});ok(!d.tareas.find(x=>x.codigo==='ACU').evidencia.valida,'Acuse de episodio anterior no confirma reingreso');
+ await owner(db,"insert into control_movimientos_seguridad_social(obra_id,trabajador_id,trabajador_nombre,tipo,fecha_efectiva,fecha_solicitud,fecha_proceso_interno,fecha_limite_legal,estado,folio) values($1,$2,'PERSONA FICTICIA','REINGRESO',$3,$3,$3,$3,'PRESENTADO','FOLIO-FICTICIO')",[o,ids.w2,day]);
+ d=await rrhh(db,'conta','PROCESO',{obra_id:o,id:r.id});ok(d.tareas.find(x=>x.codigo==='PRE').evidencia.valida&&!d.tareas.find(x=>x.codigo==='ACU').evidencia.valida,'Presentado y acuse siguen distintos');
+ // Cambiar fecha/estado de la evidencia presentada debe invalidar una confirmación.
+ const dat=d.tareas.find(x=>x.codigo==='DAT'),pre=d.tareas.find(x=>x.codigo==='PRE');
+ await rrhh(db,'conta','TAREA',{proceso_id:r.id,tarea_id:dat.id,revision:1,estado:'HECHO',nota:'Reingreso efectivo verificado'});
+ await rrhh(db,'conta','TAREA',{proceso_id:r.id,tarea_id:pre.id,revision:1,estado:'HECHO',nota:'Presentación con folio revisada'});
+ await owner(db,"update control_movimientos_seguridad_social set estado='RECHAZADO' where trabajador_id=$1",[ids.w2]);
+ d=await rrhh(db,'conta','PROCESO',{obra_id:o,id:r.id});ok(d.tareas.find(x=>x.codigo==='PRE').requiere_revision,'Rechazo posterior invalida confirmación');
+ console.log(`PASS RRHH salud: ${count} comprobaciones PostgreSQL.`);
+}finally{await db.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

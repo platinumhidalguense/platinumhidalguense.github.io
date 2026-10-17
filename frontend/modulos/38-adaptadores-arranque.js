@@ -17,6 +17,7 @@ async function proySnapshotIntegrado(sem,periodo){
     total_finiquitos:sum(f=>f.fin?f.neto:0),total_neto:modelo.neto,total_trabajadores:filas.length,modelo,
     items:filas.map(f=>({trabajador_id:f.w.id,numero:f.w.no_trab,nombre:fullName(f.w),tipo:f.fin?'FINIQUITO':'NOMINA',metodo_pago:f.pago,
       sueldo_nomina:f.sueldo,prevision_social:f.prevision,retenciones:f.fin?0:redondearCentavos(f.incidencias+f.creditos+f.otras),monto:f.neto}))};
+  snapshot.trazabilidad=rrhhReferenciasModelo(live.filas,audits,'S'+sem,source.fuente);
   return {obra_id:obra.id,semana:sem,periodo,snapshot,fuente:source.fuente};
 }
 if(window.PLATINUM_FLOWS)window.PLATINUM_FLOWS.configure({

@@ -1,5 +1,9 @@
 {
   "openAutorrellenar": "Lectura paginada por razón social e invalidación de selección anterior.",
+  "openDetail": "Añadir accesos de lectura al expediente cronológico y trazabilidad; conserva ficha y herramientas existentes.",
+  "openControlEmpresarial": "Añadir un único acceso a los cuatro engranes de operación RRHH, sin retirar controles.",
+  "startRealtime": "Notificar fuentes cambiadas al nuevo módulo RRHH sin sobrescribir capturas abiertas.",
+  "proySnapshotIntegrado": "Añadir referencias exactas de fuentes a fotografías futuras, sin cambiar los importes calculados ni los motores.",
   "openForm": "Retirar indicación insegura de copiar una contraseña compartida; captura y validaciones intactas.",
   "correoCfg": "Eliminar contraseña incrustada y no leer claves de configuración compartida.",
   "crearCorreo": "Mantener creación de dirección sin copiar contraseñas; acceso al proveedor sin opener.",
