@@ -25,6 +25,8 @@ npm test --prefix scripts
 
 Editar los módulos, no el archivo generado. Publicar juntos el HTML y el archivo identificado en el manifiesto. La verificación de GitHub repite construcción y pruebas aisladas; no reemplaza aceptación visual ni bloquea por sí sola la publicación automática de Pages.
 
+La comprobación estructural de fichas utiliza Python y lxml, no un navegador. En otro equipo se puede indicar el ejecutable con `PLATINUM_TEST_PYTHON`; GitHub prepara Python 3.12 y lxml 6.0.2 de forma aislada.
+
 Las 15 suites del paquete público incluyen 68 comprobaciones PostgreSQL y contratos de paginación, alcance de empresa, respuestas tardías, permisos, aprobación, idempotencia, saldos, versiones y botones nuevos. Usan datos ficticios; no conectan a la base operativa ni abren navegador. El paquete privado añade 27 comprobaciones de la migración de seguridad; no se cuentan como ejecutadas cuando ese archivo no está disponible.
 
 `scripts/auditar_funciones.cjs` reproduce trazas y callbacks; el informe detallado se conserva como artefacto privado. Análisis estático no significa ejecución universal ni garantía de ausencia de errores. La migración de endurecimiento ya aplicada también se entrega en privado, no dentro del sitio público.
