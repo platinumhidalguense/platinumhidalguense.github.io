@@ -1,14 +1,15 @@
 /* ---------- MÓDULO DE CHEQUES ---------- */
 function renderChqStats(){
-  const p=CHEQUES.filter(c=>c.estatus==='PENDIENTE'), e=CHEQUES.filter(c=>c.estatus==='EXPEDIDO'),
-        g=CHEQUES.filter(c=>c.estatus==='ENTREGADO'), x=CHEQUES.filter(c=>c.estatus==='CANCELADO');
+  const activos=CHEQUES.filter(c=>!c.eliminado);
+  const p=activos.filter(c=>c.estatus==='PENDIENTE'), e=activos.filter(c=>c.estatus==='EXPEDIDO'),
+        g=activos.filter(c=>c.estatus==='ENTREGADO'), x=activos.filter(c=>c.estatus==='CANCELADO');
   const sum=a=>a.reduce((s,c)=>s+(Number(c.importe)||0),0);
   $('chq-stats').innerHTML=`
     <div class="stat a"><div class="n">${p.length}</div><div class="l">Pendientes · $${money(sum(p))}</div></div>
     <div class="stat g"><div class="n">${e.length}</div><div class="l">Expedidos · $${money(sum(e))}</div></div>
     <div class="stat b"><div class="n">${g.length}</div><div class="l">Entregados</div></div>
     <div class="stat r"><div class="n">${x.length}</div><div class="l">Cancelados</div></div>
-    <div class="stat"><div class="n">${CHEQUES.length}</div><div class="l">Total cheques</div></div>`;
+    <div class="stat"><div class="n">${activos.length}</div><div class="l">Total cheques</div></div>`;
 }
 function setChqSort(k){if(CSORT.k===k)CSORT.asc=!CSORT.asc;else{CSORT.k=k;CSORT.asc=true;}
   // sincroniza el selector de consecutivo con el ordenamiento actual
@@ -23,6 +24,7 @@ function chqOrdenConsec(v){
 function chqFiltered(){
   const q=$('chq-q').value.trim().toUpperCase(), fe=$('chq-f-estatus').value, ft=$('chq-f-tipo').value;
   let rows=CHEQUES.filter(c=>{
+    if(c.eliminado)return false;
     if(fe&&c.estatus!==fe)return false;
     if(ft&&c.tipo_pago!==ft)return false;
     if(q){const hay=[c.nombre,c.curp,c.num_cheque,c.consecutivo,c.contratista,c.semana].join(' ').toUpperCase();if(!hay.includes(q))return false;}
@@ -55,7 +57,7 @@ function openChequesDesdeRecibos(){
   modal(`
     <div class="m-head"><h2>🧾 Cheques vs recibos de nómina · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Elige la semana. La app lee los <b>recibos de nómina archivados</b> de esa semana (su <b>neto pagado</b> y si es <b>sueldo normal</b> o <b>finiquito</b>) y los compara contra los cheques: te marca cuáles <b>coinciden</b>, cuáles <b>no coinciden en monto</b> y a quién le <b>falta el cheque</b> (de sueldo o de finiquito). Puede <b>crear los cheques PENDIENTES faltantes</b> con el monto del recibo. Los recibos se importan en 📥 Importar (categoría RECIBO DE NÓMINA).</p>
+      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Compara recibos con los cheques existentes. Un recibo de sueldo no obliga a crear cheque: la nómina normal se revisa con las transferencias históricas y el flujo confirmado del sábado. Aquí sólo se preparan finiquitos positivos que no tengan cheque ni excepción de transferencia.</p>
       <div class="grid" style="grid-template-columns:1fr auto;align-items:end;gap:10px">
         <div><label>Semana</label><input id="cr-sem" value="S${isoWeek()}" placeholder="S17"></div>
         <div><button class="btn dark" onclick="crAnalizar()">Analizar recibos</button></div>
@@ -85,22 +87,24 @@ async function crAnalizar(){
     }
     const w=WORKERS.find(x=>x.id===d.trabajador_id)||null;
     const tp=info.tipo==='FINIQUITO'?'FINIQUITO':'CHEQUE';
-    const chk=(CHEQUES||[]).find(c=>!c.eliminado&&c.trabajador_id===d.trabajador_id&&normSem(c.semana)===ns&&String(c.tipo_pago||'').toUpperCase()===tp);
+    const chk=(CHEQUES||[]).find(c=>!c.eliminado&&c.estatus!=='CANCELADO'&&c.trabajador_id===d.trabajador_id&&normSem(c.semana)===ns&&String(c.tipo_pago||'').toUpperCase()===tp);
     let estado='OK';
     if(info.err||info.neto==null)estado='ILEGIBLE';
-    else if(!chk)estado='FALTA';
+    else if(tp==='FINIQUITO'&&w&&finTransDe(w,sem))estado='TRANSFERENCIA_FIN';
+    else if(!chk)estado=tp==='FINIQUITO'?'FALTA':'REVISION_PAGO';
     else if(Math.abs((Number(chk.importe)||0)-info.neto)>0.01)estado='NOCOINCIDE';
     rows.push({d,w,info,tp,chk,estado});
   }
   window._CR={rows,ns,sem:'S'+ns};
   const c=e=>rows.filter(x=>x.estado===e).length;
-  const badge={OK:'imp-COINCIDE',FALTA:'imp-CONFLICTO',NOCOINCIDE:'imp-SINREGISTRO',ILEGIBLE:'imp-SINREGISTRO'};
-  const lbl={OK:'✔ coincide',FALTA:'＋ falta cheque',NOCOINCIDE:'⚠ no coincide',ILEGIBLE:'⚠ ilegible'};
+  const badge={OK:'imp-COINCIDE',FALTA:'imp-CONFLICTO',NOCOINCIDE:'imp-SINREGISTRO',ILEGIBLE:'imp-SINREGISTRO',REVISION_PAGO:'imp-ASIGNAR',TRANSFERENCIA_FIN:'imp-ASIGNAR'};
+  const lbl={OK:'✔ coincide',FALTA:'＋ falta cheque de finiquito',NOCOINCIDE:'⚠ no coincide',ILEGIBLE:'⚠ ilegible',REVISION_PAGO:'Revisar pago, no exige cheque',TRANSFERENCIA_FIN:'Excepción de transferencia'};
   $('cr-out').innerHTML=`
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
       <span class="imp-tag imp-COINCIDE">${c('OK')} coinciden</span>
       <span class="imp-tag imp-SINREGISTRO">${c('NOCOINCIDE')} no coinciden</span>
-      <span class="imp-tag imp-CONFLICTO">${c('FALTA')} sin cheque</span>
+      <span class="imp-tag imp-CONFLICTO">${c('FALTA')} finiquitos sin cheque</span>
+      <button class="btn" onclick="PLATINUM_PAGOS_SABADO.abrir(${Number(ns)})">Revisar nómina, transferencias y pendientes</button>
       ${c('ILEGIBLE')?`<span class="imp-tag imp-SINREGISTRO">${c('ILEGIBLE')} ilegibles</span>`:''}
     </div>
     <div class="imp-row head" style="grid-template-columns:1.5fr .8fr 1fr 1fr 1fr"><span>Trabajador</span><span>Tipo</span><span>Neto recibo</span><span>Cheque</span><span>Estado</span></div>
@@ -111,11 +115,11 @@ async function crAnalizar(){
       <span>${x.chk?'$'+money(x.chk.importe):'—'}</span>
       <span class="imp-tag ${badge[x.estado]}">${lbl[x.estado]}</span>
     </div>`).join('')}
-    <p style="font-size:11px;color:var(--mut);margin-top:8px">"No coincide" = el cheque existe pero su importe difiere del neto del recibo (revisa/corrige el cheque). "Falta cheque" = hay recibo pero no hay cheque de ese tipo esa semana.</p>`;
-  $('cr-btn').classList.toggle('hide',!rows.some(x=>x.estado==='FALTA'&&x.w&&x.info.neto!=null));
+    <p style="font-size:11px;color:var(--mut);margin-top:8px">Un recibo no acredita pago bancario ni obliga a crear cheque de sueldo. La revisión de pagos distingue transferencias, parciales y cheques expedidos; los pendientes eliminados o cancelados no cuentan como cheque vigente.</p>`;
+  $('cr-btn').classList.toggle('hide',!rows.some(x=>x.estado==='FALTA'&&x.tp==='FINIQUITO'&&x.w&&x.info.neto>0));
 }
 async function crCrearFaltantes(){
-  const st=window._CR||{}; const falt=(st.rows||[]).filter(x=>x.estado==='FALTA'&&x.w&&x.info.neto!=null);
+  const st=window._CR||{}; const falt=(st.rows||[]).filter(x=>x.estado==='FALTA'&&x.tp==='FINIQUITO'&&x.w&&x.info.neto>0&&!finTransDe(x.w,st.sem));
   if(!falt.length){toast('No hay cheques faltantes con monto legible.','err');return;}
   const nf=falt.filter(x=>x.tp==='FINIQUITO').length, ns=falt.length-nf;
   if(!confirm(`¿Crear ${falt.length} cheque(s) PENDIENTE(S) de la semana ${st.sem}?\n\n${ns} de sueldo + ${nf} de finiquito, con el neto de cada recibo.\nTodo queda en el historial y se puede editar o eliminar después.`))return;
@@ -239,6 +243,7 @@ async function saveCheque(id){
   const g=i=>{const el=$('f-'+i)||$(i);return el?el.value.trim():'';};
   if(!g('c-nombre')){toast('Indica el nombre del trabajador o beneficiario.','err');return;}
   let estatus=$('c-estatus').value;
+  if(estatus==='CANCELADO'&&(!g('c-num')||!g('c-consec'))){toast('Sólo se cancela un cheque físico con número y consecutivo. Si nunca se llenó, elimina la captura.','err');return;}
   if(g('c-num')&&estatus==='PENDIENTE')estatus='EXPEDIDO';
   const w=WORKERS.find(x=>fullName(x).toUpperCase()===g('c-nombre').toUpperCase());
   const previo=id?CHEQUES.find(x=>x.id===id):null;
@@ -267,7 +272,7 @@ async function saveCheque(id){
   if(choque){
     toast(`Ya existe un cheque de ${rec.tipo_pago==='FINIQUITO'?'FINIQUITO':'SUELDO'} de ${rec.nombre} en la semana ${rec.semana} `+
           `(${choque.num_cheque?'folio '+choque.num_cheque:'sin folio'} · $${money(choque.importe)} · ${choque.estatus}). `+
-          `Solo se permite 1 de sueldo y 1 de finiquito por semana: cancela el anterior si se capturó mal.`,'err');
+          `Solo se permite 1 de sueldo y 1 de finiquito por semana: elimina la captura si no se llenó; cancela únicamente un cheque físico con número y consecutivo.`,'err');
     return;
   }
   $('c-save').innerHTML='<span class="spin"></span> Guardando...';
@@ -293,10 +298,10 @@ async function saveCheque(id){
 async function eliminarChequeErroneo(id){
   if(!puedeEliminarCheque()){toast('No tienes permiso para eliminar cheques.','err');return;}
   const c=CHEQUES.find(x=>x.id===id); if(!c)return;
-  const tieneDatos=(c.num_cheque&&c.num_cheque.trim())||(Number(c.importe)>0)||c.estatus==='ENTREGADO';
-  const aviso=tieneDatos
-    ? `<div style="background:var(--amber-bg);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12.5px">⚠ Este cheque <b>tiene datos</b> (número, importe o estatus ENTREGADO). Si de verdad ya se expidió, lo correcto es marcarlo <b>CANCELADO</b>, no eliminarlo. Elimínalo solo si fue una <b>captura por error</b>.</div>`
-    : '';
+  if(String(c.num_cheque||'').trim()||String(c.consecutivo||'').trim()||['EXPEDIDO','ENTREGADO'].includes(c.estatus)){
+    toast('Este cheque tiene folio o fue expedido. Revisa su cancelación física; no se puede eliminar.','err');return;
+  }
+  const aviso='<p class="fhint">Registro sin número ni consecutivo: se elimina del listado, no se marca CANCELADO. Se conserva auditoría.</p>';
   modal(`
     <div class="m-head"><h2>🗑 Eliminar cheque (captura errónea)</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">

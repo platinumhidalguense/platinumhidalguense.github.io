@@ -13,6 +13,8 @@ El aviso programado nunca crea cheques. La hora se valida en el servidor con zon
 
 La opción **Retirar automáticos anteriores** sólo admite nóminas automáticas pendientes sin número, consecutivo ni aplicaciones. Requiere permiso y confirmación; conserva papelera y auditoría. No retira finiquitos, cheques manuales, foliados ni lotes ya confirmados. No elimina pagos, CFDI ni datos del personal.
 
+**Eliminar y cancelar son distintos.** Si la captura nunca se llenó y no tiene número ni consecutivo, se elimina del listado operativo y queda su auditoría. `CANCELADO` se reserva para cheques físicos con ambos folios. Un cheque que ya tenga alguno de esos identificadores no se elimina: debe revisarse y, si procede, completar su numeración antes de cancelar. Tener un importe calculado no equivale a haber llenado un cheque físico. Los recibos ordinarios tampoco implican que deba existir un cheque.
+
 ## Verificación reproducible
 
 Los contratos de interfaz se ejecutan en una máquina virtual de JavaScript, sin navegador. Las pruebas PostgreSQL usan una base aislada con personas ficticias; incluyen permisos, empresas, horario, idempotencia, estados de pago y retirada atómica. Sus migraciones se distribuyen por canal privado y no se publican en el repositorio. Las pruebas públicas indican expresamente si ese paquete no está presente.

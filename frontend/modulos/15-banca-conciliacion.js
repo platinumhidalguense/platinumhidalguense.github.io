@@ -1195,6 +1195,12 @@ function exportPagoLote(){
 /* Cancela (no borra) un cheque porque ya se pagó por transferencia. */
 async function pagoCancelarCheque(id){
   const c=(CHEQUES||[]).find(x=>x.id===id); if(!c){toast('Cheque no encontrado.','err');return;}
+  if(!String(c.num_cheque||'').trim()&&!String(c.consecutivo||'').trim()){
+    return eliminarChequeErroneo(id);
+  }
+  if(!String(c.num_cheque||'').trim()||!String(c.consecutivo||'').trim()){
+    toast('Completa el número y consecutivo del cheque físico antes de cancelarlo. No se eliminó ni canceló nada.','err');return;
+  }
   if(c.tipo_pago==='FINIQUITO'){
     if(!esAdmin()){
       if(puedeEliminarCheque()){eliminarChequeErroneo(id);return;}

@@ -1,4 +1,12 @@
 {
+  "openChequesDesdeRecibos": "Aclara que el recibo ordinario no exige cheque y enlaza revisión de pagos históricos.",
+  "crAnalizar": "No marca como falta de cheque al sueldo normal; distingue finiquito por transferencia y excluye cancelados.",
+  "crCrearFaltantes": "Sólo prepara finiquitos positivos sin excepción; nómina ordinaria usa lote confirmado de sábado.",
+  "pagoCancelarCheque": "Sin folios se elimina la captura; sólo un cheque físico completo puede cancelarse. Importes y comprobantes intactos.",
+  "renderChqStats": "Excluye explícitamente la papelera de todos los conteos de cheques.",
+  "chqFiltered": "Excluye explícitamente capturas eliminadas de lista y exportaciones.",
+  "saveCheque": "Valida número y consecutivo antes de cancelar, sin alterar el neto verificado ni fórmulas.",
+  "eliminarChequeErroneo": "Distingue importe de cheque físico; no permite eliminar registros foliados o expedidos.",
   "metodoPagoPredeterminado": "Nómina sin cuenta queda POR DEFINIR; sólo finiquitos tienen cheque por defecto. No cambia importes.",
   "pgRender": "Distingue pendientes no expedidos de pagos y permite revisar automáticos en lote; parser y montos intactos.",
   "conciliaSemanaDatos": "Transferencia registrada prevalece sobre intención de cheque ordinario; evidencia doble expedida exige revisión.",
