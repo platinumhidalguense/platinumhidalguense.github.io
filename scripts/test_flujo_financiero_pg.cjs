@@ -1,0 +1,52 @@
+const assert=require('node:assert/strict'),crypto=require('node:crypto');
+const {makeDatabase,ids,actor,rpc,owner,snapshot}=require('./soporte_flujo_pg.cjs');
+const uuid=()=>crypto.randomUUID();
+(async()=>{
+ const db=await makeDatabase();let checks=0;
+ const rejects=async(p,re)=>{await assert.rejects(p,re);checks++;};
+ const crear=async(s)=>{const id=uuid();await owner(db,"insert into public.control_cierres_nomina(id,obra_id,semana,periodo,formula_version,snapshot_sha256,snapshot,creado_por) values($1,$2,1,'SEMANAL','PRUEBA','provisional',$3,$4)",[id,ids.obra,JSON.stringify(s),ids.conta]);return id;};
+ try{
+  let s=snapshot(ids.w,2200,200),c=await crear(s);
+  const source=await rpc(db,'conta','FUENTE',{obra_id:ids.obra,semana:1});
+  await rejects(rpc(db,'consulta','PREPARAR',{cierre_id:c,snapshot:s,fuente:source.fuente}),/Sin permiso/);
+  await rejects(rpc(db,'jire','DETALLE',{cierre_id:c}),/Sin permiso/);
+  await rejects(rpc(db,null,'PERMISOS'),/permission denied|permiso/i);
+  await rpc(db,'conta','PREPARAR',{cierre_id:c,snapshot:s,fuente:source.fuente});checks++;
+  let det=await rpc(db,'consulta','DETALLE',{cierre_id:c});assert.equal(det.flujo.sucio,false);assert.equal(det.cierre.total_neto,2200);checks++;
+  const row={trabajador_id:ids.w,trabajador_numero:1,trabajador_nombre:'PRUEBA PERSONA',tipo_calculo:'NOMINA',metodo_pago:'TRANSFERENCIA',monto_noi:2000};
+  const imp={cierre_id:c,filas:[row],archivo:'NOI_FICTICIO.xlsx',sha256:'a'.repeat(64),revision:det.cierre.snapshot_sha256};
+  await rpc(db,'conta','IMPORTAR_NOI',imp);checks++;
+  det=await rpc(db,'conta','DETALLE',{cierre_id:c});assert.equal(det.diagnostico.pendientes,0);assert.equal(det.diagnostico.filas[0].motor,2000);checks++;
+  await rejects(rpc(db,'conta','IMPORTAR_NOI',{...imp,filas:[row,{...row,trabajador_numero:2,monto_noi:'INVALIDO'}]}),/invalid input|inválido/i);
+  det=await rpc(db,'conta','DETALLE',{cierre_id:c});assert.equal(det.diagnostico.filas.length,1);assert.equal(det.diagnostico.pendientes,0,'Importación atómica conserva el NOI anterior');checks++;
+  await rpc(db,'conta','TRANSICION',{cierre_id:c,estado:'REVISADO'});checks++;
+  await rejects(rpc(db,'conta','TRANSICION',{cierre_id:c,estado:'AUTORIZADO'}),/administrador/i);
+  await rpc(db,'admin','TRANSICION',{cierre_id:c,estado:'AUTORIZADO'});checks++;
+  det=await rpc(db,'consulta','DETALLE',{cierre_id:c});assert.equal(det.versiones.length,1);assert.equal(det.saldos.length,2);assert.equal(det.saldos.reduce((n,x)=>n+Number(x.importe),0),2200);checks++;
+  await rejects(owner(db,'update public.trabajadores set sal_semanal=1900 where id=$1',[ids.w]),/reapertura/);
+  await actor(db,'consulta');await rejects(db.query('update public.control_obligaciones_pago set importe=1'),/permission denied/);
+  await actor(db,'conta');await rejects(db.query('select platinum_internal.sellar($1)',[c]),/permission denied/);
+  await actor(db,'jire');assert.equal((await db.query('select count(*) n from public.control_obligaciones_pago')).rows[0].n,0);checks++;
+  const pago1=uuid();await owner(db,"insert into public.pagos(id,obra_id,trabajador_id,semana,importe,estado,medio,banco,fecha_pago,folio_lote,origen) values($1,$2,$3,'S1',500,'EXITOSO','TRANSFERENCIA','BBVA',current_date,'PARCIAL-1','INDIVIDUAL')",[pago1,ids.obra,ids.w]);
+  const nomina=det.saldos.find(x=>x.tipo==='NOMINA'),key=uuid(),args={obligacion_id:nomina.id,pago_id:pago1,importe:500,clave_idempotencia:key,motivo:'Primer pago parcial ficticio'};
+  const a=await rpc(db,'conta','APLICAR_PAGO',args);assert.equal(a.saldo,1500);checks++;
+  const again=await rpc(db,'conta','APLICAR_PAGO',args);assert(again.repetida);checks++;
+  await rejects(rpc(db,'conta','APLICAR_PAGO',{...args,importe:1,clave_idempotencia:uuid()}),/ya está aplicado|saldo suficiente/);
+  await rejects(owner(db,'update public.pagos set importe=1 where id=$1',[pago1]),/Comprobante aplicado/);
+  const pDup=uuid();await owner(db,"insert into public.pagos(id,obra_id,trabajador_id,semana,importe,estado,medio,banco,fecha_pago,folio_lote,origen) select $1,obra_id,trabajador_id,semana,importe,estado,medio,banco,fecha_pago,folio_lote,'INDIVIDUAL' from public.pagos where id=$2",[pDup,pago1]);
+  await rejects(rpc(db,'conta','APLICAR_PAGO',{...args,pago_id:pDup,clave_idempotencia:uuid()}),/ya está aplicado|saldo suficiente/);
+  const p2=uuid();await owner(db,"insert into public.pagos(id,obra_id,trabajador_id,semana,importe,estado,medio,banco,fecha_pago,folio_lote,origen) values($1,$2,$3,'S1',1700,'EXITOSO','TRANSFERENCIA','BBVA',current_date,'RESTO-2','GLOBAL')",[p2,ids.obra,ids.w]);
+  det=await rpc(db,'consulta','DETALLE',{cierre_id:c});assert.equal(det.saldos.reduce((n,x)=>n+Number(x.saldo),0),0);checks++;
+  await rejects(rpc(db,'admin','TRANSICION',{cierre_id:c,estado:'TIMBRADO'}),/faltan CFDI/);
+  // La solicitud no reabre hasta aprobación. Todos los importes y comprobantes sobreviven.
+  const req=await rpc(db,'conta','SOLICITAR',{cierre_id:c,tipo:'REAPERTURA',motivo:'Revisar una incidencia ficticia'});checks++;
+  await rejects(rpc(db,'conta','DECIDIR',{solicitud_id:req.solicitud_id,aprobar:true,confirmacion:'CONFIRMAR DECISION',nota:'Prueba no autorizada'}),/administrador/);
+  await rpc(db,'admin','DECIDIR',{solicitud_id:req.solicitud_id,aprobar:true,confirmacion:'CONFIRMAR DECISION',nota:'Revisión autorizada de prueba'});checks++;
+  det=await rpc(db,'consulta','DETALLE',{cierre_id:c});assert.equal(det.cierre.estado,'BORRADOR');assert.equal(det.versiones.length,1);assert.equal(det.saldos.reduce((n,x)=>n+Number(x.pago_registrado),0),2200);checks++;
+  await rejects(rpc(db,'conta','APLICAR_PAGO',{...args,clave_idempotencia:uuid()}),/autoriza/);
+  const fresh=await rpc(db,'conta','FUENTE',{obra_id:ids.obra,semana:1});
+  await rpc(db,'conta','PREPARAR',{cierre_id:c,snapshot:s,fuente:fresh.fuente});await rpc(db,'conta','TRANSICION',{cierre_id:c,estado:'REVISADO'});await rpc(db,'admin','TRANSICION',{cierre_id:c,estado:'AUTORIZADO'});
+  det=await rpc(db,'consulta','DETALLE',{cierre_id:c});assert.equal(det.versiones.length,2);assert.equal(det.saldos.reduce((n,x)=>n+Number(x.pago_registrado),0),2200);checks++;
+  console.log('PASS '+checks+' comprobaciones PostgreSQL: permisos/alcances, NOI atómico, congelación, fuentes, parciales, idempotencia, duplicados, reapertura y nueva versión sin perder pagos.');
+ }finally{await db.close();}
+})().catch(e=>{console.error(e.message,e.stack);process.exit(1);});

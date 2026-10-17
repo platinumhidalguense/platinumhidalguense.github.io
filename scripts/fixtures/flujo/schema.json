@@ -1,0 +1,4247 @@
+{
+  "tables": [
+    {
+      "name": "app_usuarios",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "nombre",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "rol",
+          "type": "text",
+          "default": "'CONSULTA'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "full_access",
+          "type": "boolean",
+          "default": "false",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obras_permitidas",
+          "type": "uuid[]",
+          "default": "'{}'::uuid[]",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "areas_permitidas",
+          "type": "text[]",
+          "default": "'{}'::text[]",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "puede_escribir",
+          "type": "boolean",
+          "default": "true",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "puede_eliminar",
+          "type": "boolean",
+          "default": "false",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "activo",
+          "type": "boolean",
+          "default": "true",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "notas",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "empresas_permitidas",
+          "type": "text[]",
+          "default": "'{}'::text[]",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK ((empresas_permitidas <@ ARRAY['PLATINUM'::text, 'JIRE'::text]))",
+          "name": "app_usuarios_empresas_permitidas_chk",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (user_id)",
+          "name": "app_usuarios_pkey",
+          "type": "p"
+        },
+        {
+          "def": "CHECK ((rol = ANY (ARRAY['ADMIN'::text, 'CONTADOR'::text, 'CAPTURISTA'::text, 'CONSULTA'::text])))",
+          "name": "app_usuarios_rol_check",
+          "type": "c"
+        }
+      ]
+    },
+    {
+      "name": "auditoria_calculos_nomina",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "lote_id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "empresa_codigo",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_numero",
+          "type": "integer",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_nombre",
+          "type": "text",
+          "default": "''::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "tipo_calculo",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "periodo",
+          "type": "text",
+          "default": "''::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "formula_version",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "entradas",
+          "type": "jsonb",
+          "default": "'{}'::jsonb",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "resultado",
+          "type": "jsonb",
+          "default": "'{}'::jsonb",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "monto_modelo",
+          "type": "numeric(14,2)",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "monto_aplicado",
+          "type": "numeric(14,2)",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "ajuste_noi",
+          "type": "numeric(14,2)",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "actor_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "actor_email",
+          "type": "text",
+          "default": "''::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "huella_sha256",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK ((empresa_codigo = ANY (ARRAY['PLATINUM'::text, 'JIRE'::text])))",
+          "name": "auditoria_calculos_nomina_empresa_codigo_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK (((length(btrim(formula_version)) >= 1) AND (length(btrim(formula_version)) <= 80)))",
+          "name": "auditoria_calculos_nomina_formula_version_check",
+          "type": "c"
+        },
+        {
+          "def": "UNIQUE (huella_sha256)",
+          "name": "auditoria_calculos_nomina_huella_sha256_key",
+          "type": "u"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "auditoria_calculos_nomina_pkey",
+          "type": "p"
+        },
+        {
+          "def": "CHECK (((length(btrim(tipo_calculo)) >= 1) AND (length(btrim(tipo_calculo)) <= 60)))",
+          "name": "auditoria_calculos_nomina_tipo_calculo_check",
+          "type": "c"
+        }
+      ]
+    },
+    {
+      "name": "cheques",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "no_trab",
+          "type": "integer",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "contratista",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "nombre",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "puesto",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "curp",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "semana",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "periodo",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "importe",
+          "type": "numeric",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "tipo_pago",
+          "type": "text",
+          "default": "'CHEQUE'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "num_cheque",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "consecutivo",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "estatus",
+          "type": "text",
+          "default": "'PENDIENTE'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "observaciones",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "actualizado_por",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "eliminado",
+          "type": "boolean",
+          "default": "false",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "eliminado_por",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "eliminado_en",
+          "type": "timestamp with time zone",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "motivo_eliminado",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "cierre_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "origen_generacion",
+          "type": "text",
+          "default": "'MANUAL'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK ((estatus = ANY (ARRAY['PENDIENTE'::text, 'EXPEDIDO'::text, 'ENTREGADO'::text, 'CANCELADO'::text])))",
+          "name": "cheques_estatus_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((origen_generacion = ANY (ARRAY['MANUAL'::text, 'CIERRE_NOI'::text, 'SIN_CUENTA'::text, 'FINIQUITO'::text])))",
+          "name": "cheques_origen_generacion_ck",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "cheques_pkey",
+          "type": "p"
+        },
+        {
+          "def": "CHECK ((tipo_pago = ANY (ARRAY['CHEQUE'::text, 'FINIQUITO'::text])))",
+          "name": "cheques_tipo_pago_check",
+          "type": "c"
+        }
+      ]
+    },
+    {
+      "name": "config",
+      "columns": [
+        {
+          "name": "clave",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "valor",
+          "type": "jsonb",
+          "default": "'{}'::jsonb",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "actualizado_por",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "PRIMARY KEY (clave)",
+          "name": "config_pkey",
+          "type": "p"
+        }
+      ]
+    },
+    {
+      "name": "control_altas_bajas_cortas",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "anio",
+          "type": "integer",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "semana",
+          "type": "integer",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "estado_servicio",
+          "type": "text",
+          "default": "'PENDIENTE'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_alta_base",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_baja_base",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_alta_idse",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_baja_idse",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_alta_modelo_noi",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_baja_modelo_noi",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "faltas_modelo_noi",
+          "type": "numeric(7,4)",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "dias_pagados_noi",
+          "type": "numeric(7,4)",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "neto_noi",
+          "type": "numeric(14,2)",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "observaciones",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fuente",
+          "type": "text",
+          "default": "'CAPTURA_MANUAL'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por",
+          "type": "uuid",
+          "default": "auth.uid()",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK (((anio >= 2020) AND (anio <= 2100)))",
+          "name": "control_altas_bajas_cortas_anio_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK (((fecha_baja_base IS NULL) OR (fecha_alta_base IS NULL) OR (fecha_baja_base >= fecha_alta_base)))",
+          "name": "control_altas_bajas_cortas_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK (((fecha_baja_idse IS NULL) OR (fecha_alta_idse IS NULL) OR (fecha_baja_idse >= fecha_alta_idse)))",
+          "name": "control_altas_bajas_cortas_check1",
+          "type": "c"
+        },
+        {
+          "def": "CHECK (((fecha_baja_modelo_noi IS NULL) OR (fecha_alta_modelo_noi IS NULL) OR (fecha_baja_modelo_noi >= fecha_alta_modelo_noi)))",
+          "name": "control_altas_bajas_cortas_check2",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((estado_servicio = ANY (ARRAY['PENDIENTE'::text, 'SIN_SERVICIO_CONFIRMADO'::text, 'CON_SERVICIO'::text, 'REVISAR'::text])))",
+          "name": "control_altas_bajas_cortas_estado_servicio_check",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "control_altas_bajas_cortas_pkey",
+          "type": "p"
+        },
+        {
+          "def": "CHECK (((semana >= 1) AND (semana <= 53)))",
+          "name": "control_altas_bajas_cortas_semana_check",
+          "type": "c"
+        },
+        {
+          "def": "UNIQUE (trabajador_id, anio, semana)",
+          "name": "control_altas_bajas_cortas_trabajador_id_anio_semana_key",
+          "type": "u"
+        }
+      ]
+    },
+    {
+      "name": "control_bitacora",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "modulo",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "accion",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "entidad_tipo",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "entidad_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "detalle",
+          "type": "jsonb",
+          "default": "'{}'::jsonb",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "actor_id",
+          "type": "uuid",
+          "default": "auth.uid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "actor_email",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "control_bitacora_pkey",
+          "type": "p"
+        }
+      ]
+    },
+    {
+      "name": "control_casos_imss",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "incidente_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "tipo_caso",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_evento",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "ramo_certificado",
+          "type": "text",
+          "default": "'SIN_CERTIFICADO'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "tipo_certificado",
+          "type": "text",
+          "default": "'SIN_CERTIFICADO'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "probable_riesgo_trabajo",
+          "type": "boolean",
+          "default": "false",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "calificacion_rt",
+          "type": "text",
+          "default": "'PENDIENTE'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "certificado_desde",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "certificado_hasta",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "dias_certificados",
+          "type": "integer",
+          "default": "0",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "folio_certificado",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "folio_st7",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "folio_st9",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "folio_st2",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "referencia_evidencia",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "observaciones_operativas",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "estado",
+          "type": "text",
+          "default": "'EN_SEGUIMIENTO'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por",
+          "type": "uuid",
+          "default": "auth.uid()",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "eliminado_en",
+          "type": "timestamp with time zone",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "eliminado_por",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "motivo_eliminacion",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "certificado_archivo",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "certificado_mime",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "datos_documento",
+          "type": "jsonb",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "extraccion_modelo",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "extraccion_revisada_en",
+          "type": "timestamp with time zone",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK (((certificado_archivo IS NULL) OR ((split_part(certificado_archivo, '/'::text, 1) = (obra_id)::text) AND (split_part(certificado_archivo, '/'::text, 2) = (trabajador_id)::text) AND (certificado_archivo ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}[.](jpg|jpeg|png|webp|pdf)$'::text))))",
+          "name": "control_casos_imss_archivo_ruta_ck",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((calificacion_rt = ANY (ARRAY['PENDIENTE'::text, 'SI_TRABAJO'::text, 'NO_TRABAJO'::text, 'NO_APLICA'::text])))",
+          "name": "control_casos_imss_calificacion_rt_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK (((datos_documento IS NULL) OR (jsonb_typeof(datos_documento) = 'object'::text)))",
+          "name": "control_casos_imss_documento_tipo_ck",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((estado = ANY (ARRAY['PENDIENTE_CERTIFICADO'::text, 'PENDIENTE_CALIFICACION'::text, 'EN_SEGUIMIENTO'::text, 'CERRADO'::text, 'DESCARTADO'::text])))",
+          "name": "control_casos_imss_estado_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((((certificado_desde IS NULL) AND (certificado_hasta IS NULL) AND (dias_certificados = 0)) OR ((certificado_desde IS NOT NULL) AND (certificado_hasta IS NOT NULL) AND (certificado_hasta >= certificado_desde) AND (dias_certificados = ((certificado_hasta - certificado_desde) + 1)))))",
+          "name": "control_casos_imss_fechas_ck",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "control_casos_imss_pkey",
+          "type": "p"
+        },
+        {
+          "def": "CHECK ((ramo_certificado = ANY (ARRAY['SIN_CERTIFICADO'::text, 'ENFERMEDAD_GENERAL'::text, 'RIESGO_TRABAJO'::text, 'MATERNIDAD'::text])))",
+          "name": "control_casos_imss_ramo_certificado_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK (((calificacion_rt <> 'SI_TRABAJO'::text) OR probable_riesgo_trabajo))",
+          "name": "control_casos_imss_riesgo_ck",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((tipo_caso = ANY (ARRAY['ACCIDENTE'::text, 'ENFERMEDAD'::text, 'INCAPACIDAD'::text])))",
+          "name": "control_casos_imss_tipo_caso_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((tipo_certificado = ANY (ARRAY['SIN_CERTIFICADO'::text, 'INICIAL'::text, 'SUBSECUENTE'::text, 'ENLACE'::text, 'RECAIDA'::text])))",
+          "name": "control_casos_imss_tipo_certificado_check",
+          "type": "c"
+        }
+      ]
+    },
+    {
+      "name": "control_casos_imss_semanas",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "caso_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "anio",
+          "type": "integer",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "semana",
+          "type": "integer",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "dias_pagados_empresa",
+          "type": "integer",
+          "default": "0",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "dias_sin_salario_patronal",
+          "type": "integer",
+          "default": "0",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "descuento_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "neto_noi",
+          "type": "numeric(14,2)",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "estado",
+          "type": "text",
+          "default": "'PENDIENTE'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "nota",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "detalle_dias",
+          "type": "jsonb",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "dias_imss_estimados",
+          "type": "integer",
+          "default": "0",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "dias_sin_subsidio",
+          "type": "integer",
+          "default": "0",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK ((((dias_imss_estimados >= 0) AND (dias_imss_estimados <= 7)) AND ((dias_sin_subsidio >= 0) AND (dias_sin_subsidio <= 7)) AND ((detalle_dias IS NULL) OR ((jsonb_typeof(detalle_dias) = 'array'::text) AND (dias_sin_salario_patronal = (dias_imss_estimados + dias_sin_subsidio))))))",
+          "name": "control_casos_imss_semana_desglose_ck",
+          "type": "c"
+        },
+        {
+          "def": "CHECK (((anio >= 2020) AND (anio <= 2100)))",
+          "name": "control_casos_imss_semanas_anio_check",
+          "type": "c"
+        },
+        {
+          "def": "UNIQUE (caso_id, anio, semana)",
+          "name": "control_casos_imss_semanas_caso_id_anio_semana_key",
+          "type": "u"
+        },
+        {
+          "def": "CHECK (((dias_pagados_empresa + dias_sin_salario_patronal) <= 7))",
+          "name": "control_casos_imss_semanas_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK (((dias_pagados_empresa >= 0) AND (dias_pagados_empresa <= 7)))",
+          "name": "control_casos_imss_semanas_dias_pagados_empresa_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK (((dias_sin_salario_patronal >= 0) AND (dias_sin_salario_patronal <= 7)))",
+          "name": "control_casos_imss_semanas_dias_sin_salario_patronal_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((estado = ANY (ARRAY['PENDIENTE'::text, 'APLICADO'::text, 'REVISAR'::text])))",
+          "name": "control_casos_imss_semanas_estado_check",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "control_casos_imss_semanas_pkey",
+          "type": "p"
+        },
+        {
+          "def": "CHECK (((semana >= 1) AND (semana <= 53)))",
+          "name": "control_casos_imss_semanas_semana_check",
+          "type": "c"
+        }
+      ]
+    },
+    {
+      "name": "control_cierres_eliminados",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "semana",
+          "type": "integer",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "periodo",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "estado_anterior",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "snapshot_sha256",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "cierre",
+          "type": "jsonb",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "conciliacion",
+          "type": "jsonb",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "cheques_vinculados",
+          "type": "jsonb",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "motivo",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "actor_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "actor_email",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "eliminado_en",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "control_cierres_eliminados_pkey",
+          "type": "p"
+        }
+      ]
+    },
+    {
+      "name": "control_cierres_nomina",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "semana",
+          "type": "integer",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "periodo",
+          "type": "text",
+          "default": "'SEMANAL'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "estado",
+          "type": "text",
+          "default": "'BORRADOR'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "total_nomina",
+          "type": "numeric(14,2)",
+          "default": "0",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "total_prevision",
+          "type": "numeric(14,2)",
+          "default": "0",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "total_retenciones",
+          "type": "numeric(14,2)",
+          "default": "0",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "total_finiquitos",
+          "type": "numeric(14,2)",
+          "default": "0",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "total_neto",
+          "type": "numeric(14,2)",
+          "default": "0",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "total_trabajadores",
+          "type": "integer",
+          "default": "0",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "formula_version",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "snapshot",
+          "type": "jsonb",
+          "default": "'{}'::jsonb",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "snapshot_sha256",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "archivo_noi",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "archivo_noi_sha256",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "observaciones",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por",
+          "type": "uuid",
+          "default": "auth.uid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por_email",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "revisado_por",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "revisado_por_email",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "revisado_en",
+          "type": "timestamp with time zone",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "autorizado_por",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "autorizado_por_email",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "autorizado_en",
+          "type": "timestamp with time zone",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "timbrado_por",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "timbrado_por_email",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "timbrado_en",
+          "type": "timestamp with time zone",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "pagado_por",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "pagado_por_email",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "pagado_en",
+          "type": "timestamp with time zone",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "bloqueado_en",
+          "type": "timestamp with time zone",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK ((estado = ANY (ARRAY['BORRADOR'::text, 'REVISADO'::text, 'AUTORIZADO'::text, 'TIMBRADO'::text, 'PAGADO'::text, 'CANCELADO'::text])))",
+          "name": "control_cierres_nomina_estado_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((periodo = ANY (ARRAY['SEMANAL'::text, 'QUINCENAL'::text, 'TODOS'::text])))",
+          "name": "control_cierres_nomina_periodo_check",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "control_cierres_nomina_pkey",
+          "type": "p"
+        },
+        {
+          "def": "CHECK (((semana >= 1) AND (semana <= 53)))",
+          "name": "control_cierres_nomina_semana_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((total_trabajadores >= 0))",
+          "name": "control_cierres_nomina_total_trabajadores_check",
+          "type": "c"
+        },
+        {
+          "def": "UNIQUE (obra_id, semana, periodo)",
+          "name": "control_cierres_obra_semana_periodo_uk",
+          "type": "u"
+        }
+      ]
+    },
+    {
+      "name": "control_conciliacion_noi",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "cierre_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_numero",
+          "type": "integer",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_nombre",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "tipo_calculo",
+          "type": "text",
+          "default": "'NOMINA'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "monto_platinum",
+          "type": "numeric(14,2)",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "monto_noi",
+          "type": "numeric(14,2)",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "diferencia",
+          "type": "numeric(14,2)",
+          "default": "round((COALESCE(monto_platinum, (0)::numeric) - COALESCE(monto_noi, (0)::numeric)), 2)",
+          "notnull": false,
+          "identity": "",
+          "generated": "s"
+        },
+        {
+          "name": "estatus",
+          "type": "text",
+          "default": "\nCASE\n    WHEN (monto_platinum IS NULL) THEN 'SIN_PLATINUM'::text\n    WHEN (monto_noi IS NULL) THEN 'SIN_NOI'::text\n    WHEN (round((monto_platinum - monto_noi), 2) = (0)::numeric) THEN 'COINCIDE'::text\n    ELSE 'DIFERENCIA'::text\nEND",
+          "notnull": false,
+          "identity": "",
+          "generated": "s"
+        },
+        {
+          "name": "detalle",
+          "type": "jsonb",
+          "default": "'{}'::jsonb",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "importado_por",
+          "type": "uuid",
+          "default": "auth.uid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "importado_por_email",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "metodo_pago",
+          "type": "text",
+          "default": "'TRANSFERENCIA'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "pago_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "cheque_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK ((metodo_pago = ANY (ARRAY['TRANSFERENCIA'::text, 'CHEQUE'::text])))",
+          "name": "control_conciliacion_metodo_pago_ck",
+          "type": "c"
+        },
+        {
+          "def": "UNIQUE (cierre_id, trabajador_numero, tipo_calculo)",
+          "name": "control_conciliacion_noi_fila_uk",
+          "type": "u"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "control_conciliacion_noi_pkey",
+          "type": "p"
+        },
+        {
+          "def": "CHECK ((tipo_calculo = ANY (ARRAY['NOMINA'::text, 'FINIQUITO'::text])))",
+          "name": "control_conciliacion_noi_tipo_calculo_check",
+          "type": "c"
+        }
+      ]
+    },
+    {
+      "name": "control_documentos_cumplimiento",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "tipo",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "titulo",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "tercero",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "folio",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_emision",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_vencimiento",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "alerta_dias",
+          "type": "integer",
+          "default": "30",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "evidencia_url",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "responsable",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "estado_manual",
+          "type": "text",
+          "default": "'VIGENTE'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "observaciones",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por",
+          "type": "uuid",
+          "default": "auth.uid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por_email",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK (((alerta_dias >= 0) AND (alerta_dias <= 365)))",
+          "name": "control_documentos_cumplimiento_alerta_dias_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((estado_manual = ANY (ARRAY['VIGENTE'::text, 'EN_TRAMITE'::text, 'NO_APLICA'::text, 'SUSPENDIDO'::text])))",
+          "name": "control_documentos_cumplimiento_estado_manual_check",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "control_documentos_cumplimiento_pkey",
+          "type": "p"
+        },
+        {
+          "def": "CHECK ((tipo = ANY (ARRAY['SIROC'::text, 'REPSE'::text, 'CONTRATO'::text, 'OPINION_32D'::text, 'OPINION_IMSS'::text, 'OPINION_INFONAVIT'::text, 'POLIZA'::text, 'LICENCIA'::text, 'OTRO'::text])))",
+          "name": "control_documentos_cumplimiento_tipo_check",
+          "type": "c"
+        }
+      ]
+    },
+    {
+      "name": "control_expedientes_pendientes",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "nombre_completo",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "nombre_norm",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "puesto",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "semana_ingreso",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "ultima_semana_registrada",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "semanas_adeudadas",
+          "type": "integer",
+          "default": "1",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "entregado",
+          "type": "boolean",
+          "default": "false",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_entrega",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "notas",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "actualizado_por",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "estado",
+          "type": "text",
+          "default": "'PENDIENTE'::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "semana_no_presentado",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_no_presentado",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_alta_detectada",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK ((estado = ANY (ARRAY['PENDIENTE'::text, 'ENTREGADO'::text, 'NO_SE_PRESENTO'::text])))",
+          "name": "ck_cep_estado",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "control_expedientes_pendientes_pkey",
+          "type": "p"
+        }
+      ]
+    },
+    {
+      "name": "control_finiquitos_transferencia",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "anio",
+          "type": "integer",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "semana",
+          "type": "integer",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "importe",
+          "type": "numeric(14,2)",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "estado",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "pago_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_declarada",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "referencia_declarada",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "motivo",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "cheque_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "registrado_por",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "registrado_en",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "actualizado_en",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK (((anio >= 2020) AND (anio <= 2100)))",
+          "name": "control_finiquitos_transferencia_anio_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK (((estado = 'CONCILIADO_BANCO'::text) = (pago_id IS NOT NULL)))",
+          "name": "control_finiquitos_transferencia_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((estado = ANY (ARRAY['DECLARADO_POR_ADMIN'::text, 'CONCILIADO_BANCO'::text])))",
+          "name": "control_finiquitos_transferencia_estado_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((importe > (0)::numeric))",
+          "name": "control_finiquitos_transferencia_importe_check",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "control_finiquitos_transferencia_pkey",
+          "type": "p"
+        },
+        {
+          "def": "CHECK (((semana >= 1) AND (semana <= 53)))",
+          "name": "control_finiquitos_transferencia_semana_check",
+          "type": "c"
+        },
+        {
+          "def": "UNIQUE (trabajador_id, anio, semana)",
+          "name": "control_finiquitos_transferencia_trabajador_id_anio_semana_key",
+          "type": "u"
+        }
+      ]
+    },
+    {
+      "name": "control_movimientos_seguridad_social",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_numero",
+          "type": "integer",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_nombre",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "tipo",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_solicitud",
+          "type": "date",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_efectiva",
+          "type": "date",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_proceso_interno",
+          "type": "date",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_limite_legal",
+          "type": "date",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "canales",
+          "type": "text[]",
+          "default": "ARRAY['IMSS'::text, 'IDSE'::text, 'SUA'::text, 'NOI'::text]",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "estado",
+          "type": "text",
+          "default": "'PENDIENTE'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "folio",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "evidencia_url",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "observaciones",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "responsable",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por",
+          "type": "uuid",
+          "default": "auth.uid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por_email",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "presentado_en",
+          "type": "timestamp with time zone",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK (((estado <> ALL (ARRAY['PRESENTADO'::text, 'ACEPTADO'::text])) OR ((NULLIF(TRIM(BOTH FROM folio), ''::text) IS NOT NULL) OR (NULLIF(TRIM(BOTH FROM evidencia_url), ''::text) IS NOT NULL))))",
+          "name": "control_mov_presentado_evidencia_ck",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((estado = ANY (ARRAY['PENDIENTE'::text, 'PREPARADO'::text, 'PRESENTADO'::text, 'ACEPTADO'::text, 'RECHAZADO'::text, 'CANCELADO'::text])))",
+          "name": "control_movimientos_seguridad_social_estado_check",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "control_movimientos_seguridad_social_pkey",
+          "type": "p"
+        },
+        {
+          "def": "CHECK ((tipo = ANY (ARRAY['ALTA'::text, 'REINGRESO'::text, 'BAJA'::text, 'MODIFICACION_SALARIO'::text, 'INCAPACIDAD'::text])))",
+          "name": "control_movimientos_seguridad_social_tipo_check",
+          "type": "c"
+        }
+      ]
+    },
+    {
+      "name": "control_permisos_cheques",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "puede_eliminar",
+          "type": "boolean",
+          "default": "false",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "otorgado_en",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "otorgado_por",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "PRIMARY KEY (user_id)",
+          "name": "control_permisos_cheques_pkey",
+          "type": "p"
+        }
+      ]
+    },
+    {
+      "name": "cuadrillas",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "contratista",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "nombre",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "lider_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "activa",
+          "type": "boolean",
+          "default": "true",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "orden",
+          "type": "integer",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "observaciones",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "lider_nombre_externo",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "lider_expediente_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK (((lider_nombre_externo IS NULL) OR ((char_length(btrim(lider_nombre_externo)) >= 3) AND (char_length(btrim(lider_nombre_externo)) <= 160))))",
+          "name": "cuadrillas_lider_nombre_externo_check",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "cuadrillas_pkey",
+          "type": "p"
+        }
+      ]
+    },
+    {
+      "name": "descuentos",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "tipo",
+          "type": "text",
+          "default": "'OTRO'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "motivo",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "monto",
+          "type": "numeric",
+          "default": "0",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "recurrente",
+          "type": "boolean",
+          "default": "false",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "semana",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "activo",
+          "type": "boolean",
+          "default": "true",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "actualizado_por",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "excepciones",
+          "type": "jsonb",
+          "default": "'{}'::jsonb",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "periodicidad",
+          "type": "text",
+          "default": "'SEMANAL'::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "cuota_mensual",
+          "type": "numeric(12,2)",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "modalidad",
+          "type": "text",
+          "default": "'CUOTA_FIJA'::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "factor",
+          "type": "numeric(12,4)",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "recalculo_auto",
+          "type": "boolean",
+          "default": "true",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "ultimo_recalculo",
+          "type": "timestamp with time zone",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "numero_credito",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fonacot_prorrateo",
+          "type": "text",
+          "default": "'IMPORTE_CAPTURADO'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "ajustes_semana",
+          "type": "jsonb",
+          "default": "'{}'::jsonb",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fonacot_prorrateo_desde",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "infonavit_avisos_historial",
+          "type": "jsonb",
+          "default": "'[]'::jsonb",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK ((jsonb_typeof(ajustes_semana) = 'object'::text))",
+          "name": "descuentos_ajustes_semana_objeto_chk",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((fonacot_prorrateo = ANY (ARRAY['IMPORTE_CAPTURADO'::text, 'DIAS_CALENDARIO'::text])))",
+          "name": "descuentos_fonacot_prorrateo_chk",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((jsonb_typeof(infonavit_avisos_historial) = 'array'::text))",
+          "name": "descuentos_infonavit_avisos_historial_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((modalidad = ANY (ARRAY['CUOTA_FIJA'::text, 'PORCENTAJE'::text, 'VSM_UMI'::text])))",
+          "name": "descuentos_modalidad_chk",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((monto >= (0)::numeric))",
+          "name": "descuentos_monto_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK (((numero_credito IS NULL) OR (numero_credito ~ '^[0-9]{10}$'::text)))",
+          "name": "descuentos_numero_credito_infonavit_formato",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((periodicidad = ANY (ARRAY['SEMANAL'::text, 'QUINCENAL'::text])))",
+          "name": "descuentos_periodicidad_chk",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "descuentos_pkey",
+          "type": "p"
+        },
+        {
+          "def": "CHECK ((tipo = ANY (ARRAY['INFONAVIT'::text, 'FONACOT'::text, 'FALTA'::text, 'INCIDENCIA'::text, 'PRESTAMO'::text, 'OTRO'::text])))",
+          "name": "descuentos_tipo_check",
+          "type": "c"
+        }
+      ]
+    },
+    {
+      "name": "diferenciales",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "semana",
+          "type": "integer",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "monto",
+          "type": "numeric(12,2)",
+          "default": "0",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "motivo",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "activo",
+          "type": "boolean",
+          "default": "true",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "diferenciales_pkey",
+          "type": "p"
+        },
+        {
+          "def": "UNIQUE (trabajador_id, semana)",
+          "name": "ux_diferencial_trab_semana",
+          "type": "u"
+        }
+      ]
+    },
+    {
+      "name": "documentos",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "categoria",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "subtipo",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "semana",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_doc",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "archivo",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "nombre_archivo",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "notas",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "anulado",
+          "type": "boolean",
+          "default": "false",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "subido_por",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "hash",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "anulado_por",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "anulado_en",
+          "type": "timestamp with time zone",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "motivo_anulacion",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "cfdi_uuid",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "cfdi_total",
+          "type": "numeric(14,2)",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "cfdi_fecha_pago",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "periodo_inicio",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "periodo_fin",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "mime_type",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK ((categoria = ANY (ARRAY['ACUSE_IMSS'::text, 'RECIBO_NOMINA'::text, 'CFDI_NOMINA'::text, 'ACTA_ADMINISTRATIVA'::text, 'NOM035'::text, 'OTRO'::text])))",
+          "name": "documentos_categoria_check",
+          "type": "c"
+        },
+        {
+          "def": "CHECK (((cfdi_total IS NULL) OR (cfdi_total >= (0)::numeric)))",
+          "name": "documentos_cfdi_total_ck",
+          "type": "c"
+        },
+        {
+          "def": "CHECK (((periodo_inicio IS NULL) OR (periodo_fin IS NULL) OR (periodo_inicio <= periodo_fin)))",
+          "name": "documentos_periodo_nomina_ck",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "documentos_pkey",
+          "type": "p"
+        }
+      ]
+    },
+    {
+      "name": "obras",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "nombre",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "ubicacion",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "tipo",
+          "type": "text",
+          "default": "'OBRA'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "activa",
+          "type": "boolean",
+          "default": "true",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "orden",
+          "type": "integer",
+          "default": "99",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "registro_patronal",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "registro_siroc",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "prima_rt",
+          "type": "numeric",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_inicio",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "empresa_codigo",
+          "type": "text",
+          "default": "'PLATINUM'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK ((empresa_codigo = ANY (ARRAY['PLATINUM'::text, 'JIRE'::text])))",
+          "name": "obras_empresa_codigo_check",
+          "type": "c"
+        },
+        {
+          "def": "UNIQUE (nombre)",
+          "name": "obras_nombre_key",
+          "type": "u"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "obras_pkey",
+          "type": "p"
+        },
+        {
+          "def": "CHECK ((tipo = ANY (ARRAY['OBRA'::text, 'OFICINA'::text])))",
+          "name": "obras_tipo_check",
+          "type": "c"
+        }
+      ]
+    },
+    {
+      "name": "pagos",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "trabajador_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "semana",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "medio",
+          "type": "text",
+          "default": "'TRANSFERENCIA'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "banco",
+          "type": "text",
+          "default": "'BBVA'::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "cuenta_mask",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "titular",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "importe",
+          "type": "numeric(12,2)",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "estado",
+          "type": "text",
+          "default": "'EXITOSO'::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_pago",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "folio_lote",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "descripcion",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "archivo",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "nombre_archivo",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "hash",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "origen",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK ((origen = ANY (ARRAY['GLOBAL'::text, 'INDIVIDUAL'::text]))) NOT VALID",
+          "name": "pagos_origen_chk",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "pagos_pkey",
+          "type": "p"
+        }
+      ]
+    },
+    {
+      "name": "trabajadores",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "obra_id",
+          "type": "uuid",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "contratista",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "estatus",
+          "type": "text",
+          "default": "'ACTIVO'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "no_trab",
+          "type": "integer",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_alta",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_baja",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "monto_finiquito",
+          "type": "numeric",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "semana_ingreso",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "primer_apellido",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "segundo_apellido",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "nombres",
+          "type": "text",
+          "default": null,
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "estado_civil",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "escolaridad",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "funciones",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "puesto",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "area",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "beneficiario",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "sd",
+          "type": "numeric",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "sdi",
+          "type": "numeric",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "sal_semanal",
+          "type": "numeric",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "rfc",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "curp",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "nacionalidad",
+          "type": "text",
+          "default": "'MEXICANA'::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_nacimiento",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "nss",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "cuenta",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "clabe",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "banco",
+          "type": "text",
+          "default": "'BBVA'::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "edo_nacimiento",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "direccion",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "cp",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "telefono",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "correo",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "genero",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "turno",
+          "type": "text",
+          "default": "'DIURNO'::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "forma_pago",
+          "type": "text",
+          "default": "'TRANSFERENCIA'::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "num_tarjeta",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "observaciones",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "docs",
+          "type": "jsonb",
+          "default": "'{}'::jsonb",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "drive_link",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "creado_por",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "actualizado_por",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "periodo_pago",
+          "type": "text",
+          "default": "'SEMANAL'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "movimiento_imss",
+          "type": "text",
+          "default": "'SIN MOVIMIENTO'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_mov_imss",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "tipo_contrato",
+          "type": "text",
+          "default": "'OBRA DETERMINADA'::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_fin_contrato",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "motivo_baja",
+          "type": "text",
+          "default": "''::text",
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "pendiente_manual",
+          "type": "boolean",
+          "default": "false",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "motivo_pendiente",
+          "type": "text",
+          "default": "''::text",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "eliminado",
+          "type": "boolean",
+          "default": "false",
+          "notnull": true,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "eliminado_en",
+          "type": "timestamp with time zone",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "eliminado_por",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "motivo_eliminacion",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "fecha_reingreso",
+          "type": "date",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "registro_patronal",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "prima_rt",
+          "type": "numeric",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "benef_parentesco",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "benef_telefono",
+          "type": "text",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "benef_porcentaje",
+          "type": "numeric(5,2)",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        },
+        {
+          "name": "id_cuadrilla",
+          "type": "uuid",
+          "default": null,
+          "notnull": false,
+          "identity": "",
+          "generated": ""
+        }
+      ],
+      "constraints": [
+        {
+          "def": "CHECK ((motivo_baja = ANY (ARRAY[''::text, 'RENUNCIA VOLUNTARIA'::text, 'TERMINO DE CONTRATO U OBRA'::text, 'MUTUO ACUERDO'::text, 'ABANDONO DE TRABAJO'::text, 'DESPIDO JUSTIFICADO (ART. 47 LFT)'::text, 'DEFUNCION'::text, 'OTRO'::text])))",
+          "name": "chk_motivo_baja",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((movimiento_imss = ANY (ARRAY['SIN MOVIMIENTO'::text, 'ALTA PRESENTADA'::text, 'ALTA CON ACUSE'::text, 'MODIFICACION PRESENTADA'::text, 'MODIFICACION CON ACUSE'::text, 'BAJA PRESENTADA'::text, 'BAJA CON ACUSE'::text])))",
+          "name": "chk_mov_imss",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((periodo_pago = ANY (ARRAY['SEMANAL'::text, 'QUINCENAL'::text])))",
+          "name": "chk_periodo",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((tipo_contrato = ANY (ARRAY['OBRA DETERMINADA'::text, 'TIEMPO INDETERMINADO'::text, 'TIEMPO DETERMINADO'::text])))",
+          "name": "chk_tipo_contrato",
+          "type": "c"
+        },
+        {
+          "def": "CHECK ((estatus = ANY (ARRAY['ACTIVO'::text, 'BAJA'::text, 'PENDIENTE'::text])))",
+          "name": "trabajadores_estatus_check",
+          "type": "c"
+        },
+        {
+          "def": "PRIMARY KEY (id)",
+          "name": "trabajadores_pkey",
+          "type": "p"
+        }
+      ]
+    }
+  ],
+  "indexes": [
+    "CREATE UNIQUE INDEX control_casos_imss_archivo_uk ON public.control_casos_imss USING btree (certificado_archivo) WHERE (certificado_archivo IS NOT NULL)",
+    "CREATE UNIQUE INDEX ux_cheque_sueldo_finiquito_semana ON public.cheques USING btree (trabajador_id, norm_semana(semana), tipo_pago) WHERE ((trabajador_id IS NOT NULL) AND (norm_semana(semana) IS NOT NULL) AND (estatus <> 'CANCELADO'::text) AND (COALESCE(eliminado, false) = false))",
+    "CREATE UNIQUE INDEX control_casos_imss_folio_uk ON public.control_casos_imss USING btree (trabajador_id, folio_certificado) WHERE (NULLIF(btrim(folio_certificado), ''::text) IS NOT NULL)",
+    "CREATE UNIQUE INDEX uq_trab_obra_num ON public.trabajadores USING btree (obra_id, no_trab) WHERE (no_trab IS NOT NULL)",
+    "CREATE UNIQUE INDEX ux_cuadrilla_obra_contr_nombre ON public.cuadrillas USING btree (obra_id, upper(TRIM(BOTH FROM contratista)), upper(TRIM(BOTH FROM nombre)))",
+    "CREATE UNIQUE INDEX ux_control_cierre_obra_semana_activo ON public.control_cierres_nomina USING btree (obra_id, semana) WHERE (estado <> 'CANCELADO'::text)",
+    "CREATE UNIQUE INDEX ux_cep_pendiente ON public.control_expedientes_pendientes USING btree (obra_id, nombre_norm) WHERE (entregado = false)",
+    "CREATE UNIQUE INDEX ux_documentos_cfdi_uuid_activo ON public.documentos USING btree (upper(cfdi_uuid)) WHERE ((cfdi_uuid IS NOT NULL) AND (NOT COALESCE(anulado, false)))"
+  ],
+  "norm_semana": "CREATE OR REPLACE FUNCTION public.norm_semana(p_semana text)\n RETURNS integer\n LANGUAGE sql\n IMMUTABLE\nAS $function$\r\n  select nullif(regexp_replace(coalesce(p_semana,''), '\\D', '', 'g'), '')::int;\r\n$function$\n"
+}

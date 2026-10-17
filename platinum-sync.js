@@ -7,7 +7,7 @@
     'trabajadores','cheques','obras','descuentos','documentos','vacaciones',
     'actas','nom035','pagos','prima_pagos','cuadrillas','diferenciales',
     'bloques_cheques','control_cierres_nomina','control_conciliacion_noi',
-    'control_altas_bajas_cortas','control_finiquitos_transferencia'
+    'control_altas_bajas_cortas','control_finiquitos_transferencia','control_eventos_integracion'
   ]);
   function createQueue(options){
     const later=options.setTimer||setTimeout,cancel=options.clearTimer||clearTimeout;
@@ -97,5 +97,5 @@
       }
     });
   }
-  root.PLATINUM_SYNC=Object.freeze({version:'2026-10-16.1',sources:SOURCES,createQueue,relevant,connect});
+  root.PLATINUM_SYNC=Object.freeze({version:'2026-10-16.2',sources:SOURCES,createQueue,relevant,connect});
 })(typeof window==='undefined'?globalThis:window);

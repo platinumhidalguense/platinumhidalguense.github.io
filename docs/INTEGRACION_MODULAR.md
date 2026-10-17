@@ -1,6 +1,6 @@
-# Integración modular · primera entrega
+# Integración modular · documentación del primer bloque (archivo)
 
-Versión: 2026-10-16.1. Stack y motores conservados.
+Este documento conserva el alcance del primer bloque 2026-10-16.1. La entrega financiera posterior se describe en [FLUJO_INTEGRADO.md](FLUJO_INTEGRADO.md). Las secciones “pendientes” de este archivo son históricas, no el estado actual.
 
 ## Contratos de sincronización
 

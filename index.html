@@ -1198,7 +1198,8 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
   <div class="ia-aviso">Responde con los datos que TÚ tienes permitido ver. Verifica cifras contra el recibo o NOI.</div>
 </div>
 
-<script src="platinum-sync.js?v=20261016.1"></script>
+<script src="platinum-sync.js?v=20261016.2"></script>
+<script src="platinum-workflows.js?v=20261016.2"></script>
 <script>
 /* ================== CONFIGURACIÓN ================== */
 const CONFIG_URL = "";
@@ -1473,7 +1474,7 @@ function startRealtime(){
     getObraId:()=>OBRA?.id,
     canRefresh:()=>!NAV_BUSY&&!$('modals').innerHTML,
     refresh:()=>softRefresh(Date.now()-lastLocalWrite>=3000),
-    onDeferred:()=>{window._pendingRT=true;},
+    onDeferred:()=>{window._pendingRT=true;window.PLATINUM_FLOWS?.avisarCambio();},
     onStatus:({transport,dataState,online})=>{
       const el=$('rt-status');if(!el)return;
       el.textContent=dataState==='pending'?'Cambios pendientes':dataState==='error'?'Sin actualizar':dataState==='loading'?'Actualizando…':transport==='connected'?`${online||1} en línea`:transport==='offline'?'Sin conexión en vivo':'Conectando…';
@@ -1819,7 +1820,8 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-16.1';
+const APP_VERSION='2026-10-16.2';
+window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -4848,7 +4850,7 @@ function rdSemDe(o,w){
 }
 async function openReporteDocs(){
   toast('Cargando trabajadores...');
-  const {data:tw,error}=await sb.from('trabajadores').select('*').eq('eliminado',false).eq('estatus','ACTIVO');
+  const {data:tw,error}=await fetchAllRows(()=>sb.from('trabajadores').select('*').in('obra_id',obrasEmpresa(EMPRESA_ACTIVA).map(o=>o.id)).eq('eliminado',false).eq('estatus','ACTIVO'));
   if(error){toast('Error: '+error.message,'err');return;}
   window._RDOCS=tw||[];
   modal(`
@@ -4987,8 +4989,8 @@ async function pyDatosFrescos(){
     fetchAllRows(()=>sb.from('control_finiquitos_transferencia').select('*').eq('obra_id',id))
   ]);
   if(OBRA.id!==id)return false;
-  if(e1||e2||e3||e4||e5){
-    const error=e1||e2||e3||e4||e5;
+  if(e1||e2||e3||e4||e5||[tw,ds,df,ab,ft].some(x=>!Array.isArray(x))){
+    const error=e1||e2||e3||e4||e5||{message:'Respuesta incompleta de nómina'};
     if($('py-prev'))$('py-prev').innerHTML='<div class="fhint" style="color:var(--red)">No se pudieron actualizar los datos de la proyección. Cierra y vuelve a abrir esta ventana antes de exportar.</div>';
     if($('py-btn'))$('py-btn').disabled=true;
     if($('py-ambas'))$('py-ambas').disabled=true;
@@ -5041,11 +5043,17 @@ async function pyPreview(){
   for(const id of ['py-btn','py-ambas'])if($(id))$(id).disabled=true;
   if(globalThis._PY_FRESCOS===false)return;
   const sem='S'+($('py-sem').value||semObra()),destino=$('py-destino')?.value||'DISPERSION';
-  const {act,fins}=pyCandidatos($('py-d1').value,$('py-d2').value,$('py-periodo').value);
+  let {act,fins}=pyCandidatos($('py-d1').value,$('py-d2').value,$('py-periodo').value);
   try{
+    const versiones=window.PLATINUM_FLOWS?await window.PLATINUM_FLOWS.obtenerVersiones([OBRA.id],sem):null;
+    if(versiones)({act,fins}=window.PLATINUM_FLOWS.filtrarAbiertos(act,fins,versiones));
     const audits=await proyLeerFiniquitos(fins);
     if(version!==window._PY_PREVIEW_VERSION||!$('py-prev'))return;
-    const m=proyModelo(act,fins,sem,audits),inc=m.filas.reduce((s,x)=>s+x.incidencias,0),creditos=m.filas.reduce((s,x)=>s+x.creditos,0);
+    let m=proyModelo(act,fins,sem,audits);
+    if(window.__PLATINUM_REQUIERE_FLUJO&&!window.PLATINUM_FLOWS)throw Error('El módulo de coordinación no cargó. Recarga la plataforma.');
+    if(window.PLATINUM_FLOWS)m=await window.PLATINUM_FLOWS.versionarModelo(m,{obras:[OBRA.id],sem,periodo:$('py-periodo').value,desde:$('py-d1').value,hasta:$('py-d2').value,versiones});
+    if(version!==window._PY_PREVIEW_VERSION||!$('py-prev'))return;
+    const inc=m.filas.reduce((s,x)=>s+x.incidencias,0),creditos=m.filas.reduce((s,x)=>s+x.creditos,0);
     $('py-prev').innerHTML=`<div style="display:flex;gap:10px;flex-wrap:wrap">
       <div class="stat g" style="flex:1"><div class="n">${m.filas.length}</div><div class="l">Trabajadores · incluye ${fins.length} finiquitos</div></div>
       <div class="stat a" style="flex:1"><div class="n">$${money(inc)}</div><div class="l">Descuentos por incidencias</div></div>
@@ -6141,14 +6149,18 @@ async function exportProyeccion(eleccion){
     if(!d1||!d2||d1>d2)throw Error('Revisa las fechas de la proyección.');
     if(!await pyDatosFrescos())return;
     if(OBRA.id!==obra.id)throw Error('Cambió la obra. Abre nuevamente la proyección.');
-    const {act,fins}=pyCandidatos(d1,d2,periodo);
-    if(!act.length&&!fins.length)throw Error('No hay trabajadores en el periodo seleccionado.');
+    let {act,fins}=pyCandidatos(d1,d2,periodo);
+    const versiones=window.PLATINUM_FLOWS?await window.PLATINUM_FLOWS.obtenerVersiones([obra.id],sem):null;
+    if(versiones)({act,fins}=window.PLATINUM_FLOWS.filtrarAbiertos(act,fins,versiones));
     const fuentes={DESC,DIFS,FINTRANS};
     const audits=await proyLeerFiniquitos(fins);
     if(OBRA.id!==obra.id)throw Error('Cambió la obra. Abre nuevamente la proyección.');
     const actual={DESC,DIFS,FINTRANS};let m;
     try{DESC=fuentes.DESC;DIFS=fuentes.DIFS;FINTRANS=fuentes.FINTRANS;m=proyModelo(act,fins,sem,audits);}
     finally{DESC=actual.DESC;DIFS=actual.DIFS;FINTRANS=actual.FINTRANS;}
+    if(window.__PLATINUM_REQUIERE_FLUJO&&!window.PLATINUM_FLOWS)throw Error('El módulo de coordinación no cargó. Recarga la plataforma.');
+    if(window.PLATINUM_FLOWS)m=await window.PLATINUM_FLOWS.versionarModelo(m,{obras:[obra.id],sem,periodo,desde:d1,hasta:d2,versiones});
+    if(!m.filas.length)throw Error('No hay trabajadores en el periodo seleccionado.');
     const codigo=empresaDeObra(obra);
     const emp=CFGEMP['empresa_'+codigo]||{razon:EMPRESAS[codigo].nombre,rfc:''};
     const destinos=destino==='AMBAS'?['CONTRATISTA','DISPERSION']:[destino];
@@ -6174,7 +6186,7 @@ async function pcDatosFrescos(codigo){
     fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('obra_id,trabajador_id,anio,semana,estado_servicio').in('obra_id',ids)),
     fetchAllRows(()=>sb.from('control_finiquitos_transferencia').select('*').in('obra_id',ids))
   ]);
-  const error=rs.find(r=>r.error)?.error;if(error)throw Error('No se pudieron actualizar los datos: '+error.message);
+  const error=rs.find(r=>r.error||!Array.isArray(r.data));if(error)throw Error('No se pudieron actualizar los datos: '+(error.error?.message||'respuesta incompleta'));
   if(codigo!==EMPRESA_ACTIVA)throw Error('Cambió la empresa. Abre nuevamente la proyección.');
   const historicos=await proyCargarHistoricos(rs[0].data||[]);
   if(codigo!==EMPRESA_ACTIVA)throw Error('Cambió la empresa. Abre nuevamente la proyección.');
@@ -6185,7 +6197,7 @@ async function openProyContratista(){
   try{
     const datos=await pcDatosFrescos(codigo);
     window._PCEMP=codigo;window._PC=datos.all;
-    const cts=[...new Set(datos.all.filter(w=>String(w.contratista||'').trim()).map(w=>String(w.contratista).trim()))].sort();
+    const cts=[...new Set(datos.all.filter(w=>String(w.contratista||'').trim()).map(w=>String(w.contratista).trim()).concat(CONTRATISTAS.map(x=>x.nombre).filter(Boolean)))].sort();
     window._PCCT=cts;
     modal(`
       <div class="m-head"><h2>Proyección por contratista · ${esc(EMPRESAS[codigo].corto)}</h2><button class="x" onclick="closeModal()">×</button></div>
@@ -6231,23 +6243,30 @@ async function exportProyContratista(eleccion){
       if(periodo!=='TODOS')act=act.filter(w=>(w.periodo_pago||'SEMANAL')===periodo);
       const fins=proyFiniquitosSemana(personal,d1,d2,datos.historicos);
       return {ct,act,fins};
-    }).filter(c=>c.act.length+c.fins.length);
+    });
     if(!candidatos.length)throw Error('No hay personal para esos contratistas y fechas.');
+    const versiones=window.PLATINUM_FLOWS?await window.PLATINUM_FLOWS.obtenerVersiones(oid?[oid]:obrasEmpresa(codigo).map(o=>o.id),sem):null;
+    if(versiones)candidatos.forEach(c=>Object.assign(c,window.PLATINUM_FLOWS.filtrarAbiertos(c.act,c.fins,versiones)));
     const audits=await proyLeerFiniquitos(candidatos.flatMap(c=>c.fins));
     if(codigo!==EMPRESA_ACTIVA)throw Error('Cambió la empresa. Abre nuevamente la proyección.');
     previo={DESC,DIFS,FINTRANS};DESC=datos.desc;DIFS=datos.difs;FINTRANS=datos.fintrans;
     const emp=CFGEMP['empresa_'+codigo]||{razon:EMPRESAS[codigo].nombre,rfc:''},libros=[],registros=[];
+    const modelos=candidatos.map(c=>({...c,modelo:proyModelo(c.act,c.fins,sem,audits)}));
+    DESC=previo.DESC;DIFS=previo.DIFS;FINTRANS=previo.FINTRANS;previo=null;
     // Primero validar y construir TODOS; un desglose incompleto no deja un lote parcial.
-    for(const c of candidatos){
-      const m=proyModelo(c.act,c.fins,sem,audits);
+    for(const c of modelos){
+      let m=c.modelo;
+      if(window.__PLATINUM_REQUIERE_FLUJO&&!window.PLATINUM_FLOWS)throw Error('El módulo de coordinación no cargó. Recarga la plataforma.');
+      if(window.PLATINUM_FLOWS)m=await window.PLATINUM_FLOWS.versionarModelo(m,{obras:oid?[oid]:obrasEmpresa(codigo).map(o=>o.id),sem,periodo,contratista:c.ct,desde:d1,hasta:d2,versiones});
+      if(!m.filas.length)continue;
       const meta={codigo,colB:'OBRA',titulo:`PROYECCIÓN DE NÓMINA · ${c.ct} · SEMANA ${semN} · ${rangoTexto(d1,d2)}`,
         sub:`${emp.razon||''}${emp.rfc?' · RFC: '+emp.rfc:''} · ${oid?(OBRAS.find(o=>o.id===oid)?.nombre||''):'TODOS LOS CENTROS'} · ${c.ct}`,
         pie:`Semana ${semN} · ${fmtD(d1)} – ${fmtD(d2)} · ${c.ct} · ${new Date().toLocaleDateString('es-MX')}`};
       for(const d of destinos)libros.push({wb:proyLibro(m,d,meta),nombre:`PROYECCION_${d}_${codigo}_${c.ct.replace(/[^A-ZÑ0-9]+/gi,'_')}_SEMANA${semN}${periodo==='QUINCENAL'?'_QUINCENAL':''}.xlsx`});
       registros.push(...proyAuditoria(m,destinos));
     }
+    if(!libros.length)throw Error('No hay personal para esos contratistas y fechas.');
     // Restaurar ANTES de las operaciones asíncronas de auditoría/descarga.
-    DESC=previo.DESC;DIFS=previo.DIFS;FINTRANS=previo.FINTRANS;previo=null;
     await registrarBitacoraNomina(registros,{silencioso:false});
     for(const x of libros)await dl(x.wb,x.nombre);
     closeModal();toast(`${libros.length} archivo(s) generado(s) con detalle de retenciones.`,'ok');
@@ -7013,10 +7032,11 @@ async function globalYaImportado(sem){
     /* Se traen TODOS los pagos de esa semana y se decide aquí. Así funciona
        igual con el Script 53 corrido (columna `origen`) que sin él o con datos
        viejos sin clasificar: un lote que comparten 2+ trabajadores es global. */
-    const {data,error}=await sb.from('pagos')
+    const {data,error}=await fetchAllRows(()=>sb.from('pagos')
       .select('trabajador_id,folio_lote,fecha_pago,descripcion,importe,estado,origen,created_at')
-      .eq('obra_id',OBRA.id).eq('semana',sem);
-    if(error||!data||!data.length)return null;
+      .eq('obra_id',OBRA.id).eq('semana',sem));
+    if(error||!Array.isArray(data))throw Error(error?.message||'Respuesta incompleta de pagos');
+    if(!data.length)return null;
     const marcados=data.filter(p=>p.origen==='GLOBAL');
     if(marcados.length)return {folio:marcados[0].folio_lote||'',filas:marcados};
     const porFolio={};
@@ -7024,7 +7044,7 @@ async function globalYaImportado(sem){
     const lote=Object.entries(porFolio)
       .find(([f,a])=>new Set(a.map(x=>x.trabajador_id)).size>1);
     return lote?{folio:lote[0],filas:lote[1]}:null;
-  }catch(e){return null;}
+  }catch(e){throw Error('No se pudo verificar el lote existente. No se importó: '+e.message);}
 }
 async function applyPagoImport(){
   if(!PAGOIMP)return;
@@ -7038,7 +7058,7 @@ async function applyPagoImport(){
   /* ---- CANDADO: ¿esta semana ya tiene un pago global? ---- */
   const hayGlobales=sel.some(r=>!r.individual);
   if(hayGlobales){
-    const ya=await globalYaImportado(sem);
+    let ya;try{ya=await globalYaImportado(sem);}catch(e){toast(e.message,'err');return;}
     if(ya){
       const tot=(ya.filas||[]).filter(p=>String(p.estado||'').toUpperCase()!=='RECHAZADO').reduce((s,p)=>s+(Number(p.importe)||0),0);
       modal(`
@@ -7185,10 +7205,8 @@ function nominaEsperada(w){
   try{const n=nominaSemanal(w);return n&&n.neto!=null?n.neto:null;}catch(e){return null;}
 }
 async function ctrlSincronizarChequesCierre(sem){
-  const n=parseInt(normSem(sem))||0;if(!n||!ctrlCierreDeSemana(n))return 0;
-  const {data,error}=await sb.rpc('control_generar_cheques_pendientes',{p_obra:OBRA.id,p_semana:n});
-  if(error){console.warn('Sincronización de cheques:',error.message);return 0;}
-  return Number(data)||0;
+  // Abrir una revisión ya no escribe ni regenera cheques. NOI los prepara atómicamente.
+  return 0;
 }
 async function conciliarSemana(sem){
   const ns=normSem(sem); if(!ns){toast('Indica la semana.','err');return;}
@@ -7814,7 +7832,7 @@ function cpBuild(){
   rows.forEach(o=>{
     const w=o.tid?WORKERS.find(x=>x.id===o.tid):null; if(w)o.nombre=fullName(w); o.no=w?w.no_trab:null;
     const chqAct=o.chq.filter(c=>String(c.estatus||'').toUpperCase()!=='CANCELADO'&&c.importe!=null&&c.importe!=='');
-    const pagOk=o.pag.filter(p=>String(p.estado||'').toUpperCase()==='EXITOSO');
+    const pagOk=window.PLATINUM_FLOWS.pagosUnicos(o.pag.filter(p=>String(p.estado||'').toUpperCase()==='EXITOSO'));
     o.dup=chqAct.length>0&&pagOk.length>0;
     o.rech=o.pag.some(p=>String(p.estado||'').toUpperCase()==='RECHAZADO')&&!pagOk.length;
     o.chqAct=chqAct; o.pagOk=pagOk;
@@ -7841,7 +7859,7 @@ function cpRender(){
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
       ${nDup?`<span class="imp-tag imp-CONFLICTO" style="background:var(--red);color:#fff">⚠ ${nDup} posible(s) pago(s) doble(s)</span>`:'<span class="imp-tag imp-COINCIDE">Sin pagos dobles</span>'}
       ${nRech?`<span class="imp-tag imp-CONFLICTO">${nRech} rechazado(s)</span>`:''}
-      ${esAdmin()?'<button class="btn dark" onclick="openFiniquitoTransferenciaAdmin()">🏁 Finiquito por transferencia</button>':''}
+      ${puedeEditarTrabajador()?'<button class="btn dark" onclick="openFiniquitoTransferenciaAdmin()">🏁 Finiquito por transferencia autorizada</button>':''}
       <span style="margin-left:auto;font-size:12px">Semana <input id="cp-sem" style="width:70px;padding:4px 6px" placeholder="todas" value="${$('cp-sem')?esc($('cp-sem').value):''}" oninput="cpRender()"> · <label style="font-size:12px"><input type="checkbox" id="cp-dup" style="width:auto" ${soloDup?'checked':''} onchange="cpRender()"> solo dobles</label></span>
     </div>
     <div class="imp-row head" style="grid-template-columns:1.6fr .5fr 1.3fr 1.3fr 1fr"><span>Trabajador</span><span>Sem</span><span>Cheque</span><span>Transferencia</span><span>Estado</span></div>
@@ -7860,26 +7878,14 @@ function openControlPagos(){
     </div>`,'lg');
   cpBuild();
 }
-function openFiniquitoTransferenciaAdmin(trabajadorId=''){
-  if(!esAdmin()){toast('Solo el administrador puede autorizar esta operación.','err');return;}
-  const bajas=WORKERS.filter(w=>w.estatus==='BAJA'&&w.fecha_baja&&Number(w.monto_finiquito)>0)
-    .sort((a,b)=>String(b.fecha_baja).localeCompare(String(a.fecha_baja))||Number(a.no_trab)-Number(b.no_trab));
-  if(!bajas.length){toast('No hay finiquitos elegibles en este centro.','err');return;}
-  modal(`
-    <div class="m-head"><h2>🏁 Finiquito por transferencia · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
-    <div class="m-body">
-      <p class="fhint">Excepción administrativa al cheque de finiquito. Solo se anula automáticamente un cheque <b>PENDIENTE y sin número</b>; los expedidos requieren revisión física. Sin un pago BBVA importado, el caso queda <b>declarado, pendiente de conciliación bancaria</b>.</p>
-      <div class="grid" style="grid-template-columns:1fr 1fr">
-        <div class="c2"><label>Trabajador dado de baja</label><select id="ft-trab" onchange="finTransActualizarFormulario()">${bajas.map(w=>`<option value="${w.id}" ${w.id===trabajadorId?'selected':''}>#${esc(w.no_trab)} · ${esc(fullName(w))} · ${esc(w.fecha_baja)}</option>`).join('')}</select></div>
-        <div id="ft-resumen" class="c2"></div>
-        <div class="c2"><label>Transferencia BBVA ya importada (si existe)</label><select id="ft-pago"><option value="">Aún no importada — quedará por conciliar</option></select></div>
-        <div><label>Fecha de transferencia declarada (opcional)</label><input id="ft-fecha" type="date"></div>
-        <div><label>Referencia declarada (opcional)</label><input id="ft-ref" maxlength="120" placeholder="Folio bancario / comprobante"></div>
-        <div class="c2"><label>Motivo de la excepción</label><textarea id="ft-motivo" rows="2" placeholder="Ej. Personal administrativo; finiquito pagado por transferencia"></textarea></div>
-      </div>
-    </div>
-    <div class="m-foot"><button class="btn" onclick="openControlPagos()">Volver</button><button class="btn dark" id="ft-guardar" onclick="finTransGuardar()">Autorizar cambio</button></div>`,'md');
-  finTransActualizarFormulario();
+async function openFiniquitoTransferenciaAdmin(trabajadorId=''){
+  try{
+    if(!window.PLATINUM_FLOWS)throw Error('Recarga la plataforma para usar el flujo integrado.');
+    const p=await window.PLATINUM_FLOWS.call('PERMISOS');if(!p.transferencia)throw Error('No tienes autorización para esta excepción.');
+    if(trabajadorId){const w=WORKERS.find(x=>x.id===trabajadorId);if(!w)throw Error('Trabajador no encontrado.');return window.PLATINUM_FLOWS.transferencia(w.id,isoWeekDe(OBRA,new Date(w.fecha_baja+'T12:00')));}
+    const bajas=WORKERS.filter(w=>w.estatus==='BAJA'&&w.fecha_baja&&Number(w.monto_finiquito)>0).sort((a,b)=>Number(a.no_trab)-Number(b.no_trab));
+    modal(ctrlNav('Finiquito por transferencia autorizada')+`<div class="m-body"><p>Selecciona el finiquito. El servidor comprobará el permiso específico, NOI y la transferencia importada.</p><select id="ft-elegir">${bajas.map(w=>`<option value="${w.id}">#${esc(w.no_trab)} · ${esc(fullName(w))}</option>`).join('')}</select></div><div class="m-foot"><button class="btn dark" onclick="openFiniquitoTransferenciaAdmin($('ft-elegir').value)">Continuar</button></div>`,'md');
+  }catch(e){toast(e.message,'err');}
 }
 function finTransActualizarFormulario(){
   const w=WORKERS.find(x=>x.id===$('ft-trab')?.value);if(!w)return;
@@ -8082,6 +8088,9 @@ async function concBuild(){
   const btn=$('conc-refresh');if(btn)btn.disabled=true;
   try{
     const docs=await concFuentesSemana(ns), dm=new Map((docs||[]).map(x=>[x.trabajador_id,x]));
+    const cIntegrado=(CIERRES||[]).find(c=>Number(c.semana)===Number(ns)&&c.estado!=='CANCELADO');
+    const integrado=cIntegrado&&window.PLATINUM_FLOWS?await window.PLATINUM_FLOWS.call('DETALLE',{cierre_id:cIntegrado.id}):null;
+    window._CONC_CIERRE_INTEGRADO=cIntegrado?.id||null;
     const map=new Map(), getRow=w=>{let o=map.get(w.id);if(!o){o={w,sem:ns,chq:[],pag:[],esp:0,tipos:new Set()};map.set(w.id,o);}return o;};
     ctrlEsperadosPagoSemana(ns).forEach(e=>{const o=getRow(e.w);o.esp+=Number(e.monto)||0;o.tipos.add(e.tipo||'NOMINA');});
     (CHEQUES||[]).filter(c=>!c.eliminado&&c.trabajador_id&&normSem(c.semana)===ns&&String(c.estatus||'').toUpperCase()!=='CANCELADO')
@@ -8094,7 +8103,7 @@ async function concBuild(){
       const d=dm.get(o.w.id)||{};
       const chqPag=o.chq.filter(c=>['EXPEDIDO','ENTREGADO'].includes(String(c.estatus||'').toUpperCase()));
       const chqPend=o.chq.filter(c=>String(c.estatus||'').toUpperCase()==='PENDIENTE');
-      const transfOk=o.pag.filter(p=>String(p.estado||'').toUpperCase()==='EXITOSO');
+      const transfOk=window.PLATINUM_FLOWS.pagosUnicos(o.pag.filter(p=>String(p.estado||'').toUpperCase()==='EXITOSO'));
       o.pagCheque=chqPag.reduce((s,c)=>s+(Number(c.importe)||0),0);
       o.chequePendiente=chqPend.reduce((s,c)=>s+(Number(c.importe)||0),0);
       o.pagTransf=transfOk.reduce((s,p)=>s+(Number(p.importe)||0),0);o.pagado=o.pagCheque+o.pagTransf;
@@ -8109,6 +8118,13 @@ async function concBuild(){
       if(o.pagado<0.005&&o.pag.some(p=>String(p.estado||'').toUpperCase()==='RECHAZADO'))o.flags.push('TRANSF. RECHAZADA');
       if(o.pdfN&&!o.xmlN)o.info.push('PDF CARGADO · XML PENDIENTE');
       if(o.xmlN&&!o.pdfN)o.info.push('XML CARGADO · PDF PENDIENTE');
+      if(integrado){
+        const diag=(integrado.diagnostico.filas||[]).filter(x=>x.trabajador_id===o.w.id&&x.estado!=='COINCIDE');
+        diag.forEach(x=>{if(!o.flags.includes(x.estado))o.flags.push(x.estado);});
+        const os=(integrado.saldos||[]).filter(x=>x.trabajador_id===o.w.id&&x.vigente);
+        if(os.length){const saldo=redondearCentavos(os.reduce((a,x)=>a+Number(x.saldo),0));
+          o.info.push('SALDO POR APLICAR $'+money(saldo)+' · revisar flujo integrado');}
+      }
       o.no=o.w.no_trab;
     });
     rows.sort((a,b)=>((b.flags.length>0)-(a.flags.length>0))||((a.no||9e9)-(b.no||9e9)));
@@ -8135,6 +8151,7 @@ function concRender(){
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
       ${nFlag?`<span class="imp-tag imp-CONFLICTO" style="background:var(--red);color:#fff">⚠ ${nFlag} con diferencia</span>`:'<span class="imp-tag imp-COINCIDE">Todo cuadra</span>'}
       <span style="font-size:11px;color:var(--mut)">${filt.length} renglón(es)</span>
+      ${window._CONC_CIERRE_INTEGRADO?`<button class="btn" onclick="PLATINUM_FLOWS.abrirCierre('${window._CONC_CIERRE_INTEGRADO}')">Aprobaciones, aplicaciones y saldos</button>`:''}
     </div>
     <div class="imp-row head" style="grid-template-columns:1.5fr .8fr .8fr .8fr .72fr .72fr 1.55fr"><span>Trabajador</span><span>Esperado cierre/NOI</span><span>Cheque pagado</span><span>Transferencia</span><span>Recibo PDF</span><span>CFDI XML</span><span>Resultado</span></div>
     ${body||'<div class="empty">Sin movimientos de dinero para ese filtro.</div>'}
@@ -9121,30 +9138,8 @@ async function crCrearFaltantes(){
 /* El importe se toma del NOI importado; sin NOI, del PDF individual de la
    misma obra, semana, persona Y tipo. Nunca sustituir finiquito por sueldo. */
 async function chqResolverNeto(c){
-  const semana=Number(normSem(c.semana)),tipo=c.tipo_pago==='FINIQUITO'?'FINIQUITO':'NOMINA';
-  if(!c.trabajador_id||!c.obra_id||!semana)return {error:'Selecciona trabajador, centro y semana antes de expedir.'};
-  const cierres=await sb.from('control_cierres_nomina').select('id,archivo_noi,estado').eq('obra_id',c.obra_id).eq('semana',semana).neq('estado','CANCELADO').limit(5);
-  if(cierres.error)return {error:'No se pudo consultar el cierre NOI: '+cierres.error.message};
-  const importados=(cierres.data||[]).filter(z=>z.archivo_noi);
-  if(importados.length>1)return {error:'Hay más de un cierre NOI importado para esta semana; revisa antes de expedir.'};
-  if(importados.length){
-    const nr=await sb.from('control_conciliacion_noi').select('monto_noi,tipo_calculo').eq('cierre_id',importados[0].id).eq('obra_id',c.obra_id).eq('trabajador_id',c.trabajador_id).eq('tipo_calculo',tipo).limit(2);
-    if(nr.error)return {error:'No se pudo leer el neto NOI: '+nr.error.message};
-    if((nr.data||[]).length!==1)return {error:`NOI no contiene un ${tipo==='FINIQUITO'?'finiquito':'sueldo'} único de este trabajador en S${semana}. No expidas el cheque.`};
-    const neto=Number(nr.data[0].monto_noi);
-    return Number.isFinite(neto)&&neto>0?{neto,origen:'NOI S'+semana}:{error:'NOI registra neto $0.00; no corresponde expedir cheque.'};
-  }
-  const dr=await sb.from('documentos').select('id,archivo,semana').eq('obra_id',c.obra_id).eq('trabajador_id',c.trabajador_id).eq('categoria','RECIBO_NOMINA').eq('semana','S'+semana).eq('anulado',false).limit(20);
-  if(dr.error)return {error:'No se pudieron consultar los recibos: '+dr.error.message};
-  const coinciden=[];
-  for(const d of dr.data||[]){
-    let info=_RECCACHE[d.archivo];
-    if(!info){try{const {data:blob,error}=await sb.storage.from('expedientes').download(d.archivo);if(error)throw error;info=parseReciboText(await pdfBytesToText(new Uint8Array(await blob.arrayBuffer())));_RECCACHE[d.archivo]=info;}catch(e){return {error:'No se pudo leer el recibo '+d.archivo+': '+e.message};}}
-    if(info.tipo===(tipo==='FINIQUITO'?'FINIQUITO':'SUELDO')&&Number.isFinite(info.neto))coinciden.push(info.neto);
-  }
-  if(!coinciden.length)return {error:`Falta el recibo PDF de ${tipo==='FINIQUITO'?'finiquito':'sueldo'} S${semana}, o no se pudo extraer su neto. Importa NOI o el recibo correcto.`};
-  if(coinciden.some(n=>n!==coinciden[0]))return {error:'Hay recibos de este tipo con netos distintos; concilia los documentos antes de expedir.'};
-  return coinciden[0]>0?{neto:coinciden[0],origen:'recibo PDF S'+semana}:{error:'El recibo tiene neto $0.00; no corresponde expedir cheque.'};
+  if(!window.PLATINUM_FLOWS)return {error:'El flujo integrado no cargó. Recarga antes de expedir.'};
+  return window.PLATINUM_FLOWS.resolverNeto(c);
 }
 async function chqTraerRecibo(){
   const nom=($('c-nombre')?.value||'').trim().toUpperCase(),w=WORKERS.find(x=>fullName(x).toUpperCase()===nom);
@@ -15213,7 +15208,8 @@ async function openControlEmpresarial(){
       <p style="font-size:12px;color:var(--mut);margin:12px 0">Cada módulo trabaja únicamente con la razón social y centro seleccionados. Los plazos legales se controlan aparte de la regla interna de procesamiento en lunes.</p>
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
         ${[
-          ['🔐','Cierre de nómina','Fotografía, revisión, autorización dual, timbrado y pago','openCtrlCierres()'],
+          ['🧭','Pendientes y aprobaciones','Control por empresa/obra y consolidado exclusivo del administrador','PLATINUM_FLOWS.bandeja(false)'],
+          ['🔐','Cierre de nómina','Versión autorizada, conciliación, comprobantes, saldos y entrega','openCtrlCierres()'],
           ['⚖️','Conciliación NOI','Compara netos por trabajador y detecta diferencias al centavo','openCtrlConciliacionSelector()'],
           ['📒','Concentrado por contratista','Percepciones, ISR, IMSS, neto y evidencia de pago por semana','openCtrlConcentradoContratistas()'],
           ['📅','IMSS · IDSE · SUA','Altas, bajas, salarios e incapacidades con fechas y evidencias','openCtrlMovimientos()'],
@@ -15253,10 +15249,15 @@ async function openCtrlCierres(){
       <td style="font-size:10px">${esc(c.revisado_por_email||'Sin revisar')}<br>${esc(c.autorizado_por_email||'Sin autorizar')}</td>
       <td style="white-space:nowrap"><button class="btn" style="padding:4px 7px" onclick="ctrlOpenConciliacion('${c.id}')">Conciliar</button>
       <button class="btn" style="padding:4px 7px" onclick="ctrlRevisarPagosSemana(${c.semana})">Pagos</button>
+      <button class="btn" style="padding:4px 7px" onclick="PLATINUM_FLOWS.abrirCierre('${c.id}')">Flujo integrado</button>
       ${next&&puedeEditarTrabajador()&&(next[0]!=='AUTORIZADO'||esAdmin())?`<button class="btn dark" style="padding:4px 7px" onclick="ctrlCambiarCierre('${c.id}','${next[0]}')">${next[1]}</button>`:''}
       ${esAdmin()?`<button class="btn danger" style="padding:4px 7px" onclick="ctrlEliminarCierre('${c.id}')">Eliminar cierre</button>`:''}</td></tr>`; }),'Aún no hay cierres de nómina.');
 }
-async function ctrlRevisarPagosSemana(sem){return conciliarSemana('S'+sem);}
+async function ctrlRevisarPagosSemana(sem){
+  const c=(CIERRES||[]).find(x=>Number(x.semana)===Number(sem)&&x.estado!=='CANCELADO');
+  if(c&&window.PLATINUM_FLOWS)return window.PLATINUM_FLOWS.abrirCierre(c.id);
+  return conciliarSemana('S'+sem);
+}
 function openCtrlNuevoCierre(){
   const sem=semObra();
   modal(ctrlNav('＋ Nuevo cierre de nómina','openCtrlCierres')+`<div class="m-body">
@@ -15267,20 +15268,8 @@ function openCtrlNuevoCierre(){
     <div class="m-foot"><button class="btn" onclick="openCtrlCierres()">Cancelar</button><button class="btn dark" id="cc-save" onclick="ctrlCrearCierre()">Crear fotografía</button></div>`,'md');
 }
 async function ctrlCrearCierre(){
-  const sem=parseInt($('cc-sem').value),periodo=$('cc-per').value;if(!(sem>=1&&sem<=53)){toast('Semana inválida.','err');return;}
-  const {data:existentes,error:eExiste}=await sb.from(CTRL_TABLAS.cierres).select('id,periodo,estado').eq('obra_id',OBRA.id).eq('semana',sem).neq('estado','CANCELADO').limit(1);
-  if(eExiste){toast(ctrlFaltaScript(eExiste),'err');return;}
-  if(existentes&&existentes.length){toast(`Ya existe un cierre ${existentes[0].estado} para la semana S${sem}. Abre ese cierre; los pagos por cheque y transferencia se controlan dentro del mismo cierre.`,'err');return;}
-  const snap=ctrlSnapshotNomina(sem,periodo);if(!snap.items.length){toast('No hay trabajadores ni finiquitos para ese periodo.','err');return;}
-  $('cc-save').disabled=true;const huella=await ctrlSha(snap);
-  const fila={obra_id:OBRA.id,semana:sem,periodo,total_nomina:snap.total_nomina,total_prevision:snap.total_prevision,total_retenciones:snap.total_retenciones,
-    total_finiquitos:snap.total_finiquitos,total_neto:snap.total_neto,total_trabajadores:snap.total_trabajadores,formula_version:MOTOR_NOMINA_VERSION,
-    snapshot:snap,snapshot_sha256:huella,observaciones:$('cc-obs').value.trim(),creado_por_email:USER.email||''};
-  markWrite();const {data,error}=await sb.from(CTRL_TABLAS.cierres).insert(fila).select('id').single();
-  if(error){$('cc-save').disabled=false;toast('No se creó: '+ctrlFaltaScript(error),'err');return;}
-  const {data:auto,error:eAuto}=await sb.rpc('control_generar_cheques_pendientes',{p_obra:OBRA.id,p_semana:sem});
-  await ctrlAuditar('CIERRE_NOMINA','CREAR',{semana:sem,periodo,total_neto:snap.total_neto,huella,cheques_automaticos:eAuto?null:(auto||0)},'CIERRE',data.id);
-  toast(`Cierre en borrador creado y sellado con huella SHA-256${!eAuto&&auto?` · ${auto} cheque(s) pendiente(s) generado(s)`:''}.`,'ok');await loadObraData(OBRA.id);openCtrlCierres();
+  if(!window.PLATINUM_FLOWS){toast('No cargó el flujo integrado. Recarga antes de crear un cierre.','err');return;}
+  return window.PLATINUM_FLOWS.crearCierre();
 }
 async function ctrlEliminarCierre(id){
   const c=(window._CTRLCIERRES||[]).find(x=>x.id===id);if(!c)return;
@@ -15306,21 +15295,8 @@ async function openCtrlCierresEliminados(){
     ${ctrlTabla(['Semana','Estado anterior','Eliminado por','Fecha','NOI archivado','Cheques vinculados','Motivo'],a.map(x=>`<tr><td>S${x.semana} · ${esc(x.periodo)}</td><td>${ctrlEstado(x.estado_anterior)}</td><td>${esc(x.actor_email)}</td><td>${new Date(x.eliminado_en).toLocaleString('es-MX')}</td><td>${(x.conciliacion||[]).length}</td><td>${(x.cheques_vinculados||[]).length}</td><td>${esc(x.motivo)}</td></tr>`),'Sin cierres eliminados.')}</div>`,'lg');
 }
 async function ctrlCambiarCierre(id,estado){
-  if(window._CTRL_CIERRE_BUSY)return;
-  if(!puedeEditarTrabajador()){toast('Tu cuenta tiene acceso de consulta.','err');return;}
-  if(['AUTORIZADO','CANCELADO'].includes(estado)&&!esAdmin()){toast('Sólo el administrador puede autorizar o cancelar un cierre.','err');return;}
-  if(!confirm(`¿Cambiar el cierre a ${estado}? Las etapas autorizadas bloquean importes y fotografía.`))return;
-  const obraId=OBRA?.id;if(!obraId)return;
-  window._CTRL_CIERRE_BUSY=true;
-  try{
-    markWrite();const {data,error}=await sb.from(CTRL_TABLAS.cierres).update({estado}).eq('id',id).eq('obra_id',obraId).select('id,estado');
-    if(error)throw error;
-    if(!Array.isArray(data)||data.length!==1||data[0].id!==id||data[0].estado!==estado)throw Error('La base no confirmó el cambio. Revisa permisos y actualiza el cierre.');
-    await ctrlAuditar('CIERRE_NOMINA','CAMBIAR_ESTADO',{estado},'CIERRE',id);
-    toast('Estado actualizado: '+estado+'.','ok');
-    if(OBRA?.id===obraId)await openCtrlCierres();
-  }catch(e){toast(ctrlFaltaScript(e),'err');}
-  finally{window._CTRL_CIERRE_BUSY=false;}
+  if(!window.PLATINUM_FLOWS){toast('No cargó el flujo integrado. Recarga antes de aprobar.','err');return;}
+  return window.PLATINUM_FLOWS.transicion(id,estado);
 }
 async function openCtrlConciliacionSelector(){
   ctrlAuditar('CONCILIACION_NOI','ABRIR_SELECTOR');
@@ -15390,10 +15366,11 @@ async function ctrlLayoutNOIConIA(hojas){
 async function ctrlOpenConciliacion(id){
   const {data:c,error}=await sb.from(CTRL_TABLAS.cierres).select('*').eq('id',id).eq('obra_id',OBRA.id).single();
   if(error){toast(ctrlFaltaScript(error),'err');return;}window._CTRL_CIERRE=c;window._CTRLNOI=null;
-  const {data:filas}=await fetchAllRows(()=>sb.from(CTRL_TABLAS.noi).select('*').eq('obra_id',OBRA.id).eq('cierre_id',id));
+  const {data:filas,error:eFilas}=await fetchAllRows(()=>sb.from(CTRL_TABLAS.noi).select('*').eq('obra_id',OBRA.id).eq('cierre_id',id));
+  if(eFilas||!Array.isArray(filas)){toast('No se pudo verificar la conciliación; no se mostrará como vacía.','err');return;}
   modal(ctrlNav(`⚖️ NOI vs PLATINUM · S${c.semana}`,'openCtrlCierres')+`<div class="m-body">
     <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap"><div style="flex:1"><label>Reporte final exportado de NOI (.xlsx, .xls o .csv)</label><input id="noi-file" type="file" accept=".xlsx,.xls,.csv" onchange="ctrlLeerArchivoNOI(this)"></div>
-    <button class="btn" onclick="ctrlExportConciliacion()">⬇ Excel</button></div>
+    <button class="btn" onclick="ctrlExportConciliacion()">⬇ Excel</button><button class="btn" onclick="PLATINUM_FLOWS.abrirCierre('${id}')">Versión, recibos y saldos</button></div>
     <div class="fhint" style="margin-top:6px">Detecta encabezados como Número/Clave del trabajador y Neto/Total neto. NOI sigue siendo la referencia final de timbrado; el sistema exige diferencia $0.00 para autorizar.</div>
     <div id="noi-preview" style="margin-top:12px">${ctrlRenderConciliacion(filas||[])}</div></div>`,'lg');
   ctrlAuditar('CONCILIACION_NOI','ABRIR',{semana:c.semana},'CIERRE',id);
@@ -15425,7 +15402,7 @@ async function ctrlLeerArchivoNOI(inp){
     if(conflictos.length)throw new Error('El reporte repite trabajadores con netos distintos: '+conflictos.slice(0,8).join(', ')+'. Revisa el archivo antes de importarlo.');
     const exp=(window._CTRL_CIERRE.snapshot&&window._CTRL_CIERRE.snapshot.items)||[],out=[],usados=new Set();
     exp.forEach(x=>{const n=noi.get(Number(x.numero)),w=WORKERS.find(z=>z.id===x.trabajador_id);if(n)usados.add(Number(x.numero));out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:x.trabajador_id,
-      trabajador_numero:x.numero,trabajador_nombre:x.nombre,tipo_calculo:x.tipo||'NOMINA',metodo_pago:x.tipo==='FINIQUITO'?(finTransDe(w,window._CTRL_CIERRE.semana)?'TRANSFERENCIA':'CHEQUE'):(x.metodo_pago||metodoPagoPredeterminado(w,x.tipo)),monto_platinum:x.monto,monto_noi:n?n.m:null,
+      trabajador_numero:x.numero,trabajador_nombre:x.nombre,tipo_calculo:x.tipo||'NOMINA',metodo_pago:x.tipo==='FINIQUITO'?(finTransDe(w,window._CTRL_CIERRE.semana)?'TRANSFERENCIA':'CHEQUE'):(x.metodo_pago==='POR DEFINIR'?'CHEQUE':x.metodo_pago||metodoPagoPredeterminado(w,x.tipo)),monto_platinum:redondearCentavos(Number(x.monto)-(x.tipo==='FINIQUITO'?0:Math.min(Number(x.prevision_social)||0,Number(x.monto)))),monto_noi:n?n.m:null,
       detalle:{sueldo_nomina:x.sueldo_nomina||0,prevision_social:x.prevision_social||0,retenciones:x.retenciones||0,archivo:file.name,hojas:detectadas.map(d=>d.hoja.nombre),lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
     noi.forEach((n,no)=>{if(!usados.has(no))out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:null,trabajador_numero:no,trabajador_nombre:String(n.nombre||'NO EN SNAPSHOT'),
       tipo_calculo:n.tipo,metodo_pago:n.tipo==='FINIQUITO'?'CHEQUE':'TRANSFERENCIA',monto_platinum:null,monto_noi:n.m,detalle:{archivo:file.name,hoja:n.hoja,fila:n.fila,lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
@@ -15436,14 +15413,8 @@ async function ctrlLeerArchivoNOI(inp){
   }catch(e){toast('No se pudo leer NOI: '+e.message,'err');}
 }
 async function ctrlGuardarNOI(){
-  const st=window._CTRLNOI,c=window._CTRL_CIERRE;if(!st||!c)return;$('noi-save').disabled=true;markWrite();
-  let {error}=await sb.from(CTRL_TABLAS.noi).delete().eq('obra_id',OBRA.id).eq('cierre_id',c.id);
-  if(!error)for(let i=0;i<st.rows.length;i+=200){({error}=await sb.from(CTRL_TABLAS.noi).insert(st.rows.slice(i,i+200)));if(error)break;}
-  if(!error)({error}=await sb.from(CTRL_TABLAS.cierres).update({archivo_noi:st.file.name,archivo_noi_sha256:st.hash}).eq('id',c.id).eq('obra_id',OBRA.id));
-  if(error){$('noi-save').disabled=false;toast(ctrlFaltaScript(error),'err');return;}
-  const {data:auto,error:eAuto}=await sb.rpc('control_generar_cheques_pendientes',{p_obra:OBRA.id,p_semana:c.semana});
-  await ctrlAuditar('CONCILIACION_NOI','IMPORTAR',{archivo:st.file.name,huella:st.hash,filas:st.rows.length,cheques_automaticos:eAuto?null:(auto||0)},'CIERRE',c.id);
-  toast(`Conciliación NOI guardada${!eAuto&&auto?` · ${auto} cheque(s) pendiente(s) creado(s)`:''}.`,'ok');await loadObraData(OBRA.id);ctrlOpenConciliacion(c.id);
+  if(!window.PLATINUM_FLOWS){toast('No cargó el flujo integrado. No se reemplazó NOI.','err');return;}
+  return window.PLATINUM_FLOWS.importarNOI(window._CTRLNOI,window._CTRL_CIERRE);
 }
 async function ctrlExportConciliacion(){
   const c=window._CTRL_CIERRE;if(!c)return;const {data,error}=await fetchAllRows(()=>sb.from(CTRL_TABLAS.noi).select('*').eq('obra_id',OBRA.id).eq('cierre_id',c.id));
@@ -16199,7 +16170,7 @@ async function ctrlExportar(titulo,headers,data,nombre,modulo){
 function openManualControl(){
   ctrlAuditar('MANUAL','ABRIR');
   modal(ctrlNav('❔ Guía rápida del Centro de control')+`<div class="m-body" style="line-height:1.55">
-    <div class="sect">1. Cierre, pagos y entrega de cheques</div><p>Crea un solo cierre por centro y semana. El sistema genera cheques pendientes para personal sin cuenta y para finiquitos; al importar NOI puedes elegir transferencia o cheque, pero todo finiquito queda forzosamente en cheque. En “Pagos” revisa transferencias BBVA, cheques pendientes y diferencias de método. Captura número y consecutivo al expedir cada cheque: desde ese momento ya cuenta como pago cubierto y el sistema forma automáticamente su bloque con la fecha y hora reales. En “Reuniones de entrega” selecciona uno o varios bloques, añade excepcionalmente cheques manuales y confirma la entrega física uno por uno. Cierra la reunión solo cuando todos estén entregados. Una persona revisa y otra distinta autoriza la nómina; después marca timbrado y pagado. La fotografía e importes de un cierre autorizado quedan bloqueados. Solo el administrador puede retirar un cierre de cualquier estado mediante dos confirmaciones y motivo: se archiva la fotografía y conciliación; pagos, CFDI y cheques expedidos se conservan.</p>
+    <div class="sect">1. Cierre, pagos y entrega de cheques</div><p>En “Cierre de nómina → Flujo integrado” prepara la fotografía, importa NOI y lee los recibos archivados. Contabilidad envía a revisión; el administrador autoriza una versión fija. Las diferencias bloquean pagos. Un cheque expedido cuenta como pago registrado aunque falte entregarlo; las reuniones controlan esa entrega aparte. Los pagos parciales muestran saldo y nunca duplican un mismo comprobante global e individual. El finiquito sale por cheque salvo excepción confirmada del administrador o sustitución exacta por la contadora autorizada. Reabrir requiere solicitud y aprobación, y conserva versiones y comprobantes. Las regularizaciones históricas se presentan antes de aplicar.</p><p><button class="btn" onclick="PLATINUM_FLOWS.manual()">? Guía del flujo integrado</button></p>
     <div class="sect">2. IMSS, IDSE y SUA</div><p>Usa “Detectar altas y bajas” cada semana y agrega manualmente cambios de salario e incapacidades. La fecha interna del lunes no cambia la fecha efectiva. Para marcar presentado debes guardar folio o evidencia.</p>
     <div class="sect">3. Expediente de cumplimiento</div><p>Captura SIROC, REPSE, contratos, opiniones positivas, pólizas y licencias. El semáforo depende de la vigencia y los días de alerta. “No aplica” debe usarse solo con justificación.</p>
     <div class="sect">4. Costos de obra</div><p>Captura presupuesto semanal y la carga patronal real tomada del SUA. Transferencias, cheques, previsión y finiquitos se leen de los módulos existentes. Compara siempre el real confirmado contra la proyección.</p>
@@ -16428,6 +16399,38 @@ async function infAvisoAplicar(){
 /* FIN CONFIRMACION AVISOS */
 /* FIN AVISOS INFONAVIT */
 
+/* Adaptador de coordinación: conserva intacto proyModelo y sus fórmulas. */
+async function proySnapshotIntegrado(sem,periodo){
+  const obra=OBRA;if(!obra)throw Error('Selecciona un centro.');
+  const source=await window.PLATINUM_FLOWS.call('FUENTE',{obra_id:obra.id,semana:sem});
+  if(!await pyDatosFrescos()||OBRA?.id!==obra.id)throw Error('No se pudo preparar con datos actuales.');
+  const [desde,hasta]=semRange(sem),{act,fins}=pyCandidatos(desde,hasta,periodo);
+  const sources={DESC,DIFS,FINTRANS},audits=await proyLeerFiniquitos(fins);
+  if(OBRA?.id!==obra.id||DESC!==sources.DESC||DIFS!==sources.DIFS||FINTRANS!==sources.FINTRANS)throw Error('Cambió el contexto durante el cálculo. Intenta nuevamente.');
+  const live=proyModelo(act,fins,'S'+sem,audits);
+  // Sólo los campos necesarios para reproducir las exportaciones, no el expediente personal.
+  const fields=['id','obra_id','no_trab','nombres','primer_apellido','segundo_apellido','contratista','puesto','periodo_pago','cuenta','clabe','banco','forma_pago','fecha_baja'];
+  const filas=live.filas.map(f=>{const w=Object.fromEntries(fields.map(k=>[k,f.w[k]??null]));return {...f,w,items:f.items.map(i=>({...i,w}))};});
+  const modelo={...live,filas,items:filas.flatMap(f=>f.items),act:filas.filter(f=>!f.fin).map(f=>f.w),fins:filas.filter(f=>f.fin).map(f=>f.w)};
+  const sum=fn=>redondearCentavos(filas.reduce((a,f)=>a+fn(f),0));
+  const snapshot={obra_id:obra.id,empresa_codigo:empresaDeObra(obra),obra:obra.nombre,semana:sem,periodo,desde,hasta,formula_version:MOTOR_NOMINA_VERSION,
+    total_nomina:sum(f=>f.fin?0:f.sueldo),total_prevision:sum(f=>f.prevision),total_retenciones:sum(f=>f.fin?0:f.incidencias+f.creditos+f.otras),
+    total_finiquitos:sum(f=>f.fin?f.neto:0),total_neto:modelo.neto,total_trabajadores:filas.length,modelo,
+    items:filas.map(f=>({trabajador_id:f.w.id,numero:f.w.no_trab,nombre:fullName(f.w),tipo:f.fin?'FINIQUITO':'NOMINA',metodo_pago:f.pago,
+      sueldo_nomina:f.sueldo,prevision_social:f.prevision,retenciones:f.fin?0:redondearCentavos(f.incidencias+f.creditos+f.otras),monto:f.neto}))};
+  return {obra_id:obra.id,semana:sem,periodo,snapshot,fuente:source.fuente};
+}
+if(window.PLATINUM_FLOWS)window.PLATINUM_FLOWS.configure({
+  context:()=>({sb,obra:OBRA,workers:WORKERS,empresaNombre:OBRA?razonSocialEmpresa(empresaDeObra(OBRA)):''}),
+  $,esc,money,table:ctrlTabla,modal,toast,fullName,capture:proySnapshotIntegrado,
+  reload:()=>loadObraData(OBRA.id),go:async id=>{await selectObra(id);if(OBRA?.id!==id)throw Error('No se pudo abrir el centro.');},
+  openNoi:ctrlOpenConciliacion,openPayments:openControlPagos,openControl:openControlEmpresarial,
+  exportRows:(title,headers,rows,name)=>ctrlExportar(title,headers,rows,name,'FLUJO_INTEGRADO'),
+  readReceipt:async doc=>{const r=await sb.storage.from('expedientes').download(doc.archivo);if(r.error||!r.data)throw Error('No se pudo descargar el recibo privado.');
+    const bytes=new Uint8Array(await r.data.arrayBuffer());if(doc.hash&&await sha256Hex(bytes)!==doc.hash)throw Error('El archivo no coincide con su huella.');
+    const info=parseReciboText(await pdfBytesToText(bytes));if(!info||!Number.isFinite(info.neto)||!['FINIQUITO','SUELDO'].includes(info.tipo))throw Error('Recibo no reconocido; revisión manual requerida.');
+    return {neto:info.neto,tipo:info.tipo==='FINIQUITO'?'FINIQUITO':'NOMINA'};}
+});
 init();
 </script>
 <script src="concentrado-contratistas.js"></script>

@@ -1,0 +1,11 @@
+{
+  "name": "platinum-verificacion-aislada",
+  "private": true,
+  "version": "2026.10.16",
+  "scripts": {
+    "test": "node verificar_integracion.cjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.10"
+  }
+}

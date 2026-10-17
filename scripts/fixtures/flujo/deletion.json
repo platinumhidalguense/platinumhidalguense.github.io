@@ -1,0 +1,15 @@
+{
+  "fks": [
+    {
+      "def": "FOREIGN KEY (cierre_id) REFERENCES control_cierres_nomina(id) ON DELETE SET NULL",
+      "name": "cheques_cierre_id_fk",
+      "tabla": "cheques"
+    },
+    {
+      "def": "FOREIGN KEY (cierre_id) REFERENCES control_cierres_nomina(id) ON DELETE CASCADE",
+      "name": "control_conciliacion_noi_cierre_id_fkey",
+      "tabla": "control_conciliacion_noi"
+    }
+  ],
+  "guard": "CREATE OR REPLACE FUNCTION public.control_bloquear_borrado_cierre()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  if not (select public.control_es_admin_cierre())\n     or current_setting('app.cierre_admin_delete_id',true) is distinct from old.id::text\n     or not exists (\n       select 1 from public.control_cierres_eliminados a\n       where a.id=old.id and a.actor_id=(select auth.uid())\n     ) then\n    raise exception 'Cierre protegido: usa la eliminación administrativa auditada';\n  end if;\n\n  -- Sólo los cheques automáticos pendientes y sin numeración se cancelan.\n  update public.cheques q\n  set estatus='CANCELADO', eliminado=true,\n      eliminado_por=(select u.email from public.app_usuarios u where u.user_id=(select auth.uid())),\n      eliminado_en=now(), motivo_eliminado='CIERRE ADMINISTRATIVO ELIMINADO',\n      cierre_id=null, updated_at=now()\n  where q.cierre_id=old.id and q.origen_generacion in ('CIERRE_NOI','SIN_CUENTA','FINIQUITO')\n    and q.estatus='PENDIENTE' and coalesce(q.num_cheque,'')=''\n    and coalesce(q.consecutivo,'')='' and coalesce(q.eliminado,false)=false;\n\n  -- Los expedidos, entregados y manuales sobreviven, sin vínculo al cierre.\n  update public.cheques q set cierre_id=null,updated_at=now()\n  where q.cierre_id=old.id;\n  return old;\nend;\n$function$\n"
+}

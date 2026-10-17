@@ -4,7 +4,7 @@ const box={setTimeout,clearTimeout};vm.createContext(box);vm.runInContext(code,b
 function fn(name){const start=html.indexOf(name);assert(start>=0,name);const next=/\n(?:async )?function |\n\/\* /g;next.lastIndex=start+name.length;return html.slice(start,next.exec(html).index);}
 function clock(){let n=0;const tasks=new Map();return {setTimer:f=>{tasks.set(++n,f);return n;},clearTimer:id=>tasks.delete(id),async tick(){const all=[...tasks.values()];tasks.clear();await Promise.all(all.map(f=>f()));},get size(){return tasks.size;}};}
 (async()=>{
- assert.equal(core.sources.length,17);assert(!core.sources.includes('sueldos_internos'));
+ assert.equal(core.sources.length,18);assert(core.sources.includes('control_eventos_integracion'));assert(!core.sources.includes('sueldos_internos'));
  assert(!core.sources.includes('control_casos_imss'),'No ampliar suscripciones a diagnósticos clínicos');
  for(const table of ['pagos','cuadrillas','diferenciales','control_cierres_nomina','control_conciliacion_noi'])assert(core.sources.includes(table),table);
  assert(core.relevant({table:'pagos',new:{obra_id:'a'}},'a'));
@@ -37,7 +37,7 @@ function clock(){let n=0;const tasks=new Map();return {setTimer:f=>{tasks.set(++
   const doc={visibilityState:'visible',addEventListener:(n,f)=>events[n]=f,removeEventListener:n=>delete events[n]};
   const channel={on(kind,filter,cb){handlers.push({kind,filter,cb});return this;},subscribe(f){this.status=f;return this;},track:async data=>{channel.tracked=data;},presenceState:()=>({a:[{}],b:[{}]})};
   const conn=core.connect({...c,client:{channel:(name,config)=>{assert(!JSON.stringify(config).includes('@'));return channel;},removeChannel:async ch=>removed.push(ch)},userId:'opaque-id',window:fakeWindow,document:doc,getObraId:()=> 'a',now:()=>now,canRefresh:()=>true,refresh:async()=>{calls++;return true},onStatus:s=>status.push(s)});
-  assert.equal(handlers.filter(h=>h.kind==='postgres_changes').length,17);
+  assert.equal(handlers.filter(h=>h.kind==='postgres_changes').length,18);
   await channel.status('SUBSCRIBED');assert.deepEqual(JSON.parse(JSON.stringify(channel.tracked)),{online:true});assert.equal(c.size,0,'Inicio no duplica lectura');
   const payment=handlers.find(h=>h.filter.table==='pagos');payment.cb({new:{obra_id:'b'}});assert.equal(c.size,0);
   payment.cb({new:{obra_id:'a'}});await c.tick();assert.equal(calls,1);
@@ -64,5 +64,5 @@ function clock(){let n=0;const tasks=new Map();return {setTimer:f=>{tasks.set(++
   element.innerHTML='';ctx.actualizarDatosCompartidos();assert.equal(requested,1);
  }
  assert(html.indexOf('src="platinum-sync.js')<html.indexOf('/* ================== CONFIGURACIÓN'));
- console.log('OK: 17 fuentes, alcance por centro, eventos agrupados, concurrencia, modales preservados, reconexión, foco, desconexión y fallos visibles; sin correos en presencia ni escrituras financieras.');
+ console.log('OK: 18 fuentes, alcance por centro, eventos agrupados, concurrencia, modales preservados, reconexión, foco, desconexión y fallos visibles; sin correos en presencia ni escrituras financieras.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
