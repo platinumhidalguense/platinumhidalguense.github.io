@@ -75,6 +75,7 @@ async function openControlEmpresarial(){
           ['⚙','Operación RRHH','Corte semanal, explicación de importes, expediente 360 y procesos conectados','PLATINUM_RRHH.abrir()'],
           ['🧭','Pendientes y aprobaciones','Control por empresa/obra y consolidado exclusivo del administrador','PLATINUM_FLOWS.bandeja(false)'],
           ['🔐','Cierre de nómina','Versión autorizada, conciliación, comprobantes, saldos y entrega','openCtrlCierres()'],
+          ['💳','Revisión de pagos del sábado','Pagos pendientes, transferencias y cheques sólo con confirmación desde las 12:00 CDMX','PLATINUM_PAGOS_SABADO.abrir()'],
           ['⚖️','Conciliación NOI','Compara netos por trabajador y detecta diferencias al centavo','openCtrlConciliacionSelector()'],
           ['📒','Concentrado por contratista','Percepciones, ISR, IMSS, neto y evidencia de pago por semana','openCtrlConcentradoContratistas()'],
           ['📅','IMSS · IDSE · SUA','Altas, bajas, salarios e incapacidades con fechas y evidencias','openCtrlMovimientos()'],
@@ -245,12 +246,12 @@ function ctrlRenderConciliacion(rows,editable=false){
   const dif=rows.filter(x=>x.estatus!=='COINCIDE');
   return `<div class="stats"><div class="stat g"><div class="n">${rows.length-dif.length}</div><div class="l">Coinciden</div></div><div class="stat r"><div class="n">${dif.length}</div><div class="l">Diferencias / faltantes</div></div></div>
     ${ctrlTabla(['No.','Trabajador','Tipo','Método de pago','PLATINUM','NOI','Diferencia','Estado'],rows.map((x,i)=>`<tr><td>${x.trabajador_numero??'—'}</td><td>${esc(x.trabajador_nombre)}</td><td>${x.tipo_calculo}</td>
-      <td>${editable?`<select style="min-width:130px;padding:5px" onchange="ctrlMetodoNOI(${x._i??i},this.value)" ${x.tipo_calculo==='FINIQUITO'?'disabled title="Los finiquitos de obra se pagan por cheque"':''}><option ${x.metodo_pago==='TRANSFERENCIA'?'selected':''}>TRANSFERENCIA</option><option ${x.metodo_pago==='CHEQUE'?'selected':''}>CHEQUE</option></select>`:`${ctrlEstado(x.metodo_pago||'TRANSFERENCIA')}${x.cheque_id?' <span title="Cheque vinculado">🧾</span>':x.pago_id?' <span title="Transferencia vinculada">💸</span>':''}`}</td>
+      <td>${editable?(x.tipo_calculo==='FINIQUITO'?ctrlEstado(x.metodo_pago||'CHEQUE'):'PAGO PENDIENTE · sin cheque automático'):`${ctrlEstado(x.metodo_pago||'TRANSFERENCIA')}${x.cheque_id?' <span title="Cheque vinculado">🧾</span>':x.pago_id?' <span title="Transferencia vinculada">💸</span>':''}`}</td>
       <td>${x.monto_platinum==null?'—':'$'+money(x.monto_platinum)}</td><td>${x.monto_noi==null?'—':'$'+money(x.monto_noi)}</td><td style="color:${Number(x.diferencia)?'var(--red)':'var(--green)'}"><b>$${money(x.diferencia)}</b></td><td>${ctrlEstado(x.estatus)}</td></tr>`))}`;
 }
 function ctrlMetodoNOI(i,metodo){
   const st=window._CTRLNOI,r=st&&st.rows&&st.rows[i];if(!r)return;
-  r.metodo_pago=r.tipo_calculo==='FINIQUITO'?'CHEQUE':(metodo==='CHEQUE'?'CHEQUE':'TRANSFERENCIA');
+  if(r.tipo_calculo!=='FINIQUITO')r.metodo_pago='TRANSFERENCIA';
 }
 async function ctrlLeerArchivoNOI(inp){
   const file=inp.files&&inp.files[0];if(!file)return;
@@ -267,14 +268,14 @@ async function ctrlLeerArchivoNOI(inp){
     if(conflictos.length)throw new Error('El reporte repite trabajadores con netos distintos: '+conflictos.slice(0,8).join(', ')+'. Revisa el archivo antes de importarlo.');
     const exp=(window._CTRL_CIERRE.snapshot&&window._CTRL_CIERRE.snapshot.items)||[],out=[],usados=new Set();
     exp.forEach(x=>{const n=noi.get(Number(x.numero)),w=WORKERS.find(z=>z.id===x.trabajador_id);if(n)usados.add(Number(x.numero));out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:x.trabajador_id,
-      trabajador_numero:x.numero,trabajador_nombre:x.nombre,tipo_calculo:x.tipo||'NOMINA',metodo_pago:x.tipo==='FINIQUITO'?(finTransDe(w,window._CTRL_CIERRE.semana)?'TRANSFERENCIA':'CHEQUE'):(x.metodo_pago==='POR DEFINIR'?'CHEQUE':x.metodo_pago||metodoPagoPredeterminado(w,x.tipo)),monto_platinum:redondearCentavos(Number(x.monto)-(x.tipo==='FINIQUITO'?0:Math.min(Number(x.prevision_social)||0,Number(x.monto)))),monto_noi:n?n.m:null,
+      trabajador_numero:x.numero,trabajador_nombre:x.nombre,tipo_calculo:x.tipo||'NOMINA',metodo_pago:x.tipo==='FINIQUITO'?(finTransDe(w,window._CTRL_CIERRE.semana)?'TRANSFERENCIA':'CHEQUE'):'TRANSFERENCIA',monto_platinum:redondearCentavos(Number(x.monto)-(x.tipo==='FINIQUITO'?0:Math.min(Number(x.prevision_social)||0,Number(x.monto)))),monto_noi:n?n.m:null,
       detalle:{sueldo_nomina:x.sueldo_nomina||0,prevision_social:x.prevision_social||0,retenciones:x.retenciones||0,archivo:file.name,hojas:detectadas.map(d=>d.hoja.nombre),lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
     noi.forEach((n,no)=>{if(!usados.has(no))out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:null,trabajador_numero:no,trabajador_nombre:String(n.nombre||'NO EN SNAPSHOT'),
       tipo_calculo:n.tipo,metodo_pago:n.tipo==='FINIQUITO'?'CHEQUE':'TRANSFERENCIA',monto_platinum:null,monto_noi:n.m,detalle:{archivo:file.name,hoja:n.hoja,fila:n.fila,lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
     window._CTRLNOI={rows:out,file,hash:await ctrlSha(buf),lector:porIA?'IA_LAYOUT':'AUTOMATICO',registrosNOI:noi.size};
     const prev=out.map((x,i)=>({...x,_i:i,diferencia:redondearCentavos((x.monto_platinum||0)-(x.monto_noi||0)),estatus:x.monto_platinum==null?'SIN_PLATINUM':x.monto_noi==null?'SIN_NOI':redondearCentavos(x.monto_platinum-x.monto_noi)===0?'COINCIDE':'DIFERENCIA'}));
     const resumen=`<div style="background:var(--blue-bg);border:1px solid var(--border);border-radius:9px;padding:9px 12px;margin-bottom:10px;font-size:12px"><b>Lectura validada:</b> ${noi.size} trabajador(es) · ${detectadas.map(d=>`${esc(d.hoja.nombre)}, encabezados fila ${d.layout.fila+1}`).join(' · ')}</div>`;
-    $('noi-preview').innerHTML=(porIA?IA_BANNER:'')+resumen+`<div style="margin-bottom:8px"><button class="btn dark" id="noi-save" onclick="ctrlGuardarNOI()">💾 Guardar conciliación</button> <b>${esc(file.name)}</b><div class="fhint">Sin cuenta y finiquitos quedan en CHEQUE por defecto. Puedes cambiar manualmente el método de una nómina normal antes de guardar.</div></div>`+ctrlRenderConciliacion(prev,true);
+    $('noi-preview').innerHTML=(porIA?IA_BANNER:'')+resumen+`<div style="margin-bottom:8px"><button class="btn dark" id="noi-save" onclick="ctrlGuardarNOI()">💾 Guardar conciliación</button> <b>${esc(file.name)}</b><div class="fhint">Nómina normal: pago pendiente, sin cheque automático. Desde el sábado 12:00 revisa y confirma candidatos. Finiquitos: cheque por defecto, salvo transferencia previamente autorizada.</div></div>`+ctrlRenderConciliacion(prev,true);
   }catch(e){toast('No se pudo leer NOI: '+e.message,'err');}
 }
 async function ctrlGuardarNOI(){

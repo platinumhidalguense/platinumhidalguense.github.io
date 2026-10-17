@@ -28,7 +28,7 @@ Editar los módulos, no el archivo generado. Publicar juntos el HTML y el archiv
 
 La comprobación estructural de fichas utiliza Python y lxml, no un navegador. En otro equipo se puede indicar el ejecutable con `PLATINUM_TEST_PYTHON`; GitHub prepara Python 3.12 y lxml 6.0.2 de forma aislada.
 
-Las 16 suites del paquete público incluyen 68 comprobaciones PostgreSQL y contratos de paginación, alcance de empresa, respuestas tardías, permisos, aprobación, idempotencia, saldos, versiones y botones nuevos. Usan datos ficticios; no conectan a la base operativa ni abren navegador. El paquete privado añade 27 comprobaciones de seguridad y 66 de los cuatro bloques RRHH: 21 suites y 161 comprobaciones PostgreSQL en conjunto. No se cuentan como ejecutadas las que requieren archivos privados ausentes.
+Las 17 suites del paquete público incluyen 68 comprobaciones PostgreSQL y contratos de paginación, alcance de empresa, respuestas tardías, permisos, aprobación, idempotencia, saldos, versiones y botones nuevos. Usan datos ficticios; no conectan a la base operativa ni abren navegador. El paquete privado añade 27 comprobaciones de seguridad, 66 de los cuatro bloques RRHH y 50 de pagos de sábado: 24 suites y 211 comprobaciones PostgreSQL en conjunto. La interfaz de pagos añade 24 contratos VM. No se cuentan como ejecutadas las que requieren archivos privados ausentes.
 
 `scripts/auditar_funciones.cjs` reproduce trazas y callbacks; el informe detallado se conserva como artefacto privado. Análisis estático no significa ejecución universal ni garantía de ausencia de errores. La migración de endurecimiento ya aplicada también se entrega en privado, no dentro del sitio público.
 

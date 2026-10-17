@@ -132,7 +132,7 @@ function cuentaPagoValida(w){
   const cuenta=String(w.cuenta||'').replace(/\D/g,''),clabe=String(w.clabe||'').replace(/\D/g,'');
   return cuenta.length>=4||clabe.length>=10;
 }
-function metodoPagoPredeterminado(w,tipo){return String(tipo||'').toUpperCase()==='FINIQUITO'||!cuentaPagoValida(w)?'CHEQUE':'TRANSFERENCIA';}
+function metodoPagoPredeterminado(w,tipo){return String(tipo||'').toUpperCase()==='FINIQUITO'?'CHEQUE':cuentaPagoValida(w)?'TRANSFERENCIA':'POR DEFINIR';}
 function pagoAcctMatch(w,mask){const m=String(mask||'').replace(/\D/g,'');if(m.length<3)return false;return _pgLast(w.cuenta,m.length)===m||_pgLast(w.clabe,m.length)===m;}
 /* Empareja un renglón del reporte con un trabajador de la OBRA actual. */
 function matchPagoWorker(titular,mask){
@@ -328,17 +328,19 @@ function pgRender(){
      </div>`:'';
   $('pg-head').innerHTML=(valid.some(r=>r.porIA)?IA_BANNER:'')+avisos+`<div style="background:var(--blue-bg,#eef3fb);border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.7">
     <b>${valid.length} pago(s)</b> · total $${money(suma)}${nInd?` · ${nInd} individual(es)`:''}${bancos.length?` · banco(s): ${esc(bancos.join(', '))}`:''}</div>`;
-  let nDup=0;
+  let nDup=0,nAuto=0;
   const body=PAGOIMP.rows.map((r,i)=>{
     if(r.error)return `<div class="imp-row" style="grid-template-columns:24px 1.7fr 1.4fr .8fr .8fr;background:var(--amber-bg)"><span></span><span>${esc(r.titular)}</span><span style="color:var(--red);font-size:11.5px">${esc(r.error)}</span><span></span><span class="imp-tag imp-SINREGISTRO">ERROR</span></div>`;
     const w=r.wId?WORKERS.find(x=>x.id===r.wId):null;
     let alert='';
     if(w&&ns){
       const chs=chequeMismaSemana(w,ns);
-      if(chs.length){nDup++;const c=chs[0];const exacto=Math.abs((Number(c.importe)||0)-r.importe)<0.5;
-        alert+=`<div style="color:var(--red);font-weight:700;font-size:11px;margin-top:3px">⚠ ${exacto?'POSIBLE PAGO DOBLE':'MISMA SEMANA'}: cheque${c.num_cheque?' #'+esc(c.num_cheque):''} $${money(c.importe)} (${esc(c.estatus)}) <button class="btn danger" style="padding:1px 8px;font-size:10px" onclick="pagoCancelarCheque('${c.id}')">Cancelar cheque</button></div>`;}
+      if(chs.length){const c=chs.find(c=>['EXPEDIDO','ENTREGADO'].includes(c.estatus))||chs[0];
+        const automatico=c.tipo_pago==='CHEQUE'&&c.estatus==='PENDIENTE'&&!c.num_cheque&&!c.consecutivo&&!c.lote_nomina_id&&['SIN_CUENTA','CIERRE_NOI'].includes(c.origen_generacion);
+        if(automatico){nAuto++;alert+=`<div style="color:var(--amber);font-size:11px;margin-top:3px">Pendiente automático anterior; aún no es pago. Revisa la retirada en lote.</div>`;}
+        else{nDup++;const expedido=['EXPEDIDO','ENTREGADO'].includes(c.estatus);alert+=`<div style="color:var(--red);font-weight:700;font-size:11px;margin-top:3px">⚠ ${expedido?'POSIBLE PAGO DOBLE':'REVISAR PENDIENTE, NO EXPEDIDO'}: cheque${c.num_cheque?' #'+esc(c.num_cheque):''} $${money(c.importe)} (${esc(c.estatus)}) <button class="btn danger" style="padding:1px 8px;font-size:10px" onclick="pagoCancelarCheque('${c.id}')">Revisar cheque</button></div>`;}}
     }
-    if(r.estado==='RECHAZADO')alert+=`<div style="color:var(--red);font-weight:700;font-size:11px;margin-top:3px">✗ RECHAZADO — NO se le pagó por transferencia (requiere cheque)</div>`;
+    if(r.estado==='RECHAZADO')alert+=`<div style="color:var(--red);font-weight:700;font-size:11px;margin-top:3px">✗ RECHAZADO — pago pendiente. Revisar desde el sábado 12:00; no crea cheque sin confirmar.</div>`;
     const ya=r.yaRep||(w&&ns&&(PAGOS||[]).some(p=>p.trabajador_id===w.id&&normSem(p.semana)===ns&&((r.folio&&p.folio_lote===r.folio)||(r.hash&&p.hash===r.hash))));
     r.already=!!ya; if(ya)r.sel=false;
     /* --- comprobante SIN texto: se ve la imagen y se captura el importe --- */
@@ -399,10 +401,11 @@ function pgRender(){
       ${sinM?`<span class="imp-tag imp-SINREGISTRO">${sinM} sin emparejar</span>`:''}
       ${nRech?`<span class="imp-tag imp-CONFLICTO">${nRech} rechazado(s)</span>`:''}
       ${nDup?`<span class="imp-tag imp-CONFLICTO" style="background:var(--red);color:#fff">⚠ ${nDup} con cheque en la misma semana</span>`:''}
+      ${nAuto?`<button class="btn" onclick="PLATINUM_PAGOS_SABADO.abrir(${Number(ns)},'RETIROS')">Revisar ${nAuto} pendientes automáticos en lote</button>`:''}
     </div>
     <div class="imp-row head" style="grid-template-columns:24px 1.7fr 1.4fr .8fr .8fr"><span></span><span>Pago</span><span>Trabajador (obra actual)</span><span>Estado</span><span></span></div>
     ${body}
-    <p style="font-size:11px;color:var(--mut);margin-top:8px">Acepta el <b>pago global</b> y comprobantes <b>individuales</b> de cualquier banco. Escribe la <b>semana</b> para detectar duplicados vs cheques. Los <b>rechazados</b> se guardan como no pagados; un pago con cheque en la misma semana se marca en rojo con opción de <b>cancelar el cheque</b>. Los comprobantes <b>impresos como imagen</b> (sin texto) se muestran para capturar el importe a mano.</p>`;
+    <p style="font-size:11px;color:var(--mut);margin-top:8px">Acepta pagos globales e individuales de cualquier banco. Un rechazo queda pendiente, no crea cheque. Un cheque pendiente no equivale a pago expedido. Los automáticos anteriores se revisan en lote sin tocar finiquitos ni comprobantes. Las imágenes sin texto permiten captura manual.</p>`;
   $('pg-btn').classList.remove('hide');
   pgActualizaBoton();
 }
@@ -570,13 +573,17 @@ function conciliaSemanaDatos(sem){
   const cheques=(CHEQUES||[]).filter(c=>!c.eliminado&&normSem(c.semana)===ns&&c.estatus!=='CANCELADO');
   return esperados.map(e=>{const w=e.w;
     const míos=pagos.filter(p=>p.trabajador_id===w.id);
-    const exito=míos.filter(p=>String(p.estado||'').toUpperCase()==='EXITOSO'
+    const comprobantes=míos.filter(p=>String(p.estado||'').toUpperCase()==='EXITOSO'
       &&(!e.finTrans||e.finTrans.pago_id===p.id));
+    const exito=globalThis.PLATINUM_FLOWS?globalThis.PLATINUM_FLOWS.pagosUnicos(comprobantes):comprobantes;
     const rech =míos.filter(p=>String(p.estado||'').toUpperCase()==='RECHAZADO');
     const chq  =cheques.filter(c=>c.trabajador_id===w.id&&c.tipo_pago===(e.tipo==='FINIQUITO'?'FINIQUITO':'CHEQUE'));
     const entregado=chq.filter(c=>c.estatus==='ENTREGADO'),expedido=chq.filter(c=>c.estatus==='EXPEDIDO'),pendiente=chq.filter(c=>c.estatus==='PENDIENTE');
     let estado='OK', motivo='';
-    if(e.metodo==='CHEQUE'&&entregado.length){estado='CHEQUE ENTREGADO';motivo='cheque entregado'+(entregado[0].num_cheque?' #'+entregado[0].num_cheque:'');}
+    if(e.tipo!=='FINIQUITO'&&exito.length&&(expedido.length||entregado.length)){estado='MÉTODO INCORRECTO';motivo='Hay transferencia y cheque expedido/entregado. Revisar posible pago doble.';}
+    else if(e.tipo!=='FINIQUITO'&&exito.length&&e.monto!=null&&Math.round(exito.reduce((s,p)=>s+Number(p.importe||0),0)*100)!==Math.round(Number(e.monto)*100)){estado='MÉTODO INCORRECTO';motivo='Transferencia registrada con diferencia o pago parcial; conciliar saldo, no crear cheque completo.';}
+    else if(e.tipo!=='FINIQUITO'&&exito.length){estado='OK';motivo='transferencia registrada; un pendiente no expedido no es otro pago';}
+    else if(e.metodo==='CHEQUE'&&entregado.length){estado='CHEQUE ENTREGADO';motivo='cheque entregado'+(entregado[0].num_cheque?' #'+entregado[0].num_cheque:'');}
     else if(e.metodo==='CHEQUE'&&expedido.length){estado='CHEQUE EXPEDIDO';motivo='cheque expedido'+(expedido[0].num_cheque?' #'+expedido[0].num_cheque:'')+' · cubierto, pendiente de entrega física';}
     else if(e.metodo==='CHEQUE'&&pendiente.length){estado='CHEQUE PENDIENTE';motivo='cheque '+pendiente[0].estatus.toLowerCase()+(pendiente[0].num_cheque?' #'+pendiente[0].num_cheque:' · falta capturar número y consecutivo');}
     else if(e.metodo==='CHEQUE'&&exito.length){estado='MÉTODO INCORRECTO';motivo='se esperaba CHEQUE pero aparece transferencia; revisar antes de cerrar';}
@@ -691,17 +698,7 @@ function concMotivo(i,motivo){
 }
 /* Abre el formulario de cheque ya prellenado con el trabajador, semana e importe */
 function concNuevoCheque(wid,sem,importe){
-  const w=WORKERS.find(x=>x.id===wid); if(!w){toast('Trabajador no encontrado.','err');return;}
-  openChequeForm(null);
-  setTimeout(()=>{
-    const set=(id,v)=>{const e=$(id);if(e&&v!=null&&v!=='')e.value=v;};
-    set('c-nombre',fullName(w));
-    if(typeof chqAutofill==='function')try{chqAutofill();}catch(e){}
-    set('f-c-semana',sem);
-    set('f-c-periodo',periodoCorto(parseInt(normSem(sem))||0));
-    if(importe!=null)set('f-c-importe',Number(importe).toFixed(2));
-    const obs=$('f-c-obs'); if(obs&&!obs.value)obs.value='PAGADO CON CHEQUE — NO SALIÓ EN EL PAGO GLOBAL DE LA '+sem;
-  },120);
+  return window.PLATINUM_PAGOS_SABADO.abrir(Number(normSem(sem)));
 }
 function exportConciliacionSemana(){
   const st=window._CONC; if(!st||!st.filas.length){toast('Nada que exportar.','err');return;}
@@ -905,7 +902,7 @@ function auRender(){
   if(!f.length){
     $('au-body').innerHTML=`<tr><td colspan="7"><div class="empty"><div class="big">✅</div>
       ${glob?'Ningún cheque cancelado quedó sin reponer. Nada pendiente en el histórico.'
-            :`Sin faltantes en la semana ${AUDIT_SEM}. Todos los que trabajaron tienen su cheque.`}</div></td></tr>`;
+            :`Sin pagos pendientes por revisar en la semana ${AUDIT_SEM}; no se exige cheque a quien tiene transferencia.`}</div></td></tr>`;
     return;
   }
   $('au-body').innerHTML=f.map(x=>{
@@ -919,12 +916,14 @@ function auRender(){
       <td style="text-align:center"><span class="badge ${x.tipo_pago==='FINIQUITO'?'PENDIENTE':'ENTREGADO'}">${esc(x.tipo_pago||'CHEQUE')}</span></td>
       <td><span class="badge ${esRep?'CANCELADO':'PENDIENTE'}">${esc(x.motivo)}</span>
         ${x.folio_cancelado?`<div style="color:var(--mut);font-size:11.5px">folio ${esc(x.folio_cancelado)}${x.importe_cancelado?' · $'+money(x.importe_cancelado):''}</div>`:''}</td>
-      <td style="text-align:center">${x.trabajador_id?`<button class="btn" style="padding:4px 10px" onclick="auHacerCheque('${x.trabajador_id}','${esc(x.semana)}','${esc(x.tipo_pago||'CHEQUE')}')">🧾 Hacer cheque</button>`:'—'}</td>
+      <td style="text-align:center">${x.trabajador_id?`<button class="btn" style="padding:4px 10px" onclick="auHacerCheque('${x.trabajador_id}','${esc(x.semana)}','${esc(x.tipo_pago||'CHEQUE')}','${esc(x.obra_id||'')}')">🧾 Revisar pago</button>`:'—'}</td>
     </tr>`;}).join('');
 }
 /* Abre el alta de cheque ya con el trabajador, la semana y el tipo puestos.
    No guarda nada solo: el importe y el folio los captura una persona. */
-function auHacerCheque(tid,sem,tipo){
+async function auHacerCheque(tid,sem,tipo,obraId){
+  if(obraId&&OBRA?.id!==obraId){await selectObra(obraId);if(OBRA?.id!==obraId)return;}
+  if(tipo!=='FINIQUITO')return window.PLATINUM_PAGOS_SABADO.abrir(Number(normSem(sem)));
   const w=(WORKERS||[]).find(x=>x.id===tid);
   if(!w){toast('Ese trabajador no está en la obra abierta.','err');return;}
   openChequeForm(null);

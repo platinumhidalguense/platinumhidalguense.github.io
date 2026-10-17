@@ -1,4 +1,6 @@
 node_modules/
+supabase/migrations/*_pagos_pendientes_revision_sabado.sql
+supabase/migrations/*_pagos_conectores_y_aviso_programado.sql
 work/
 tmp/
 docs/AUDITORIA_FINAL.md

@@ -1,7 +1,7 @@
 // Inventario por AST y trazabilidad por función. Revisión estática, nunca etiqueta una función como probada por existir.
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),acorn=require('acorn');
 const root=path.resolve(__dirname,'..'),manifest=JSON.parse(fs.readFileSync(path.join(root,'frontend/modulos.json'),'utf8'));
-const paths=[...manifest.modules,'platinum-sync.js','platinum-workflows.js','platinum-rrhh.js','concentrado-contratistas.js'];
+const paths=[...manifest.modules,'platinum-sync.js','platinum-workflows.js','platinum-rrhh.js','platinum-pagos-sabado.js','concentrado-contratistas.js'];
 const literal=n=>n?.type==='Literal'?n.value:null,member=n=>n?.type==='MemberExpression'?(n.computed?literal(n.property):n.property.name):null;
 const entries=[],buttons=new Map(),declarations=new Set();
 function visit(n,fn,parents=[]){if(!n||typeof n!=='object'||!n.type)return;fn(n,parents);for(const[k,v]of Object.entries(n))if(!['start','end','loc','range'].includes(k)){if(Array.isArray(v))v.forEach(x=>visit(x,fn,[...parents,n]));else if(v&&typeof v==='object'&&v.type)visit(v,fn,[...parents,n]);}}

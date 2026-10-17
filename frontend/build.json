@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-17.1",
-  "entry": "assets/platinum-app.bfed7462613ac5d9.js",
-  "sha256": "bfed7462613ac5d9168f72e4adba57e6eeb72ac0aa4134fb37dfb820f30487e9",
-  "integrity": "sha384-kF+Odgsv6MyfoEJsKZalXm0AaeIb+bNZ8hAXA90/c6VOUKUDtaP65sE1bqFEJaY3",
+  "version": "2026-10-17.2",
+  "entry": "assets/platinum-app.97f76f01d13f9656.js",
+  "sha256": "97f76f01d13f96561439b28f05b3f98d237accd8483bfc9d8ef79f5cf6d1c49e",
+  "integrity": "sha384-mupAOXMbrPUJx5Rc+HJXceAJYL2TEUOhzl8tKOJS7PPLnvYDa2uNu2/UJNTyogjy",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "a363a15b7044558eedc1f17df3e8c45f42414f94f47021e451f6c4345b17e5b4"
+      "sha256": "489c40d596079951444505537534af33088935d6894c100ec47e3850ef8de06f"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -66,7 +66,7 @@
     },
     {
       "path": "frontend/modulos/15-banca-conciliacion.js",
-      "sha256": "4e4df7037e4a13cb184fc7787efcee6a49c4004e2349c383fec9b4e146db4fc9"
+      "sha256": "1b5ad02296779d48bd9536867414af51195d31ac31cebcc5c59487e2d19e9e5d"
     },
     {
       "path": "frontend/modulos/16-control-pagos-folios.js",
@@ -146,7 +146,7 @@
     },
     {
       "path": "frontend/modulos/35-centro-control.js",
-      "sha256": "28534539b5363d8cffbfa2656550b0e2c07b9c023af42ef8b425507e069ca51c"
+      "sha256": "29a41064807a62ed09fb6cc449a5ff5d760cbe821bc3a30895209ce3ac256500"
     },
     {
       "path": "frontend/modulos/36-imss-sin-servicio-st7.js",
@@ -163,6 +163,10 @@
     {
       "path": "frontend/modulos/39-rrhh-adaptadores.js",
       "sha256": "6f3fbe828adbbb97e88583840bfde87401095fa6e36d9051a90473111b1d88c2"
+    },
+    {
+      "path": "frontend/modulos/40-pagos-sabado-adaptadores.js",
+      "sha256": "8d31d49acd7d22a3a910d7190d453c6386b4feac15ba7463838166a2b040c6da"
     }
   ]
 }

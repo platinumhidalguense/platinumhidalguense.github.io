@@ -54,6 +54,7 @@
   const actions=[`<button class="btn" onclick="PLATINUM_FLOWS.abrirCierre('${c.id}')">↻ Actualizar</button>`,
    `<button class="btn" onclick="PLATINUM_FLOWS.historicos(false)">Revisión de cierres</button>`,
    `<button class="btn" onclick="ctrlOpenConciliacion('${c.id}')">Importar / revisar NOI</button>`];
+  if(root.PLATINUM_PAGOS_SABADO)actions.push(`<button class="btn" onclick="PLATINUM_PAGOS_SABADO.abrir(${c.semana})">Revisión de pagos · sábado 12:00</button>`);
   if(typeof window!=='undefined'&&window.PLATINUM_RRHH)actions.push(`<button class="btn" onclick="PLATINUM_RRHH.abrir('corte',null,${c.semana})">Corte semanal guiado</button><button class="btn" onclick="PLATINUM_RRHH.abrir('importe',null,${c.semana},'${c.id}')">Explicar importes</button>`);
   if(write&&!closed)actions.push(`<button class="btn dark" onclick="PLATINUM_FLOWS.preparar('${c.id}')">Preparar fotografía actual</button>`);
   if(write&&(d.recibos_sin_leer||[]).length)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.leerRecibos('${c.id}')">Leer ${d.recibos_sin_leer.length} recibo(s) archivado(s)</button>`);
