@@ -911,6 +911,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
       <nav class="crumbs" id="crumbs" aria-label="Ruta actual"></nav>
       <div class="appbar-right">
         <span id="rt-status" style="font-size:11.5px;color:var(--mut)"></span>
+        <button class="sb-mini" onclick="actualizarDatosCompartidos()" title="Actualizar datos compartidos sin recargar la página" aria-label="Actualizar datos compartidos">↻</button>
         <span class="context-tool" id="alert-badge" title="Avisos pendientes: consulta Menú → Reportes y control → Alertas" aria-live="polite" style="background:var(--amber-bg);color:var(--amber);border-radius:8px;padding:4px 8px;font-size:11px;font-weight:800;display:none"></span>
       </div>
     </header>
@@ -1197,6 +1198,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
   <div class="ia-aviso">Responde con los datos que TÚ tienes permitido ver. Verifica cifras contra el recibo o NOI.</div>
 </div>
 
+<script src="platinum-sync.js?v=20261016.1"></script>
 <script>
 /* ================== CONFIGURACIÓN ================== */
 const CONFIG_URL = "";
@@ -1380,7 +1382,7 @@ function closeModal(force=false){
   $('modals').innerHTML='';
   document.body.classList.remove('modal-abierto');
   if(window._scrollY!=null){const y=window._scrollY;window._scrollY=null;document.body.style.top='';window.scrollTo(0,y);}
-  if(window._pendingRT){window._pendingRT=false;softRefresh(false);}
+  if(window._pendingRT){window._pendingRT=false;if(window._PLATINUM_RT)window._PLATINUM_RT.request();else softRefresh(false);}
 }
 function modal(html,w=''){
   // captura el scroll SOLO al abrir el primer modal (no en modales encadenados,
@@ -1465,32 +1467,23 @@ async function enterApp(){
 
 /* ---------- tiempo real ---------- */
 function startRealtime(){
-  window._RTCH=sb.channel('platinum-rt',{config:{presence:{key:USER.email}}});
-  window._RTCH
-    .on('postgres_changes',{event:'*',schema:'public',table:'trabajadores'},()=>rtQueue())
-    .on('postgres_changes',{event:'*',schema:'public',table:'cheques'},()=>rtQueue())
-    .on('postgres_changes',{event:'*',schema:'public',table:'obras'},()=>rtQueue())
-    .on('postgres_changes',{event:'*',schema:'public',table:'descuentos'},()=>rtQueue())
-    .on('postgres_changes',{event:'*',schema:'public',table:'documentos'},()=>rtQueue())
-    .on('postgres_changes',{event:'*',schema:'public',table:'vacaciones'},()=>rtQueue())
-    .on('postgres_changes',{event:'*',schema:'public',table:'actas'},()=>rtQueue())
-    .on('postgres_changes',{event:'*',schema:'public',table:'nom035'},()=>rtQueue())
-    .on('presence',{event:'sync'},()=>{
-      try{
-        const ch=window._RTCH; if(!ch)return;
-        const st=ch.presenceState(); const users=[...new Set(Object.values(st).flat().map(x=>x.email))];
-        $('rt-status').innerHTML=`<span class="rt-dot"></span>${users.length} en línea`;
-        $('rt-status').title='Conectados: '+users.join(', ');
-      }catch(e){}
-    })
-    .subscribe(async st=>{
-      if(st==='SUBSCRIBED'){
-        $('rt-status').innerHTML='<span class="rt-dot"></span>En vivo';
-        try{await window._RTCH.track({email:USER.email,desde:new Date().toISOString()});}catch(e){}
-      }
-    });
+  if(window._PLATINUM_RT)window._PLATINUM_RT.stop();
+  if(!window.PLATINUM_SYNC){$('rt-status').textContent='Actualización manual';return;}
+  window._PLATINUM_RT=window.PLATINUM_SYNC.connect({client:sb,userId:USER.id,window,document,
+    getObraId:()=>OBRA?.id,
+    canRefresh:()=>!NAV_BUSY&&!$('modals').innerHTML,
+    refresh:()=>softRefresh(Date.now()-lastLocalWrite>=3000),
+    onDeferred:()=>{window._pendingRT=true;},
+    onStatus:({transport,dataState,online})=>{
+      const el=$('rt-status');if(!el)return;
+      el.textContent=dataState==='pending'?'Cambios pendientes':dataState==='error'?'Sin actualizar':dataState==='loading'?'Actualizando…':transport==='connected'?`${online||1} en línea`:transport==='offline'?'Sin conexión en vivo':'Conectando…';
+      el.title=dataState==='pending'?'Hay cambios compartidos. Se actualizarán al cerrar la ventana; tu captura se conserva.':dataState==='error'?'No se pudo verificar la actualización. Se conserva la última lectura completa. Usa ↻ para reintentar.':'Los avisos en vivo no sustituyen la conciliación ni autorizan pagos.';
+    }
+  });
+  window._RTCH=window._PLATINUM_RT.channel;
 }
 function rtQueue(){
+  if(window._PLATINUM_RT){window._PLATINUM_RT.request();return;}
   clearTimeout(rtTimer);
   rtTimer=setTimeout(()=>{
     const own=Date.now()-lastLocalWrite<3000;
@@ -1499,15 +1492,31 @@ function rtQueue(){
   },600);
 }
 async function softRefresh(notify=true){
-  const {data:ob}=await sb.from('obras').select('*').order('orden');
-  if(ob){
-    const actualId=OBRA&&OBRA.id;OBRAS=ob;
-    OBRA=OBRAS.find(o=>o.id===actualId)||null;
-    if(OBRA&&NAV_STEP==='trabajadores')EMPRESA_ACTIVA=empresaDeObra(OBRA);
+  const actualId=OBRA?.id,step=NAV_STEP;
+  try{
+    const {data:ob,error}=await sb.from('obras').select('*').order('orden');
+    if(error||!Array.isArray(ob))throw error||Error('Respuesta incompleta de centros');
+    if(NAV_BUSY||OBRA?.id!==actualId||NAV_STEP!==step)return false;
+    if(actualId&&!ob.some(o=>o.id===actualId))throw Error('El centro seleccionado ya no está disponible para esta sesión');
+    OBRAS=ob;
+    if(actualId)OBRA=OBRAS.find(o=>o.id===actualId);
+    if(OBRA&&NAV_STEP==='trabajadores'){
+      EMPRESA_ACTIVA=empresaDeObra(OBRA);
+      if(!await loadObraData(actualId))return false;
+    }
     renderObraBar();
+    if(notify)toast('🔄 Información compartida actualizada.');
+    return true;
+  }catch(e){
+    toast('No se pudo actualizar. Se conserva la última lectura completa: '+e.message,'err');
+    return false;
   }
-  if(OBRA&&NAV_STEP==='trabajadores')await loadObraData(OBRA.id);
-  if(notify)toast('🔄 Información actualizada por otro usuario.');
+}
+function actualizarDatosCompartidos(){
+  if(NAV_BUSY){toast('Espera a que termine de abrir el centro.');return;}
+  if($('modals').innerHTML){window._pendingRT=true;toast('Cierra la ventana actual para actualizar sin perder tu captura.');return;}
+  if(window._PLATINUM_RT)window._PLATINUM_RT.request();
+  else softRefresh(true);
 }
 
 /* ---------- obras ---------- */
@@ -1690,20 +1699,20 @@ async function execDeleteObra(id){
 async function selectObra(id){
   if(NAV_BUSY)return;
   const nueva=OBRAS.find(o=>o.id===id);if(!nueva)return;
-  const anterior=OBRA;
+  const anterior=OBRA,empresaAnterior=EMPRESA_ACTIVA;
   NAV_BUSY=true;
   OBRA=nueva;EMPRESA_ACTIVA=empresaDeObra(nueva);
   renderObraBar();
   $('nav-loading').classList.remove('hide');
   try{
     const loaded=await loadObraData(id);
-    if(loaded===false){OBRA=anterior;return;}
+    if(loaded===false){OBRA=anterior;EMPRESA_ACTIVA=empresaAnterior;repintarInstantaneaObra();return;}
     if(!anterior||anterior.id!==id)resetWorkerFilters();
     try{localStorage.setItem('platinum_empresa_activa',EMPRESA_ACTIVA);localStorage.setItem('platinum_obra_'+EMPRESA_ACTIVA,id);}catch(e){}
     NAV_BUSY=false;
     setView('trab');
-  }catch(e){OBRA=anterior;toast('No se pudo abrir el centro: '+e.message,'err');}
-  finally{NAV_BUSY=false;$('nav-loading').classList.add('hide');renderObraBar();}
+  }catch(e){OBRA=anterior;EMPRESA_ACTIVA=empresaAnterior;repintarInstantaneaObra();toast('No se pudo abrir el centro: '+e.message,'err');}
+  finally{NAV_BUSY=false;$('nav-loading').classList.add('hide');renderObraBar();if(typeof window!=='undefined'&&window._PLATINUM_RT)window._PLATINUM_RT.resume();}
 }
 async function selectEmpresa(codigo){
   if(NAV_BUSY)return;
@@ -1714,13 +1723,33 @@ async function selectEmpresa(codigo){
   try{localStorage.setItem('platinum_empresa_activa',codigo);}catch(e){}
   showNavStep('obra');
 }
+let OBRA_CARGA_SECUENCIA=0,OBRA_DATOS_ID=null;
+/* Una instantánea completa por centro. Un fallo de consulta nunca significa
+   que no existan pagos, cheques o documentos. No mezclar respuestas atrasadas. */
+function repintarInstantaneaObra(){
+  if(!OBRA||OBRA_DATOS_ID!==OBRA.id)return;
+  renderTable();renderCheques();renderPagosView();
+}
+function falloLecturaObra(id,mensaje){
+  if(!OBRA||OBRA.id!==id)return false;
+  toast(mensaje,'err');
+  if(OBRA_DATOS_ID===id)repintarInstantaneaObra();
+  else for(const [el,cols] of [['tbody',9],['chq-tbody',10],['pg-v-tbody',9]]){
+    const nodo=$(el);if(nodo)nodo.innerHTML=`<tr><td colspan="${cols}"><div class="empty">No se pudo verificar la información de este centro. Reintenta la carga; esto no indica ausencia de trabajadores ni de pagos.</div></td></tr>`;
+  }
+  return false;
+}
 async function loadObraData(id){
+  const secuencia=++OBRA_CARGA_SECUENCIA;
+  const vigente=()=>secuencia===OBRA_CARGA_SECUENCIA&&OBRA&&OBRA.id===id;
+  if(!vigente())return false;
   /* v36: esqueletos mientras llegan los datos — la pantalla no se queda en
      blanco ni salta cuando aparecen las filas. */
   skeletonTabla('tbody',9,6,'Cargando trabajadores...');
   skeletonTabla('chq-tbody',6,10,'Cargando cheques...');
   skeletonTabla('pg-v-tbody',5,9,'Cargando pagos...');
-  const [{data:tw,error:e1},{data:ch,error:e2},{data:ds,error:eDs},{data:dx,error:eDx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn},{data:ab},{data:ft,error:eFt}]=await Promise.all([
+  let lecturas;
+  try{lecturas=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
     fetchAllRows(()=>sb.from('cheques').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id)),
@@ -1740,17 +1769,22 @@ async function loadObraData(id){
     fetchAllRows(()=>sb.from('control_conciliacion_noi').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('id,trabajador_id,anio,semana,estado_servicio').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('control_finiquitos_transferencia').select('*').eq('obra_id',id))
-  ]);
-  if(e1){toast('Error al cargar trabajadores: '+e1.message,'err');return false;}
-  if(eDs){toast('No se pudieron comprobar las incidencias y retenciones: '+eDs.message,'err');return false;}
-  if(eFt){toast('No se pudo leer el control de finiquitos por transferencia: '+eFt.message,'err');return false;}
-  if(eDx){toast('No se pudieron comprobar los documentos: '+eDx.message,'err');return false;}
+  ]);}catch(e){return vigente()?falloLecturaObra(id,'No se pudo actualizar el centro: '+e.message):false;}
+  if(!vigente())return false;
+  const fuentes=['trabajadores','cheques','incidencias y retenciones','documentos','vacaciones','actas','NOM-035','pagos','primas','cuadrillas','diferenciales','bloques de cheques','control interno autorizado','cierres de nómina','conciliación NOI','altas y bajas sin servicio','finiquitos por transferencia'];
+  const fallo=lecturas.findIndex(r=>r?.error||!Array.isArray(r?.data));
+  if(fallo>=0)return falloLecturaObra(id,`No se pudieron verificar ${fuentes[fallo]}: ${lecturas[fallo]?.error?.message||'respuesta incompleta'}. No se sustituyeron los datos por listas vacías.`);
+  const [{data:tw},{data:ch},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn},{data:ab},{data:ft}]=lecturas;
   // El expediente pertenece al trabajador, incluso si el acuse se archivó
   // antes de un cambio de centro. Consulta dirigida y paginada; respeta RLS.
-  const acuses=await cargarAcusesTrabajadores(tw||[]);
-  if(acuses.error){toast('No se pudieron comprobar los acuses IMSS: '+acuses.error.message,'err');return false;}
-  WORKERS=tw||[];CHEQUES=((e2?[]:ch)||[]).filter(c=>!c.eliminado);DESC=ds||[];DOCSX=(dx||[]).filter(d=>String(d.categoria||'').trim().toUpperCase()!=='ACUSE_IMSS').concat(acuses.data);VAC=vc||[];ACTAS=ac||[];NOM=nm||[];PAGOS=pg||[];PRIMAS=(pr||[]).filter(p=>p.activo!==false);CUADS=cd||[];DIFS=df||[];BLOQUES=bq||[];SUELDOSINT=si||[];CIERRES=cc||[];CTRLNOI=cn||[];ALTAS_CORTAS=ab||[];FINTRANS=ft||[];
+  let acuses;
+  try{acuses=await cargarAcusesTrabajadores(tw);}catch(e){return vigente()?falloLecturaObra(id,'No se pudieron verificar los acuses IMSS: '+e.message):false;}
+  if(!vigente())return false;
+  if(acuses?.error||!Array.isArray(acuses?.data))return falloLecturaObra(id,'No se pudieron verificar los acuses IMSS: '+(acuses?.error?.message||'respuesta incompleta'));
+  WORKERS=tw;CHEQUES=ch.filter(c=>!c.eliminado);DESC=ds;DOCSX=dx.filter(d=>String(d.categoria||'').trim().toUpperCase()!=='ACUSE_IMSS').concat(acuses.data);VAC=vc;ACTAS=ac;NOM=nm;PAGOS=pg;PRIMAS=pr.filter(p=>p.activo!==false);CUADS=cd;DIFS=df;BLOQUES=bq;SUELDOSINT=si;CIERRES=cc;CTRLNOI=cn;ALTAS_CORTAS=ab;FINTRANS=ft;
+  OBRA_DATOS_ID=id;
   await activarProgramados();
+  if(!vigente())return false;
   const cs=[...new Set(WORKERS.map(w=>w.contratista).filter(Boolean))].sort();
   const cur=$('flt-contratista').value;
   $('flt-contratista').innerHTML='<option value="">Contratista: todos</option>'+cs.map(c=>`<option ${c===cur?'selected':''}>${esc(c)}</option>`).join('');
@@ -1763,9 +1797,11 @@ async function loadObraData(id){
   if($('flt-puesto'))$('flt-puesto').innerHTML='<option value="">Puesto: todos</option>'+pus.map(s=>`<option ${s===curP?'selected':''}>${esc(s)}</option>`).join('');
   renderStats();renderTable();renderChqStats();renderCheques();
   await sincronizarContratistas();
+  if(!vigente())return false;
   // el estado del recálculo automático del INFONAVIT (Script 63): la
   // campanita solo avisa si el bimestre en curso NO se ha aplicado
   await cargarRecalcInfonavit();
+  if(!vigente())return false;
   updateAlertas();
   renderVacViews();renderActasView();renderNomView();renderAnualView();renderPagosView();
   return true;
@@ -1783,7 +1819,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-08.3';
+const APP_VERSION='2026-10-16.1';
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
   const remota=(CFGEMP['app_version']||{}).v;
@@ -3491,13 +3527,20 @@ function datosFaltantes(w){
    No toca a quien esté PENDIENTE por documentación incompleta ni a quien se puso en
    PENDIENTE a mano (pendiente_manual). Se llama cada vez que se carga la obra. */
 async function activarProgramados(){
+  if(!puedeEditarTrabajador())return;
   const hoy=today();
   const listos=WORKERS.filter(w=>w.estatus==='PENDIENTE'&&!w.pendiente_manual&&w.fecha_alta&&w.fecha_alta<=hoy&&datosFaltantes(w).length===0);
   if(!listos.length)return;
-  try{
-    await Promise.all(listos.map(w=>sb.from('trabajadores').update({estatus:'ACTIVO'}).eq('id',w.id)));
-    listos.forEach(w=>w.estatus='ACTIVO');
-  }catch(e){/* si falla, se reintenta en la próxima carga */}
+  const resultados=await Promise.all(listos.map(async w=>{
+    try{
+      const {data,error}=await sb.from('trabajadores').update({estatus:'ACTIVO'})
+        .eq('id',w.id).eq('obra_id',w.obra_id).eq('estatus','PENDIENTE')
+        .or('pendiente_manual.is.null,pendiente_manual.eq.false').eq('fecha_alta',w.fecha_alta).eq('eliminado',false).select('id,estatus');
+      if(error||!Array.isArray(data)||data.length!==1||data[0].id!==w.id||data[0].estatus!=='ACTIVO')return false;
+      w.estatus='ACTIVO';return true;
+    }catch(e){return false;}
+  }));
+  if(resultados.some(ok=>!ok))toast('No se confirmó la activación de algunas altas programadas; su estado no se cambió en pantalla. Actualiza y revisa sus fichas.','err');
 }
 function formPedirSesion(){
   const root=$('worker-form-body');if(!root||!USER?.email)return;
@@ -13073,13 +13116,15 @@ async function cargarContratistas(){
   if(!error)CONTRATISTAS=data||[];
 }
 async function sincronizarContratistas(){
+  if(!puedeEditarTrabajador())return;
   // agrega solos a la tabla los contratistas nuevos que aparezcan al capturar
   // trabajadores — no borra ni modifica los que ya existen.
   const nombres=[...new Set(WORKERS.map(w=>(w.contratista||'').trim()).filter(Boolean))];
   const nuevos=nombres.filter(n=>!CONTRATISTAS.some(c=>c.nombre===n));
   if(!nuevos.length)return;
   try{
-    await sb.from('contratistas').upsert(nuevos.map(n=>({nombre:n,creado_por:USER.email})),{onConflict:'nombre',ignoreDuplicates:true});
+    const {error}=await sb.from('contratistas').upsert(nuevos.map(n=>({nombre:n,creado_por:USER.email})),{onConflict:'nombre',ignoreDuplicates:true});
+    if(error)return;
     await cargarContratistas();
   }catch(e){/* no es crítico: se reintenta en la próxima carga */}
 }
@@ -15208,7 +15253,7 @@ async function openCtrlCierres(){
       <td style="font-size:10px">${esc(c.revisado_por_email||'Sin revisar')}<br>${esc(c.autorizado_por_email||'Sin autorizar')}</td>
       <td style="white-space:nowrap"><button class="btn" style="padding:4px 7px" onclick="ctrlOpenConciliacion('${c.id}')">Conciliar</button>
       <button class="btn" style="padding:4px 7px" onclick="ctrlRevisarPagosSemana(${c.semana})">Pagos</button>
-      ${next?`<button class="btn dark" style="padding:4px 7px" onclick="ctrlCambiarCierre('${c.id}','${next[0]}')">${next[1]}</button>`:''}
+      ${next&&puedeEditarTrabajador()&&(next[0]!=='AUTORIZADO'||esAdmin())?`<button class="btn dark" style="padding:4px 7px" onclick="ctrlCambiarCierre('${c.id}','${next[0]}')">${next[1]}</button>`:''}
       ${esAdmin()?`<button class="btn danger" style="padding:4px 7px" onclick="ctrlEliminarCierre('${c.id}')">Eliminar cierre</button>`:''}</td></tr>`; }),'Aún no hay cierres de nómina.');
 }
 async function ctrlRevisarPagosSemana(sem){return conciliarSemana('S'+sem);}
@@ -15261,10 +15306,21 @@ async function openCtrlCierresEliminados(){
     ${ctrlTabla(['Semana','Estado anterior','Eliminado por','Fecha','NOI archivado','Cheques vinculados','Motivo'],a.map(x=>`<tr><td>S${x.semana} · ${esc(x.periodo)}</td><td>${ctrlEstado(x.estado_anterior)}</td><td>${esc(x.actor_email)}</td><td>${new Date(x.eliminado_en).toLocaleString('es-MX')}</td><td>${(x.conciliacion||[]).length}</td><td>${(x.cheques_vinculados||[]).length}</td><td>${esc(x.motivo)}</td></tr>`),'Sin cierres eliminados.')}</div>`,'lg');
 }
 async function ctrlCambiarCierre(id,estado){
+  if(window._CTRL_CIERRE_BUSY)return;
+  if(!puedeEditarTrabajador()){toast('Tu cuenta tiene acceso de consulta.','err');return;}
+  if(['AUTORIZADO','CANCELADO'].includes(estado)&&!esAdmin()){toast('Sólo el administrador puede autorizar o cancelar un cierre.','err');return;}
   if(!confirm(`¿Cambiar el cierre a ${estado}? Las etapas autorizadas bloquean importes y fotografía.`))return;
-  markWrite();const {error}=await sb.from(CTRL_TABLAS.cierres).update({estado}).eq('id',id).eq('obra_id',OBRA.id);
-  if(error){toast(ctrlFaltaScript(error),'err');return;}
-  await ctrlAuditar('CIERRE_NOMINA','CAMBIAR_ESTADO',{estado},'CIERRE',id);toast('Estado actualizado: '+estado+'.','ok');openCtrlCierres();
+  const obraId=OBRA?.id;if(!obraId)return;
+  window._CTRL_CIERRE_BUSY=true;
+  try{
+    markWrite();const {data,error}=await sb.from(CTRL_TABLAS.cierres).update({estado}).eq('id',id).eq('obra_id',obraId).select('id,estado');
+    if(error)throw error;
+    if(!Array.isArray(data)||data.length!==1||data[0].id!==id||data[0].estado!==estado)throw Error('La base no confirmó el cambio. Revisa permisos y actualiza el cierre.');
+    await ctrlAuditar('CIERRE_NOMINA','CAMBIAR_ESTADO',{estado},'CIERRE',id);
+    toast('Estado actualizado: '+estado+'.','ok');
+    if(OBRA?.id===obraId)await openCtrlCierres();
+  }catch(e){toast(ctrlFaltaScript(e),'err');}
+  finally{window._CTRL_CIERRE_BUSY=false;}
 }
 async function openCtrlConciliacionSelector(){
   ctrlAuditar('CONCILIACION_NOI','ABRIR_SELECTOR');
