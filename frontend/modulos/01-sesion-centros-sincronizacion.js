@@ -59,7 +59,7 @@ function startRealtime(){
   window._PLATINUM_RT=window.PLATINUM_SYNC.connect({client:sb,userId:USER.id,window,document,
     getObraId:()=>OBRA?.id,
     canRefresh:()=>!NAV_BUSY&&!$('modals').innerHTML,
-    refresh:()=>softRefresh(Date.now()-lastLocalWrite>=3000),
+    refresh:()=>softRefresh(false),
     onDeferred:()=>{window._pendingRT=true;window.PLATINUM_FLOWS?.avisarCambio();window.PLATINUM_RRHH?.avisarCambio();window.PLATINUM_PAGOS_SABADO?.avisarCambio();},
     onStatus:({transport,dataState,online})=>{
       const el=$('rt-status');if(!el)return;
@@ -89,7 +89,8 @@ async function softRefresh(notify=true){
     if(actualId)OBRA=OBRAS.find(o=>o.id===actualId);
     if(OBRA&&NAV_STEP==='trabajadores'){
       EMPRESA_ACTIVA=empresaDeObra(OBRA);
-      if(!await loadObraData(actualId))return false;
+      const lectura={segundoPlano:true};
+      if(!await loadObraData(actualId,lectura))return lectura.diferida?'pending':false;
     }
     renderObraBar();
     if(notify)toast('🔄 Información compartida actualizada.');
@@ -102,7 +103,7 @@ async function softRefresh(notify=true){
 function actualizarDatosCompartidos(){
   if(NAV_BUSY){toast('Espera a que termine de abrir el centro.');return;}
   if($('modals').innerHTML){window._pendingRT=true;toast('Cierra la ventana actual para actualizar sin perder tu captura.');return;}
-  if(window._PLATINUM_RT)window._PLATINUM_RT.request();
+  if(window._PLATINUM_RT)window._PLATINUM_RT.request(true);
   else softRefresh(true);
 }
 
@@ -333,8 +334,8 @@ function repintarInstantaneaObra(){
 function falloLecturaObra(id,mensaje){
   if(!OBRA||OBRA.id!==id)return false;
   toast(mensaje,'err');
-  if(OBRA_DATOS_ID===id)repintarInstantaneaObra();
-  else for(const [el,cols] of [['tbody',9],['chq-tbody',10],['pg-v-tbody',9]]){
+  // En una actualización del mismo centro el DOM anterior nunca se retiró.
+  if(OBRA_DATOS_ID!==id)for(const [el,cols] of [['tbody',6],['chq-tbody',10],['pg-v-tbody',9]]){
     const nodo=$(el);if(nodo)nodo.innerHTML=`<tr><td colspan="${cols}"><div class="empty">No se pudo verificar la información de este centro. Reintenta la carga; esto no indica ausencia de trabajadores ni de pagos.</div></td></tr>`;
   }
   return false;
@@ -343,11 +344,14 @@ async function loadObraData(id,opciones={}){
   const secuencia=++OBRA_CARGA_SECUENCIA;
   const vigente=()=>secuencia===OBRA_CARGA_SECUENCIA&&OBRA&&OBRA.id===id;
   if(!vigente())return false;
-  /* v36: esqueletos mientras llegan los datos — la pantalla no se queda en
-     blanco ni salta cuando aparecen las filas. */
-  skeletonTabla('tbody',9,6,'Cargando trabajadores...');
-  skeletonTabla('chq-tbody',6,10,'Cargando cheques...');
-  skeletonTabla('pg-v-tbody',5,9,'Cargando pagos...');
+  const conservarVista=OBRA_DATOS_ID===id;
+  // Sólo al entrar por primera vez o cambiar de centro: nunca borrar la lista
+  // verificada del mismo centro por una señal en vivo, foco o actualización.
+  if(!conservarVista){
+    skeletonTabla('tbody',6,6,'Cargando trabajadores...');
+    skeletonTabla('chq-tbody',6,10,'Cargando cheques...');
+    skeletonTabla('pg-v-tbody',5,9,'Cargando pagos...');
+  }
   let lecturas;
   try{lecturas=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
@@ -381,10 +385,13 @@ async function loadObraData(id,opciones={}){
   try{acuses=await cargarAcusesTrabajadores(tw);}catch(e){return vigente()?falloLecturaObra(id,'No se pudieron verificar los acuses IMSS: '+e.message):false;}
   if(!vigente())return false;
   if(acuses?.error||!Array.isArray(acuses?.data))return falloLecturaObra(id,'No se pudieron verificar los acuses IMSS: '+(acuses?.error?.message||'respuesta incompleta'));
+  if(opciones.segundoPlano&&typeof window!=='undefined'&&$('modals')?.innerHTML){window._pendingRT=true;opciones.diferida=true;return false;}
+  const padronAnterior=conservarVista?JSON.stringify([WORKERS,DOCSX.filter(d=>String(d.categoria||'').trim().toUpperCase()==='ACUSE_IMSS'),ALTAS_CORTAS]):null;
   WORKERS=tw;CHEQUES=ch.filter(c=>!c.eliminado);DESC=ds;DOCSX=dx.filter(d=>String(d.categoria||'').trim().toUpperCase()!=='ACUSE_IMSS').concat(acuses.data);VAC=vc;ACTAS=ac;NOM=nm;PAGOS=pg;PRIMAS=pr.filter(p=>p.activo!==false);CUADS=cd;DIFS=df;BLOQUES=bq;SUELDOSINT=si;CIERRES=cc;CTRLNOI=cn;ALTAS_CORTAS=ab;FINTRANS=ft;
   OBRA_DATOS_ID=id;
   await activarProgramados();
   if(!vigente())return false;
+  const padronCambio=!conservarVista||!opciones.segundoPlano||padronAnterior!==JSON.stringify([WORKERS,acuses.data,ALTAS_CORTAS]);
   const cs=[...new Set(WORKERS.map(w=>w.contratista).filter(Boolean))].sort();
   const cur=$('flt-contratista').value;
   $('flt-contratista').innerHTML='<option value="">Contratista: todos</option>'+cs.map(c=>`<option ${c===cur?'selected':''}>${esc(c)}</option>`).join('');
@@ -395,7 +402,13 @@ async function loadObraData(id,opciones={}){
   const pus=[...new Set(WORKERS.map(w=>w.puesto).filter(Boolean))].sort();
   const curP=$('flt-puesto')?$('flt-puesto').value:'';
   if($('flt-puesto'))$('flt-puesto').innerHTML='<option value="">Puesto: todos</option>'+pus.map(s=>`<option ${s===curP?'selected':''}>${esc(s)}</option>`).join('');
-  renderStats();pintarVistaObra(opciones.vista);
+  const vistaActual=opciones.vista||(typeof VIEW==='undefined'?'trab':VIEW);
+  if(padronCambio||vistaActual!=='trab'){
+    const scrollLista=typeof document!=='undefined'?document.querySelector('.worker-list'):null;
+    const scrollAnterior=scrollLista?{top:scrollLista.scrollTop,left:scrollLista.scrollLeft}:null;
+    if(vistaActual!=='trab')renderStats();pintarVistaObra(vistaActual);
+    if(conservarVista&&scrollLista&&scrollAnterior){scrollLista.scrollTop=scrollAnterior.top;scrollLista.scrollLeft=scrollAnterior.left;}
+  }
   await sincronizarContratistas();
   if(!vigente())return false;
   // el estado del recálculo automático del INFONAVIT (Script 63): la
@@ -419,7 +432,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-20.4';
+const APP_VERSION='2026-10-20.5';
 window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){

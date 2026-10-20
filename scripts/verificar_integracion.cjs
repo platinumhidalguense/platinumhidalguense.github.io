@@ -13,7 +13,7 @@ else console.log('ALCANCE PÚBLICO PAGOS: las 50 comprobaciones PostgreSQL de re
 suites.push('test_pagos_sabado_ui');
 if(chequesPrivate)suites.push('test_cheques_estado_pg');
 else console.log('ALCANCE PÚBLICO CHEQUES: las 12 comprobaciones PostgreSQL del estado físico requieren la migración privada; no se cuentan como ejecutadas.');
-suites.push('test_cheques_estado_ui','test_rendimiento_centros','test_revision_pagos_seleccion_ui','test_visor_pagos_ui','test_recibos_ia_ui');
+suites.push('test_cheques_estado_ui','test_rendimiento_centros','test_revision_pagos_seleccion_ui','test_visor_pagos_ui','test_recibos_ia_ui','test_actualizacion_continua_ui');
 const rendimientoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_rendimiento_lectura_centros.sql'));
 if(rendimientoPrivate)suites.push('test_rendimiento_rls_pg');
 else console.log('ALCANCE PÚBLICO RENDIMIENTO: se prueban las lecturas y vistas en VM; 30 comprobaciones RLS requieren la migración privada y no se cuentan aquí.');

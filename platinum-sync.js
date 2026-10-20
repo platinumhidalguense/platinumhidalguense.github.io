@@ -10,15 +10,17 @@
     'control_altas_bajas_cortas','control_finiquitos_transferencia','control_eventos_integracion'
   ]);
   function createQueue(options){
-    const later=options.setTimer||setTimeout,cancel=options.clearTimer||clearTimeout;
-    let timer=null,running=false,dirty=false,stopped=false,deferred=false;
+    const later=options.setTimer||setTimeout,cancel=options.clearTimer||clearTimeout,now=options.now||Date.now;
+    let timer=null,running=false,dirty=false,stopped=false,deferred=false,lastEnded=-Infinity,urgent=false;
     const state=s=>{if(options.onState)options.onState(s);};
-    function request(){
+    function request(immediate=false){
       if(stopped)return;
-      dirty=true;
+      dirty=true;urgent=urgent||immediate===true;
       if(running)return;
-      if(timer!==null)cancel(timer);
-      timer=later(drain,options.delay??600);
+      // Ventana fija: una importación continua no reinicia el reloj sin fin.
+      if(timer!==null){if(!urgent)return;cancel(timer);}
+      const wait=urgent?0:Math.max(options.delay??600,(options.minInterval??0)-(now()-lastEnded));
+      timer=later(drain,wait);
     }
     async function drain(){
       timer=null;
@@ -28,13 +30,13 @@
         if(options.onDeferred)options.onDeferred();
         return;
       }
-      deferred=false;dirty=false;running=true;state('loading');
+      deferred=false;dirty=false;urgent=false;running=true;state('loading');
       try{
         const ok=await options.refresh();
-        if(!stopped)state(ok===true?'fresh':'error');
+        if(!stopped)state(ok===true?'fresh':ok==='pending'?'pending':'error');
       }catch(e){if(!stopped)state('error');}
       finally{
-        running=false;
+        running=false;lastEnded=now();
         if(dirty&&!stopped)request();
       }
     }
@@ -58,7 +60,7 @@
     const queue=createQueue({
       canRefresh:options.canRefresh,refresh:options.refresh,
       onState:s=>{dataState=s;state();},onDeferred:options.onDeferred,
-      setTimer:options.setTimer,clearTimer:options.clearTimer,delay:options.delay
+      setTimer:options.setTimer,clearTimer:options.clearTimer,delay:options.delay??1200,minInterval:options.minInterval??10000,now:options.now
     });
     const channel=options.client.channel('platinum-rt',{config:{presence:{key:options.userId}}});
     for(const table of SOURCES)channel.on('postgres_changes',{event:'*',schema:'public',table},payload=>{
@@ -97,5 +99,5 @@
       }
     });
   }
-  root.PLATINUM_SYNC=Object.freeze({version:'2026-10-16.2',sources:SOURCES,createQueue,relevant,connect});
+  root.PLATINUM_SYNC=Object.freeze({version:'2026-10-20.5',sources:SOURCES,createQueue,relevant,connect});
 })(typeof window==='undefined'?globalThis:window);

@@ -1,4 +1,7 @@
 {
+  "softRefresh": "Solicita recarga silenciosa del mismo centro y distingue una captura diferida de un fallo; mantiene consulta autorizada, alcance e instantánea completos.",
+  "actualizarDatosCompartidos": "La acción manual pide prioridad inmediata a la cola sin permitir consultas simultáneas ni saltarse el bloqueo de capturas abiertas.",
+  "falloLecturaObra": "Conserva el DOM verificado ante fallos del mismo centro; sólo muestra error inicial al no existir instantánea de ese centro.",
   "applyPagoImport": "Tras guardar evidencia real abre la propuesta de conciliación de finiquitos exactos; exige permiso y confirmación antes de retirar la captura. Parser e importes intactos.",
   "repintarInstantaneaObra": "Ante error conserva datos verificados y repinta sólo la herramienta visible; no dibuja pagos y cheques ocultos.",
   "selectObra": "Solicita pintar trabajadores al cambiar de centro, no la herramienta oculta de la obra anterior; carga completa conservada.",
@@ -22,7 +25,7 @@
   "auHacerCheque": "Nómina ordinaria usa revisión confirmada de sábado; conserva finiquitos.",
   "auRender": "Acceso por obra correcta y etiqueta de pago pendiente, sin exigir cheque a transferencias.",
   "concNuevoCheque": "Desvía el acceso heredado de cheque de nómina al lote confirmado; no escribe comprobantes.",
-  "loadObraData": "Carga completa, atómica y paginada intacta; sólo dibuja la vista visible, evitando construir miles de filas ocultas. Conserva avisos y validaciones.",
+  "loadObraData": "Carga completa, atómica y paginada; conserva DOM en recargas del mismo centro, no redibuja el padrón idéntico y difiere el intercambio si hay una captura abierta. Motores y datos intactos.",
   "ctrlRenderConciliacion": "Nómina pendiente no implica cheque; conserva información y montos de conciliación.",
   "ctrlMetodoNOI": "No crea intención automática de cheque ordinario desde importación.",
   "ctrlLeerArchivoNOI": "Sólo cambia intención de medio de pago ordinario y ayuda; parser y aritmética intactos.",
