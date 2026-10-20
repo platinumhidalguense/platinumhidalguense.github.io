@@ -1,4 +1,5 @@
 {
+  "applyPagoImport": "Tras guardar evidencia real abre la propuesta de conciliación de finiquitos exactos; exige permiso y confirmación antes de retirar la captura. Parser e importes intactos.",
   "repintarInstantaneaObra": "Ante error conserva datos verificados y repinta sólo la herramienta visible; no dibuja pagos y cheques ocultos.",
   "selectObra": "Solicita pintar trabajadores al cambiar de centro, no la herramienta oculta de la obra anterior; carga completa conservada.",
   "setView": "Dibuja cada herramienta al abrirla, con la misma instantánea completa y sin cambiar permisos o cálculos.",

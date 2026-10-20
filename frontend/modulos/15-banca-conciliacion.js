@@ -514,7 +514,10 @@ async function applyPagoImport(){
   toast(`Pagos registrados: ${ok}${fail?`, ${fail} con error`:''}.`,fail?'err':'ok');
   await loadObraData(OBRA.id);
   /* Tras importar el GLOBAL: revisar quién se quedó sin pago esa semana. */
-  if(ok&&hayGlobales)setTimeout(()=>conciliarSemana(sem),350);
+  const finPorConciliar=ok&&CHEQUES.some(c=>!c.eliminado&&c.tipo_pago==='FINIQUITO'&&c.estatus==='PENDIENTE'&&!String(c.num_cheque||'').trim()&&!String(c.consecutivo||'').trim()
+    &&normSem(c.semana)===normSem(sem)&&PAGOS.some(p=>p.trabajador_id===c.trabajador_id&&normSem(p.semana)===normSem(sem)&&p.estado==='EXITOSO'&&p.medio==='TRANSFERENCIA'&&Number(p.importe)===Number(c.importe)));
+  if(finPorConciliar&&window.PLATINUM_PAGOS_SABADO)setTimeout(()=>window.PLATINUM_PAGOS_SABADO.abrir(Number(ns),'FINIQUITOS'),350);
+  else if(ok&&hayGlobales)setTimeout(()=>conciliarSemana(sem),350);
 }
 
 /* ============================================================
@@ -1193,21 +1196,21 @@ function exportPagoLote(){
   toast('Lote exportado.','ok');
 }
 
-/* Cancela (no borra) un cheque porque ya se pagó por transferencia. */
+/* El finiquito cambia por el flujo conciliado, nunca por borrar sin vínculo. */
 async function pagoCancelarCheque(id){
   const c=(CHEQUES||[]).find(x=>x.id===id); if(!c){toast('Cheque no encontrado.','err');return;}
+  if(c.tipo_pago==='FINIQUITO'){
+    if(c.estatus!=='PENDIENTE'||String(c.num_cheque||'').trim()||String(c.consecutivo||'').trim()){
+      toast('Es un cheque físico. No se elimina ni se sustituye automáticamente; revisa la posible transferencia duplicada.','err');return;
+    }
+    if(!window.PLATINUM_PAGOS_SABADO){toast('No está disponible la conciliación de finiquitos. Recarga la versión actual.','err');return;}
+    return window.PLATINUM_PAGOS_SABADO.abrir(Number(normSem(c.semana)),'FINIQUITOS');
+  }
   if(!String(c.num_cheque||'').trim()&&!String(c.consecutivo||'').trim()){
     return eliminarChequeErroneo(id);
   }
   if(!String(c.num_cheque||'').trim()||!String(c.consecutivo||'').trim()){
     toast('Completa el número y consecutivo del cheque físico antes de cancelarlo. No se eliminó ni canceló nada.','err');return;
-  }
-  if(c.tipo_pago==='FINIQUITO'){
-    if(!esAdmin()){
-      if(puedeEliminarCheque()){eliminarChequeErroneo(id);return;}
-      toast('No tienes permiso para retirar este cheque. El cambio de método de finiquito sigue reservado al administrador.','err');return;
-    }
-    openFiniquitoTransferenciaAdmin(c.trabajador_id);return;
   }
   if(!confirm(`¿CANCELAR el cheque${c.num_cheque?' #'+c.num_cheque:''} de ${c.nombre||''} (semana ${c.semana}, $${money(c.importe)})?\n\nQueda marcado como CANCELADO (no se borra) porque a este trabajador ya se le pagó por transferencia esa semana.`))return;
   markWrite();

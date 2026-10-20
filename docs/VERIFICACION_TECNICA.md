@@ -1,4 +1,4 @@
-# Integración modular · 2026-10-20.1
+# Integración modular · 2026-10-20.2
 
 Documentación pública del código. No contiene cierres reales, importes operativos, expedientes ni credenciales. El informe operativo se entrega al propietario por separado y no debe publicarse en Pages.
 
@@ -13,7 +13,7 @@ Documentación pública del código. No contiene cierres reales, importes operat
 - `concentrado-contratistas.js`: concentrados.
 - `supabase/migrations/`: cambios versionados del backend.
 
-Se conservan el stack y xlsx-js-style. La modularización no cambia las fórmulas de cálculo. Las huellas de 850 funciones originales permiten verificar que los cambios se limitan a 50 adaptadores declarados en `frontend/revision-auditada.json`; los motores no se admiten como excepciones.
+Se conservan el stack y xlsx-js-style. La modularización no cambia las fórmulas de cálculo. Las huellas de 850 funciones originales permiten verificar que los cambios se limitan a 51 adaptadores declarados en `frontend/revision-auditada.json`; los motores no se admiten como excepciones.
 
 ## Construcción y comprobaciones
 
@@ -28,7 +28,7 @@ Editar los módulos, no el archivo generado. Publicar juntos el HTML y el archiv
 
 La comprobación estructural de fichas utiliza Python y lxml, no un navegador. En otro equipo se puede indicar el ejecutable con `PLATINUM_TEST_PYTHON`; GitHub prepara Python 3.12 y lxml 6.0.2 de forma aislada.
 
-Las 19 suites del paquete público incluyen 68 comprobaciones PostgreSQL y contratos de paginación, alcance de empresa, respuestas tardías, permisos, aprobación, idempotencia, saldos, versiones y botones nuevos. Usan datos ficticios; no conectan a la base operativa ni abren navegador. El paquete privado añade 27 comprobaciones de seguridad, 66 de los cuatro bloques RRHH, 50 de pagos de sábado, 12 de estados físicos de cheques y 30 de rendimiento RLS: 28 suites y 253 comprobaciones PostgreSQL en conjunto. La interfaz de pagos añade 24 contratos VM y la distinción eliminar/cancelar otros 12. No se cuentan como ejecutadas las que requieren archivos privados ausentes.
+Las 20 suites del paquete público incluyen 68 comprobaciones PostgreSQL y contratos de paginación, alcance de empresa, respuestas tardías, permisos, aprobación, idempotencia, saldos, versiones y botones nuevos. Usan datos ficticios; no conectan a la base operativa ni abren navegador. El paquete privado añade 27 comprobaciones de seguridad, 66 de los cuatro bloques RRHH, 50 de pagos de sábado, 12 de estados físicos de cheques, 30 de rendimiento RLS y 28 de conciliación de transferencias: 30 suites y 281 comprobaciones PostgreSQL en conjunto. La interfaz de pagos añade 24 contratos VM y la distinción eliminar/cancelar otros 12. No se cuentan como ejecutadas las que requieren archivos privados ausentes.
 
 `scripts/auditar_funciones.cjs` reproduce trazas y callbacks; el informe detallado se conserva como artefacto privado. Análisis estático no significa ejecución universal ni garantía de ausencia de errores. La migración de endurecimiento ya aplicada también se entrega en privado, no dentro del sitio público.
 
@@ -53,3 +53,11 @@ Las alertas reutilizan un índice IMSS de la misma lectura, sin caché global qu
 `test_rendimiento_centros.cjs` compara todas las alertas con la regla anterior usando 700 trabajadores y 6,300 documentos ficticios, comprueba frescura tras importar/anular acuses, 12,000 acuses sin truncamiento, máximo cuatro lotes y 3,507 pagos íntegros. El tiempo VM es orientativo, no una medición de latencia de pantalla. La migración privada añade cuatro índices y evalúa el mismo alcance RLS una vez por consulta/centro, sin modificar políticas de escritura, constraints ni funciones. Las pruebas PostgreSQL contrastan filas visibles antes/después, incluidos usuarios sin alcance o limitados a un centro.
 
 Referencias: [RLS y planes de consulta](https://supabase.com/docs/guides/database/postgres/row-level-security#rls-performance-recommendations), [índices](https://supabase.com/docs/guides/database/postgres/indexes).
+
+## Selección de pendientes y finiquitos por transferencia
+
+La revisión abre con el filtro de pendientes aplicado en el servidor, antes de paginar. Se pueden marcar casos bloqueados para revisarlos; no por ello se autoriza generar cheques. Se distinguen seleccionados, listos y pendientes de resolver. La confirmación sigue exigiendo autorización del cierre, conciliación, horario y ausencia de pagos; los comprobantes pagados o importes cero no son seleccionables. Un acceso al cierre permite resolver el bloqueo sin buscarlo en otro menú.
+
+El mismo apartado ofrece finiquitos por transferencia. Sólo propone la sustitución cuando coinciden trabajador, centro, semana, importe, NOI y recibos; los parciales, rechazos, coincidencias ambiguas y cheques físicos requieren revisión. La contadora conserva su permiso específico, no privilegios de administrador. La importación y el botón de revisar cheque abren este flujo, en lugar de eliminar sin registrar la excepción. Dos confirmaciones llaman al coordinador financiero existente, que vuelve a validar la evidencia. La captura sin folios queda eliminada y auditada, no CANCELADA. La excepción enlazada impide recrear ese cheque y conserva banco, ficha, recibos y versiones.
+
+Los casos sin comprobante no se declaran pagados ni se eliminan por suposición. Las nuevas regresiones comprueban los atributos HTML de las casillas y sus acciones en VM, y el recorrido PostgreSQL completo desde evidencia hasta excepción y no regeneración. No se atribuye una prueba visual de navegador.
