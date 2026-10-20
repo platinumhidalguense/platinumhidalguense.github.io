@@ -317,7 +317,7 @@ function pintarVistaObra(vista){
   switch(vista||(typeof VIEW==='undefined'?'trab':VIEW)){
     case 'trab':renderTable();break;
     case 'chq':renderChqStats();renderCheques();break;
-    case 'pagos':renderPagosView();break;
+    case 'pagos':if(typeof window!=='undefined'&&window.PLATINUM_VISOR_PAGOS&&$('visor-pagos')){window.PLATINUM_VISOR_PAGOS.mostrar();if($('pagos-legado')?.open)renderPagosView();}else renderPagosView();break;
     case 'vac':renderVacViews();break;
     case 'actas':renderActasView();break;
     case 'nom':renderNomView();break;
@@ -419,7 +419,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-20.2';
+const APP_VERSION='2026-10-20.3';
 window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
@@ -456,7 +456,7 @@ async function chequearVersionEnVivo(){
 const VISTAS={
   trab :{ic:'👷',txt:'Trabajadores'},
   chq  :{ic:'🧾',txt:'Cheques'},
-  pagos:{ic:'💸',txt:'Pagos BBVA'},
+  pagos:{ic:'💸',txt:'Visor semanal de pagos'},
   vac  :{ic:'🌴',txt:'Vacaciones y permisos'},
   actas:{ic:'📋',txt:'Actas'},
   nom  :{ic:'🧠',txt:'NOM-035'},

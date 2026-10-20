@@ -816,7 +816,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <button class="sb-item on" id="vb-trab" onclick="setView('trab')"><span class="ic">👷</span>Trabajadores</button>
         <button class="sb-item" onclick="sbGo(()=>openForm(null))"><span class="ic">＋</span>Nueva alta</button>
         <button class="sb-item" id="vb-chq" onclick="setView('chq')"><span class="ic">🧾</span>Cheques</button>
-        <button class="sb-item" id="vb-pagos" onclick="setView('pagos')"><span class="ic">💸</span>Pagos BBVA</button>
+        <button class="sb-item" id="vb-pagos" onclick="setView('pagos')"><span class="ic">💸</span>Visor semanal de pagos</button>
         <button class="sb-item" id="vb-audit" onclick="setView('audit')"><span class="ic">🔎</span>Auditoría de pagos</button>
         <button class="sb-item" id="vb-vac" onclick="setView('vac')"><span class="ic">🌴</span>Vacaciones y permisos</button>
         <button class="sb-item" id="vb-actas" onclick="setView('actas')"><span class="ic">📋</span>Actas</button>
@@ -1111,6 +1111,8 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
       </div>
     </div>
     <div id="view-pagos" class="hide">
+      <div id="visor-pagos" aria-live="polite"></div>
+      <details id="pagos-legado" style="margin-top:16px" ontoggle="if(this.open)renderPagosView()"><summary style="cursor:pointer;font-size:12px">Listado completo anterior, herramientas y exportaciones Excel</summary>
       <div class="stats" id="pg-v-stats"></div>
       <div class="toolbar">
         <div class="search"><input id="pg-v-q" placeholder="Buscar trabajador, folio, lote, descripción..." oninput="renderPagosView()"></div>
@@ -1135,6 +1137,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
           <tbody id="pg-v-tbody"><tr class="loading-row"><td colspan="9">Cargando...</td></tr></tbody>
         </table>
       </div>
+      </details>
     </div>
 
     <!-- ===== VISTA CONTROL DE PAPELES (expedientes pendientes) ===== -->
@@ -1199,11 +1202,11 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
   <div class="ia-aviso">Responde con los datos que TÚ tienes permitido ver. Verifica cifras contra el recibo o NOI.</div>
 </div>
 
-<script src="platinum-sync.js?v=20261020.2"></script>
-<script src="platinum-workflows.js?v=20261020.2"></script>
-<script src="platinum-rrhh.js?v=20261020.2"></script>
-<script src="platinum-pagos-sabado.js?v=20261020.2"></script>
-<script src="assets/platinum-app.4f1dca468a2d6326.js" integrity="sha384-ibxFJwJaHP4Cnx/m1hh7oAISAu8dI/ly67q2t/NNR8iprTuPO+0MvV7k5LVbYsEI" crossorigin="anonymous"></script>
+<script src="platinum-sync.js?v=20261020.3"></script>
+<script src="platinum-workflows.js?v=20261020.3"></script>
+<script src="platinum-rrhh.js?v=20261020.3"></script>
+<script src="platinum-pagos-sabado.js?v=20261020.3"></script>
+<script src="assets/platinum-app.1c74c7270c4cc192.js" integrity="sha384-PAf4lItc9NmPfJZyOuyxJfnNWdEEpXalfW+Dq+/NLkWv34yaB3PnIdEjbp/Z5WMK" crossorigin="anonymous"></script>
 <script src="concentrado-contratistas.js"></script>
 </body>
 </html>

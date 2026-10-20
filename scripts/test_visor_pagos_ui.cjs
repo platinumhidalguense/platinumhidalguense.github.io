@@ -1,0 +1,36 @@
+// Contratos del visor con VM y datos ficticios, sin navegador ni cuentas reales.
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+let tests=0;const ok=(v,m)=>{assert.ok(v,m);tests++;};
+const src=fs.readFileSync('frontend/modulos/41-visor-semanal-pagos.js','utf8'),isolated=src.slice(0,src.indexOf('window.PLATINUM_VISOR_PAGOS.configure('));
+const nodes=new Map(),calls=[],messages=[],opened=[],imports=[],reviews=[];let pending=null,fail=false,malformed=false,canWrite=true,revision='v1';
+function scan(s){nodes.clear();for(const m of s.matchAll(/id="([^"]+)"(?:[^>]*?value="([^"]*)")?/g))nodes.set(m[1],{value:m[2]||'',textContent:''});}
+const root={html:'',attrs:{},get innerHTML(){return this.html;},set innerHTML(s){this.html=s;scan(s);},setAttribute(k,v){this.attrs[k]=v;}};
+const ctx={obra:{id:'a',nombre:'CENTRO FICTICIO'},view:'pagos',empresa:'EMPRESA FICTICIA'};
+function result(a,d){const base={obra_id:d.obra_id,solo_lectura:true};
+ if(a==='INDICE')return{...base,puede_importar:canWrite,faltantes:1,parciales:1,revisar:1,semanas_sin_base:1,semanas:[{semana:3,registros:0,faltantes:0,parciales:0},{semana:2,registros:2,faltantes:1,parciales:1},{semana:1,registros:1,faltantes:0,parciales:0}]};
+ const common={...base,semana:d.semana,pagina:d.pagina||0,por_pagina:50,revision,total:51};
+ if(a==='PERSONAS')return{...common,lotes:[{lote:'GLOBAL:abcd',folio:'REPETIDO',archivo:'FICTICIO.pdf',fecha:'2026-01-09',registros:1,importe:1000}],resumen:{banco:1000,cheque:500,faltantes:1,parciales:1,revisar:1},filas:[{trabajador_id:'w1',numero:101,nombre:'PERSONA S'+d.semana,contratista:'MG',esperado:1500,banco:1000,cheque:500,saldo:0,estado:'PAGO_MIXTO_REGISTRADO',fuente:'NOI'}]};
+ return{...common,filas:[{id:'p1',trabajador_id:'w1',numero:101,nombre:'COMPROBANTE S'+d.semana,titular:'PERSONA FICTICIA',importe:1000,estado:'EXITOSO',clase:d.filtro||'INDIVIDUAL',folio:'REPETIDO',archivo:d.q==='conpdf'?'privado/ficticio.pdf':null}]};
+}
+ctx.sb={rpc:async(name,args)=>{calls.push({name,args});if(fail)return{error:{message:'Fallo simulado de lectura'}};if(pending&&pending.action===args.p_accion&&pending.sem===args.p_datos.semana)return new Promise(r=>pending.resolve=()=>r({data:result(args.p_accion,args.p_datos)}));if(malformed)return{data:{obra_id:args.p_datos.obra_id,solo_lectura:true}};return{data:result(args.p_accion,args.p_datos)};}};
+const box={window:{},console,Map,Set,Number,String};vm.createContext(box);vm.runInContext(isolated,box);const api=box.window.PLATINUM_VISOR_PAGOS;
+api.configure({context:()=>ctx,root:()=>root,$:id=>nodes.get(id),esc:x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),money:x=>Number(x).toFixed(2),toast:(...x)=>messages.push(x),pdf:async path=>opened.push(path),importar:sem=>imports.push(sem),revisar:sem=>reviews.push(sem)});
+(async()=>{
+ ctx.view='trab';await api.mostrar();ok(calls.length===0,'No carga visor al abrir trabajadores');ctx.view='pagos';await api.mostrar();ok(calls[0].args.p_accion==='INDICE','Primero obtiene histórico completo');ok(calls.at(-1).args.p_datos.semana===2,'Abre última semana con evidencia, no semana actual vacía');
+ ok(root.innerHTML.includes('Visor semanal de pagos')&&root.innerHTML.includes('1 caso(s) sin comprobante'),'Aviso histórico visible');ok(root.innerHTML.includes('persona')||root.innerHTML.includes('PERSONA'),'Listado de personas');ok(root.innerHTML.includes('Transferencia + cheque registrados'),'No confunde pago mixto');
+ await api.tab('GLOBALES');ok(root.innerHTML.includes('FICTICIO.pdf')&&root.innerHTML.includes('Ver lote'),'Lotes organizados');await api.lote(0);ok(calls.at(-1).args.p_datos.lote==='GLOBAL:abcd'&&calls.at(-1).args.p_datos.semana===2,'Lote se consulta dentro de su semana');ok(root.innerHTML.includes('Original no archivado'),'No inventa original PDF');await api.volver();ok(root.innerHTML.includes('Ver lote'),'Volver conserva contexto de globales');
+ await api.tab('INDIVIDUALES');ok(calls.at(-1).args.p_datos.filtro==='INDIVIDUAL','Individual separado por origen');await api.pagina(1);ok(calls.at(-1).args.p_datos.pagina===1,'Paginación servidor');await api.pagina(1);ok(calls.at(-1).args.p_datos.pagina===1,'No excede última página');await api.pagina(-1);
+ nodes.get('vp-q').value='conpdf';await api.buscar();ok(calls.at(-1).args.p_datos.q==='conpdf','Búsqueda servidor');await api.pdf(0);ok(opened[0]==='privado/ficticio.pdf','PDF privado sólo cuando hay ruta');await api.limpiar();ok(calls.at(-1).args.p_datos.q==='','Limpia búsqueda');const before=opened.length;await api.pdf(0);ok(opened.length===before,'Original ausente no dispara descarga');
+ await api.tab('PERSONAS');await api.persona(0);ok(calls.at(-1).args.p_datos.trabajador_id==='w1','Comprobantes por trabajador');await api.volver();ok(calls.at(-1).args.p_accion==='PERSONAS','Vuelve al listado');
+ await api.irPendientes(1);ok(calls.at(-1).args.p_datos.filtro==='PENDIENTES'&&calls.at(-1).args.p_datos.semana===1,'Aviso salta a faltantes de semana correcta');await api.mover(1);ok(calls.at(-1).args.p_datos.semana===2,'Navegación semanal');
+ await api.importar();await api.revisar();ok(imports[0]===2&&reviews[0]===2,'Importación y revisión reciben semana exacta');
+ canWrite=false;await api.recargar();const count=imports.length;await api.importar();ok(imports.length===count&&!root.innerHTML.includes('Importar comprobantes'),'Consulta no ofrece mutaciones');
+ // Una respuesta atrasada no sustituye la semana elegida después.
+ pending={action:'PERSONAS',sem:2};const old=api.recargar();while(!pending.resolve)await new Promise(r=>setImmediate(r));const release=pending.resolve;pending=null;await api.semana(1);release();await old;ok(root.innerHTML.includes('PERSONA S1')&&!root.innerHTML.includes('PERSONA S2'),'Respuesta anterior descartada');
+ fail=true;await api.recargar();ok(root.innerHTML.includes('Esto no significa que falten pagos')&&!root.innerHTML.includes('PERSONA S1'),'Error no aparece como lista vacía ni deja acciones sobre datos viejos');fail=false;await api.recargar();
+ malformed=true;await api.recargar();ok(root.innerHTML.includes('Falta el índice'),'Rechaza respuesta incompleta');malformed=false;await api.recargar();
+ pending={action:'PERSONAS',sem:1};const changing=api.recargar();while(!pending.resolve)await new Promise(r=>setImmediate(r));const done=pending.resolve;pending=null;ctx.obra={id:'b',nombre:'OTRO CENTRO'};await api.mostrar();const html=root.innerHTML;done();await changing;ok(root.innerHTML===html&&calls.at(-1).args.p_datos.obra_id==='b','Centros no mezclan respuestas');
+ ok(calls.every(x=>x.name==='control_visor_pagos'&&['INDICE','PERSONAS','COMPROBANTES'].includes(x.args.p_accion)),'Ningún botón del visor escribe datos financieros');
+ const template=fs.readFileSync('frontend/index.template.html','utf8');ok(template.includes('id="visor-pagos"')&&template.includes('Listado completo anterior, herramientas y exportaciones Excel'),'Conserva accesos y exportaciones previas');
+ console.log('PASS '+tests+' contratos VM del visor: semanas, alertas, lotes/personas, filtros/páginas, acceso privado, permisos, conexión con importación/conciliación y descartes por centro/semana/error.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

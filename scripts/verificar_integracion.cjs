@@ -13,15 +13,18 @@ else console.log('ALCANCE PÚBLICO PAGOS: las 50 comprobaciones PostgreSQL de re
 suites.push('test_pagos_sabado_ui');
 if(chequesPrivate)suites.push('test_cheques_estado_pg');
 else console.log('ALCANCE PÚBLICO CHEQUES: las 12 comprobaciones PostgreSQL del estado físico requieren la migración privada; no se cuentan como ejecutadas.');
-suites.push('test_cheques_estado_ui','test_rendimiento_centros','test_revision_pagos_seleccion_ui');
+suites.push('test_cheques_estado_ui','test_rendimiento_centros','test_revision_pagos_seleccion_ui','test_visor_pagos_ui');
 const rendimientoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_rendimiento_lectura_centros.sql'));
 if(rendimientoPrivate)suites.push('test_rendimiento_rls_pg');
 else console.log('ALCANCE PÚBLICO RENDIMIENTO: se prueban las lecturas y vistas en VM; 30 comprobaciones RLS requieren la migración privada y no se cuentan aquí.');
 const revisionPrivate=chequesPrivate&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_conciliacion_finiquitos_y_seleccion_pagos.sql'));
 if(revisionPrivate)suites.push('test_revision_pagos_finiquitos_pg');
 else console.log('ALCANCE PÚBLICO CONCILIACIÓN: se prueban selección y botones en VM; 28 comprobaciones PostgreSQL adicionales requieren el paquete privado y no se cuentan aquí.');
+const visorPrivate=pagosPrivate&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_visor_semanal_pagos.sql'));
+if(visorPrivate)suites.push('test_visor_pagos_pg');
+else console.log('ALCANCE PÚBLICO VISOR: se prueban sus botones en VM; 49 comprobaciones PostgreSQL requieren el paquete privado y no se cuentan aquí.');
 for(const file of suites){
  const r=spawnSync(process.execPath,['scripts/'+file+'.cjs'],{encoding:'utf8',maxBuffer:4e6});
  process.stdout.write(r.stdout||'');process.stderr.write(r.stderr||'');if(r.status!==0)process.exit(r.status||1);
 }
-console.log('PASS '+suites.length+' suites reproducibles; incluyen '+((privateMigration?95:68)+(rrhhPrivate?66:0)+(pagosPrivate?50:0)+(chequesPrivate?12:0)+(rendimientoPrivate?30:0)+(revisionPrivate?28:0))+' comprobaciones PostgreSQL, contratos de UI, paginación y conservación de motores. Sin aceptación visual de navegador.');
+console.log('PASS '+suites.length+' suites reproducibles; incluyen '+((privateMigration?95:68)+(rrhhPrivate?66:0)+(pagosPrivate?50:0)+(chequesPrivate?12:0)+(rendimientoPrivate?30:0)+(revisionPrivate?28:0)+(visorPrivate?49:0))+' comprobaciones PostgreSQL, contratos de UI, paginación y conservación de motores. Sin aceptación visual de navegador.');
