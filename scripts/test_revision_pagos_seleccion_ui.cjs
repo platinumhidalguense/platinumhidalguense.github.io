@@ -1,8 +1,8 @@
 // Regresiones de los casos reportados. VM y datos ficticios, sin navegador.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),acorn=require('acorn');
 const nodes=new Map(),calls=[],messages=[];let mode='PROPUESTA',confirm=true,phrase='CREAR CHEQUES CONFIRMADOS',close=0,opened=null,reloads=0;
-const normal=[{trabajador_id:'pagado',numero:1,estado:'TRANSFERENCIA_REGISTRADA',importe:2000},{trabajador_id:'pendiente',numero:646,estado:'PENDIENTE_AUTORIZACION',importe:2000,cierre_id:'cierre'},{trabajador_id:'listo',numero:652,estado:'ELEGIBLE_CONFIRMACION',importe:2000},{trabajador_id:'cero',numero:7,estado:'SIN_OBLIGACION',importe:0}];
-const fins=[{id:'q1',trabajador_id:'w1',numero:443,estado:'LISTO_TRANSFERENCIA',pago_id:'p1',importe:388.98},{id:'q2',trabajador_id:'w2',numero:444,estado:'SIN_TRANSFERENCIA',importe:427.99,motivo:'Falta importar comprobante'},{id:'q3',trabajador_id:'w3',numero:470,estado:'CHEQUE_FISICO',importe:221.32,motivo:'No retirar cheque físico'}];
+const normal=[{trabajador_id:'pagado',numero:1,estado:'TRANSFERENCIA_REGISTRADA',importe:2000},{trabajador_id:'pendiente',numero:32,estado:'PENDIENTE_AUTORIZACION',importe:2000,cierre_id:'cierre'},{trabajador_id:'listo',numero:33,estado:'ELEGIBLE_CONFIRMACION',importe:2000},{trabajador_id:'cero',numero:7,estado:'SIN_OBLIGACION',importe:0}];
+const fins=[{id:'q1',trabajador_id:'w1',numero:101,estado:'LISTO_TRANSFERENCIA',pago_id:'p1',importe:1200},{id:'q2',trabajador_id:'w2',numero:102,estado:'SIN_TRANSFERENCIA',importe:1300,motivo:'Falta importar comprobante'},{id:'q3',trabajador_id:'w3',numero:103,estado:'CHEQUE_FISICO',importe:1400,motivo:'No retirar cheque físico'}];
 let permissions={confirmar:true,retirar:true,transferencia:true};let failTransfer=false;
 const context={obra:{id:'obra',nombre:'Prueba'},empresaNombre:'Prueba',sb:{rpc:async(name,args)=>{
  calls.push({name,args});const a=args.p_accion;
