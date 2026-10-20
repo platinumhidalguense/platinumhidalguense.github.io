@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-20.3",
-  "entry": "assets/platinum-app.1c74c7270c4cc192.js",
-  "sha256": "1c74c7270c4cc192e9aca6ae958288728ae216bbf16dec62a4c801b72407e7b3",
-  "integrity": "sha384-PAf4lItc9NmPfJZyOuyxJfnNWdEEpXalfW+Dq+/NLkWv34yaB3PnIdEjbp/Z5WMK",
+  "version": "2026-10-20.4",
+  "entry": "assets/platinum-app.378918077d3ff2df.js",
+  "sha256": "378918077d3ff2df314864ee8ed3f880101d32bb81c57f6afc9726e6ae189864",
+  "integrity": "sha384-sqSlLWhFWl0Hu2EOxV8H6jPDeAB18/5BySlxfekZpnC/T0+O+cGuRLVzU12TcCA7",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "b8b02f93c62ea500f930e8c725c7fb6245e8bed1033ee011c57be65fdfcb983b"
+      "sha256": "56ed6264d4d69df4421a7976c1bb10f47ab763ef40369f8d64eacad80693bce0"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -170,7 +170,11 @@
     },
     {
       "path": "frontend/modulos/41-visor-semanal-pagos.js",
-      "sha256": "4717bd426b688608c174a10cd4712c1feb64a1dd658e2b982c17c6b5e34b5c9a"
+      "sha256": "b28eb0a0128d6552c7fd71218897efe8b6095cee3803e57a5b0459c42245ba7c"
+    },
+    {
+      "path": "frontend/modulos/42-recibos-lectura-ia.js",
+      "sha256": "25b681c06c97d935cf9ae017f8772e0f1d4323ff6b4d01944b9dd08580bda936"
     }
   ]
 }

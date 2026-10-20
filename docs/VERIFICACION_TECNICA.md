@@ -1,10 +1,10 @@
-# Integración modular · 2026-10-20.3
+# Integración modular · 2026-10-20.4
 
 Documentación pública del código. No contiene cierres reales, importes operativos, expedientes ni credenciales. El informe operativo se entrega al propietario por separado y no debe publicarse en Pages.
 
 ## Estructura
 
-- `frontend/modulos/`: 42 módulos de origen, conservando orden y ámbito clásico.
+- `frontend/modulos/`: 43 módulos de origen, conservando orden y ámbito clásico.
 - `frontend/modulos.json`: orden de construcción.
 - `frontend/build.json`: nombre por contenido, SHA-256 e integridad SHA-384 del archivo publicado.
 - `platinum-sync.js`: invalidación y coordinación de lecturas.
@@ -28,7 +28,7 @@ Editar los módulos, no el archivo generado. Publicar juntos el HTML y el archiv
 
 La comprobación estructural de fichas utiliza Python y lxml, no un navegador. En otro equipo se puede indicar el ejecutable con `PLATINUM_TEST_PYTHON`; GitHub prepara Python 3.12 y lxml 6.0.2 de forma aislada.
 
-Las 21 suites del paquete público incluyen 68 comprobaciones PostgreSQL y contratos de paginación, alcance de empresa, respuestas tardías, permisos, aprobación, idempotencia, saldos, versiones y botones nuevos. Usan datos ficticios; no conectan a la base operativa ni abren navegador. El paquete privado añade 27 comprobaciones de seguridad, 66 de los cuatro bloques RRHH, 50 de pagos de sábado, 12 de estados físicos de cheques, 30 de rendimiento RLS, 28 de conciliación de transferencias y 49 del visor semanal: 32 suites y 330 comprobaciones PostgreSQL en conjunto. El visor añade 29 contratos VM de navegación, aislamiento, errores y permisos. No se cuentan como ejecutadas las que requieren archivos privados ausentes.
+Las 22 suites del paquete público incluyen 68 comprobaciones PostgreSQL y contratos de paginación, alcance de empresa, respuestas tardías, permisos, aprobación, idempotencia, saldos, versiones y botones nuevos. Usan datos ficticios; no conectan a la base operativa ni abren navegador. El paquete privado añade 27 comprobaciones de seguridad, 66 de los cuatro bloques RRHH, 50 de pagos de sábado, 12 de estados físicos de cheques, 30 de rendimiento RLS, 28 de conciliación de transferencias, 49 del visor y 32 de lectura IA: 35 suites y 362 comprobaciones PostgreSQL en conjunto. El visor añade 29 contratos VM; los recibos IA, 21 de interfaz y 22 de Edge Function. No se cuentan como ejecutadas las que requieren archivos privados ausentes.
 
 `scripts/auditar_funciones.cjs` reproduce trazas y callbacks; el informe detallado se conserva como artefacto privado. Análisis estático no significa ejecución universal ni garantía de ausencia de errores. La migración de endurecimiento ya aplicada también se entrega en privado, no dentro del sitio público.
 
@@ -71,3 +71,11 @@ Se reutilizan obligaciones vigentes, NOI y fotografías históricas; a falta de 
 El origen explícito de la importación prevalece sobre el número de registros del lote. Un global de una persona sigue siendo global; un mismo folio de semanas diferentes nunca se abre como un único lote. La evidencia repetida con identidad, banco, fecha, importe y referencia iguales se identifica sin duplicar su suma. Si el PDF bancario original no está archivado, el visor muestra los datos importados y lo informa expresamente. No fabrica enlaces ni interpreta un CFDI como comprobante bancario.
 
 Los accesos a importar y revisar llevan la semana seleccionada a los coordinadores existentes. Las respuestas atrasadas de otra semana o centro se descartan; un fallo de lectura nunca se representa como falta de pagos. Tiempo real vuelve a consultar el visor visible; el listado anterior y sus exportaciones se conservan dentro de un desplegable y sólo se dibujan al abrirlo. No se crean ni modifican datos, importes, cheques, permisos o motores por consultar el visor.
+
+## Recibos sin neto extraído
+
+El módulo 42 ofrece lectura por semana, a petición de un usuario con permiso de escritura y en lotes de hasta cinco. `gemini-recibos` valida sesión, permisos y documento antes de descargar el PDF privado con el token del solicitante; no utiliza service_role. La llave de Google sólo existe en el servidor. El PDF se procesa como documento, con salida JSON estructurada y hasta dos reintentos acotados para indisponibilidad temporal. No se altera el extractor general ni sus otros usos.
+
+La propuesta se conserva separadamente con huella, modelo, datos, usuario y motivos de rechazo. PostgreSQL comprueba identidad, un solo recibo, periodo archivado y coherencia de importes. Sólo una confirmación explícita completa un `nomina_neto` todavía nulo; el original permanece intacto. Cambios concurrentes, importes existentes o lecturas ambiguas bloquean la operación. El metadato pasa a todas las consultas existentes por los disparadores y la sincronización documental, sin cambiar pagos ni versiones autorizadas. Las propuestas no se confunden con comprobantes bancarios.
+
+Referencias: [documentos PDF en Gemini](https://ai.google.dev/gemini-api/docs/document-processing), [salida estructurada](https://ai.google.dev/gemini-api/docs/structured-output). Las pruebas aisladas no acreditan exactitud OCR de todos los recibos reales: se exige cotejar el original antes de confirmar.

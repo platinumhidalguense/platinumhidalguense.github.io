@@ -1,4 +1,6 @@
 node_modules/
+supabase/migrations/*_recibos_lectura_gemini.sql
+supabase/functions/gemini-recibos/
 supabase/migrations/*_visor_semanal_pagos.sql
 supabase/migrations/*_conciliacion_finiquitos_y_seleccion_pagos.sql
 supabase/migrations/*_rendimiento_lectura_centros.sql
