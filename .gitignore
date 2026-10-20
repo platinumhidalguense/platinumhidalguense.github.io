@@ -1,4 +1,5 @@
 node_modules/
+supabase/migrations/*_cheques_neto_fuentes_alternas.sql
 supabase/migrations/*_actividad_actual_administrador.sql
 supabase/migrations/*_recibos_lectura_gemini.sql
 supabase/functions/gemini-recibos/

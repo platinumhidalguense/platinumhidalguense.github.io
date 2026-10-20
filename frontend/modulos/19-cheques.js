@@ -81,7 +81,7 @@ async function crAnalizar(){
     if(!info){
       try{const {data:blob,error}=await sb.storage.from('expedientes').download(d.archivo);
         if(error||!blob)throw 0;
-        info=parseReciboText(await pdfBytesToText(new Uint8Array(await blob.arrayBuffer())));
+        info=window.PLATINUM_RESPALDO_RECIBO.parsear(await pdfBytesToText(new Uint8Array(await blob.arrayBuffer())));
       }catch(e){info={neto:null,tipo:'?',err:true};}
       _RECCACHE[d.archivo]=info;
     }
@@ -93,6 +93,11 @@ async function crAnalizar(){
     else if(tp==='FINIQUITO'&&w&&finTransDe(w,sem))estado='TRANSFERENCIA_FIN';
     else if(!chk)estado=tp==='FINIQUITO'?'FALTA':'REVISION_PAGO';
     else if(Math.abs((Number(chk.importe)||0)-info.neto)>0.01)estado='NOCOINCIDE';
+    if(info.tipo==='FINIQUITO'&&w&&['FALTA','OK','NOCOINCIDE'].includes(estado)){
+      const respaldo=await chqResolverNeto({obra_id:OBRA.id,trabajador_id:w.id,semana:'S'+ns,tipo_pago:'FINIQUITO'});
+      if(respaldo.error){estado='ILEGIBLE';info={...info,err:true};}
+      else{info={...info,neto:respaldo.neto};if(chk)estado=Math.round(Number(chk.importe)*100)===Math.round(info.neto*100)?'OK':'NOCOINCIDE';}
+    }
     rows.push({d,w,info,tp,chk,estado});
   }
   window._CR={rows,ns,sem:'S'+ns};
@@ -126,6 +131,8 @@ async function crCrearFaltantes(){
   markWrite();let ok=0,err=0;
   const W=parseInt(st.ns)||0;
   for(const x of falt){
+    const respaldo=await chqResolverNeto({obra_id:x.w.obra_id,trabajador_id:x.w.id,semana:st.sem,tipo_pago:'FINIQUITO'});
+    if(respaldo.error||respaldo.neto!==x.info.neto){err++;continue;}
     const {error}=await sb.from('cheques').insert({obra_id:x.w.obra_id,trabajador_id:x.w.id,no_trab:x.w.no_trab,contratista:x.w.contratista,
       nombre:fullName(x.w),puesto:x.w.puesto,curp:x.w.curp,semana:st.sem,periodo:periodoCorto(W),importe:x.info.neto,
       tipo_pago:x.tp,estatus:'PENDIENTE',observaciones:'GENERADO DESDE RECIBO DE NÓMINA ('+x.info.tipo+')',creado_por:USER.email});
@@ -146,9 +153,10 @@ async function chqTraerRecibo(){
   if(!w){toast('Elige primero un trabajador registrado.','err');return;}
   const rec={obra_id:OBRA.id,trabajador_id:w.id,semana:$('f-c-semana')?.value,tipo_pago:$('c-tipo')?.value};
   const r=await chqResolverNeto(rec),input=$('f-c-importe'),aviso=$('c-neto-fuente');
-  if(r.error){if(aviso)aviso.textContent=r.error;toast(r.error,'err');return;}
+  if(!aviso||aviso!==$('c-neto-fuente')||rec.obra_id!==OBRA?.id||rec.trabajador_id!==(WORKERS.find(x=>fullName(x).toUpperCase()===($('c-nombre')?.value||'').trim().toUpperCase())?.id)||rec.semana!==$('f-c-semana')?.value||rec.tipo_pago!==$('c-tipo')?.value)return;
+  if(r.error){aviso.textContent=r.error;if(r.puede_leer_pdf&&window.PLATINUM_RECIBOS_IA){const b=document.createElement('button');b.type='button';b.className='btn';b.textContent='Leer recibos con Gemini';b.onclick=()=>window.PLATINUM_RECIBOS_IA.abrir(normSem(rec.semana));aviso.appendChild(b);}toast(r.error,'err');return;}
   if(input)input.value=r.neto.toFixed(2);
-  if(aviso)aviso.textContent=`Importe verificado: $${money(r.neto)} · ${r.origen}`;
+  if(aviso)aviso.textContent=`Importe verificado: $${money(r.neto)} · ${r.origen} · ${r.desde} al ${r.hasta}${r.advertencias?.length?' · '+r.advertencias.join(' '):''}`;
   toast(`Importe $${money(r.neto)} verificado contra ${r.origen}.`,'ok');
 }
 function renderCheques(){
@@ -240,6 +248,7 @@ function chequeDuplicado(rec,idActual){
   )||null;
 }
 async function saveCheque(id){
+  const contextoInicial={obra:OBRA?.id,form:$('c-save')};
   const g=i=>{const el=$('f-'+i)||$(i);return el?el.value.trim():'';};
   if(!g('c-nombre')){toast('Indica el nombre del trabajador o beneficiario.','err');return;}
   let estatus=$('c-estatus').value;
@@ -249,7 +258,9 @@ async function saveCheque(id){
   const previo=id?CHEQUES.find(x=>x.id===id):null;
   let neto=Number(g('c-importe'));
   if(!previo||previo.estatus==='PENDIENTE'){
-    const respaldo=await chqResolverNeto({obra_id:OBRA.id,trabajador_id:w?.id,semana:g('c-semana'),tipo_pago:$('c-tipo').value});
+    const captura={obra_id:OBRA.id,trabajador_id:w?.id,semana:g('c-semana'),tipo_pago:$('c-tipo').value,nombre:g('c-nombre')};
+    const respaldo=await chqResolverNeto(captura);
+    if(OBRA?.id!==contextoInicial.obra||$('c-save')!==contextoInicial.form||g('c-semana')!==captura.semana||$('c-tipo')?.value!==captura.tipo_pago||g('c-nombre')!==captura.nombre){toast('La captura cambió durante la verificación. Vuelve a verificar el cheque.','err');return;}
     if(respaldo.error){toast(respaldo.error,'err');return;}
     neto=respaldo.neto;
     if($('f-c-importe'))$('f-c-importe').value=neto.toFixed(2);

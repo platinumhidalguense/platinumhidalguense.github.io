@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-20.6",
-  "entry": "assets/platinum-app.522b51d488ccb805.js",
-  "sha256": "522b51d488ccb805ce92ad40a19c34b9e61ab72a99ad3b8f093e4954bd22f5c0",
-  "integrity": "sha384-cR+zQYVrF/VbU3//dZuCS8llxMEPYA5QRumf30frpHbrCa6j6WD/siAZ4Dqh+sDi",
+  "version": "2026-10-20.7",
+  "entry": "assets/platinum-app.54af44dac6c1c2fc.js",
+  "sha256": "54af44dac6c1c2fc418c8aecc4cafea22391b6a69c2a6203a1c0e48a94b5a7ad",
+  "integrity": "sha384-HZhc0XsyGpxoRFBOp6OsKFzwo+MGNb7iCR40aQxL+MO+yoIPrC4NlPmovzoFHPWz",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "ee5e5fafd6ef4757a178b72392d172c3b2eb94ab9d6efa9bb07e650532c79feb"
+      "sha256": "3af96d9c0ee5b087f73e89aaf4189ca71705abaeab62b4a15c0b8b38fe1e2a5d"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -82,7 +82,7 @@
     },
     {
       "path": "frontend/modulos/19-cheques.js",
-      "sha256": "183905054cac604a651b5593d707747b13c555781e8e69ec6747eb972faf3bce"
+      "sha256": "8aaa87b4f0e3666ec1cfc4bc50fdbb2aa7c380079be88fe4bafce2aacec06e9f"
     },
     {
       "path": "frontend/modulos/20-movimientos-semanales.js",
@@ -158,7 +158,7 @@
     },
     {
       "path": "frontend/modulos/38-adaptadores-arranque.js",
-      "sha256": "56612587ff111d57aa37c21862beee2f1203bfc3fe97f48ea526224d7e98b499"
+      "sha256": "0091bbae2a5282b7ab5cbba7453bb7e43fb08d0224aa0975a38e3ef53a25f1e0"
     },
     {
       "path": "frontend/modulos/39-rrhh-adaptadores.js",
@@ -179,6 +179,10 @@
     {
       "path": "frontend/modulos/43-actividad-administrador.js",
       "sha256": "cf2d881a75aea6d82a3ce74c8d0d3d6d7480fbacb5fd47ab9049553d80c43706"
+    },
+    {
+      "path": "frontend/modulos/44-respaldo-recibos.js",
+      "sha256": "4f484a9a9682682f0eefaa5fc1d294b74017e640425025b0fb6b07024397bf70"
     }
   ]
 }

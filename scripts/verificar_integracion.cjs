@@ -29,8 +29,12 @@ else console.log('ALCANCE PÚBLICO RECIBOS IA: contratos de interfaz en VM; las 
 const actividadPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_actividad_actual_administrador.sql'));
 if(actividadPrivate)suites.push('test_actividad_pg');
 else console.log('ALCANCE PÚBLICO ACTIVIDAD: contratos de interfaz en VM; 27 comprobaciones PostgreSQL requieren la migración privada.');
+const netoPrivate=recibosPrivate&&revisionPrivate&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cheques_neto_fuentes_alternas.sql'));
+suites.push('test_cheques_fuentes_ui');
+if(netoPrivate)suites.push('test_cheques_fuentes_pg');
+else console.log('ALCANCE PÚBLICO RESPALDO: los contratos de interfaz se ejecutan; 37 pruebas PostgreSQL de fuentes alternas requieren las migraciones privadas.');
 for(const file of suites){
  const r=spawnSync(process.execPath,['scripts/'+file+'.cjs'],{encoding:'utf8',maxBuffer:4e6});
  process.stdout.write(r.stdout||'');process.stderr.write(r.stderr||'');if(r.status!==0)process.exit(r.status||1);
 }
-console.log('PASS '+suites.length+' suites reproducibles; incluyen '+((privateMigration?95:68)+(rrhhPrivate?66:0)+(pagosPrivate?50:0)+(chequesPrivate?12:0)+(rendimientoPrivate?30:0)+(revisionPrivate?28:0)+(visorPrivate?49:0)+(recibosPrivate?32:0)+(actividadPrivate?27:0))+' comprobaciones PostgreSQL, contratos de UI, paginación y conservación de motores. Sin aceptación visual de navegador.');
+console.log('PASS '+suites.length+' suites reproducibles; incluyen '+((privateMigration?95:68)+(rrhhPrivate?66:0)+(pagosPrivate?50:0)+(chequesPrivate?12:0)+(rendimientoPrivate?30:0)+(revisionPrivate?28:0)+(visorPrivate?49:0)+(recibosPrivate?32:0)+(actividadPrivate?27:0)+(netoPrivate?37:0))+' comprobaciones PostgreSQL, contratos de UI, paginación y conservación de motores. Sin aceptación visual de navegador.');

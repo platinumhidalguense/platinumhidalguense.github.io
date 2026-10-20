@@ -28,7 +28,8 @@ if(window.PLATINUM_FLOWS)window.PLATINUM_FLOWS.configure({
   exportRows:(title,headers,rows,name)=>ctrlExportar(title,headers,rows,name,'FLUJO_INTEGRADO'),
   readReceipt:async doc=>{const r=await sb.storage.from('expedientes').download(doc.archivo);if(r.error||!r.data)throw Error('No se pudo descargar el recibo privado.');
     const bytes=new Uint8Array(await r.data.arrayBuffer());if(doc.hash&&await sha256Hex(bytes)!==doc.hash)throw Error('El archivo no coincide con su huella.');
-    const info=parseReciboText(await pdfBytesToText(bytes));if(!info||!Number.isFinite(info.neto)||!['FINIQUITO','SUELDO'].includes(info.tipo))throw Error('Recibo no reconocido; revisión manual requerida.');
-    return {neto:info.neto,tipo:info.tipo==='FINIQUITO'?'FINIQUITO':'NOMINA'};}
+    const info=window.PLATINUM_RESPALDO_RECIBO?.parsear(await pdfBytesToText(bytes));
+    if(!info||!Number.isFinite(info.neto)||info.datos.recibos!==1||!info.datos.periodo_inicio||!info.datos.periodo_fin||!info.datos.identificadores.length||info.datos.percepciones==null||info.datos.deducciones==null)throw Error('El PDF no permite verificar identidad, fechas o importes. Usa Leer recibos con Gemini y confirma su lectura.');
+    return info;}
 });
 init();

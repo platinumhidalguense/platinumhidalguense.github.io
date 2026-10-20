@@ -38,7 +38,7 @@
   const sem=Number(el('cc-sem')?.value),periodo=el('cc-per')?.value,obs=el('cc-obs')?.value||'';
   if(!(sem>=1&&sem<=53))throw Error('Semana inválida.');
   const data=await cfg.capture(sem,periodo);const r=await call('CREAR',{...data,observaciones:obs});
-  cfg.toast('Borrador preparado. Importa NOI, revisa y solicita autorización.','ok');await cfg.reload();await abrirCierre(r.cierre_id);
+  cfg.toast('Borrador preparado. Verifica NOI o recibos individuales, revisa y solicita autorización.','ok');await cfg.reload();await abrirCierre(r.cierre_id);
  });}
  async function abrirCierre(id){
   try{
@@ -74,7 +74,7 @@
    <div style="display:flex;gap:7px;flex-wrap:wrap;margin:12px 0">${actions.join('')}</div>
    <p id="flow-progress" class="fhint" role="status"></p>
    <details ${issues.length?'open':''}><summary><b>Conciliación motor / NOI / recibos: ${issues.length} pendiente(s)${diag.fuera_snapshot?' · '+diag.fuera_snapshot+' fila(s) NOI fuera de fotografía':''}</b></summary>
-   ${table(['No.','Trabajador','Concepto','Motor fiscal','NOI','PDF / XML','Estado'],(diag.filas||[]).map(x=>`<tr><td>${esc(x.numero)}</td><td>${esc(x.nombre)}</td><td>${esc(x.tipo)}</td><td>$${money(x.motor)}</td><td>${x.noi==null?'Sin NOI':'$'+money(x.noi)}</td><td>${x.pdf} / ${x.xml}</td><td>${esc(x.estado)}</td></tr>`))}</details>
+   ${table(['No.','Trabajador','Concepto','Motor fiscal','NOI','PDF / XML','Estado'],(diag.filas||[]).map(x=>`<tr><td>${esc(x.numero)}</td><td>${esc(x.nombre)}</td><td>${esc(x.tipo)}</td><td>$${money(x.motor)}</td><td>${x.noi==null?(x.neto_respaldo==null?'Sin respaldo':'PDF $'+money(x.neto_respaldo)):'$'+money(x.noi)}</td><td>${x.pdf} / ${x.xml}</td><td>${esc(x.estado)}</td></tr>`))}</details>
    <div class="sect">Obligaciones y comprobantes</div><p class="fhint">Una transferencia importada no se suma dos veces. Un cheque expedido es pago registrado aunque aún falte entregarlo. Los comprobantes históricos necesitan revisión administrativa; no se modifican solos.</p>
    <label>Buscar trabajador</label><input id="flow-search" placeholder="Número, nombre o contratista" oninput="PLATINUM_FLOWS.filtrar(this.value)">
    <div id="flow-saldos">${renderSaldos(rows)}</div>
@@ -122,7 +122,9 @@
    if(el('flow-progress'))el('flow-progress').textContent=`Leyendo recibos ${ok+failed.length+1}/${d.recibos_sin_leer.length}…`;
    try{
     const info=await cfg.readReceipt(doc);if(!Number.isFinite(info.neto))throw Error('No se pudo extraer el neto.');
-    await call('RECIBO',{documento_id:doc.id,hash:doc.hash,neto:info.neto,tipo:info.tipo==='FINIQUITO'?'FINIQUITO':'NOMINA'});ok++;
+    const tipo=info.tipo||String(root.prompt('El PDF no indica el concepto expresamente. Tras revisarlo, escribe NOMINA o FINIQUITO:')||'').trim().toUpperCase();
+    if(!['NOMINA','FINIQUITO'].includes(tipo))throw Error('Recibo sin clasificación confirmada.');
+    await call('RECIBO',{documento_id:doc.id,hash:doc.hash,neto:info.neto,tipo,datos:info.datos});ok++;
    }catch(e){failed.push(doc.id);}
   }
   cfg.toast(`${ok} recibo(s) leídos${failed.length?`; ${failed.length} requieren revisión manual, sin inventar importes`:''}.`,failed.length?'err':'ok');await abrirCierre(id);
@@ -240,7 +242,32 @@
  async function abrirHistorico(obraId,cierreId){return operation(async()=>{await cfg.go(obraId);if(context().obra?.id!==obraId)throw Error('No se pudo seleccionar el centro.');await abrirCierre(cierreId);});}
  async function exportar(id){return operation(async()=>{const d=await call('DETALLE',{cierre_id:id});await cfg.exportRows('SALDOS Y COMPROBANTES · S'+d.cierre.semana,
   ['NO.','TRABAJADOR','CONTRATISTA','CONCEPTO','MÉTODO','AUTORIZADO','PAGO REGISTRADO','SALDO','ENTREGA PENDIENTE','ESTADO'],d.saldos.map(x=>[x.numero,x.nombre,x.contratista,x.tipo,x.metodo,x.importe,x.pago_registrado,x.saldo,x.entrega_pendiente,x.estado_pago]),'SALDOS_S'+d.cierre.semana);});}
- async function resolverNeto(c){try{return await call('NETO_CHEQUE',c);}catch(e){return {error:e.message};}}
+ const netosEnCurso=new Map();
+ async function resolverNeto(c){
+  const key=JSON.stringify([c.obra_id,c.trabajador_id,c.semana,c.tipo_pago,c.cierre_id||null]);
+  if(netosEnCurso.has(key))return netosEnCurso.get(key);
+  const task=(async()=>{try{
+   const initial=context().obra?.id;if(initial!==c.obra_id)throw Error('Abre el cheque en su centro de trabajo.');
+   let r=await call('NETO_CHEQUE',c);const notes=[],tp=c.tipo_pago==='FINIQUITO'?'FINIQUITO':'NOMINA';
+   if(!r.error||r.estado==='SIN_RESPALDO')for(const doc of (r.recibos_sin_leer||[]).slice(0,20)){
+    if(context().obra?.id!==initial)throw Error('Cambió el centro durante la verificación.');
+    try{
+     const info=doc.datos_confirmados?{neto:Number(doc.datos_confirmados.neto),tipo:doc.nomina_tipo||null,datos:doc.datos_confirmados}:await cfg.readReceipt(doc);
+     if(!Number.isFinite(info.neto)||!info.datos)throw Error('El PDF necesita lectura asistida con Gemini.');
+     if(info.tipo&&info.tipo!==tp)throw Error('El tipo de recibo no corresponde al cheque.');
+     if(!info.tipo&&!root.confirm('El PDF no distingue expresamente nómina de finiquito. Revisa el recibo de '+info.datos.periodo_inicio+' al '+info.datos.periodo_fin+' por $'+money(info.neto)+'. ¿Confirmas que corresponde a '+tp+' de este trabajador?'))throw Error('Recibo pendiente de clasificar; no se usó su importe.');
+     if(context().obra?.id!==initial)throw Error('Cambió el centro durante la lectura.');
+     await call('RECIBO',{documento_id:doc.id,hash:doc.hash,neto:info.neto,tipo:info.tipo||tp,datos:info.datos});
+    }catch(e){notes.push(e.message);}
+   }
+   if(context().obra?.id!==initial)throw Error('Cambió el centro durante la verificación.');
+   r=await call('NETO_CHEQUE',c);
+   if(r.error)return {...r,error:r.error+(notes.length?' '+[...new Set(notes)].join(' '):''),puede_leer_pdf:!!r.recibos_sin_leer?.length};
+   if(!Number.isFinite(Number(r.neto))||Number(r.neto)<=0)return {error:'El respaldo de este concepto indica $0 o un neto no positivo; no corresponde expedir cheque.'};
+   return {...r,neto:Number(r.neto),advertencias:[...new Set(notes)]};
+  }catch(e){return {error:e.message};}})();
+  netosEnCurso.set(key,task);try{return await task;}finally{netosEnCurso.delete(key);}
+ }
  async function obtenerVersiones(obras,sem){return call('VERSIONES_EXPORTACION',{obras,semana:Number(String(sem).replace(/\D/g,''))});}
  function filtrarAbiertos(act,fins,versions){
   const locked=(versions?.cierres||[]).filter(c=>['AUTORIZADO','TIMBRADO','PAGADO'].includes(c.estado));
@@ -263,7 +290,7 @@
   return {...live,filas,items:filas.flatMap(x=>x.items||[]),act:filas.filter(x=>!x.fin).map(x=>x.w),fins:filas.filter(x=>x.fin).map(x=>x.w),
    neto:round(filas.reduce((n,x)=>n+Number(x.neto),0)),costo:round(filas.reduce((n,x)=>n+Number(x.costo),0)),versiones:notas};
  }
- function manual(){cfg.modal(head('Guía breve · flujo integrado')+`<div class="m-body" style="line-height:1.65"><p><b>1. Preparar.</b> Registra movimientos, incidencias, créditos e incapacidades. El motor existente genera la fotografía del borrador.</p><p><b>2. Conciliar.</b> Importa NOI. Lee los PDF archivados cuando se indique. Un recibo PDF no equivale a CFDI XML; se muestran por separado. Las diferencias bloquean la autorización y la expedición.</p><p><b>3. Revisar y autorizar.</b> Contabilidad envía a revisión. El administrador autoriza con segunda confirmación y queda una versión fija. Si cambia la semana, solicita reapertura.</p><p><b>4. Pagar y comprobar.</b> Los pagos bancarios exitosos de una semana actual pueden enlazarse si completan exactamente el saldo. Los parciales se vinculan indicando importe. Los históricos requieren revisión administrativa. Ninguna aplicación dispersa dinero en el banco.</p><p><b>5. Cheques.</b> Expedidos cuentan como pago registrado; entrega física se controla aparte. Finiquito por transferencia exige excepción autorizada y no cancela cheques numerados.</p><p><b>6. Historia.</b> Reabrir conserva las versiones y los comprobantes. Retirar una aplicación no borra el comprobante. Las regularizaciones históricas se presentan y aprueban expresamente.</p><p class="fhint">Todo se limita a tus empresas, centros y permisos. No se envían avisos por correo ni se realizan trámites ante autoridades desde este módulo.</p></div>`,'lg');}
+ function manual(){cfg.modal(head('Guía breve · flujo integrado')+`<div class="m-body" style="line-height:1.65"><p><b>1. Preparar.</b> Registra movimientos, incidencias, créditos e incapacidades. El motor existente genera la fotografía del borrador.</p><p><b>2. Conciliar.</b> Verifica el reporte NOI o el recibo individual archivado de cada trabajador. Una de las dos fuentes basta; si ambas existen deben coincidir. Un recibo PDF no equivale a CFDI XML; se muestran por separado. Las diferencias bloquean la autorización y la expedición.</p><p><b>3. Revisar y autorizar.</b> Contabilidad envía a revisión. El administrador autoriza con segunda confirmación y queda una versión fija. Si cambia la semana, solicita reapertura.</p><p><b>4. Pagar y comprobar.</b> Los pagos bancarios exitosos de una semana actual pueden enlazarse si completan exactamente el saldo. Los parciales se vinculan indicando importe. Los históricos requieren revisión administrativa. Ninguna aplicación dispersa dinero en el banco.</p><p><b>5. Cheques.</b> Expedidos cuentan como pago registrado; entrega física se controla aparte. Finiquito por transferencia exige excepción autorizada y no cancela cheques numerados.</p><p><b>6. Historia.</b> Reabrir conserva las versiones y los comprobantes. Retirar una aplicación no borra el comprobante. Las regularizaciones históricas se presentan y aprueban expresamente.</p><p class="fhint">Todo se limita a tus empresas, centros y permisos. No se envían avisos por correo ni se realizan trámites ante autoridades desde este módulo.</p></div>`,'lg');}
  root.PLATINUM_FLOWS=Object.freeze({configure,crearCierre,abrirCierre,filtrar,preparar,enviarPropuesta,importarNOI,transicion,leerRecibos,solicitar,enviarSolicitud,revisarSolicitud,decidir,aplicarSolicitud,adoptar,comprobantes,buscarComprobantes,aplicarComprobante,aplicaciones,retirar,transferencia,confirmarTransferencia,bandeja,abrirCentro,historicos,abrirHistorico,exportar,resolverNeto,obtenerVersiones,filtrarAbiertos,versionarModelo,pagosUnicos,avisarCambio,manual,call,
   _test:Object.freeze({canon,same,round})});
 })(typeof window==='undefined'?globalThis:window);

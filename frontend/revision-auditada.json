@@ -1,4 +1,5 @@
 {
+  "chqTraerRecibo": "Usa el respaldo verificado NOI o PDF; comprueba que trabajador, centro y semana no cambien durante la lectura; ofrece Gemini si el PDF requiere lectura asistida.",
   "softRefresh": "Solicita recarga silenciosa del mismo centro y distingue una captura diferida de un fallo; mantiene consulta autorizada, alcance e instantánea completos.",
   "actualizarDatosCompartidos": "La acción manual pide prioridad inmediata a la cola sin permitir consultas simultáneas ni saltarse el bloqueo de capturas abiertas.",
   "falloLecturaObra": "Conserva el DOM verificado ante fallos del mismo centro; sólo muestra error inicial al no existir instantánea de ese centro.",
@@ -12,8 +13,8 @@
   "pagosFiltered": "Reutiliza índice de la misma lectura; conserva todos los filtros y registros.",
   "renderPagosView": "Evita construir dos veces el mismo índice de pagos. Aritmética conservada.",
   "openChequesDesdeRecibos": "Aclara que el recibo ordinario no exige cheque y enlaza revisión de pagos históricos.",
-  "crAnalizar": "No marca como falta de cheque al sueldo normal; distingue finiquito por transferencia y excluye cancelados.",
-  "crCrearFaltantes": "Sólo prepara finiquitos positivos sin excepción; nómina ordinaria usa lote confirmado de sábado.",
+  "crAnalizar": "La preparación desde recibos verifica el respaldo central por UUID, periodo y concepto; no crea cheque ordinario ni supone finiquito por aguinaldo.",
+  "crCrearFaltantes": "Reverifica el neto desde NOI o PDF validado antes de insertar finiquitos positivos sin excepción; la nómina ordinaria conserva el lote del sábado.",
   "pagoCancelarCheque": "Sin folios se elimina la captura; sólo un cheque físico completo puede cancelarse. Importes y comprobantes intactos.",
   "renderChqStats": "Excluye explícitamente la papelera de todos los conteos de cheques.",
   "chqFiltered": "Excluye explícitamente capturas eliminadas de lista y exportaciones.",
