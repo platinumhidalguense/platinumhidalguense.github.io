@@ -166,6 +166,7 @@ async function marcarAbsorbidosMasivo(){
 
 /* ---------- ALERTAS ---------- */
 function computeAlertas(){
+  const acuses=indiceAcusesIMSS(DOCSX);
   const hoy=today();
   const en14=new Date(Date.now()+14*86400000).toISOString().slice(0,10);
   const en30=new Date(Date.now()+30*86400000).toISOString().slice(0,10);
@@ -210,9 +211,9 @@ function computeAlertas(){
     {k:'REPSEF',icon:'🏗️',txt:'Contratistas sin registro REPSE capturado',items:CONTRATISTAS.filter(c=>!c.repse_no_aplica&&!c.repse_vigencia)},
     {k:'REPSEV',icon:'📆',txt:'Registros REPSE por vencer en 30 días',items:CONTRATISTAS.filter(c=>!c.repse_no_aplica&&c.repse_vigencia&&c.repse_vigencia>=hoy&&c.repse_vigencia<=en30)},
     {k:'REPSEX',icon:'🚫',txt:'Registros REPSE VENCIDOS',items:CONTRATISTAS.filter(c=>!c.repse_no_aplica&&c.repse_vigencia&&c.repse_vigencia<hoy)},
-    {k:'IMSSP',icon:'🏥',txt:'Altas/reingresos actuales pendientes de presentar ante el IMSS',items:WORKERS.filter(altaImssPendiente)},
-    {k:'IMSS',icon:'📎',txt:'Acuses de alta IMSS por importar (alta ya presentada)',items:WORKERS.filter(acuseAltaPendiente)},
-    {k:'IMSSC',icon:'🔎',txt:'Acuses IMSS archivados por cotejar: falta fecha del movimiento',items:WORKERS.filter(w=>estadoAcuseIMSS(w,'ALTA').porCotejar||(w.estatus==='BAJA'&&estadoAcuseIMSS(w,'BAJA').porCotejar))},
+    {k:'IMSSP',icon:'🏥',txt:'Altas/reingresos actuales pendientes de presentar ante el IMSS',items:WORKERS.filter(w=>altaImssPendiente(w,acuses))},
+    {k:'IMSS',icon:'📎',txt:'Acuses de alta IMSS por importar (alta ya presentada)',items:WORKERS.filter(w=>acuseAltaPendiente(w,acuses))},
+    {k:'IMSSC',icon:'🔎',txt:'Acuses IMSS archivados por cotejar: falta fecha del movimiento',items:WORKERS.filter(w=>estadoAcuseIMSS(w,'ALTA',acuses).porCotejar||(w.estatus==='BAJA'&&estadoAcuseIMSS(w,'BAJA',acuses).porCotejar))},
     {k:'RECIB',icon:'📥',txt:'Recibos de nómina por importar (PDF)',items:recFalt},
     {k:'RECIBB',icon:'📁',txt:'Recibos pendientes de trabajadores YA DADOS DE BAJA (expediente)',items:recFaltBaja},
     {k:'PAGOG',icon:'💸',txt:'Semanas sin pago global importado (revisa)',items:pagoFalt},

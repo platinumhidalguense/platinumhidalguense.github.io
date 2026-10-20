@@ -292,7 +292,7 @@ async function selectObra(id){
   renderObraBar();
   $('nav-loading').classList.remove('hide');
   try{
-    const loaded=await loadObraData(id);
+    const loaded=await loadObraData(id,{vista:'trab'});
     if(loaded===false){OBRA=anterior;EMPRESA_ACTIVA=empresaAnterior;repintarInstantaneaObra();return;}
     if(!anterior||anterior.id!==id)resetWorkerFilters();
     try{localStorage.setItem('platinum_empresa_activa',EMPRESA_ACTIVA);localStorage.setItem('platinum_obra_'+EMPRESA_ACTIVA,id);}catch(e){}
@@ -311,11 +311,24 @@ async function selectEmpresa(codigo){
   showNavStep('obra');
 }
 let OBRA_CARGA_SECUENCIA=0,OBRA_DATOS_ID=null;
+/* Todos los datos siguen completos y sincronizados. Sólo se construye el DOM
+   de la herramienta visible; las demás se pintan al abrirlas. */
+function pintarVistaObra(vista){
+  switch(vista||(typeof VIEW==='undefined'?'trab':VIEW)){
+    case 'trab':renderTable();break;
+    case 'chq':renderChqStats();renderCheques();break;
+    case 'pagos':renderPagosView();break;
+    case 'vac':renderVacViews();break;
+    case 'actas':renderActasView();break;
+    case 'nom':renderNomView();break;
+    case 'anual':renderAnualView();break;
+  }
+}
 /* Una instantánea completa por centro. Un fallo de consulta nunca significa
    que no existan pagos, cheques o documentos. No mezclar respuestas atrasadas. */
 function repintarInstantaneaObra(){
   if(!OBRA||OBRA_DATOS_ID!==OBRA.id)return;
-  renderTable();renderCheques();renderPagosView();
+  pintarVistaObra();
 }
 function falloLecturaObra(id,mensaje){
   if(!OBRA||OBRA.id!==id)return false;
@@ -326,7 +339,7 @@ function falloLecturaObra(id,mensaje){
   }
   return false;
 }
-async function loadObraData(id){
+async function loadObraData(id,opciones={}){
   const secuencia=++OBRA_CARGA_SECUENCIA;
   const vigente=()=>secuencia===OBRA_CARGA_SECUENCIA&&OBRA&&OBRA.id===id;
   if(!vigente())return false;
@@ -382,7 +395,7 @@ async function loadObraData(id){
   const pus=[...new Set(WORKERS.map(w=>w.puesto).filter(Boolean))].sort();
   const curP=$('flt-puesto')?$('flt-puesto').value:'';
   if($('flt-puesto'))$('flt-puesto').innerHTML='<option value="">Puesto: todos</option>'+pus.map(s=>`<option ${s===curP?'selected':''}>${esc(s)}</option>`).join('');
-  renderStats();renderTable();renderChqStats();renderCheques();
+  renderStats();pintarVistaObra(opciones.vista);
   await sincronizarContratistas();
   if(!vigente())return false;
   // el estado del recálculo automático del INFONAVIT (Script 63): la
@@ -390,7 +403,6 @@ async function loadObraData(id){
   await cargarRecalcInfonavit();
   if(!vigente())return false;
   updateAlertas();
-  renderVacViews();renderActasView();renderNomView();renderAnualView();renderPagosView();
   globalThis.PLATINUM_PAGOS_SABADO?.avisarDesdeContexto();
   return true;
 }
@@ -407,7 +419,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-17.3';
+const APP_VERSION='2026-10-20.1';
 window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
@@ -463,7 +475,7 @@ function setView(v){
     if(b)b.classList.toggle('on',v===k);
     if(d)d.classList.toggle('hide',v!==k);
   });
-  if(v==='pagos')renderPagosView();
+  pintarVistaObra(v);
   if(v==='audit')auCargar();
   if(v==='papeles')cpCargar();
   renderCrumbs();

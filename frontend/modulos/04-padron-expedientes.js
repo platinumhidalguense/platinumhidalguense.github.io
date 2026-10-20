@@ -90,15 +90,17 @@ function acuseAltaPendiente(w,indice){
   return !!(w&&w.estatus!=='BAJA'&&estado.presentada&&!estado.ok&&!estado.porCotejar);
 }
 async function cargarAcusesTrabajadores(trabajadores){
-  const ids=[...new Set((trabajadores||[]).map(w=>w.id).filter(Boolean))],data=[];
-  for(let i=0;i<ids.length;i+=100){
-    const lote=ids.slice(i,i+100);
-    const respuesta=await fetchAllRows(()=>sb.from('documentos').select('*')
-      .eq('categoria','ACUSE_IMSS').eq('anulado',false).in('trabajador_id',lote));
-    if(respuesta.error)return {data:[],error:respuesta.error};
-    data.push(...respuesta.data);
-  }
-  return {data,error:null};
+  const ids=[...new Set((trabajadores||[]).map(w=>w.id).filter(Boolean))],lotes=[];
+  for(let i=0;i<ids.length;i+=100)lotes.push(ids.slice(i,i+100));
+  const respuestas=new Array(lotes.length);let siguiente=0;
+  await Promise.all(Array.from({length:Math.min(4,lotes.length)},async()=>{
+    for(;;){const i=siguiente++;if(i>=lotes.length)return;
+      respuestas[i]=await fetchAllRows(()=>sb.from('documentos').select('*')
+        .eq('categoria','ACUSE_IMSS').eq('anulado',false).in('trabajador_id',lotes[i]));
+    }
+  }));
+  const fallo=respuestas.find(r=>r?.error||!Array.isArray(r?.data));
+  return fallo?{data:[],error:fallo.error||{message:'Respuesta incompleta de acuses'}}:{data:respuestas.flatMap(r=>r.data),error:null};
 }
 function openResumen(){
   const cs=[...new Set(WORKERS.map(w=>w.contratista||'(SIN CONTRATISTA)'))];

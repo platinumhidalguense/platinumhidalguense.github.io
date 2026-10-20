@@ -735,22 +735,23 @@ function exportConciliacionSemana(){
 const pagoSemNum=p=>parseInt(String(p.semana||'').replace(/\D/g,''))||0;
 /* Un folio de lote con más de un pago = dispersión global. */
 function pagosIndexados(){
+  const trabajadores=new Map(WORKERS.map(w=>[w.id,w]));
   const porFolio={};
   (PAGOS||[]).forEach(p=>{const f=p.folio_lote||('__'+p.id);(porFolio[f]=porFolio[f]||[]).push(p);});
   return (PAGOS||[]).map(p=>{
     const f=p.folio_lote||('__'+p.id);
-    const w=WORKERS.find(x=>x.id===p.trabajador_id)||null;
+    const w=trabajadores.get(p.trabajador_id)||null;
     return {...p, w, nombre:w?fullName(w):(p.titular||'—'),
       no_trab:w?w.no_trab:null, contratista:w?(w.contratista||''):'',
       tipo:(porFolio[f].length>1?'GLOBAL':'INDIVIDUAL'), lote:f, enLote:porFolio[f].length};
   });
 }
-function pagosFiltered(){
+function pagosFiltered(indexados){
   const q=($('pg-v-q')&&$('pg-v-q').value||'').trim().toUpperCase();
   const fs=($('pg-v-sem')&&$('pg-v-sem').value)||'';
   const fe=($('pg-v-estado')&&$('pg-v-estado').value)||'';
   const ft=($('pg-v-tipo')&&$('pg-v-tipo').value)||'';
-  return pagosIndexados().filter(p=>{
+  return (indexados||pagosIndexados()).filter(p=>{
     if(fs&&String(pagoSemNum(p))!==fs)return false;
     if(fe&&String(p.estado||'').toUpperCase()!==fe)return false;
     if(ft&&p.tipo!==ft)return false;
@@ -979,7 +980,7 @@ function renderPagosView(){
     const sems=[...new Set(todos.map(pagoSemNum).filter(Boolean))].sort((a,b)=>b-a);
     sel.innerHTML='<option value="">Semana: todas</option>'+sems.map(s=>`<option value="${s}" ${String(s)===cur?'selected':''}>S${s}</option>`).join('');
   }
-  const rows=pagosFiltered();
+  const rows=pagosFiltered(todos);
   const ex=rows.filter(p=>String(p.estado||'').toUpperCase()!=='RECHAZADO');
   const re=rows.filter(p=>String(p.estado||'').toUpperCase()==='RECHAZADO');
   const suma=a=>a.reduce((s,p)=>s+(Number(p.importe)||0),0);

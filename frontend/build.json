@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-17.3",
-  "entry": "assets/platinum-app.6270a362648b8061.js",
-  "sha256": "6270a362648b8061d3bd2bc353ca4a22a29f7030e0997427e50fd64f24efe98c",
-  "integrity": "sha384-1rm5Il8YtFHumdTNzBIu1pVsI0gNEdMh35+EUkc8f/3BL4oHkUr8mqMMbRRzN3tx",
+  "version": "2026-10-20.1",
+  "entry": "assets/platinum-app.eaff14ef85872bbc.js",
+  "sha256": "eaff14ef85872bbc46aaf088b5f43b0e58debebd3f612f54d29b266dfb91a7c0",
+  "integrity": "sha384-rWWWEBVzL+ag1J/wOqhk3ZiKig1/MoAJ41396R4QnWwQ8HDNxicZ+C2b62Iw1E6e",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "98f323c73f7462a79b6aab2cfa4a8dc301fe146a6a51213cc3e50e2c31e05027"
+      "sha256": "0cbf79decd3efdc69e1e3d6f0b30cb20f2b98eae211298d0e4a1af6d287716f5"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -22,7 +22,7 @@
     },
     {
       "path": "frontend/modulos/04-padron-expedientes.js",
-      "sha256": "78e469435900b1850fcc3a20be7f142fa27a94e480b9ffa106fa7ca1990cdc6e"
+      "sha256": "cc1928eb190503c18e8a2abca15dfb500f104c8cecbb9304e60104ad639ca2a8"
     },
     {
       "path": "frontend/modulos/05-alta-edicion.js",
@@ -66,7 +66,7 @@
     },
     {
       "path": "frontend/modulos/15-banca-conciliacion.js",
-      "sha256": "281948421815b12a29acedfa3b9269b7dfe458acedf79eb2291960cb5f39423d"
+      "sha256": "0154415b170a2f79eeeafce25b92fea286b6f3fa1ab582f71c8e20155341a908"
     },
     {
       "path": "frontend/modulos/16-control-pagos-folios.js",
@@ -126,7 +126,7 @@
     },
     {
       "path": "frontend/modulos/30-contratistas-alertas.js",
-      "sha256": "56ecb725c2bbcfa5d7601ab6108b56cc4da680485416696220ec9f7fed6732c6"
+      "sha256": "a07482328b142db2ff5d372bbb79a8b6b2c40c75406b58a31083687628ce7c21"
     },
     {
       "path": "frontend/modulos/31-documentos-laborales.js",

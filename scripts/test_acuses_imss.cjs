@@ -60,7 +60,7 @@ async function main(){
       return {data:Array.from({length:Math.max(0,Math.min(n,b+1)-a)},(_,i)=>({id:filters.trabajador_id[0]+'-'+(a+i),trabajador_id:filters.trabajador_id[0],obra_id:'other-obra'})),error:null};
     }};return q;
   }};
-  const fetched=await c.cargarAcusesTrabajadores(workers);assert.equal(fetched.error,null);assert.equal(fetched.data.length,1605);assert.equal(pages.length,4);assert.equal(pages[1].a,1000);
+  const fetched=await c.cargarAcusesTrabajadores(workers);assert.equal(fetched.error,null);assert.equal(fetched.data.length,1605);assert.equal(pages.length,4);assert(pages.some(p=>p.ids[0]==='worker-0'&&p.a===1000));
   const originalFetch=c.fetchAllRows;
   c.fetchAllRows=async()=>({data:[doc],error:null});c.DOCSX=[{...doc,id:'anulado-antiguo'},{...doc,id:'other-doc',trabajador_id:'other'}];
   // Simula la consulta dirigida real sin necesitar una sesión.
