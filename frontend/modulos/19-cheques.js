@@ -86,13 +86,14 @@ async function crAnalizar(){
       _RECCACHE[d.archivo]=info;
     }
     const w=WORKERS.find(x=>x.id===d.trabajador_id)||null;
+    if(d.nomina_tipo){if(info.tipo&&info.tipo!==d.nomina_tipo)info={...info,err:true};else info={...info,tipo:d.nomina_tipo};}
     const tp=info.tipo==='FINIQUITO'?'FINIQUITO':'CHEQUE';
     const chk=(CHEQUES||[]).find(c=>!c.eliminado&&c.estatus!=='CANCELADO'&&c.trabajador_id===d.trabajador_id&&normSem(c.semana)===ns&&String(c.tipo_pago||'').toUpperCase()===tp);
     let estado='OK';
     if(info.err||info.neto==null)estado='ILEGIBLE';
     else if(tp==='FINIQUITO'&&w&&finTransDe(w,sem))estado='TRANSFERENCIA_FIN';
     else if(!chk)estado=tp==='FINIQUITO'?'FALTA':'REVISION_PAGO';
-    else if(Math.abs((Number(chk.importe)||0)-info.neto)>0.01)estado='NOCOINCIDE';
+    else if(Math.round((Number(chk.importe)||0)*100)!==Math.round(info.neto*100))estado='NOCOINCIDE';
     if(info.tipo==='FINIQUITO'&&w&&['FALTA','OK','NOCOINCIDE'].includes(estado)){
       const respaldo=await chqResolverNeto({obra_id:OBRA.id,trabajador_id:w.id,semana:'S'+ns,tipo_pago:'FINIQUITO'});
       if(respaldo.error){estado='ILEGIBLE';info={...info,err:true};}

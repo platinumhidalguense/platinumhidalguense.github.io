@@ -1,8 +1,8 @@
 {
   "version": "2026-10-20.7",
-  "entry": "assets/platinum-app.54af44dac6c1c2fc.js",
-  "sha256": "54af44dac6c1c2fc418c8aecc4cafea22391b6a69c2a6203a1c0e48a94b5a7ad",
-  "integrity": "sha384-HZhc0XsyGpxoRFBOp6OsKFzwo+MGNb7iCR40aQxL+MO+yoIPrC4NlPmovzoFHPWz",
+  "entry": "assets/platinum-app.7e45575380efaffa.js",
+  "sha256": "7e45575380efaffa677d80d28a7bd1d31c7574ac635a4f5e80372170ca191fe3",
+  "integrity": "sha384-GkIkPoCIJloxw88GK7yAbXXFDmkB99JJ18n+tSMdworPlGnkQKDjwTFawumAc1kz",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -82,7 +82,7 @@
     },
     {
       "path": "frontend/modulos/19-cheques.js",
-      "sha256": "8aaa87b4f0e3666ec1cfc4bc50fdbb2aa7c380079be88fe4bafce2aacec06e9f"
+      "sha256": "5bb10148234c6c1ac9fcd12af902be5fdb4d3d30af39d1fa716847df096bff8b"
     },
     {
       "path": "frontend/modulos/20-movimientos-semanales.js",
