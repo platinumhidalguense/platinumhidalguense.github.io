@@ -54,6 +54,7 @@ async function enterApp(){
 
 /* ---------- tiempo real ---------- */
 function startRealtime(){
+  window.PLATINUM_ACTIVIDAD?.start();
   if(window._PLATINUM_RT)window._PLATINUM_RT.stop();
   if(!window.PLATINUM_SYNC){$('rt-status').textContent='Actualización manual';return;}
   window._PLATINUM_RT=window.PLATINUM_SYNC.connect({client:sb,userId:USER.id,window,document,
@@ -432,7 +433,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-20.5';
+const APP_VERSION='2026-10-20.6';
 window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){

@@ -1,0 +1,34 @@
+// Presencia sintética y permisos reales de PostgreSQL. Sin red ni cuentas reales.
+const fs=require('node:fs'),crypto=require('node:crypto'),assert=require('node:assert/strict');
+const{makeDatabase,actor,ids,owner}=require('./soporte_flujo_pg.cjs');let n=0;const ok=(v,m)=>{assert.ok(v,m);n++;};
+(async()=>{const db=await makeDatabase();try{
+ const sql=fs.readFileSync('supabase/migrations/'+fs.readdirSync('supabase/migrations').find(p=>p.endsWith('_actividad_actual_administrador.sql')),'utf8');await db.exec(sql);
+ const s1=crypto.randomUUID(),s2=crypto.randomUUID(),s3=crypto.randomUUID();
+ const payload={sesion_id:s1,empresa:'PLATINUM',obra_id:ids.obra,trabajador_id:ids.w,modulo:'TRABAJADORES',seccion:'LISTA',campo:'NOMBRE',estado:'ACTIVO'};
+ const call=async(key,a,d={})=>{await actor(db,key);return(await db.query('select control_actividad($1,$2::jsonb) d',[a,JSON.stringify(d)])).rows[0].d;};
+ ok((await call('admin','PERMISOS')).admin===true,'Administrador confirmado por base');ok((await call('conta','PERMISOS')).admin===false,'Contadora no recibe visor');
+ await call('conta','PULSO',{...payload,valor:'NO GUARDAR',password:'NO GUARDAR',user_id:ids.admin});
+ let rows=(await call('admin','LISTAR')).sesiones;ok(rows.length===1&&rows[0].user_id===ids.conta,'Identidad de la sesión no proviene del navegador');ok(rows[0].numero===1&&rows[0].campo==='NOMBRE','Contexto de trabajador y campo permitido');ok(!JSON.stringify(rows).includes('NO GUARDAR'),'Valores extra no se guardan ni devuelven');
+ await assert.rejects(call('conta','LISTAR'),/administrador/i);n++;await assert.rejects(call('consulta','LISTAR'),/administrador/i);n++;await assert.rejects(call(null,'LISTAR'),/permission denied|autorizada/i);n++;
+ await call('consulta','PULSO',{...payload,sesion_id:s2});ok((await call('admin','LISTAR')).sesiones.length===2,'Consulta reporta sólo navegación, no adquiere permisos financieros');
+ await actor(db,'conta');ok((await db.query('select user_id from control_actividad_actual')).rows.every(r=>r.user_id===ids.conta),'RLS directa no expone otras sesiones');
+ await assert.rejects(call('conta','PULSO',{...payload,sesion_id:s2}),/row-level|policy|permission denied/i);n++;
+ await call('conta','SALIR',{sesion_id:s2});ok((await call('admin','LISTAR')).sesiones.some(r=>r.sesion_id===s2),'No puede borrar otra pestaña');
+ await assert.rejects(call('jire','PULSO',{...payload,sesion_id:s3}),/Centro no autorizado/i);n++;
+ await assert.rejects(call('conta','PULSO',{...payload,obra_id:ids.otra,trabajador_id:ids.w}),/no corresponde/i);n++;
+ await assert.rejects(call('conta','PULSO',{...payload,campo:'LO QUE ESCRIBIO'}),/check constraint/i);n++;
+ await owner(db,"update control_actividad_actual set actualizado_en='2099-01-01' where sesion_id=$1",[s1]);const stamp=(await owner(db,'select actualizado_en<=clock_timestamp() valid from control_actividad_actual where sesion_id=$1',[s1])).rows[0].valid;ok(stamp,'Reloj del servidor evita permanencia falsificada');
+ const before=(await owner(db,"select md5(string_agg(to_jsonb(t)::text,',' order by id)) h from trabajadores t")).rows[0].h;
+ await call('conta','PULSO',{...payload,estado:'INACTIVO'});rows=(await call('admin','LISTAR')).sesiones;ok(rows.find(r=>r.sesion_id===s1).estado==='INACTIVO','Distingue inactividad de acciones');
+ await call('conta','PULSO',{...payload,estado:'OTRA_PESTANA'});ok((await call('admin','LISTAR')).sesiones.find(r=>r.sesion_id===s1).estado==='OTRA_PESTANA','Pestaña oculta identificada');
+ await call('conta','PULSO',{...payload,sesion_id:s3});ok((await call('admin','LISTAR')).sesiones.filter(r=>r.user_id===ids.conta).length===2,'Varias pestañas sin pisarse');
+ await call('conta','SALIR',{sesion_id:s3});ok(!(await call('admin','LISTAR')).sesiones.some(r=>r.sesion_id===s3),'Salida elimina sólo su estado');
+ await owner(db,"update app_usuarios set activo=false where user_id=$1",[ids.consulta]);ok(!(await call('admin','LISTAR')).sesiones.some(r=>r.user_id===ids.consulta),'Usuario revocado desaparece');
+ await assert.rejects(call('consulta','PULSO',{...payload,sesion_id:s2}),/no autorizada/i);n++;
+ await owner(db,'alter table control_actividad_actual disable trigger actividad_reloj');await owner(db,"update control_actividad_actual set actualizado_en=clock_timestamp()-interval '80 seconds' where sesion_id=$1",[s1]);ok(!(await call('admin','LISTAR')).sesiones.some(r=>r.sesion_id===s1),'Sesiones antiguas no aparecen como conectadas');
+ await owner(db,"update control_actividad_actual set actualizado_en=clock_timestamp()-interval '4 minutes'");await owner(db,'select platinum_internal.actividad_limpiar()');ok((await owner(db,'select count(*)::int n from control_actividad_actual')).rows[0].n===0,'Limpieza sólo de metadatos caducados');
+ ok((await owner(db,"select md5(string_agg(to_jsonb(t)::text,',' order by id)) h from trabajadores t")).rows[0].h===before,'Personal intacto');
+ ok((await owner(db,"select count(*)::int n from pg_publication_tables where pubname='supabase_realtime' and tablename='control_actividad_actual'")).rows[0].n===1,'Canal en vivo publicado');
+ ok((await owner(db,"select count(*)::int n from pg_trigger where tgrelid='control_actividad_actual'::regclass and tgname='z_integracion_evento'")).rows[0].n===0,'Sin disparar recargas del padrón por cada foco');
+ console.log(`PASS ${n} comprobaciones PostgreSQL de actividad: admin exclusivo, identidad, alcance, caducidad, aislamiento de pestañas y datos intactos.`);
+ }finally{await db.close();}})().catch(e=>{console.error(e.message);process.exitCode=1;});

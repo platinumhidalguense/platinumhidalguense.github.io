@@ -13,7 +13,7 @@ else console.log('ALCANCE PÚBLICO PAGOS: las 50 comprobaciones PostgreSQL de re
 suites.push('test_pagos_sabado_ui');
 if(chequesPrivate)suites.push('test_cheques_estado_pg');
 else console.log('ALCANCE PÚBLICO CHEQUES: las 12 comprobaciones PostgreSQL del estado físico requieren la migración privada; no se cuentan como ejecutadas.');
-suites.push('test_cheques_estado_ui','test_rendimiento_centros','test_revision_pagos_seleccion_ui','test_visor_pagos_ui','test_recibos_ia_ui','test_actualizacion_continua_ui');
+suites.push('test_cheques_estado_ui','test_rendimiento_centros','test_revision_pagos_seleccion_ui','test_visor_pagos_ui','test_recibos_ia_ui','test_actualizacion_continua_ui','test_actividad_ui');
 const rendimientoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_rendimiento_lectura_centros.sql'));
 if(rendimientoPrivate)suites.push('test_rendimiento_rls_pg');
 else console.log('ALCANCE PÚBLICO RENDIMIENTO: se prueban las lecturas y vistas en VM; 30 comprobaciones RLS requieren la migración privada y no se cuentan aquí.');
@@ -26,8 +26,11 @@ else console.log('ALCANCE PÚBLICO VISOR: se prueban sus botones en VM; 49 compr
 const recibosPrivate=pagosPrivate&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_recibos_lectura_gemini.sql'));
 if(recibosPrivate)suites.push('test_recibos_ia_pg','test_recibos_ia_edge');
 else console.log('ALCANCE PÚBLICO RECIBOS IA: contratos de interfaz en VM; las pruebas PostgreSQL y Edge requieren el paquete privado.');
+const actividadPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_actividad_actual_administrador.sql'));
+if(actividadPrivate)suites.push('test_actividad_pg');
+else console.log('ALCANCE PÚBLICO ACTIVIDAD: contratos de interfaz en VM; 27 comprobaciones PostgreSQL requieren la migración privada.');
 for(const file of suites){
  const r=spawnSync(process.execPath,['scripts/'+file+'.cjs'],{encoding:'utf8',maxBuffer:4e6});
  process.stdout.write(r.stdout||'');process.stderr.write(r.stderr||'');if(r.status!==0)process.exit(r.status||1);
 }
-console.log('PASS '+suites.length+' suites reproducibles; incluyen '+((privateMigration?95:68)+(rrhhPrivate?66:0)+(pagosPrivate?50:0)+(chequesPrivate?12:0)+(rendimientoPrivate?30:0)+(revisionPrivate?28:0)+(visorPrivate?49:0)+(recibosPrivate?32:0))+' comprobaciones PostgreSQL, contratos de UI, paginación y conservación de motores. Sin aceptación visual de navegador.');
+console.log('PASS '+suites.length+' suites reproducibles; incluyen '+((privateMigration?95:68)+(rrhhPrivate?66:0)+(pagosPrivate?50:0)+(chequesPrivate?12:0)+(rendimientoPrivate?30:0)+(revisionPrivate?28:0)+(visorPrivate?49:0)+(recibosPrivate?32:0)+(actividadPrivate?27:0))+' comprobaciones PostgreSQL, contratos de UI, paginación y conservación de motores. Sin aceptación visual de navegador.');
