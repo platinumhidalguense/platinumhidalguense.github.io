@@ -58,6 +58,15 @@ function _siguienteRid(xml){
    discreta y respetando su proporción, en el extremo derecho de la franja de
    título. Nunca se coloca sobre los encabezados de columnas ni sobre los datos. */
 async function aplicarMarcaCorporativaXlsx(zip,wb){
+  // xlsx-js-style 1.2.0 conserva el patrón pero omite bgColor al serializar.
+  // Reponer sólo el fondo del patrón dual de este formato; no tocar importes,
+  // otras exportaciones ni los colores de transferencias a otros bancos.
+  if(wb.__retencionesContratista&&zip.file('xl/styles.xml')){
+    const path='xl/styles.xml',xml=await zip.file(path).async('string');
+    zip.file(path,xml.replace(/<patternFill patternType="darkDown">([\s\S]*?)<\/patternFill>/g,(all,body)=>
+      /<fgColor rgb="(?:FF)?FFFF00"\s*\/>/.test(body)?
+        '<patternFill patternType="darkDown">'+body.replace(/<bgColor\b[^>]*\/>/,'')+'<bgColor rgb="FF92D050"/></patternFill>':all));
+  }
   let ct=await zip.file('[Content_Types].xml').async('string');
   if(!/Extension="png"/i.test(ct))ct=ct.replace('</Types>','<Default Extension="png" ContentType="image/png"/></Types>');
   if(!/Extension="jpeg"/i.test(ct))ct=ct.replace('</Types>','<Default Extension="jpeg" ContentType="image/jpeg"/></Types>');

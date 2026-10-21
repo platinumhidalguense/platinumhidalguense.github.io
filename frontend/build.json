@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-20.7",
-  "entry": "assets/platinum-app.7e45575380efaffa.js",
-  "sha256": "7e45575380efaffa677d80d28a7bd1d31c7574ac635a4f5e80372170ca191fe3",
-  "integrity": "sha384-GkIkPoCIJloxw88GK7yAbXXFDmkB99JJ18n+tSMdworPlGnkQKDjwTFawumAc1kz",
+  "version": "2026-10-20.8",
+  "entry": "assets/platinum-app.2fe4c36460f60b6a.js",
+  "sha256": "2fe4c36460f60b6aaa99e00193f948d489e6aad05980f56548805ccf5a0223e8",
+  "integrity": "sha384-QktVuGth9OO2bvI6spUxNuFnOW2U4HYilKxY+9q+uB9d55g6IuOcUUXp5+Ec+/pF",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "3af96d9c0ee5b087f73e89aaf4189ca71705abaeab62b4a15c0b8b38fe1e2a5d"
+      "sha256": "b19e55b8b81661c30a2648ac515b4661d086ee147aaf96092abec4d156fcdeba"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -34,7 +34,7 @@
     },
     {
       "path": "frontend/modulos/07-exportacion-corporativa.js",
-      "sha256": "90dc2a9e198f4bc164caafb8981ec7274aa54b31a1a9b5e8ba9453a0131af189"
+      "sha256": "7589a38555d83325e7114a5e9f05a482b0f4dbb9fcfc2585c02db0709a549207"
     },
     {
       "path": "frontend/modulos/08-retenciones-incidencias.js",
@@ -46,7 +46,7 @@
     },
     {
       "path": "frontend/modulos/10-proyeccion-nomina.js",
-      "sha256": "f6173e6ac46b7ebb455bf4ac24e0104767b96c611979ffbe1e34cfd2cf1ea316"
+      "sha256": "d5af4e281c4c9c1e8979811d68ea8fb55b56e046d1ab1e754303f002b719e07a"
     },
     {
       "path": "frontend/modulos/11-expedientes-excel.js",

@@ -1,4 +1,9 @@
 {
+  "aplicarMarcaCorporativaXlsx": "Sólo en el formato de contratista completa el fondo verde del patrón dual amarillo/verde omitido por xlsx-js-style 1.2.0; marca corporativa, importes y demás exportaciones intactos.",
+  "proySelector": "Actualiza únicamente la explicación visual de los dos destinos; no cambia selección, permisos ni cálculos.",
+  "buildProyDestinoWS": "Despacha al formato corporativo del contratista de diez columnas; conserva intacto el exportador compacto de dispersión y no modifica el modelo.",
+  "buildProyRetencionesWS": "Sólo para contratista colorea el tipo de crédito INFONAVIT/FONACOT; importes, fórmulas y salida de dispersión intactos.",
+  "proyLibro": "Transmite el destino al estilo del detalle de retenciones; conserva ambos libros, marcas corporativas y alcance de obras.",
   "chqTraerRecibo": "Usa el respaldo verificado NOI o PDF; comprueba que trabajador, centro y semana no cambien durante la lectura; ofrece Gemini si el PDF requiere lectura asistida.",
   "softRefresh": "Solicita recarga silenciosa del mismo centro y distingue una captura diferida de un fallo; mantiene consulta autorizada, alcance e instantánea completos.",
   "actualizarDatosCompartidos": "La acción manual pide prioridad inmediata a la cola sin permitir consultas simultáneas ni saltarse el bloqueo de capturas abiertas.",
