@@ -1,4 +1,6 @@
 {
+  "buildProyDispersionWS": "Añade previsión social informativa sólo cuando existe diferencial en la fotografía exportada; conserva neto, orden, retenciones, colores y fórmulas monetarias originales.",
+  "buildProyContratistaWS": "Restaura la columna condicional de previsión social como dato separado, sin incorporarla al costo del contratista ni alterar los créditos o el motor.",
   "ctrlGuardarSemanaIMSS": "Recalcula el periodo completo al editar una incapacidad quincenal ya aplicada; bloquea calendarios incompletos y conserva la rama semanal.",
   "ctrlAplicarSemanaIMSS": "Exigir reapertura sólo para cierre autorizado/timbrado/pagado. Fórmula de incidencia intacta.",
   "openExports": "Actualiza únicamente la descripción del layout: Excel de Trabajadores NUEVOS y TXT de altas SUA, sin agregar otras hojas.",

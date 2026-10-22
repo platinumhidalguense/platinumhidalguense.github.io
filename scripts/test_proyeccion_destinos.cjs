@@ -44,15 +44,15 @@ const cost=box.proyLibro(model,'CONTRATISTA',meta),disp=box.proyLibro(model,'DIS
 assert.equal(cost.SheetNames.length,2);assert.equal(disp.SheetNames.length,2);
 const cws=cost.Sheets[cost.SheetNames[0]],dws=disp.Sheets[disp.SheetNames[0]];
 const dnet=dws._rows[2].indexOf('NETO A PAGAR');
-assert.equal(dnet,6);assert.equal(dws._rows[2].length,8);
+assert.equal(dnet,6);assert.equal(dws._rows[2].length,9);
 assert.equal(dws._rows.find(r=>r[0]===1)[dnet],1300);
 assert.equal(dws._rows.find(r=>r[0]==='TOTAL · 3 TRABAJADORES')[dnet],3950);
 // Contratista: formato aprobado, sin deducir créditos ni previsión del costo.
-assert.equal(cws._rows[2].length,10);assert(!cws._rows[2].join().includes('PREVISIÓN'));assert(!cws._rows.join().includes('TOTAL TRANSFERENCIA'));
+assert.equal(cws._rows[2].length,11);assert(cws._rows[2].includes('PREVISIÓN SOCIAL'));assert(!cws._rows.join().includes('TOTAL TRANSFERENCIA'));
 assert.equal(cws._rows.filter(r=>String(r[0]).startsWith('TOTAL')).length,1);
 assert.deepEqual(Array.from(cws._rows.filter(r=>typeof r[0]==='number'),r=>r[0]),[1,3,2]);
 assert(cws._rows.join().includes('POR DEFINIR'));assert(cws._rows[2].includes('FORMA DE PAGO'));
-assert.deepEqual(Array.from(cws._rows.find(r=>r[0]===3)).slice(6),[1000,0,50,'CHEQUE']);
+assert.deepEqual(Array.from(cws._rows.find(r=>r[0]===3)).slice(6),[1000,0,50,0,'CHEQUE']);
 assert.deepEqual(Array.from(dws._rows.filter(r=>typeof r[0]==='number'),r=>r[0]),[1,3,2]);
 assert.equal(dws._rows.find(r=>r[0]===2).at(-1),'POR DEFINIR');
 assert.equal(dws._rows.find(r=>r[0]==='SUBTOTAL NÓMINA POR TRANSFERENCIA')[dnet],1300);assert.equal(dws._rows.find(r=>r[0]==='SUBTOTAL FINIQUITOS POR CHEQUE')[dnet],950);
@@ -86,7 +86,7 @@ for(const prevision of [0,200])for(const otras of [0,25]){
   neto:pad(Math.max(0,x.sueldo+(x.fin?0:prevision)-x.incidencias-x.creditos-(x.fin?0:otras)))}));
  const modelo={...model,filas,neto:pad(filas.reduce((s,x)=>s+x.neto,0))};
  const ws=box.buildProyDestinoWS({...meta,modelo,destino:'DISPERSION'}),heads=ws._rows[2];
- assert.equal(heads.length,8);assert(!heads.includes('PREVISIÓN SOCIAL'));assert(!heads.includes('OTRAS RETENCIONES'));
+ assert.equal(heads.length,prevision?9:8);assert.equal(heads.includes('PREVISIÓN SOCIAL'),prevision!==0);assert(!heads.includes('OTRAS RETENCIONES'));
  for(const x of filas){const row=ws._rows.find(r=>r[0]===x.w.no_trab),r=ws._rows.indexOf(row)+1;
   for(const [label,esperado] of [['NETO A PAGAR',x.neto]]){
    const c=heads.indexOf(label),celda=String.fromCharCode(65+c)+r;
@@ -170,11 +170,34 @@ assert.throws(()=>box.buildProyDestinoWS({...meta,modelo:model,destino:'OTRO'}),
 assert.throws(()=>box.buildProyContratistaWS({...meta,modelo:{...model,filas:[{...model.filas[0],pago:'OTRO'}]}}),/sin clasificar/);
 assert.throws(()=>box.buildProyContratistaWS({...meta,modelo:{...model,filas:[{...model.filas[0],costo:NaN}]}}),/inválido/);
 assert.equal(cws['D'+rowOf(cws,1)].t,'s');
-assert.equal(cws.J1.v,'');
+assert.equal(cws.K1.v,'');
 assert.equal(cws._rows.filter(r=>String(r[0]).startsWith('SUBTOTAL')).length,0);
 assert.equal(cws['H'+(cws._rows.length-1)].v,400);
 assert.equal(cws['I'+(cws._rows.length-1)].v,850);
 console.log('OK colores INFONAVIT/FONACOT, doble crédito, ambas empresas/alcances, totales y rechazo de importes inválidos');
+// Previsión informativa: ambos destinos, cuentas/cheques, subtotales y versiones.
+for(const destino of ['CONTRATISTA','DISPERSION'])for(const colB of ['OBRA','CONTRATISTA']){
+ const copy=JSON.stringify(model),ws=box.buildProyDestinoWS({...meta,colB,modelo:model,destino});
+ const p=ws._rows[2].indexOf('PREVISIÓN SOCIAL'),letter=String.fromCharCode(65+p);
+ assert.equal(p,destino==='CONTRATISTA'?9:7);
+ for(const f of model.filas){const r=rowOf(ws,f.w.no_trab);assert.equal(ws[letter+r].v,f.prevision);assert.equal(ws[letter+r].t,'n');assert.equal(ws[letter+r].f,undefined);}
+ const total=ws._rows.findIndex(r=>String(r[0]).startsWith('TOTAL ·'))+1;
+ assert.equal(ws[letter+total].v,200);assert.equal(ws[letter+total].t,'n');assert(ws[letter+total].f.startsWith('SUM('));
+ assert.equal(ws['G'+total].v,destino==='CONTRATISTA'?4600:3950,'No añade la previsión otra vez al total');
+ const width=ws._rows[2].length;assert.equal(ws['!cols'].length,width);
+ const title=ws['!merges'].find(m=>m.s.r===0);assert.equal(title.e.c,width-2);assert.equal(ws[String.fromCharCode(64+width)+'1'].v,'','Logo fuera del título');
+ assert.equal(JSON.stringify(model),copy,'Adaptador de presentación sin mutación del modelo');
+ const noDiff={...model,filas:model.filas.map(x=>({...x,prevision:0}))};
+ const no=box.buildProyDestinoWS({...meta,colB,modelo:noDiff,destino});assert(!no._rows[2].includes('PREVISIÓN SOCIAL'));assert.equal(no['!cols'].length,width-1);
+ const missing={...model,filas:model.filas.map(({prevision,...x})=>x)};assert(!box.buildProyDestinoWS({...meta,modelo:missing,destino})._rows[2].includes('PREVISIÓN SOCIAL'));
+ assert.throws(()=>box.buildProyDestinoWS({...meta,modelo:{...model,filas:[{...model.filas[0],prevision:NaN}]},destino}),/Previsión social inválida/);
+ if(destino==='DISPERSION'){
+  assert.equal(ws._rows.find(r=>r[0]==='SUBTOTAL NÓMINA POR TRANSFERENCIA')[p],200);
+  assert.equal(ws._rows.find(r=>r[0]==='SUBTOTAL FINIQUITOS POR CHEQUE')[p],0);
+  assert.equal(ws._rows.find(r=>r[0]==='SUBTOTAL NÓMINA SIN CUENTA · POR DEFINIR')[p],0);
+ }
+}
+console.log('OK previsión social condicional en ambas proyecciones, numérica y con totales propios; netos, costo y modelo intactos.');
 (async()=>{
  // Serialización: no basta con ver dos colores en el objeto de estilos.
  vm.runInContext(block('const _xmlEsc=','function _uuid('),box);
@@ -197,7 +220,6 @@ console.log('OK colores INFONAVIT/FONACOT, doble crédito, ambas empresas/alcanc
    const response=await fetch(url);assert(response.ok,'No se pudo obtener xlsx-js-style');const ctx={console,TextEncoder,TextDecoder,Uint8Array,ArrayBuffer};vm.createContext(ctx);vm.runInContext(await response.text(),ctx);box.XLSX=ctx.XLSX;
    vm.runInContext('const BORD={top:{style:"thin",color:{rgb:"CCCCCC"}},bottom:{style:"thin",color:{rgb:"CCCCCC"}}};\n'+block('const ST=','function dlPlain('),box);
    box.ST=vm.runInContext('ST',box);
-   vm.runInContext(block('const _xmlEsc=','function _uuid('),box);
    box.atob=s=>Buffer.from(s,'base64').toString('binary');
    box.logoEmpresa=()=>html.match(/const LOGO_PLATINUM_IMG='([^']+)';/)?.[1]||null;
    if(!box.logoEmpresa())throw Error('Falta el logo de prueba');

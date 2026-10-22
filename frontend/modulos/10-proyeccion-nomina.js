@@ -212,10 +212,32 @@ function proyTransferenciaOtroBanco(w){
   if(/BBVA|BANCOMER/.test(banco)||/^0?12$/.test(banco))return false;
   return !!banco&&!/^(?:—|-|N\/A|SIN BANCO|SIN ASIGNAR|POR DEFINIR|PENDIENTE|CREAR)$/.test(banco);
 }
+/* Adaptador de presentación: revela el diferencial de la MISMA fotografía.
+   No lo suma al costo del contratista ni de nuevo al neto de dispersión. */
+function proyColumnaPrevision(tabla,filas,totales){
+  const importes=new Map(filas.map(({r,x})=>{const n=Number(x.prevision??0);if(!Number.isFinite(n))throw Error('Previsión social inválida. Revisa el diferencial antes de exportar.');return [r,n];}));
+  if(![...importes.values()].some(n=>n!==0))return null;
+  const pos=tabla.rows[2].length-1,col=XLSX.utils.encode_col(pos),formulas=[];
+  tabla.rows.forEach((row,i)=>{
+    if(i===2)row.splice(pos,0,'PREVISIÓN SOCIAL');
+    else if(row.length>pos)row.splice(pos,0,importes.get(i+1)??0);
+    const st=tabla.styles[i];if(Array.isArray(st))st.splice(pos,0,{...st[6],alignment:{...st[6]?.alignment,indent:1}});
+  });
+  for(const {r,datos} of totales){
+    tabla.rows[r-1][pos]=redondearCentavos(datos.reduce((s,n)=>s+(importes.get(n)||0),0));
+    const ranges=[];let a=null,b=null;
+    for(const n of datos){if(a==null)a=b=n;else if(n===b+1)b=n;else{ranges.push(`${col}${a}:${col}${b}`);a=b=n;}}
+    if(a!=null)ranges.push(`${col}${a}:${col}${b}`);
+    formulas.push([col+r,ranges.length?`SUM(${ranges.join(',')})`:'0']);
+  }
+  tabla.widths.splice(pos,0,18);
+  tabla.merges.forEach(m=>{if(m.s.c>=pos)m.s.c++;if(m.e.c>=pos||(m.s.r===0&&m.e.c===pos-1))m.e.c++;});
+  return {col,formulas};
+}
 function buildProyDispersionWS({titulo,sub,pie,colB,modelo}){
   const cols=['NO.',colB==='OBRA'?'OBRA':'CONTRATISTA','NOMBRE COMPLETO','CLABE','CUENTA','BANCO','NETO A PAGAR','FORMA DE PAGO'];
   const rows=[[titulo],[sub],cols],styles=[{...ST.title,font:{...ST.title.font,sz:12},alignment:{...ST.title.alignment,wrapText:true}},ST.sub,ST.head];
-  const hs=[{hpt:42},{hpt:24},{hpt:44}],merges=[],dataRows=[],fx=[];
+  const hs=[{hpt:42},{hpt:24},{hpt:44}],merges=[],dataRows=[],fx=[],previsionFilas=[],previsionTotales=[];
   const bVal=w=>colB==='OBRA'?(OBRAS.find(o=>o.id===w.obra_id)?.nombre||''):w.contratista||'';
   const orden=(a,b)=>(colB==='OBRA'?String(bVal(a.w)).localeCompare(String(bVal(b.w)),'es'):0)
     ||(Number(a.w.no_trab)||0)-(Number(b.w.no_trab)||0);
@@ -244,7 +266,7 @@ function buildProyDispersionWS({titulo,sub,pie,colB,modelo}){
       const w=x.w,clabe=String(w.clabe||'').replace(/\D/g,''),cuenta=String(w.cuenta||'').trim();
       rows.push([w.no_trab??'',bVal(w),fullName(w),clabe.length>=10?'/'+clabe:'—',
         cuenta.toUpperCase()!=='CREAR'&&cuenta.replace(/\D/g,'').length>=6?cuenta:'—',w.banco||'—',x.neto,x.pago]);
-      dataRows.push(rows.length);rs.push(rows.length);
+      dataRows.push(rows.length);rs.push(rows.length);previsionFilas.push({r:rows.length,x});
       const otroBanco=x.pago==='TRANSFERENCIA'&&proyTransferenciaOtroBanco(w);
       styles.push(cols.map((_,i)=>{
         const st=i===6?(x.fin?ST.finMoney:ST.money):x.fin?ST.fin:i===0?ST.cellC:ST.cell;
@@ -253,27 +275,31 @@ function buildProyDispersionWS({titulo,sub,pie,colB,modelo}){
       }));hs.push({hpt:28});
     }
     rows.push([`SUBTOTAL ${nombre}`,'','','','','',redondearCentavos(grupo.reduce((s,x)=>s+x.neto,0)),'']);
+    previsionTotales.push({r:rows.length,datos:rs});
     styles.push(cols.map((_,i)=>i===6?ST.totalMoney:ST.total));hs.push({hpt:28});
     merges.push({s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:5}});fx.push(['G'+rows.length,suma(rs)]);
   }
   if(dataRows.length!==modelo.filas.length)throw Error('Hay trabajadores con método de pago sin clasificar. No se generó una dispersión incompleta.');
   rows.push([`TOTAL · ${modelo.filas.length} TRABAJADORES`,'','','','','',modelo.neto,'']);
+  previsionTotales.push({r:rows.length,datos:dataRows});
   styles.push(cols.map((_,i)=>i===6?ST.totalMoney:ST.total));hs.push({hpt:28});
   merges.push({s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:5}});fx.push(['G'+rows.length,suma(dataRows)]);
   rows.push([pie]);styles.push(ST.sub);hs.push({hpt:22});
   merges.push({s:{r:0,c:0},e:{r:0,c:6}},{s:{r:1,c:0},e:{r:1,c:7}},
     {s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:7}});
-  const ws=buildSheet(rows,styles,[8,20,38,24,17,12,18,18],merges,hs);
-  ws.H1={t:'s',v:'',s:ST.title};
+  const widths=[8,20,38,24,17,12,18,18],prevision=proyColumnaPrevision({rows,styles,widths,merges},previsionFilas,previsionTotales);
+  const ws=buildSheet(rows,styles,widths,merges,hs);
+  ws[XLSX.utils.encode_col(widths.length-1)+'1']={t:'s',v:'',s:ST.title};
   for(const r of dataRows)for(const col of ['D','E']){
     const cell=ws[col+r];cell.t='s';cell.v=String(cell.v??'');cell.z='@';cell.s={...cell.s,numFmt:'@'};
   }
   for(const [a,f] of fx){ws[a].t='n';ws[a].f=f;}
+  for(const [a,f] of prevision?.formulas||[]){ws[a].t='n';ws[a].f=f;}
   return ws;
 }
 /* Presentación del contratista: G conserva el costo después de incidencias.
    H e I son desgloses informativos; los créditos no se restan de ese costo.
-   No utiliza la previsión social ni vuelve a ejecutar el motor de nómina. */
+   La previsión social se informa aparte; no reduce ni incrementa ese costo. */
 function proyColorCredito(items){
   const tipos=new Set((items||[]).filter(x=>Number(x.monto)>0).map(x=>String(x.tipo||'').toUpperCase()));
   const inf=tipos.has('INFONAVIT'),fon=tipos.has('FONACOT');
@@ -284,7 +310,7 @@ function buildProyContratistaWS({titulo,sub,pie,colB,modelo}){
   const cols=['NO.',colB==='OBRA'?'OBRA':'CONTRATISTA','NOMBRE COMPLETO','CLABE','CUENTA','BANCO',
     'SUELDO REGISTRADO / FINIQUITO','RETENCIÓN POR INCIDENCIAS','RETENCIÓN INFONAVIT / FONACOT','FORMA DE PAGO'];
   const rows=[[titulo],[sub],cols],styles=[{...ST.title,font:{...ST.title.font,sz:12},alignment:{...ST.title.alignment,wrapText:true}},ST.sub,ST.head];
-  const hs=[{hpt:42},{hpt:24},{hpt:44}],merges=[],dataRows=[];
+  const hs=[{hpt:42},{hpt:24},{hpt:44}],merges=[],dataRows=[],previsionFilas=[];
   const bVal=w=>colB==='OBRA'?(OBRAS.find(o=>o.id===w.obra_id)?.nombre||''):w.contratista||'';
   const orden=(a,b)=>(colB==='OBRA'?String(bVal(a.w)).localeCompare(String(bVal(b.w)),'es'):0)
     ||(Number(a.w.no_trab)||0)-(Number(b.w.no_trab)||0);
@@ -313,7 +339,7 @@ function buildProyContratistaWS({titulo,sub,pie,colB,modelo}){
       rows.push([w.no_trab??'',bVal(w),fullName(w),clabe.length>=10?'/'+clabe:'—',
         cuenta.toUpperCase()!=='CREAR'&&cuenta.replace(/\D/g,'').length>=6?cuenta:'—',w.banco||'—',
         x.costo,x.incidencias,x.creditos,x.sinCuenta&&!x.fin?'POR DEFINIR':x.pago]);
-      dataRows.push(rows.length);
+      dataRows.push(rows.length);previsionFilas.push({r:rows.length,x});
       const colorCredito=proyColorCredito(itemsPorTrabajador.get(String(w.obra_id)+'|'+String(w.id))||x.items);
       styles.push(cols.map((_,i)=>{
         const st=i>=6&&i<=8?(x.fin?ST.finMoney:ST.money):x.fin?ST.fin:i===0?ST.cellC:ST.cell;
@@ -338,12 +364,14 @@ function buildProyContratistaWS({titulo,sub,pie,colB,modelo}){
   rows.push([pie]);styles.push(ST.sub);hs.push({hpt:22});
   merges.push({s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:9}},
     {s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:9}});
-  const ws=buildSheet(rows,styles,[8,20,38,24,17,12,20,18,20,18],merges,hs);
-  ws.J1={t:'s',v:'',s:ST.title};
+  const widths=[8,20,38,24,17,12,20,18,20,18],prevision=proyColumnaPrevision({rows,styles,widths,merges},previsionFilas,[{r:total,datos:dataRows}]);
+  const ws=buildSheet(rows,styles,widths,merges,hs);
+  ws[XLSX.utils.encode_col(widths.length-1)+'1']={t:'s',v:'',s:ST.title};
   for(const r of dataRows)for(const col of ['D','E']){
     const cell=ws[col+r];cell.t='s';cell.v=String(cell.v??'');cell.z='@';cell.s={...cell.s,numFmt:'@'};
   }
   for(const col of ['G','H','I']){ws[col+total].t='n';ws[col+total].f=suma(col);}
+  for(const [a,f] of prevision?.formulas||[]){ws[a].t='n';ws[a].f=f;}
   return ws;
 }
 function buildProyDestinoWS({titulo,sub,pie,colB,modelo,destino}){
