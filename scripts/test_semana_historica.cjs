@@ -13,6 +13,7 @@ vm.createContext(box);
 vm.runInContext(block('function asVigenteSemana(w,d1,d2){','/* Los mismos de arriba'),box);
 vm.runInContext(block('function proyFiniquitosSemana(','/* La proyección usa importes'),box);
 vm.runInContext(block('function reqCandidatos(d1,d2,sem,incluirRezago){','function openRequisicion(){'),box);
+vm.runInContext(block('function descuentoCorrespondePeriodo(','function adaptarRetencionPeriodo('),box);
 vm.runInContext(block('function retFilasDe(semStr){','function buildRetDetalleWS('),box);
 vm.runInContext(block('function ctrlCierreDeSemana(sem){','function conciliaSemanaDatos(sem){'),box);
 const w=(id,alta,baja='',reingreso='',estatus='ACTIVO')=>({id:String(id),no_trab:id,fecha_alta:alta,fecha_baja:baja,fecha_reingreso:reingreso,estatus,periodo_pago:'SEMANAL',monto_finiquito:100});

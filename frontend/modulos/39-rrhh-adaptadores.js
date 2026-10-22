@@ -11,7 +11,7 @@ function rrhhReferenciasModelo(filas,audits,sem,fuente){
       refs.finiquito_detalle=a?Object.fromEntries(keys.filter(k=>typeof a.resultado?.[k]==='number').map(k=>[k,a.resultado[k]])):null;
       refs.retenciones=f.items.map(i=>({tipo:i.tipo,clase:i.clase,monto_usado:i.monto,origen:'FINIQUITO APLICADO'}));
     }else{
-      const ds=descuentosDe(w,sem).ds;
+      const ds=retencionesDePeriodo(w,sem).ds;
       if(ds.length!==f.items.length)throw Error('Cambió la fuente de retenciones durante la captura. Actualiza e intenta de nuevo.');
       refs.retenciones=f.items.map((i,n)=>{const d=ds[n];if(String(d.tipo||'').toUpperCase()!==i.tipo)throw Error('Las referencias de retenciones no coinciden con el motor.');
         return {tabla:'descuentos',id:d.id,tipo:i.tipo,clase:i.clase,monto_usado:i.monto,estado:i.estado,

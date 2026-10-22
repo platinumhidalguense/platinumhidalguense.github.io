@@ -143,7 +143,7 @@ function limiteFonacotPeriodo(w,semStr){
 }
 function otrosFonacotPeriodo(w,semStr,excluirId){
   return DESC.filter(x=>x.activo&&x.recurrente&&x.tipo==='FONACOT'&&x.trabajador_id===w.id&&x.id!==excluirId&&descuentoVigenteSemana(x,semStr))
-    .reduce((s,x)=>s+retencionEvaluada(x,w,semStr,perDe(w)).monto,0);
+    .reduce((s,x)=>s+retencionAplicadaPeriodo(x,w,semStr,perDe(w)).monto,0);
 }
 function descuentoVigenteSemana(d,semStr){
   if(!d.recurrente||!d.created_at)return true;
@@ -152,6 +152,36 @@ function descuentoVigenteSemana(d,semStr){
 }
 
 /* ---------- DESCUENTOS ---------- */
+function descuentoCorrespondePeriodo(d,w,semStr){
+  const p=d.ajustes_semana?._periodo_nomina;
+  if(!p)return d.recurrente||d.semana===semStr;
+  if(!/^\d{4}-\d\d-\d\d$/.test(p.desde||'')||!/^\d{4}-\d\d-\d\d$/.test(p.hasta||'')||p.hasta<p.desde)throw Error('Retención con fechas de periodo inválidas.');
+  const rango=rangoRetencion(w,semStr);
+  return p.desde===rango[0]&&p.hasta===rango[1];
+}
+/* Adaptación de entradas: nunca cambia DESC, las fichas o las fórmulas
+   protegidas. La sustitución de DESC es síncrona y se restaura con finally. */
+function adaptarRetencionPeriodo(d,w,semStr){
+  const p=d.ajustes_semana?._periodo_nomina;
+  if(p)return {...d,activo:d.activo&&descuentoCorrespondePeriodo(d,w,semStr),semana:semStr};
+  const periodos=d.ajustes_semana?._periodos;
+  if(!Array.isArray(periodos)||!periodos.length)return d;
+  const [desde,hasta]=rangoRetencion(w,semStr),aj=periodos.filter(x=>x.desde===desde&&x.hasta===hasta);
+  if(aj.length>1)throw Error('Hay ajustes duplicados para el mismo periodo.');
+  if(!aj.length)return d;
+  const importe=Number(aj[0].importe_base);
+  if(!Number.isFinite(importe)||importe<0)throw Error('Importe NOI por periodo inválido.');
+  const prev=d.ajustes_semana[semStr]||{};
+  return {...d,ajustes_semana:{...d.ajustes_semana,[semStr]:{importe_base:importe,...prev}}};
+}
+function retencionAplicadaPeriodo(d,w,semStr,P){
+  return retencionEvaluada(adaptarRetencionPeriodo(d,w,semStr),w,semStr,P);
+}
+function retencionesDePeriodo(w,semStr,opts){
+  const original=DESC;
+  try{DESC=original.map(d=>d.trabajador_id===w.id?adaptarRetencionPeriodo(d,w,semStr):d);return descuentosDe(w,semStr,opts);}
+  finally{DESC=original;}
+}
 function descuentosDe(w,semStr,opts){
   const P=perDe(w,(opts||{}).dias);
   const ds=DESC.filter(d=>d.trabajador_id===w.id&&d.activo&&(d.recurrente||d.semana===semStr)&&descuentoVigenteSemana(d,semStr));
@@ -478,9 +508,9 @@ function retFilasDe(semStr){
     if(d.recurrente){
       // el fijo cuenta desde la semana en que se capturó (si el registro trae fecha)
       if(!descuentoVigenteSemana(d,semStr))return;
-      const ev=retencionEvaluada(d,w,semStr,P);
+      const ev=retencionAplicadaPeriodo(d,w,semStr,P);
       filas.push({w,d,origen:'FIJO',estado:ev.estado,monto:ev.monto,extra:ev.extra,periodo:P.cve});
-    }else if(d.semana===semStr){
+    }else if(descuentoCorrespondePeriodo(d,w,semStr)){
       // una incidencia (faltas de ESA semana/quincena) ya viene calculada
       // con el motor del periodo correcto: no se vuelve a prorratear.
       filas.push({w,d,origen:'INCIDENCIA',estado:'—',monto:Number(d.monto)||0,periodo:P.cve});

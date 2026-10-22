@@ -1,4 +1,6 @@
 {
+  "ctrlGuardarSemanaIMSS": "Recalcula el periodo completo al editar una incapacidad quincenal ya aplicada; bloquea calendarios incompletos y conserva la rama semanal.",
+  "ctrlAplicarSemanaIMSS": "Exigir reapertura sólo para cierre autorizado/timbrado/pagado. Fórmula de incidencia intacta.",
   "openExports": "Actualiza únicamente la descripción del layout: Excel de Trabajadores NUEVOS y TXT de altas SUA, sin agregar otras hojas.",
   "openAltasNOI": "Conserva filtros y selección de altas; presenta el layout de una sola hoja y la equivalencia de puesto exclusivamente para la exportación.",
   "naLista": "Mismos trabajadores y orden del filtro original; muestra claves NOI y selector para puestos no catalogados, sin modificar fichas.",
@@ -63,5 +65,14 @@
   "ptuCargar": "Cargar personal de la razón social seleccionada sin truncarlo. Aritmética intacta.",
   "verificarNOI": "Padrón completo por empresa y bloqueo de comparación fallida. Parser intacto.",
   "aplicarVN": "Comprobar números ocupados con paginación y detenerse si falla la consulta. No se ejecuta ninguna actualización en esta auditoría.",
-  "ctrlAplicarSemanaIMSS": "Exigir reapertura sólo para cierre autorizado/timbrado/pagado. Fórmula de incidencia intacta."
+  "otrosFonacotPeriodo": "Adapta los datos fechados del periodo antes de consultar las funciones de retención originales; conserva permisos, alcance, fórmulas fiscales y datos persistidos.",
+  "retFilasDe": "Adapta los datos fechados del periodo antes de consultar las funciones de retención originales; conserva permisos, alcance, fórmulas fiscales y datos persistidos.",
+  "proyRetenciones": "Adapta los datos fechados del periodo antes de consultar las funciones de retención originales; conserva permisos, alcance, fórmulas fiscales y datos persistidos.",
+  "buildProyWS": "Adapta los datos fechados del periodo antes de consultar las funciones de retención originales; conserva permisos, alcance, fórmulas fiscales y datos persistidos.",
+  "arVistaPrevia": "Adapta los datos fechados del periodo antes de consultar las funciones de retención originales; conserva permisos, alcance, fórmulas fiscales y datos persistidos.",
+  "saveAjusteRetencion": "Adapta los datos fechados del periodo antes de consultar las funciones de retención originales; conserva permisos, alcance, fórmulas fiscales y datos persistidos.",
+  "saveExcepcion": "Adapta los datos fechados del periodo antes de consultar las funciones de retención originales; conserva permisos, alcance, fórmulas fiscales y datos persistidos.",
+  "ctrlSnapshotNomina": "Adapta los datos fechados del periodo antes de consultar las funciones de retención originales; conserva permisos, alcance, fórmulas fiscales y datos persistidos.",
+  "ctrlCostosReales": "Adapta los datos fechados del periodo antes de consultar las funciones de retención originales; conserva permisos, alcance, fórmulas fiscales y datos persistidos.",
+  "rrhhReferenciasModelo": "Adapta los datos fechados del periodo antes de consultar las funciones de retención originales; conserva permisos, alcance, fórmulas fiscales y datos persistidos."
 }

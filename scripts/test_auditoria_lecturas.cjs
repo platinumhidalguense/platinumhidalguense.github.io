@@ -16,6 +16,6 @@ vm.createContext(box);vm.runInContext(f('fetchAllRows')+'\n'+f('leerPorEmpresa')
  for(const name of ['openAutorrellenar','openControlSalarios','parseImportExp','parseImport','openAltasSemana','parseImportVac','ptuCargar','verificarNOI'])assert(f(name).includes('leerPorEmpresa('),name);n++;
  assert(f('parseImportVac').includes('if(vacError)'));assert(f('aplicarVN').includes('if(ocupadosError)'));n++;
  assert(f('cpCargar').includes('if(OBRA?.id!==obraId)return'));for(const name of ['guardarCuadrilla','guardarEditCuadrilla']){assert(f(name).includes('if(recargaError)'));assert(f(name).includes('if(OBRA?.id!==obraId)return'));}n++;
- const imss=f('ctrlAplicarSemanaIMSS');assert(imss.includes(".in('estado',['AUTORIZADO','TIMBRADO','PAGADO'])"));assert(imss.includes('descuentoFaltasNOI(w,0,0,undefined,s.dias_sin_salario_patronal).monto'));n++;
+ const imss=f('ctrlAplicarSemanaIMSS');assert(imss.includes(".in('estado',['AUTORIZADO','TIMBRADO','PAGADO'])"));assert(imss.includes('ctrlImporteIMSSPeriodo(c,s.semana)'));assert(f('ctrlImporteIMSSPeriodo').includes('descuentoFaltasNOI(w,0,0,undefined,sin).monto'));n++;
  console.log('PASS '+n+' contratos de paginación, empresas, error parcial, contexto y bloqueo IMSS.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

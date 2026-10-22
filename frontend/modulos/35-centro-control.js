@@ -93,7 +93,7 @@ async function openControlEmpresarial(){
 function ctrlSnapshotNomina(sem,periodo){
   const [d1,d2]=semRange(sem),{act,fins}=pyCandidatos(d1,d2,periodo),items=[];
   let nomina=0,prev=0,ret=0,fini=0,neto=0;
-  act.forEach(w=>{const sueldo=redondearCentavos(Number(w.sal_semanal)||0),p=redondearCentavos(difDe(w.id,'S'+sem)),r=descuentosDe(w,'S'+sem).total,n=redondearCentavos(Math.max(0,sueldo+p-r));
+  act.forEach(w=>{const sueldo=redondearCentavos(Number(w.sal_semanal)||0),p=redondearCentavos(difDe(w.id,'S'+sem)),r=retencionesDePeriodo(w,'S'+sem).total,n=redondearCentavos(Math.max(0,sueldo+p-r));
     nomina+=sueldo;prev+=p;ret+=r;neto+=n;items.push({trabajador_id:w.id,numero:w.no_trab,nombre:fullName(w),tipo:'NOMINA',metodo_pago:metodoPagoPredeterminado(w,'NOMINA'),sueldo_nomina:sueldo,prevision_social:p,retenciones:r,monto:n});});
   fins.forEach(w=>{const n=redondearCentavos(Number(w.monto_finiquito)||0);fini+=n;neto+=n;items.push({trabajador_id:w.id,numero:w.no_trab,nombre:fullName(w),tipo:'FINIQUITO',metodo_pago:finTransDe(w,sem)?'TRANSFERENCIA':'CHEQUE',monto:n});});
   return {obra_id:OBRA.id,empresa_codigo:empresaDeObra(OBRA),obra:OBRA.nombre,semana:sem,periodo,desde:d1,hasta:d2,formula_version:MOTOR_NOMINA_VERSION,
@@ -382,7 +382,7 @@ function ctrlCostosReales(sem,contratista=''){
   const ch=CHEQUES.filter(c=>ids.has(c.trabajador_id)&&String(c.semana||'').replace(/\D/g,'')===s&&valido(c));
   const sueldoCh=ch.filter(c=>c.tipo_pago!=='FINIQUITO').reduce((a,c)=>a+(Number(c.importe)||0),0),fini=ch.filter(c=>c.tipo_pago==='FINIQUITO').reduce((a,c)=>a+(Number(c.importe)||0),0);
   const prev=DIFS.filter(d=>ids.has(d.trabajador_id)&&String(d.semana)===s&&d.activo!==false).reduce((a,d)=>a+(Number(d.monto)||0),0);
-  const [d1,d2]=semRange(sem),{act,fins}=pyCandidatos(d1,d2,'TODOS'),proy=act.filter(fil).reduce((a,w)=>a+Math.max(0,(Number(w.sal_semanal)||0)+difDe(w.id,'S'+sem)-descuentosDe(w,'S'+sem).total),0)+fins.filter(fil).reduce((a,w)=>a+(Number(w.monto_finiquito)||0),0);
+  const [d1,d2]=semRange(sem),{act,fins}=pyCandidatos(d1,d2,'TODOS'),proy=act.filter(fil).reduce((a,w)=>a+Math.max(0,(Number(w.sal_semanal)||0)+difDe(w.id,'S'+sem)-retencionesDePeriodo(w,'S'+sem).total),0)+fins.filter(fil).reduce((a,w)=>a+(Number(w.monto_finiquito)||0),0);
   return {transfer:redondearCentavos(transfer),cheques:redondearCentavos(sueldoCh),prevision:redondearCentavos(prev),finiquitos:redondearCentavos(fini),proyeccion:redondearCentavos(proy)};
 }
 async function openCtrlCostos(semElegida){

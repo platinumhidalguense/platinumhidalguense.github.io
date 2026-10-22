@@ -649,7 +649,7 @@ function arVistaPrevia(id){
   const d=DESC.find(x=>x.id===id),w=d&&WORKERS.find(x=>x.id===d.trabajador_id),out=$('ar-preview');
   if(!w||!out)return;
   const sem='S'+(parseInt($('ar-sem').value)||isoWeek()),P=perDe(w);
-  const base=$('ar-base').value!==''?Number($('ar-base').value):retencionEvaluada(d,w,sem,P).base;
+  const base=$('ar-base').value!==''?Number($('ar-base').value):retencionAplicadaPeriodo(d,w,sem,P).base;
   const desde=$('ar-desde').value,dias=Number($('ar-dias').value)||0;
   const extra=desde&&dias>0?retencionDiasExtra(d,w,desde,dias):0;
   const tope=d.tipo==='FONACOT'?limiteFonacotPeriodo(w,sem):null;
@@ -680,7 +680,7 @@ async function saveAjusteRetencion(id){
     toast('Esa retención está suspendida en la semana. Quita la suspensión antes de capturar un ajuste.','err');return;
   }
   if(d.tipo==='FONACOT'){
-    const P=perDe(w),base=baseTxt!==''?Number(baseTxt):retencionEvaluada(d,w,sem,P).base;
+    const P=perDe(w),base=baseTxt!==''?Number(baseTxt):retencionAplicadaPeriodo(d,w,sem,P).base;
     const extra=dias?retencionDiasExtra(d,w,desde,dias):0,tope=limiteFonacotPeriodo(w,sem);
     if(tope&&base+extra+otrosFonacotPeriodo(w,sem,id)>tope.monto+.005){
       toast(`El total conjunto FONACOT ($${money(base+extra+otrosFonacotPeriodo(w,sem,id))}) supera el ${tope.porcentaje}% del salario del periodo ($${money(tope.monto)}). Distribuye los días pendientes en otra nómina.`, 'err');return;
@@ -727,7 +727,7 @@ async function saveExcepcion(id){
   }
   if(d.tipo==='FONACOT'&&acc==='DOBLE'){
     const w=WORKERS.find(x=>x.id===d.trabajador_id),tope=w&&limiteFonacotPeriodo(w,sem);
-    const previsto=w?retencionEvaluada({...d,excepciones:ex},w,sem,perDe(w)).monto:0;
+    const previsto=w?retencionAplicadaPeriodo({...d,excepciones:ex},w,sem,perDe(w)).monto:0;
     if(tope&&previsto+otrosFonacotPeriodo(w,sem,id)>tope.monto+.005){
       toast(`La retención doble excedería el ${tope.porcentaje}% del salario del periodo. Usa un ajuste menor y justifícalo.`, 'err');return;
     }

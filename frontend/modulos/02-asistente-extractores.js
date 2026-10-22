@@ -151,7 +151,7 @@ const IA_CALCULOS={
       const sueldos=act.reduce((s,w)=>s+(Number(w.sal_semanal)||0),0);
       const finiq=fins.reduce((s,w)=>s+(Number(w.monto_finiquito)||0),0);
       let desc=0;const porTipo={};
-      act.forEach(w=>{desc+=descuentosDe(w,sem).total;});
+      act.forEach(w=>{desc+=retencionesDePeriodo(w,sem).total;});
       (retFilasDe(sem)||[]).forEach(f=>{if(!act.some(w=>w.id===f.w.id))return;
         const t=(f.d.tipo||'OTRO').toUpperCase();porTipo[t]=porTipo[t]||{cuantos:0,total:0};
         porTipo[t].cuantos++;porTipo[t].total=_n2(porTipo[t].total+(Number(f.monto)||0));});

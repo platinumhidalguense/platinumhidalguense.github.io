@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-21.1",
-  "entry": "assets/platinum-app.d273dacbe0663940.js",
-  "sha256": "d273dacbe0663940656117fc7b933f01b56df2c5de7fa87397fb805d101e22b0",
-  "integrity": "sha384-wpVmXMMIeGwpoH/e5R/Zsto1MaEwu5k99iFREC53ryBOGpyBYwq9KQEqVK5Ds5bw",
+  "version": "2026-10-22.1",
+  "entry": "assets/platinum-app.dbd82ff37894213f.js",
+  "sha256": "dbd82ff37894213f74cf5170318e95018758706d5f4854376d8361b11f70f29a",
+  "integrity": "sha384-E2V/kTs2XAueXvg8BxbHnYeJhS02faipPCB5+83Qmie3bwtCpcgUPBo86PxR9OCF",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,11 +10,11 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "eb116ddd39aa0541ef0eb4887e70ec87d9aaf980892f852a3323a6d2acf16430"
+      "sha256": "e051fd7c6fd5d4b3a6a90aacaa6d6e80ef975772e8778a633ca40ab76f6dc612"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
-      "sha256": "f288fc074fce1acd7d32fb79a6120e7842edfca944c783060d9b8d9743f826b1"
+      "sha256": "b71ccbb87a2dd186d187372b22e87c8a0769fa2b1dec0c8c8a162c4f29adf20e"
     },
     {
       "path": "frontend/modulos/03-navegacion-presentacion.js",
@@ -22,7 +22,7 @@
     },
     {
       "path": "frontend/modulos/04-padron-expedientes.js",
-      "sha256": "047518a97182452d3f9382932b9abe4f0b8b3013a761abc2050ed402fd4e046a"
+      "sha256": "14c6dfa585eecd1dcb08de6c7eb2a11bdfd23c76dda39ac6a008c403bb32062d"
     },
     {
       "path": "frontend/modulos/05-alta-edicion.js",
@@ -38,7 +38,7 @@
     },
     {
       "path": "frontend/modulos/08-retenciones-incidencias.js",
-      "sha256": "605c31bc302f20cd1c8bc630c4cf5265e1ff01b95a2125055b286879effc702c"
+      "sha256": "66e155eabe82863420f191bcd0ebf2e801ae835e57ab0d286a1adac41a49c262"
     },
     {
       "path": "frontend/modulos/09-documentacion-reportes.js",
@@ -46,7 +46,7 @@
     },
     {
       "path": "frontend/modulos/10-proyeccion-nomina.js",
-      "sha256": "d5af4e281c4c9c1e8979811d68ea8fb55b56e046d1ab1e754303f002b719e07a"
+      "sha256": "aa72869c9949cabcd643c52bbc7dc6f739e389f67cf3543dbaf27206759aff6d"
     },
     {
       "path": "frontend/modulos/11-expedientes-excel.js",
@@ -122,7 +122,7 @@
     },
     {
       "path": "frontend/modulos/29-bajas-creditos-motor.js",
-      "sha256": "feef8a85e378b301f100f2386acd2caa8fa704080ae06b57193bb9b13a26a2c4"
+      "sha256": "24112ac24fd9d44649d24c4ab1bd1e3f8aefa67a31d0e98db6107a1c8bc6ef08"
     },
     {
       "path": "frontend/modulos/30-contratistas-alertas.js",
@@ -146,11 +146,11 @@
     },
     {
       "path": "frontend/modulos/35-centro-control.js",
-      "sha256": "29a41064807a62ed09fb6cc449a5ff5d760cbe821bc3a30895209ce3ac256500"
+      "sha256": "9f4108ce8784395d43e6113153888dbce898c1c09e593ba13c851436158a76f0"
     },
     {
       "path": "frontend/modulos/36-imss-sin-servicio-st7.js",
-      "sha256": "c3ef85abec65a38297ee19ab081e973d779a06e378aca6d2c372c5fa62728969"
+      "sha256": "e08349b9538d39df4ad6bd5feafcf612ebe2fa76620ca3e4ab3d874ed2bee387"
     },
     {
       "path": "frontend/modulos/37-avisos-infonavit.js",
@@ -162,7 +162,7 @@
     },
     {
       "path": "frontend/modulos/39-rrhh-adaptadores.js",
-      "sha256": "6f3fbe828adbbb97e88583840bfde87401095fa6e36d9051a90473111b1d88c2"
+      "sha256": "db48a2c70dd6538deca949332f3df0569fe8807d45b940ca6c288752b867b6bf"
     },
     {
       "path": "frontend/modulos/40-pagos-sabado-adaptadores.js",

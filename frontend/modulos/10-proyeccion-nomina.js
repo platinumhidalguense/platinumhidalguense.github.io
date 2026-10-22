@@ -131,9 +131,9 @@ function proySelector(id){
     <div class="fhint">Contratista: sueldo menos incidencias, créditos informativos en amarillo (INFONAVIT) y verde (FONACOT), y un solo total general; sin previsión social. Dispersión: neto a pagar y totales por forma de pago. Ambas incluyen el detalle de retenciones en su segunda hoja.</div>`;
 }
 function proyRetenciones(w,sem){
-  const P=perDe(w), d=descuentosDe(w,sem);
+  const P=perDe(w), d=retencionesDePeriodo(w,sem);
   return d.ds.map(x=>{
-    const ev=x.recurrente?retencionEvaluada(x,w,sem,P):{monto:Number(x.monto)||0,estado:'NORMAL',extra:0};
+    const ev=x.recurrente?retencionAplicadaPeriodo(x,w,sem,P):{monto:Number(x.monto)||0,estado:'NORMAL',extra:0};
     const tipo=String(x.tipo||'').toUpperCase();
     const clase=['INFONAVIT','FONACOT'].includes(tipo)?'CREDITO':['FALTA','INCIDENCIA'].includes(tipo)?'INCIDENCIA':'OTRA';
     return {w,tipo,clase,monto:redondearCentavos(ev.monto),estado:ev.estado,
@@ -384,7 +384,7 @@ function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
      El diferencial se muestra separado como PREVISIÓN SOCIAL para que Excel
      no lo oculte dentro del monto y contabilidad pueda conciliar ambos pagos. */
   const mostrarPrevision=act.some(w=>difDe(w.id,sem)!==0);
-  const dsInfo=w=>{const d=descuentosDe(w,sem), dif=difDe(w.id,sem);
+  const dsInfo=w=>{const d=retencionesDePeriodo(w,sem), dif=difDe(w.id,sem);
     return {ret:d.total, dif, neto:redondearCentavos(Math.max(0,(Number(w.sal_semanal)||0)+dif-d.total))};};
   const empCodigo=w=>typeof empresaDeTrabajador==='function'?empresaDeTrabajador(w):'PLATINUM';
   // v12.1: SOLO cuentan datos reales — cuenta con 6+ dígitos, CLABE con 10+ dígitos.

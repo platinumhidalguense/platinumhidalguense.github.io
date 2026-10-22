@@ -33,7 +33,7 @@ const box={console,Date,Number,Math,Error,Set,Map,Uint8Array,window:{},DESC:ds,D
  fetchAllRows:async()=>({data:[audit],error:null}),sb:{from:()=>({select(){return this;},in(){return this;},eq(){return this;},order(){return this;}})},
  asSinServicioSemana:()=>new Set(),asVigenteSemana:()=>true};
 vm.createContext(box);
-vm.runInContext(fn('function proyFiniquitosSemana(')+'\n'+fn('function descuentosDe(')+'\n'+block('function proySelector(','function buildProyWS(')+'\n'+fn('async function exportProyeccion(')+'\n'+fn('async function exportProyContratista('),box);
+vm.runInContext(['descuentoCorrespondePeriodo','adaptarRetencionPeriodo','retencionAplicadaPeriodo','retencionesDePeriodo'].map(n=>fn('function '+n+'(')).join('\n')+'\n'+fn('function proyFiniquitosSemana(')+'\n'+fn('function descuentosDe(')+'\n'+block('function proySelector(','function buildProyWS(')+'\n'+fn('async function exportProyeccion(')+'\n'+fn('async function exportProyContratista('),box);
 const model=box.proyModelo(workers.slice(0,2),[workers[2]],'S28',[audit]);
 assert.equal(model.costo,4600);assert.equal(model.neto,3950);
 assert.deepEqual(Array.from(model.filas,x=>[x.costo,x.neto,x.prevision,x.creditos]),[[1600,1300,200,500],[2000,1700,0,300],[1000,950,0,50]]);

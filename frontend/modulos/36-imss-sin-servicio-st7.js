@@ -235,6 +235,47 @@ function openCtrlSemanaIMSS(id,semElegida){
     </div><div class="m-foot"><button class="btn" onclick="openCtrlCasosIMSS()">Volver</button>${semanas.length?`<button class="btn dark" onclick="ctrlGuardarSemanaIMSS('${id}')">Guardar calendario S${sem}</button>`:''}</div>`,'lg');
   ctrlPreviewDiasIMSS();
 }
+/* El calendario se captura por semana, pero la nómina quincenal debe leer
+   todas las fechas de su quincena. No modifica ninguna fórmula fiscal. */
+function ctrlImporteIMSSPeriodo(c,sem,edicion=null){
+  const w=WORKERS.find(x=>x.id===c.trabajador_id);
+  if(!w)throw Error('Trabajador no encontrado.');
+  const semanal=periodoPago(w)!=='QUINCENAL';
+  if(semanal){
+    const dias=edicion||(c.control_casos_imss_semanas||[]).find(s=>Number(s.semana)===Number(sem))?.detalle_dias;
+    if(!Array.isArray(dias)||dias.some(d=>!['EMPRESA','IMSS','SIN_PAGO'].includes(d.pagador)))throw Error('Completa el calendario de la semana.');
+    const sin=dias.filter(d=>d.pagador!=='EMPRESA').length;
+    return sin?descuentoFaltasNOI(w,0,0,undefined,sin).monto:0;
+  }
+  const [desde,hasta]=semanal?semRange(sem):rangoRetencion(w,'S'+sem);
+  const casos=(window._CTRLIMSS||[c]).filter(x=>x.trabajador_id===w.id&&x.obra_id===w.obra_id&&!x.eliminado_en&&x.certificado_desde&&x.certificado_hasta);
+  const esperadas=new Set(),pagadores=new Map();
+  for(const caso of casos){
+    for(const fecha of ctrlFechasIMSS(caso.certificado_desde>desde?caso.certificado_desde:desde,caso.certificado_hasta<hasta?caso.certificado_hasta:hasta))esperadas.add(fecha);
+    for(const s of caso.control_casos_imss_semanas||[]){
+      if(caso.id===c.id&&Number(s.semana)===Number(sem)&&edicion)continue;
+      for(const d of s.detalle_dias||[]){
+        if(!pagadores.has(d.fecha))pagadores.set(d.fecha,new Set());pagadores.get(d.fecha).add(d.pagador);
+      }
+    }
+  }
+  for(const d of edicion||[]){if(!pagadores.has(d.fecha))pagadores.set(d.fecha,new Set());pagadores.get(d.fecha).add(d.pagador);}
+  let sin=0;
+  for(const fecha of esperadas){
+    const p=pagadores.get(fecha);
+    if(!p||p.size!==1||![...p].every(v=>['EMPRESA','IMSS','SIN_PAGO'].includes(v)))throw Error('Completa el calendario de todo el periodo; hay fechas pendientes o pagadores contradictorios.');
+    if(!p.has('EMPRESA'))sin++;
+  }
+  if(!sin)return 0;
+  if(!semanal&&sin===ctrlFechasIMSS(desde,hasta).length)return redondearCentavos(Number(w.sal_semanal)||0);
+  return descuentoFaltasNOI(w,0,0,undefined,sin).monto;
+}
+function ctrlQuincenaIMSSAplicada(c,sem){
+  const w=WORKERS.find(x=>x.id===c.trabajador_id);if(!w||periodoPago(w)!=='QUINCENAL')return false;
+  const [desde,hasta]=rangoRetencion(w,'S'+sem);
+  return (window._CTRLIMSS||[c]).some(x=>x.trabajador_id===w.id&&x.obra_id===w.obra_id&&!x.eliminado_en&&
+    (x.control_casos_imss_semanas||[]).some(s=>s.estado==='APLICADO'&&semRange(s.semana)[1]>=desde&&semRange(s.semana)[1]<=hasta));
+}
 async function ctrlGuardarSemanaIMSS(id){
   const c=(window._CTRLIMSS||[]).find(x=>x.id===id);if(!c||!c.certificado_desde){toast('Primero registra las fechas del certificado.','err');return;}
   const sem=Number($('ims-sem').value),dias=window._CTRLIMSS_DIAS||[];
@@ -245,7 +286,9 @@ async function ctrlGuardarSemanaIMSS(id){
   const sin=detalle.filter(x=>x.pagador!=='EMPRESA').length;
   const s=(c.control_casos_imss_semanas||[]).find(x=>x.semana===sem);
   const w=WORKERS.find(x=>x.id===c.trabajador_id);
-  const monto=s?.estado==='APLICADO'&&w?(sin?descuentoFaltasNOI(w,0,0,undefined,sin).monto:0):null;
+  let monto=null;
+  try{if(w&&(s?.estado==='APLICADO'||ctrlQuincenaIMSSAplicada(c,sem)))monto=ctrlImporteIMSSPeriodo(c,sem,detalle);}
+  catch(e){toast(e.message,'err');return;}
   if(s?.estado==='APLICADO'&&(!Number.isFinite(monto)||monto<0)){
     toast('No se pudo recalcular la incidencia aplicada.','err');return;
   }
@@ -271,7 +314,8 @@ async function ctrlAplicarSemanaIMSS(casoId,semanaId){
     .eq('obra_id',OBRA.id).eq('semana','S'+s.semana).eq('activo',true).in('tipo',['INCIDENCIA','FALTA']);
   if(eExist){toast(eExist.message,'err');return;}
   if(ya?.length){toast('Ya hay una falta o incidencia activa para este trabajador en S'+s.semana+'. Concíliala antes de aplicar la incapacidad para evitar un doble descuento.','err');return;}
-  const monto=s.dias_sin_salario_patronal?descuentoFaltasNOI(w,0,0,undefined,s.dias_sin_salario_patronal).monto:0;
+  let monto;
+  try{monto=ctrlImporteIMSSPeriodo(c,s.semana);}catch(e){toast(e.message,'err');return;}
   if(s.dias_sin_salario_patronal&&(!Number.isFinite(monto)||monto<=0)){toast('No fue posible calcular un importe válido.','err');return;}
   if(!confirm(`¿Aplicar S${s.semana} de ${fullName(w)}?\n${s.dias_sin_salario_patronal} día(s) IMSS sin salario patronal; incidencia estimada $${money(monto)}. No es falta injustificada. Verifica después contra NOI.`))return;
   markWrite();const {error}=await sb.rpc('control_aplicar_caso_imss_semana',{p_semana_id:s.id,p_monto:monto});
