@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "version": "2026-10-20.8",
+  "version": "2026-10-21.1",
   "modules": [
     "frontend/modulos/00-configuracion-utilidades.js",
     "frontend/modulos/01-sesion-centros-sincronizacion.js",
@@ -46,7 +46,8 @@
     "frontend/modulos/41-visor-semanal-pagos.js",
     "frontend/modulos/42-recibos-lectura-ia.js",
     "frontend/modulos/43-actividad-administrador.js",
-    "frontend/modulos/44-respaldo-recibos.js"
+    "frontend/modulos/44-respaldo-recibos.js",
+    "frontend/modulos/45-exportacion-altas-noi.js"
   ],
   "originalSha256": "9c8d55e50d79a8c1d4dda73f83ff26f8b1c9f200e3f6e8c6b96624b12857af04"
 }

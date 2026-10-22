@@ -531,76 +531,59 @@ function dlText(text,name){
 }
 const NOI_HDR=['Clave trabajador','A. paterno','A. materno','Nombre (s)','Salario diario','Sexo','Fecha de nacimiento','Fecha de alta','IMSS','Lugar de Nacimiento','CURP','RFC','Calle','Colonia','Población','Código postal','Código postal Fiscal','Entidad federativa','Teléfono 1','Teléfono 2','Correo electrónico','Correo electrónico 2','Nivel de estudios','Profesión','Estado civil','Tipo de sangre','Nombre de Emergencia','Telefono de Emergencia','Forma de pago','Banco operador','Localidad / sucursal','Control de banco','','Tipo de empleado','Tipo de jornada','Turno','Unidad médica familiar','Descuenta pensión alimenticia','Registro patronal','Clasificación','Departamento','Puesto','Tipo de contrato','Clave de Régimen de contrato','País','Tipo ingreso','Base cotización','Clave de tipo contrato V12','Clave de tipo jornada','Clave de entidad federativa V12','Ruta plantilla','Clave Régimen','Clave de banco','Tabla de vacaciones','Tabla de sal. Diario','ModalidaTrabajo','SDI capturado','Dias contrato'];
 function openAltasNOI(){
-  const [d1,d2]=weekBounds();
+  const [d1,d2]=weekBounds();window._NA_OBRA=OBRA.id;
   modal(`
-    <div class="m-head"><h2>⬇ Altas para contadora · NOI + SUA</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-head"><h2>⬇ Altas para contadora · NOI y TXT</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:12px">Genera el archivo <b>exacto</b> que usa la contadora: hoja <b>Trabajadores</b> (importación Aspel NOI 11) y hoja <b>SUA</b> con la <b>fórmula de concatenación</b> en la última columna (editable en Excel). El botón TXT genera directo el archivo de texto con esas líneas para SUA.</p>
-      <div class="kv"><b>Registro patronal</b><span>${esc(OBRA.registro_patronal)||'⚠ FALTA — agrégalo con el lápiz ✎ de la obra (va en la concatenación)'}</span></div>
+      <p style="color:var(--mut);margin-bottom:12px">Excel con una sola hoja <b>Trabajadores NUEVOS</b>, en el orden de columnas del formato de contabilidad. Departamento <b>1</b>, contrato <b>3</b> y puesto con su <b>clave NOI</b>. El TXT conserva únicamente las altas SUA. No incluye SUA AFILIACIÓN ni INFONAVIT.</p>
+      <div class="kv"><b>Registro patronal</b><span>${esc(OBRA.registro_patronal)||'⚠ FALTA — agrégalo en la configuración del centro'}</span></div>
       <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:10px">
         <div><label>Altas del día</label><input id="na-d1" type="date" value="${d1}" oninput="naLista()"></div>
         <div><label>al día</label><input id="na-d2" type="date" value="${d2}" oninput="naLista()"></div>
       </div>
+      <div class="fhint">Las claves elegidas aquí sólo se usan al exportar; no modifican la ficha del trabajador.</div>
       <div id="na-lista" style="margin-top:12px"></div>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn" onclick="exportAltasSUATxt()">⬇ TXT (concatenación SUA)</button>
-      <button class="btn dark" onclick="exportAltasNOIExcel()">⬇ Excel (Trabajadores + SUA)</button>
+      <button class="btn" id="na-txt" onclick="exportAltasSUATxt()">⬇ TXT de altas SUA</button>
+      <button class="btn dark" id="na-excel" onclick="exportAltasNOIExcel()">⬇ Excel · Trabajadores NUEVOS</button>
     </div>`,'lg');
   naLista();
 }
 function naLista(){
   const d1=$('na-d1').value,d2=$('na-d2').value;
+  if(!noiFechaValida(d1)||!noiFechaValida(d2)||d1>d2){window._NA=[];$('na-lista').innerHTML='<p style="color:var(--red)">Revisa el rango de fechas.</p>';return;}
   const ws=WORKERS.filter(w=>w.fecha_alta&&w.fecha_alta>=d1&&w.fecha_alta<=d2&&w.estatus!=='BAJA').sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
   window._NA=ws;
   $('na-lista').innerHTML=ws.length?`<div class="sect">${ws.length} alta(s) en el rango — desmarca las que no quieras incluir</div>`+
-    ws.map((w,i)=>{const falta=['nss','rfc','curp'].filter(k=>!w[k]);const sinSdi=!(Number(w.sdi)>0);
-      return `<label style="display:block;padding:4px 2px;font-size:12.5px${(falta.length||sinSdi)?';color:var(--red)':''}">
-      <input type="checkbox" id="na-${i}" ${falta.length?'':'checked'}> #${w.no_trab??'—'} ${esc(fullName(w))} · ${esc(w.puesto||'sin puesto')} · alta ${fmtD(w.fecha_alta)} · SDI $${money(w.sdi||0)}${falta.length?` ⚠ falta ${falta.join(', ').toUpperCase()}`:''}${sinSdi?' ⚠ SIN SDI':''}${w.estatus==='PENDIENTE'?' · <span class="badge PENDIENTE">PENDIENTE</span>':''}</label>`;}).join('')
+    ws.map((w,i)=>{
+      const falta=['nss','rfc','curp'].filter(k=>!w[k]),sinSdi=!(Number(w.sdi)>0),clave=noiPuestoClave(w.puesto);
+      return `<div style="padding:8px 2px;border-bottom:1px solid var(--border)">
+      <label style="display:block;font-size:12.5px${(falta.length||sinSdi)?';color:var(--red)':''}">
+      <input type="checkbox" id="na-${i}" ${falta.length?'':'checked'}> #${w.no_trab??'—'} ${esc(fullName(w))} · ${esc(w.puesto||'sin puesto')} · alta ${fmtD(w.fecha_alta)} · SDI $${money(w.sdi||0)}${falta.length?` ⚠ falta ${falta.join(', ').toUpperCase()}`:''}${sinSdi?' ⚠ SIN SDI':''}${w.estatus==='PENDIENTE'?' · PENDIENTE':''}</label>
+      ${clave?`<div class="fhint">Puesto NOI: ${clave} · ${esc(NOI_PUESTOS_ALTAS[clave-1])}</div>`:
+        `<div class="fhint" style="color:var(--amber)">Sin equivalencia automática. Elige la clave para el Excel:</div>
+        <select id="na-puesto-${i}" aria-label="Clave de puesto NOI para trabajador ${w.no_trab??i+1}">
+        <option value="">Seleccionar puesto NOI…</option>${NOI_PUESTOS_ALTAS.map((p,k)=>`<option value="${k+1}">${k+1} · ${esc(p)}</option>`).join('')}</select>`}
+      </div>`;
+    }).join('')
     :'<p style="color:var(--mut)">No hay altas en ese rango de fechas.</p>';
 }
 function naSel(){return (window._NA||[]).filter((w,i)=>$('na-'+i)&&$('na-'+i).checked);}
 async function exportAltasNOIExcel(){
-  const sel=naSel();
-  if(!sel.length){toast('No hay trabajadores seleccionados.','err');return;}
-  const wb=XLSX.utils.book_new();
-  const rowsT=[NOI_HDR];
-  sel.forEach(w=>{const r=new Array(58).fill('');
-    r[0]=Number(w.no_trab)||'';r[1]=w.primer_apellido||'';r[2]=w.segundo_apellido||'';r[3]=w.nombres||'';
-    r[4]=Number(w.sd)||0;r[5]=String(w.genero||'').toUpperCase().startsWith('F')?'F':'M';
-    r[6]=xlDate(w.fecha_nacimiento);r[7]=xlDate(w.fecha_alta);r[8]=String(w.nss||'');r[9]=edoCurp(w.curp);
-    r[10]=w.curp||'';r[11]=w.rfc||'';r[12]=w.direccion||'';r[15]=w.cp||'';r[16]=w.cp||'';
-    r[18]=w.telefono||'';r[20]=w.correo||'';r[24]=w.estado_civil||'';
-    r[33]='C';r[38]=rpDe(w);r[41]=w.puesto||'';r[44]='México';r[46]='F';
-    r[47]='02';r[48]='01';r[49]='HID';r[51]='02';r[54]=4;r[56]=Number(w.sdi)||0;
-    rowsT.push(r);});
-  const wsT=XLSX.utils.aoa_to_sheet(rowsT);
-  wsT['!cols']=NOI_HDR.map(h=>({wch:Math.max(10,String(h).length+2)}));
-  sel.forEach((w,i)=>{
-    ['G','H'].forEach(col=>{const c=wsT[col+(i+2)];if(c&&c.v!==''){c.t='n';c.z='dd/mm/yyyy';}});
-    const nssC=wsT['I'+(i+2)];if(nssC)nssC.t='s';});
-  XLSX.utils.book_append_sheet(wb,wsT,'Trabajadores');
-  const rowsS=[['REG. PATRONAL','NSS','RFC','CURP','APELLIDO PATERNO','','APELLIDO MATERNO','','NOMBRE','TIPO TRABAJADOR','FECHA ALTA','','','SALARIO',''],[],[],[]];
-  sel.forEach(w=>rowsS.push([rpDe(w),String(w.nss||''),w.rfc||'',w.curp||'',w.primer_apellido||'','$',w.segundo_apellido||'','$',w.nombres||'',30,fechaDDMMAAAA(w.fecha_alta),0,0,Math.round((Number(w.sdi)||0)*100),'']));
-  const wsS=XLSX.utils.aoa_to_sheet(rowsS);
-  sel.forEach((w,i)=>{const r=i+5; // datos desde la fila 5, como el archivo de la contadora
-    if(wsS['B'+r])wsS['B'+r].t='s';
-    if(wsS['K'+r])wsS['K'+r].t='s'; // fecha como TEXTO para conservar el cero inicial (06072026)
-    wsS['O'+r]={t:'s',v:suaConcat(w),f:`A${r}&B${r}&C${r}&D${r}&E${r}&F${r}&G${r}&H${r}&I${r}&J${r}&K${r}&L${r}&M${r}&N${r}`};});
-  wsS['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:3+sel.length,c:14}});
-  wsS['!cols']=[13,13,15,20,16,3,16,3,20,8,10,4,4,9,60].map(w=>({wch:w}));
-  XLSX.utils.book_append_sheet(wb,wsS,'SUA');
-  await dl(wb,`ALTAS_CONTADORA_NOI_SUA_${$('na-d1').value}_a_${$('na-d2').value}.xlsx`);
-  toast(`Excel generado con ${sel.length} alta(s): hoja Trabajadores (NOI) + hoja SUA con concatenación.`,'ok');
+  const sel=noiPrepararAltas(true);if(!sel)return;
+  noiEstadoExportacion(true);
+  try{
+    await dl(noiLibroAltas(sel),`ALTAS_CONTADORA_NOI_${$('na-d1').value}_a_${$('na-d2').value}.xlsx`);
+    toast(`Excel generado con ${sel.length} alta(s), hoja Trabajadores NUEVOS y claves de puesto NOI.`,'ok');
+  }catch(e){toast('No se pudo generar el Excel de altas: '+e.message,'err');}
+  finally{noiEstadoExportacion(false);}
 }
 function exportAltasSUATxt(){
-  const sel=naSel();
-  if(!sel.length){toast('No hay trabajadores seleccionados.','err');return;}
-  const faltan=sel.filter(w=>!w.nss||!w.rfc||!w.curp||!(Number(w.sdi)>0));
-  if(faltan.length&&!confirm(`⚠ ${faltan.length} trabajador(es) sin NSS/RFC/CURP/SDI completo — sus líneas saldrían incompletas.\n\n¿Generar de todos modos?`))return;
-  dlText(sel.map(suaConcat).join('\r\n')+'\r\n',`ALTAS_SUA_${$('na-d1').value}_a_${$('na-d2').value}.txt`);
-  toast(`TXT generado con ${sel.length} línea(s) de concatenación SUA.`,'ok');
+  const sel=noiPrepararAltas(false);if(!sel)return;
+  dlText(sel.map(noiLineaSUA).join('\r\n')+'\r\n',`ALTAS_SUA_${$('na-d1').value}_a_${$('na-d2').value}.txt`);
+  toast(`TXT generado con ${sel.length} línea(s) de altas SUA.`,'ok');
 }
 
 /* ---------- v11: PENDIENTE MANUAL (pausar sin dar de baja) ---------- */

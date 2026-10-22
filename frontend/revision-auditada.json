@@ -1,4 +1,9 @@
 {
+  "openExports": "Actualiza únicamente la descripción del layout: Excel de Trabajadores NUEVOS y TXT de altas SUA, sin agregar otras hojas.",
+  "openAltasNOI": "Conserva filtros y selección de altas; presenta el layout de una sola hoja y la equivalencia de puesto exclusivamente para la exportación.",
+  "naLista": "Mismos trabajadores y orden del filtro original; muestra claves NOI y selector para puestos no catalogados, sin modificar fichas.",
+  "exportAltasNOIExcel": "Genera solamente Trabajadores NUEVOS con 58 columnas y las claves confirmadas; valida datos y contexto, sin escribir personal ni motores.",
+  "exportAltasSUATxt": "Mantiene la concatenación de altas SUA y CRLF; impide archivos incompletos y selecciones de otro centro, sin agregar afiliaciones ni créditos.",
   "aplicarMarcaCorporativaXlsx": "Sólo en el formato de contratista completa el fondo verde del patrón dual amarillo/verde omitido por xlsx-js-style 1.2.0; marca corporativa, importes y demás exportaciones intactos.",
   "proySelector": "Actualiza únicamente la explicación visual de los dos destinos; no cambia selección, permisos ni cálculos.",
   "buildProyDestinoWS": "Despacha al formato corporativo del contratista de diez columnas; conserva intacto el exportador compacto de dispersión y no modifica el modelo.",

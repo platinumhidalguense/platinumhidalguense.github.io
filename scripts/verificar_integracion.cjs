@@ -30,7 +30,7 @@ const actividadPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith(
 if(actividadPrivate)suites.push('test_actividad_pg');
 else console.log('ALCANCE PÚBLICO ACTIVIDAD: contratos de interfaz en VM; 27 comprobaciones PostgreSQL requieren la migración privada.');
 const netoPrivate=recibosPrivate&&revisionPrivate&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cheques_neto_fuentes_alternas.sql'));
-suites.push('test_cheques_fuentes_ui','test_proyeccion_destinos');
+suites.push('test_cheques_fuentes_ui','test_proyeccion_destinos','test_exportacion_altas_noi');
 if(netoPrivate)suites.push('test_cheques_fuentes_pg');
 else console.log('ALCANCE PÚBLICO RESPALDO: los contratos de interfaz se ejecutan; 37 pruebas PostgreSQL de fuentes alternas requieren las migraciones privadas.');
 for(const file of suites){

@@ -5,7 +5,7 @@ function openExports(){
     <div class="m-body">
       <div class="kv"><b>Registro patronal</b><span>${esc(OBRA.registro_patronal)||'— (agrégalo con el lápiz ✎ de la obra)'}</span></div>
       <div class="kv"><b>Registro SIROC</b><span>${esc(OBRA.registro_siroc)||'—'}</span></div>
-      <p style="color:var(--mut);font-size:12.5px;margin:14px 0">El archivo <b>exacto</b> que usa la contadora: hoja <b>Trabajadores</b> (importación Aspel NOI 11) y hoja <b>SUA</b> con la <b>fórmula de concatenación</b>, más el <b>TXT</b> de concatenación listo para el SUA. Verificar en el sistema antes de aplicar.</p>
+      <p style="color:var(--mut);font-size:12.5px;margin:14px 0">Excel con la hoja <b>Trabajadores NUEVOS</b> y sus claves de puesto para NOI, más el <b>TXT de altas SUA</b>. Conserva las columnas del formato de contabilidad. Verificar en el sistema antes de aplicar.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn dark" onclick="openAltasNOI()">⬇ Concatenar TXT y Excel (NOI + SUA)</button>
       </div>
