@@ -149,6 +149,16 @@ async function chqResolverNeto(c){
   if(!window.PLATINUM_FLOWS)return {error:'El flujo integrado no cargó. Recarga antes de expedir.'};
   return window.PLATINUM_FLOWS.resolverNeto(c);
 }
+function chqMostrarRespaldo(r){
+  const aviso=$('c-neto-fuente');if(!aviso)return;
+  aviso.textContent=`Importe verificado: $${money(r.neto)} · ${r.origen} · ${r.desde} al ${r.hasta}.`;
+  if(r.advertencias?.length){const nota=document.createElement('div');nota.textContent='Lectura adicional del PDF pendiente. El importe ya tiene respaldo en '+r.origen+'. '+r.advertencias.join(' ');aviso.appendChild(nota);}
+  if(r.expedicion&&!r.expedicion.requisitos_cierre_cumplidos){
+    const texto=document.createElement('div');texto.textContent='Expedición pendiente: '+r.expedicion.pendiente;aviso.appendChild(texto);
+    if(r.expedicion.cierre_id){const b=document.createElement('button');b.type='button';b.className='btn';b.textContent='Revisar cierre S'+r.semana;
+      b.onclick=()=>{if(confirm('Se abrirá el cierre sin guardar esta captura. Los números que acabas de escribir no se han registrado. ¿Continuar?'))window.PLATINUM_FLOWS.abrirCierre(r.expedicion.cierre_id);};aviso.appendChild(b);}
+  }
+}
 async function chqTraerRecibo(){
   const nom=($('c-nombre')?.value||'').trim().toUpperCase(),w=WORKERS.find(x=>fullName(x).toUpperCase()===nom);
   if(!w){toast('Elige primero un trabajador registrado.','err');return;}
@@ -157,7 +167,7 @@ async function chqTraerRecibo(){
   if(!aviso||aviso!==$('c-neto-fuente')||rec.obra_id!==OBRA?.id||rec.trabajador_id!==(WORKERS.find(x=>fullName(x).toUpperCase()===($('c-nombre')?.value||'').trim().toUpperCase())?.id)||rec.semana!==$('f-c-semana')?.value||rec.tipo_pago!==$('c-tipo')?.value)return;
   if(r.error){aviso.textContent=r.error;if(r.puede_leer_pdf&&window.PLATINUM_RECIBOS_IA){const b=document.createElement('button');b.type='button';b.className='btn';b.textContent='Leer recibos con Gemini';b.onclick=()=>window.PLATINUM_RECIBOS_IA.abrir(normSem(rec.semana));aviso.appendChild(b);}toast(r.error,'err');return;}
   if(input)input.value=r.neto.toFixed(2);
-  if(aviso)aviso.textContent=`Importe verificado: $${money(r.neto)} · ${r.origen} · ${r.desde} al ${r.hasta}${r.advertencias?.length?' · '+r.advertencias.join(' '):''}`;
+  chqMostrarRespaldo(r);
   toast(`Importe $${money(r.neto)} verificado contra ${r.origen}.`,'ok');
 }
 function renderCheques(){
@@ -263,6 +273,8 @@ async function saveCheque(id){
     const respaldo=await chqResolverNeto(captura);
     if(OBRA?.id!==contextoInicial.obra||$('c-save')!==contextoInicial.form||g('c-semana')!==captura.semana||$('c-tipo')?.value!==captura.tipo_pago||g('c-nombre')!==captura.nombre){toast('La captura cambió durante la verificación. Vuelve a verificar el cheque.','err');return;}
     if(respaldo.error){toast(respaldo.error,'err');return;}
+    chqMostrarRespaldo(respaldo);
+    if(['EXPEDIDO','ENTREGADO'].includes(estatus)&&respaldo.expedicion&&!respaldo.expedicion.requisitos_cierre_cumplidos){toast('Importe verificado. '+respaldo.expedicion.pendiente,'err');return;}
     neto=respaldo.neto;
     if($('f-c-importe'))$('f-c-importe').value=neto.toFixed(2);
   }

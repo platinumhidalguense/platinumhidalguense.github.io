@@ -10,6 +10,7 @@ supabase/migrations/*_pagos_pendientes_revision_sabado.sql
 supabase/migrations/*_pagos_conectores_y_aviso_programado.sql
 supabase/migrations/*_cheques_cancelacion_fisica_y_papelera.sql
 work/
+supabase/migrations/*_noi_identidad_y_estado_expedicion.sql
 tmp/
 docs/AUDITORIA_FINAL.md
 docs/auditoria-funciones.json

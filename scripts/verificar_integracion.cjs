@@ -31,10 +31,13 @@ if(actividadPrivate)suites.push('test_actividad_pg');
 else console.log('ALCANCE PÚBLICO ACTIVIDAD: contratos de interfaz en VM; 27 comprobaciones PostgreSQL requieren la migración privada.');
 const netoPrivate=recibosPrivate&&revisionPrivate&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cheques_neto_fuentes_alternas.sql'));
 suites.push('test_cheques_fuentes_ui','test_proyeccion_destinos','test_exportacion_altas_noi','test_imss_periodos_ui');
+suites.push('test_noi_identidad_ui','test_cheque_estado_cierre_ui');
+const identidadPrivate=netoPrivate&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_noi_identidad_y_estado_expedicion.sql'));
+if(identidadPrivate)suites.push('test_noi_identidad_pg');
 if(netoPrivate)suites.push('test_cheques_fuentes_pg');
 else console.log('ALCANCE PÚBLICO RESPALDO: los contratos de interfaz se ejecutan; 37 pruebas PostgreSQL de fuentes alternas requieren las migraciones privadas.');
 for(const file of suites){
  const r=spawnSync(process.execPath,['scripts/'+file+'.cjs'],{encoding:'utf8',maxBuffer:4e6});
  process.stdout.write(r.stdout||'');process.stderr.write(r.stderr||'');if(r.status!==0)process.exit(r.status||1);
 }
-console.log('PASS '+suites.length+' suites reproducibles; incluyen '+((privateMigration?95:68)+(rrhhPrivate?66:0)+(pagosPrivate?50:0)+(chequesPrivate?12:0)+(rendimientoPrivate?30:0)+(revisionPrivate?28:0)+(visorPrivate?49:0)+(recibosPrivate?32:0)+(actividadPrivate?27:0)+(netoPrivate?37:0))+' comprobaciones PostgreSQL, contratos de UI, paginación y conservación de motores. Sin aceptación visual de navegador.');
+console.log('PASS '+suites.length+' suites reproducibles; incluyen '+((privateMigration?95:68)+(rrhhPrivate?66:0)+(pagosPrivate?50:0)+(chequesPrivate?12:0)+(rendimientoPrivate?30:0)+(revisionPrivate?28:0)+(visorPrivate?49:0)+(recibosPrivate?32:0)+(actividadPrivate?27:0)+(netoPrivate?37:0)+(identidadPrivate?16:0))+' comprobaciones PostgreSQL, contratos de UI, paginación y conservación de motores. Sin aceptación visual de navegador.');

@@ -207,14 +207,48 @@ function ctrlDetectarLayoutNOI(matriz){
   return mejor;
 }
 function ctrlExtraerFilasNOI(matriz,layout,hoja){
-  const filas=[];
+  const filas=[],headers=(matriz[layout.fila]||[]).map(ctrlNormHdr);
+  const cols={rfc:headers.findIndex(h=>/^(RFC|RFCTRABAJADOR|RFCEMPLEADO)$/.test(h)),curp:headers.findIndex(h=>/^(CURP|CURPTRABAJADOR)$/.test(h)),nss:headers.findIndex(h=>/^(NSS|NUMEROSEGURIDADSOCIAL|NUMERODESEGURIDADSOCIAL|REGISTROIMSS)$/.test(h))};
   for(let f=layout.fila+1;f<matriz.length;f++){
     const r=matriz[f]||[],s=String(r[layout.no]??'').trim().replace(/\s/g,'');
     if(!/^\d+(?:\.0+)?$/.test(s))continue;
-    const no=Math.trunc(Number(s)),m=ctrlNumero(r[layout.neto]);if(!no||m==null)continue;
-    filas.push({no,m:redondearCentavos(m),nombre:layout.nombre>=0?String(r[layout.nombre]||'').trim():'',tipo:layout.tipo>=0&&/FINIQ/i.test(String(r[layout.tipo]))?'FINIQUITO':'NOMINA',hoja,fila:f+1});
+    const no=Math.trunc(Number(s)),m=ctrlNumero(r[layout.neto]);if(!no||r[layout.neto]==null||String(r[layout.neto]).trim()===''||m==null||!Number.isFinite(m))continue;
+    filas.push({no,m:redondearCentavos(m),nombre:layout.nombre>=0?String(r[layout.nombre]||'').trim():'',rfc:cols.rfc>=0?r[cols.rfc]:'',curp:cols.curp>=0?r[cols.curp]:'',nss:cols.nss>=0?r[cols.nss]:'',tipo:layout.tipo>=0&&/FINIQ/i.test(String(r[layout.tipo]))?'FINIQUITO':'NOMINA',hoja,fila:f+1});
   }
   return filas;
+}
+/* La clave NOI es una referencia del archivo, no una identidad. Se conserva
+   junto con el UUID y la clave de la fotografía, incluso si se renumera la ficha. */
+function ctrlIdentificadorNOI(tipo,valor){
+  let s=String(valor??'').trim().toUpperCase().replace(/[\s.\-]/g,'');
+  if(tipo==='nss'&&/^\d{10,11}$/.test(s))s=s.padStart(11,'0');
+  return (tipo==='rfc'?/^[A-ZÑ&]{4}\d{6}[A-Z0-9]{3}$/:tipo==='curp'?/^[A-ZÑ]{4}\d{6}[HM][A-ZÑ]{5}[A-Z0-9]\d$/:/^\d{11}$/).test(s)?s:'';
+}
+function ctrlNombreIdentidadNOI(v){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9 ]/g,' ').split(/\s+/).filter(Boolean).sort().join(' ');}
+function ctrlCruzarIdentidadNOI(leidas,items,workers,obraId){
+  const padron=workers.filter(w=>(!w.obra_id||w.obra_id===obraId)&&!w.eliminado).map(w=>({...w,nombre:w.nombre||[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolean).join(' ')}));
+  items.forEach(x=>{if(!padron.some(w=>w.id===x.trabajador_id))padron.push({id:x.trabajador_id,no_trab:x.numero,nombre:x.nombre});});
+  const claves=['rfc','curp','nss'],idx=Object.fromEntries(claves.map(k=>[k,new Map()])),nombres=new Map();
+  const add=(map,key,w)=>{if(key)map.set(key,[...(map.get(key)||[]),w]);};
+  padron.forEach(w=>{claves.forEach(k=>add(idx[k],ctrlIdentificadorNOI(k,w[k]),w));add(nombres,ctrlNombreIdentidadNOI(w.nombre),w);});
+  const seen=new Map(),out=[];
+  leidas.forEach(n=>{
+    const ids=Object.fromEntries(claves.map(k=>[k,ctrlIdentificadorNOI(k,n[k])])),nombre=ctrlNombreIdentidadNOI(n.nombre),hits=new Map();
+    claves.forEach(k=>{const a=ids[k]?idx[k].get(ids[k])||[]:[];if(a.length>1)throw Error(`Identidad ${k.toUpperCase()} duplicada en el padrón. Revisa la fila ${n.fila} de ${n.hoja}.`);a.forEach(w=>hits.set(w.id,w));});
+    if(hits.size>1)throw Error(`Los identificadores de la fila ${n.fila} corresponden a personas distintas. No se importó NOI.`);
+    let w=[...hits.values()][0],metodo=w?'IDENTIFICADORES':'NOMBRE_UNICO';
+    if(!w&&nombre){const a=nombres.get(nombre)||[];if(a.length>1)throw Error(`Nombre ambiguo en la fila ${n.fila}. Se requiere RFC, CURP o NSS.`);w=a[0];}
+    if(!nombre&&!claves.some(k=>ids[k]))throw Error(`Fila ${n.fila}: se requiere nombre, RFC, CURP o NSS. El número de trabajador por sí solo no verifica identidad.`);
+    if(w){
+      if(claves.some(k=>ids[k]&&ctrlIdentificadorNOI(k,w[k])&&ids[k]!==ctrlIdentificadorNOI(k,w[k])))throw Error(`Identificadores contradictorios en la fila ${n.fila}. Revisa la persona antes de conciliar.`);
+      if(nombre&&ctrlNombreIdentidadNOI(w.nombre)&&nombre!==ctrlNombreIdentidadNOI(w.nombre))throw Error(`El nombre y la identidad no concuerdan en la fila ${n.fila}. Revisa el reporte y la ficha.`);
+    }
+    const identidad={version:1,metodo:w?metodo:'SIN_IDENTIFICAR',...ids,nombre:n.nombre,numero_noi:n.no,numero_plataforma:w?.no_trab??null,hoja:n.hoja,fila:n.fila};
+    const key=w?'UUID:'+w.id:'FUENTE:'+JSON.stringify([ids,nombre,n.no]),prev=seen.get(key);
+    if(prev){if(prev.n.m!==n.m||prev.n.no!==n.no||prev.n.tipo!==n.tipo||JSON.stringify(prev.ids)!==JSON.stringify(ids)||prev.nombre!==nombre)throw Error(`El reporte repite una identidad con datos distintos en la fila ${n.fila}.`);return;}
+    seen.set(key,{n,ids,nombre});out.push({n,w,identidad});
+  });
+  return out;
 }
 function ctrlTextoLayoutNOI(hojas){
   const lineas=[];
@@ -245,7 +279,7 @@ function ctrlRenderConciliacion(rows,editable=false){
   if(!rows.length)return '<div class="empty"><div class="big">⚖️</div>Aún no se importa el reporte final de NOI.</div>';
   const dif=rows.filter(x=>x.estatus!=='COINCIDE');
   return `<div class="stats"><div class="stat g"><div class="n">${rows.length-dif.length}</div><div class="l">Coinciden</div></div><div class="stat r"><div class="n">${dif.length}</div><div class="l">Diferencias / faltantes</div></div></div>
-    ${ctrlTabla(['No.','Trabajador','Tipo','Método de pago','PLATINUM','NOI','Diferencia','Estado'],rows.map((x,i)=>`<tr><td>${x.trabajador_numero??'—'}</td><td>${esc(x.trabajador_nombre)}</td><td>${x.tipo_calculo}</td>
+    ${ctrlTabla(['No.','Trabajador','Tipo','Método de pago','PLATINUM','NOI','Diferencia','Estado'],rows.map((x,i)=>`<tr><td>${x.trabajador_numero??'—'}${x.detalle?.identidad_noi&&Number(x.detalle.identidad_noi.numero_noi)!==Number(x.trabajador_numero)?'<br><small>NOI #'+esc(x.detalle.identidad_noi.numero_noi)+'</small>':''}</td><td>${esc(x.trabajador_nombre)}</td><td>${x.tipo_calculo}</td>
       <td>${editable?(x.tipo_calculo==='FINIQUITO'?ctrlEstado(x.metodo_pago||'CHEQUE'):'PAGO PENDIENTE · sin cheque automático'):`${ctrlEstado(x.metodo_pago||'TRANSFERENCIA')}${x.cheque_id?' <span title="Cheque vinculado">🧾</span>':x.pago_id?' <span title="Transferencia vinculada">💸</span>':''}`}</td>
       <td>${x.monto_platinum==null?'—':'$'+money(x.monto_platinum)}</td><td>${x.monto_noi==null?'—':'$'+money(x.monto_noi)}</td><td style="color:${Number(x.diferencia)?'var(--red)':'var(--green)'}"><b>$${money(x.diferencia)}</b></td><td>${ctrlEstado(x.estatus)}</td></tr>`))}`;
 }
@@ -255,6 +289,8 @@ function ctrlMetodoNOI(i,metodo){
 }
 async function ctrlLeerArchivoNOI(inp){
   const file=inp.files&&inp.files[0];if(!file)return;
+  const contexto={obra:OBRA.id,cierre:window._CTRL_CIERRE,preview:$('noi-preview')};
+  window._CTRLNOI=null;
   try{
     const buf=await file.arrayBuffer(),wb=XLSX.read(buf,{type:'array'});
     const hojas=wb.SheetNames.map(nombre=>({nombre,matriz:XLSX.utils.sheet_to_json(wb.Sheets[nombre],{header:1,defval:'',raw:true,blankrows:true})}));
@@ -263,18 +299,20 @@ async function ctrlLeerArchivoNOI(inp){
     let leidas=detectadas.flatMap(x=>ctrlExtraerFilasNOI(x.hoja.matriz,x.layout,x.hoja.nombre));
     if(!detectadas.length||!leidas.length){detectadas=[await ctrlLayoutNOIConIA(hojas)];porIA=true;leidas=detectadas.flatMap(x=>ctrlExtraerFilasNOI(x.hoja.matriz,x.layout,x.hoja.nombre));}
     if(!leidas.length)throw new Error('Se localizaron encabezados, pero no se encontraron trabajadores con un neto válido.');
-    const noi=new Map(),conflictos=[];
-    leidas.forEach(r=>{const anterior=noi.get(r.no);if(!anterior)noi.set(r.no,r);else if(anterior.m!==r.m)conflictos.push(`#${r.no} (${anterior.m} y ${r.m})`);});
-    if(conflictos.length)throw new Error('El reporte repite trabajadores con netos distintos: '+conflictos.slice(0,8).join(', ')+'. Revisa el archivo antes de importarlo.');
+    if(OBRA.id!==contexto.obra||window._CTRL_CIERRE!==contexto.cierre||$('noi-preview')!==contexto.preview||inp.files[0]!==file)throw Error('Cambió el centro, el cierre o el archivo durante la lectura. Vuelve a seleccionar el archivo.');
     const exp=(window._CTRL_CIERRE.snapshot&&window._CTRL_CIERRE.snapshot.items)||[],out=[],usados=new Set();
-    exp.forEach(x=>{const n=noi.get(Number(x.numero)),w=WORKERS.find(z=>z.id===x.trabajador_id);if(n)usados.add(Number(x.numero));out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:x.trabajador_id,
+    const cruces=ctrlCruzarIdentidadNOI(leidas,exp,WORKERS,OBRA.id),noi=new Map(cruces.filter(x=>x.w).map(x=>[x.w.id,x]));
+    if(exp.some(x=>noi.has(x.trabajador_id)&&exp.filter(z=>z.trabajador_id===x.trabajador_id).length>1))throw Error('Una persona tiene varios conceptos en la fotografía. Se requiere un desglose NOI por concepto; no se reutilizará el mismo neto.');
+    exp.forEach(x=>{const cruce=noi.get(x.trabajador_id),n=cruce?.n,w=WORKERS.find(z=>z.id===x.trabajador_id);if(n)usados.add(cruce);out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:x.trabajador_id,
       trabajador_numero:x.numero,trabajador_nombre:x.nombre,tipo_calculo:x.tipo||'NOMINA',metodo_pago:x.tipo==='FINIQUITO'?(finTransDe(w,window._CTRL_CIERRE.semana)?'TRANSFERENCIA':'CHEQUE'):'TRANSFERENCIA',monto_platinum:redondearCentavos(Number(x.monto)-(x.tipo==='FINIQUITO'?0:Math.min(Number(x.prevision_social)||0,Number(x.monto)))),monto_noi:n?n.m:null,
-      detalle:{sueldo_nomina:x.sueldo_nomina||0,prevision_social:x.prevision_social||0,retenciones:x.retenciones||0,archivo:file.name,hojas:detectadas.map(d=>d.hoja.nombre),lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
-    noi.forEach((n,no)=>{if(!usados.has(no))out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:null,trabajador_numero:no,trabajador_nombre:String(n.nombre||'NO EN SNAPSHOT'),
-      tipo_calculo:n.tipo,metodo_pago:n.tipo==='FINIQUITO'?'CHEQUE':'TRANSFERENCIA',monto_platinum:null,monto_noi:n.m,detalle:{archivo:file.name,hoja:n.hoja,fila:n.fila,lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
-    window._CTRLNOI={rows:out,file,hash:await ctrlSha(buf),lector:porIA?'IA_LAYOUT':'AUTOMATICO',registrosNOI:noi.size};
+      detalle:{sueldo_nomina:x.sueldo_nomina||0,prevision_social:x.prevision_social||0,retenciones:x.retenciones||0,identidad_noi:cruce?.identidad||null,archivo:file.name,hojas:detectadas.map(d=>d.hoja.nombre),lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
+    cruces.forEach(cruce=>{const n=cruce.n;if(!usados.has(cruce))out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:null,trabajador_numero:n.no,trabajador_nombre:String(n.nombre||'NO EN SNAPSHOT'),
+      tipo_calculo:n.tipo,metodo_pago:n.tipo==='FINIQUITO'?'CHEQUE':'TRANSFERENCIA',monto_platinum:null,monto_noi:n.m,detalle:{identidad_noi:cruce.identidad,archivo:file.name,hoja:n.hoja,fila:n.fila,lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
+    const hash=await ctrlSha(buf);
+    if(OBRA.id!==contexto.obra||window._CTRL_CIERRE!==contexto.cierre||$('noi-preview')!==contexto.preview||inp.files[0]!==file)throw Error('Cambió el centro, el cierre o el archivo durante la lectura. Vuelve a seleccionar el archivo.');
+    window._CTRLNOI={rows:out,file,hash,lector:porIA?'IA_LAYOUT':'AUTOMATICO',registrosNOI:cruces.length};
     const prev=out.map((x,i)=>({...x,_i:i,diferencia:redondearCentavos((x.monto_platinum||0)-(x.monto_noi||0)),estatus:x.monto_platinum==null?'SIN_PLATINUM':x.monto_noi==null?'SIN_NOI':redondearCentavos(x.monto_platinum-x.monto_noi)===0?'COINCIDE':'DIFERENCIA'}));
-    const resumen=`<div style="background:var(--blue-bg);border:1px solid var(--border);border-radius:9px;padding:9px 12px;margin-bottom:10px;font-size:12px"><b>Lectura validada:</b> ${noi.size} trabajador(es) · ${detectadas.map(d=>`${esc(d.hoja.nombre)}, encabezados fila ${d.layout.fila+1}`).join(' · ')}</div>`;
+    const resumen=`<div style="background:var(--blue-bg);border:1px solid var(--border);border-radius:9px;padding:9px 12px;margin-bottom:10px;font-size:12px"><b>Lectura por identidad:</b> ${cruces.length} trabajador(es) · ${detectadas.map(d=>`${esc(d.hoja.nombre)}, encabezados fila ${d.layout.fila+1}`).join(' · ')}. Se conservan las claves de NOI y de la fotografía.</div>`;
     $('noi-preview').innerHTML=(porIA?IA_BANNER:'')+resumen+`<div style="margin-bottom:8px"><button class="btn dark" id="noi-save" onclick="ctrlGuardarNOI()">💾 Guardar conciliación</button> <b>${esc(file.name)}</b><div class="fhint">Nómina normal: pago pendiente, sin cheque automático. Desde el sábado 12:00 revisa y confirma candidatos. Finiquitos: cheque por defecto, salvo transferencia previamente autorizada.</div></div>`+ctrlRenderConciliacion(prev,true);
   }catch(e){toast('No se pudo leer NOI: '+e.message,'err');}
 }
