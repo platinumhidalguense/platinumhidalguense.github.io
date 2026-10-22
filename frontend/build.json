@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-22.3",
-  "entry": "assets/platinum-app.4b3b067049ad87f8.js",
-  "sha256": "4b3b067049ad87f8ee8f80a5e098c38c53f7bd702cc415114a9f082ced61cb28",
-  "integrity": "sha384-05fiiMI47JVedusSRf03ZPaIyu/m9WjgltOB8riWrlgeBEZWiuADj44vXhcZVEdn",
+  "version": "2026-10-22.4",
+  "entry": "assets/platinum-app.b5768cf681435f6d.js",
+  "sha256": "b5768cf681435f6dc55a49b1444bfd0055d6f387eafb76bca4391af76d139392",
+  "integrity": "sha384-bvC/Xu3P3AJ1rldihb0irGanGSYuwVHLfnqfQ2l5dyIPvwgZJVoum0pOvmn+d2kX",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "5ebd22ac9951cef30aead82bc6469b04ce7961eb093cb171da6036c42f3ff9c5"
+      "sha256": "6146f5d52c0c5593a4fd45175bd915459a0b53f16b426614c7f80cd3d7d241e4"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -46,7 +46,7 @@
     },
     {
       "path": "frontend/modulos/10-proyeccion-nomina.js",
-      "sha256": "e977eace9d031004c81b6487031dc758b7af5afdcc933f284a56022f8b984593"
+      "sha256": "1fe01daa6011fbbda156eaa636e2d77e568bf5c37671cf705b5d306b5c991efa"
     },
     {
       "path": "frontend/modulos/11-expedientes-excel.js",

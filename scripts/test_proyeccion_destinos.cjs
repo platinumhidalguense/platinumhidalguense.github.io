@@ -44,7 +44,9 @@ const cost=box.proyLibro(model,'CONTRATISTA',meta),disp=box.proyLibro(model,'DIS
 assert.equal(cost.SheetNames.length,2);assert.equal(disp.SheetNames.length,2);
 const cws=cost.Sheets[cost.SheetNames[0]],dws=disp.Sheets[disp.SheetNames[0]];
 const dnet=dws._rows[2].indexOf('NETO A PAGAR');
-assert.equal(dnet,6);assert.equal(dws._rows[2].length,9);
+assert.equal(dnet,8);assert.equal(dws._rows[2].length,10);
+assert.deepEqual(Array.from(dws._rows[2]).slice(6,9),['SUELDO REGISTRADO / FINIQUITO','PREVISIÓN SOCIAL','NETO A PAGAR']);
+assert.deepEqual(Array.from(dws._rows.find(r=>r[0]===1)).slice(6,9),[2000,200,1300]);
 assert.equal(dws._rows.find(r=>r[0]===1)[dnet],1300);
 assert.equal(dws._rows.find(r=>r[0]==='TOTAL · 3 TRABAJADORES')[dnet],3950);
 // Contratista: formato aprobado, sin deducir créditos ni previsión del costo.
@@ -86,9 +88,9 @@ for(const prevision of [0,200])for(const otras of [0,25]){
   neto:pad(Math.max(0,x.sueldo+(x.fin?0:prevision)-x.incidencias-x.creditos-(x.fin?0:otras)))}));
  const modelo={...model,filas,neto:pad(filas.reduce((s,x)=>s+x.neto,0))};
  const ws=box.buildProyDestinoWS({...meta,modelo,destino:'DISPERSION'}),heads=ws._rows[2];
- assert.equal(heads.length,prevision?9:8);assert.equal(heads.includes('PREVISIÓN SOCIAL'),prevision!==0);assert(!heads.includes('OTRAS RETENCIONES'));
+ assert.equal(heads.length,prevision?10:9);assert.equal(heads.includes('PREVISIÓN SOCIAL'),prevision!==0);assert(!heads.includes('OTRAS RETENCIONES'));
  for(const x of filas){const row=ws._rows.find(r=>r[0]===x.w.no_trab),r=ws._rows.indexOf(row)+1;
-  for(const [label,esperado] of [['NETO A PAGAR',x.neto]]){
+  for(const [label,esperado] of [['SUELDO REGISTRADO / FINIQUITO',x.sueldo],['NETO A PAGAR',x.neto]]){
    const c=heads.indexOf(label),celda=String.fromCharCode(65+c)+r;
    assert.equal(row[c],esperado);assert.equal(ws[celda].t,'n');assert.equal(ws[celda].f,undefined);
   }
@@ -131,7 +133,7 @@ for(const destino of ['CONTRATISTA','DISPERSION']){
  assert.deepEqual(Array.from(ws._rows.filter(r=>typeof r[0]==='number'),r=>r[0]),[1,3]);
  assert(!ws._rows.some(r=>String(r[0]).startsWith('NÓMINA SIN CUENTA')));
 }
-assert.equal(dws._rows.find(r=>String(r[0]).startsWith('TOTAL ·'))[6],3950);
+assert.equal(dws._rows.find(r=>String(r[0]).startsWith('TOTAL ·'))[dnet],3950);
 assert.equal(disp.Sheets.RETENCIONES._rows.length,cost.Sheets.RETENCIONES._rows.length);
 assert.equal(cost.Sheets.RETENCIONES._rows.find(r=>r[0]===3)[6],50);
 assert.throws(()=>box.proyModelo(workers.slice(0,2),[workers[2]],'S28',[]),/Falta el desglose INFONAVIT/);
@@ -183,7 +185,7 @@ for(const destino of ['CONTRATISTA','DISPERSION'])for(const colB of ['OBRA','CON
  for(const f of model.filas){const r=rowOf(ws,f.w.no_trab);assert.equal(ws[letter+r].v,f.prevision);assert.equal(ws[letter+r].t,'n');assert.equal(ws[letter+r].f,undefined);}
  const total=ws._rows.findIndex(r=>String(r[0]).startsWith('TOTAL ·'))+1;
  assert.equal(ws[letter+total].v,200);assert.equal(ws[letter+total].t,'n');assert(ws[letter+total].f.startsWith('SUM('));
- assert.equal(ws['G'+total].v,destino==='CONTRATISTA'?4600:3950,'No añade la previsión otra vez al total');
+ assert.equal(ws[(destino==='CONTRATISTA'?'G':'I')+total].v,destino==='CONTRATISTA'?4600:3950,'No añade la previsión otra vez al total');
  const width=ws._rows[2].length;assert.equal(ws['!cols'].length,width);
  const title=ws['!merges'].find(m=>m.s.r===0);assert.equal(title.e.c,width-2);assert.equal(ws[String.fromCharCode(64+width)+'1'].v,'','Logo fuera del título');
  assert.equal(JSON.stringify(model),copy,'Adaptador de presentación sin mutación del modelo');
@@ -192,6 +194,12 @@ for(const destino of ['CONTRATISTA','DISPERSION'])for(const colB of ['OBRA','CON
  const missing={...model,filas:model.filas.map(({prevision,...x})=>x)};assert(!box.buildProyDestinoWS({...meta,modelo:missing,destino})._rows[2].includes('PREVISIÓN SOCIAL'));
  assert.throws(()=>box.buildProyDestinoWS({...meta,modelo:{...model,filas:[{...model.filas[0],prevision:NaN}]},destino}),/Previsión social inválida/);
  if(destino==='DISPERSION'){
+  assert.equal(ws['G'+total].v,5000,'Sueldo completo anterior a incidencias y créditos; finiquito completo');
+  assert.equal(ws['G'+total].f,'SUM(G5:G5,G8:G8,G11:G11)');
+  assert.equal(ws['I'+total].f,'SUM(I5:I5,I8:I8,I11:I11)');
+  for(const f of model.filas){const r=rowOf(ws,f.w.no_trab);assert.equal(ws['G'+r].v,f.sueldo);assert.equal(ws['G'+r].t,'n');}
+  assert.equal(no._rows[2].indexOf('NETO A PAGAR'),7,'Sin previsión el neto se desplaza a H');
+  assert.throws(()=>box.buildProyDestinoWS({...meta,modelo:{...model,filas:[{...model.filas[0],sueldo:undefined}]},destino}),/Sueldo registrado o neto inválido/);
   assert.equal(ws._rows.find(r=>r[0]==='SUBTOTAL NÓMINA POR TRANSFERENCIA')[p],200);
   assert.equal(ws._rows.find(r=>r[0]==='SUBTOTAL FINIQUITOS POR CHEQUE')[p],0);
   assert.equal(ws._rows.find(r=>r[0]==='SUBTOTAL NÓMINA SIN CUENTA · POR DEFINIR')[p],0);
@@ -253,16 +261,17 @@ console.log('OK previsión social condicional en ambas proyecciones, numérica y
    const wb=box.proyLibro(fuente,'DISPERSION',{...meta,titulo:main.rows[0][0].replace(' · PARA DISPERSIÓN',''),sub:main.rows[1][0],pie:main.rows.at(-1)[0]});
    const ws=wb.Sheets[wb.SheetNames[0]],data=box.XLSX.utils.sheet_to_json(ws,{header:1}).filter(r=>typeof r[0]==='number');
    assert.equal(data.length,426);assert.equal(new Set(data.map(r=>r[0])).size,426);
-   for(const {r} of people){const out=data.find(o=>o[0]===r[0]);assert(out);assert.equal(out[6],r[6]);assert.equal(out[2],r[2]);}
+   const netIndex=box.XLSX.utils.sheet_to_json(ws,{header:1})[2].indexOf('NETO A PAGAR');
+   for(const {r} of people){const out=data.find(o=>o[0]===r[0]);assert(out);assert.equal(out[netIndex],r[6]);assert.equal(out[2],r[2]);}
    const expectedYellow=people.filter(x=>main.yellow.includes(x.i)).map(x=>x.r[0]);
    for(const r of expectedYellow)assert.equal(box.proyTransferenciaOtroBanco(byNo.get(r).w),true);
    const yellowNos=[];for(const [addr,cell] of Object.entries(ws)){if(/^A\d+$/.test(addr)&&cell.t==='n'&&cell.s?.fill?.fgColor?.rgb==='FFFF00')yellowNos.push(cell.v);}
    const eligible=filas.filter(x=>x.pago==='TRANSFERENCIA'&&box.proyTransferenciaOtroBanco(x.w)).map(x=>x.w.no_trab);
    assert.deepEqual(yellowNos.sort((a,b)=>a-b),eligible.sort((a,b)=>a-b));
    assert(expectedYellow.every(no=>yellowNos.includes(no)));
-   assert.equal(data.find(r=>r[0]===646)[7],'POR DEFINIR');assert.equal(data.find(r=>r[0]===652)[7],'POR DEFINIR');
-   assert.equal(data.find(r=>r[0]===485)[7],'TRANSFERENCIA');assert.equal(data.find(r=>r[0]===557)[7],'TRANSFERENCIA');
-   assert.equal(pad(data.reduce((s,r)=>s+r[6],0)),fuente.neto);
+   assert.equal(data.find(r=>r[0]===646).at(-1),'POR DEFINIR');assert.equal(data.find(r=>r[0]===652).at(-1),'POR DEFINIR');
+   assert.equal(data.find(r=>r[0]===485).at(-1),'TRANSFERENCIA');assert.equal(data.find(r=>r[0]===557).at(-1),'TRANSFERENCIA');
+   assert.equal(pad(data.reduce((s,r)=>s+r[netIndex],0)),fuente.neto);
    assert.equal(wb.Sheets.RETENCIONES['G'+(3+items.length)].v,pad(items.reduce((s,x)=>s+x.monto,0)));
    for(const w of [{banco:' bbva méxico '},{banco:'BANCOMER'},{banco:'',clabe:'012180015542699801'},{banco:'—'}])assert.equal(box.proyTransferenciaOtroBanco(w),false);
    for(const w of [{banco:'BANCO AZTECA'},{banco:'MERCADO PAGO'},{banco:'',clabe:'137560100628897351'},{banco:'BBVA',clabe:'137560100628897351'}])assert.equal(box.proyTransferenciaOtroBanco(w),true);

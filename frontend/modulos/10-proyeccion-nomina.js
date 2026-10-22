@@ -214,10 +214,10 @@ function proyTransferenciaOtroBanco(w){
 }
 /* Adaptador de presentación: revela el diferencial de la MISMA fotografía.
    No lo suma al costo del contratista ni de nuevo al neto de dispersión. */
-function proyColumnaPrevision(tabla,filas,totales){
+function proyColumnaPrevision(tabla,filas,totales,pos=tabla.rows[2].length-1){
   const importes=new Map(filas.map(({r,x})=>{const n=Number(x.prevision??0);if(!Number.isFinite(n))throw Error('Previsión social inválida. Revisa el diferencial antes de exportar.');return [r,n];}));
   if(![...importes.values()].some(n=>n!==0))return null;
-  const pos=tabla.rows[2].length-1,col=XLSX.utils.encode_col(pos),formulas=[];
+  const col=XLSX.utils.encode_col(pos),formulas=[];
   tabla.rows.forEach((row,i)=>{
     if(i===2)row.splice(pos,0,'PREVISIÓN SOCIAL');
     else if(row.length>pos)row.splice(pos,0,importes.get(i+1)??0);
@@ -235,17 +235,17 @@ function proyColumnaPrevision(tabla,filas,totales){
   return {col,formulas};
 }
 function buildProyDispersionWS({titulo,sub,pie,colB,modelo}){
-  const cols=['NO.',colB==='OBRA'?'OBRA':'CONTRATISTA','NOMBRE COMPLETO','CLABE','CUENTA','BANCO','NETO A PAGAR','FORMA DE PAGO'];
+  const cols=['NO.',colB==='OBRA'?'OBRA':'CONTRATISTA','NOMBRE COMPLETO','CLABE','CUENTA','BANCO','SUELDO REGISTRADO / FINIQUITO','NETO A PAGAR','FORMA DE PAGO'];
   const rows=[[titulo],[sub],cols],styles=[{...ST.title,font:{...ST.title.font,sz:12},alignment:{...ST.title.alignment,wrapText:true}},ST.sub,ST.head];
   const hs=[{hpt:42},{hpt:24},{hpt:44}],merges=[],dataRows=[],fx=[],previsionFilas=[],previsionTotales=[];
   const bVal=w=>colB==='OBRA'?(OBRAS.find(o=>o.id===w.obra_id)?.nombre||''):w.contratista||'';
   const orden=(a,b)=>(colB==='OBRA'?String(bVal(a.w)).localeCompare(String(bVal(b.w)),'es'):0)
     ||(Number(a.w.no_trab)||0)-(Number(b.w.no_trab)||0);
-  const suma=rs=>{
+  const suma=(rs,col)=>{
     if(!rs.length)return '0';
     const bloques=[];let a=rs[0],b=a;
-    for(const r of rs.slice(1)){if(r===b+1)b=r;else{bloques.push(`G${a}:G${b}`);a=b=r;}}
-    bloques.push(`G${a}:G${b}`);return `SUM(${bloques.join(',')})`;
+    for(const r of rs.slice(1)){if(r===b+1)b=r;else{bloques.push(`${col}${a}:${col}${b}`);a=b=r;}}
+    bloques.push(`${col}${a}:${col}${b}`);return `SUM(${bloques.join(',')})`;
   };
   const secciones=[
     ['NÓMINA POR TRANSFERENCIA',x=>!x.fin&&!x.sinCuenta&&x.pago==='TRANSFERENCIA'],
@@ -256,44 +256,45 @@ function buildProyDispersionWS({titulo,sub,pie,colB,modelo}){
   ];
   for(const [nombre,elegir] of secciones){
     const grupo=modelo.filas.filter(elegir).sort(orden);if(!grupo.length)continue;
-    merges.push({s:{r:rows.length,c:0},e:{r:rows.length,c:7}});
+    merges.push({s:{r:rows.length,c:0},e:{r:rows.length,c:8}});
     rows.push([`${nombre} · ${grupo.length} trabajadores`]);
     styles.push({...ST.sect,font:{...ST.sect.font,color:{rgb:'000000'}},
       fill:{patternType:'solid',fgColor:{rgb:nombre==='NÓMINA POR TRANSFERENCIA'?'D8E4BC':'FFF3D6'}}});hs.push({hpt:22});
     const rs=[];
     for(const x of grupo){
-      if(!Number.isFinite(x.neto))throw Error(`Neto inválido para el trabajador #${x.w.no_trab}. Revisa su cálculo antes de exportar.`);
+      if(!Number.isFinite(x.neto)||!Number.isFinite(x.sueldo)||x.sueldo<0)throw Error(`Sueldo registrado o neto inválido para el trabajador #${x.w.no_trab}. Revisa su cálculo antes de exportar.`);
       const w=x.w,clabe=String(w.clabe||'').replace(/\D/g,''),cuenta=String(w.cuenta||'').trim();
       rows.push([w.no_trab??'',bVal(w),fullName(w),clabe.length>=10?'/'+clabe:'—',
-        cuenta.toUpperCase()!=='CREAR'&&cuenta.replace(/\D/g,'').length>=6?cuenta:'—',w.banco||'—',x.neto,x.pago]);
+        cuenta.toUpperCase()!=='CREAR'&&cuenta.replace(/\D/g,'').length>=6?cuenta:'—',w.banco||'—',x.sueldo,x.neto,x.pago]);
       dataRows.push(rows.length);rs.push(rows.length);previsionFilas.push({r:rows.length,x});
       const otroBanco=x.pago==='TRANSFERENCIA'&&proyTransferenciaOtroBanco(w);
       styles.push(cols.map((_,i)=>{
-        const st=i===6?(x.fin?ST.finMoney:ST.money):x.fin?ST.fin:i===0?ST.cellC:ST.cell;
-        return {...st,alignment:{...st.alignment,...(i===0?{horizontal:'center'}:i!==6?{wrapText:true}:{})},
+        const st=i===6||i===7?(x.fin?ST.finMoney:ST.money):x.fin?ST.fin:i===0?ST.cellC:ST.cell;
+        return {...st,alignment:{...st.alignment,...(i===0?{horizontal:'center'}:i<6||i===8?{wrapText:true}:{})},
           fill:otroBanco?{patternType:'solid',fgColor:{rgb:'FFFF00'}}:st.fill||{patternType:'solid',fgColor:{rgb:'FFFFFF'}}};
       }));hs.push({hpt:28});
     }
-    rows.push([`SUBTOTAL ${nombre}`,'','','','','',redondearCentavos(grupo.reduce((s,x)=>s+x.neto,0)),'']);
+    rows.push([`SUBTOTAL ${nombre}`,'','','','','',redondearCentavos(grupo.reduce((s,x)=>s+x.sueldo,0)),redondearCentavos(grupo.reduce((s,x)=>s+x.neto,0)),'']);
     previsionTotales.push({r:rows.length,datos:rs});
-    styles.push(cols.map((_,i)=>i===6?ST.totalMoney:ST.total));hs.push({hpt:28});
-    merges.push({s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:5}});fx.push(['G'+rows.length,suma(rs)]);
+    styles.push(cols.map((_,i)=>i===6||i===7?ST.totalMoney:ST.total));hs.push({hpt:28});
+    merges.push({s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:5}});fx.push(['G',rows.length,rs],['NETO',rows.length,rs]);
   }
   if(dataRows.length!==modelo.filas.length)throw Error('Hay trabajadores con método de pago sin clasificar. No se generó una dispersión incompleta.');
-  rows.push([`TOTAL · ${modelo.filas.length} TRABAJADORES`,'','','','','',modelo.neto,'']);
+  rows.push([`TOTAL · ${modelo.filas.length} TRABAJADORES`,'','','','','',redondearCentavos(modelo.filas.reduce((s,x)=>s+x.sueldo,0)),modelo.neto,'']);
   previsionTotales.push({r:rows.length,datos:dataRows});
-  styles.push(cols.map((_,i)=>i===6?ST.totalMoney:ST.total));hs.push({hpt:28});
-  merges.push({s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:5}});fx.push(['G'+rows.length,suma(dataRows)]);
+  styles.push(cols.map((_,i)=>i===6||i===7?ST.totalMoney:ST.total));hs.push({hpt:28});
+  merges.push({s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:5}});fx.push(['G',rows.length,dataRows],['NETO',rows.length,dataRows]);
   rows.push([pie]);styles.push(ST.sub);hs.push({hpt:22});
-  merges.push({s:{r:0,c:0},e:{r:0,c:6}},{s:{r:1,c:0},e:{r:1,c:7}},
-    {s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:7}});
-  const widths=[8,20,38,24,17,12,18,18],prevision=proyColumnaPrevision({rows,styles,widths,merges},previsionFilas,previsionTotales);
+  merges.push({s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:8}},
+    {s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:8}});
+  const widths=[8,20,38,24,17,12,22,18,18],prevision=proyColumnaPrevision({rows,styles,widths,merges},previsionFilas,previsionTotales,7);
   const ws=buildSheet(rows,styles,widths,merges,hs);
   ws[XLSX.utils.encode_col(widths.length-1)+'1']={t:'s',v:'',s:ST.title};
   for(const r of dataRows)for(const col of ['D','E']){
     const cell=ws[col+r];cell.t='s';cell.v=String(cell.v??'');cell.z='@';cell.s={...cell.s,numFmt:'@'};
   }
-  for(const [a,f] of fx){ws[a].t='n';ws[a].f=f;}
+  const netoCol=XLSX.utils.encode_col(cols.indexOf('NETO A PAGAR'));
+  for(const [tipo,r,datos] of fx){const col=tipo==='NETO'?netoCol:tipo;ws[col+r].t='n';ws[col+r].f=suma(datos,col);}
   for(const [a,f] of prevision?.formulas||[]){ws[a].t='n';ws[a].f=f;}
   return ws;
 }

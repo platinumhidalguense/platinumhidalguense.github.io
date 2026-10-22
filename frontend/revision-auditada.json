@@ -1,5 +1,5 @@
 {
-  "buildProyDispersionWS": "Añade previsión social informativa sólo cuando existe diferencial en la fotografía exportada; conserva neto, orden, retenciones, colores y fórmulas monetarias originales.",
+  "buildProyDispersionWS": "Presenta sueldo registrado, previsión social condicional y neto del mismo modelo, en ese orden; subtotales por columna sin recalcular ni duplicar deducciones, con orden, colores y retenciones conservados.",
   "buildProyContratistaWS": "Restaura la columna condicional de previsión social como dato separado, sin incorporarla al costo del contratista ni alterar los créditos o el motor.",
   "ctrlGuardarSemanaIMSS": "Recalcula el periodo completo al editar una incapacidad quincenal ya aplicada; bloquea calendarios incompletos y conserva la rama semanal.",
   "ctrlAplicarSemanaIMSS": "Exigir reapertura sólo para cierre autorizado/timbrado/pagado. Fórmula de incidencia intacta.",
