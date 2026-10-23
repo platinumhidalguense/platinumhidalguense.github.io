@@ -285,12 +285,43 @@ function ctrlRenderConciliacion(rows,editable=false){
   const dif=rows.filter(x=>x.estatus!=='COINCIDE');
   return `<div class="stats"><div class="stat g"><div class="n">${rows.length-dif.length}</div><div class="l">Coinciden</div></div><div class="stat r"><div class="n">${dif.length}</div><div class="l">Diferencias / faltantes</div></div></div>
     ${ctrlTabla(['No.','Trabajador','Tipo','Método de pago','PLATINUM','NOI','Diferencia','Estado'],rows.map((x,i)=>`<tr><td>${x.trabajador_numero??'—'}${x.detalle?.identidad_noi&&Number(x.detalle.identidad_noi.numero_noi)!==Number(x.trabajador_numero)?'<br><small>NOI #'+esc(x.detalle.identidad_noi.numero_noi)+'</small>':''}</td><td>${esc(x.trabajador_nombre)}</td><td>${x.tipo_calculo}</td>
-      <td>${editable?(x.tipo_calculo==='FINIQUITO'?ctrlEstado(x.metodo_pago||'CHEQUE'):'PAGO PENDIENTE · sin cheque automático'):`${ctrlEstado(x.metodo_pago||'TRANSFERENCIA')}${x.cheque_id?' <span title="Cheque vinculado">🧾</span>':x.pago_id?' <span title="Transferencia vinculada">💸</span>':''}`}</td>
+      <td>${x.detalle?.sin_servicio_confirmado&&x.monto_platinum===0&&x.monto_noi===0?'SIN SERVICIO CONFIRMADO · sin pago':x.tipo_calculo==='FINIQUITO'&&x.monto_platinum===0&&x.monto_noi===0?'FINIQUITO NETO $0 · sin cheque':editable?(x.tipo_calculo==='FINIQUITO'?ctrlEstado(x.metodo_pago||'CHEQUE'):'PAGO PENDIENTE · sin cheque automático'):`${ctrlEstado(x.metodo_pago||'TRANSFERENCIA')}${x.cheque_id?' <span title="Cheque vinculado">🧾</span>':x.pago_id?' <span title="Transferencia vinculada">💸</span>':''}`}</td>
       <td>${x.monto_platinum==null?'—':'$'+money(x.monto_platinum)}</td><td>${x.monto_noi==null?'—':'$'+money(x.monto_noi)}</td><td style="color:${Number(x.diferencia)?'var(--red)':'var(--green)'}"><b>$${money(x.diferencia)}</b></td><td>${ctrlEstado(x.estatus)}</td></tr>`))}`;
 }
 function ctrlMetodoNOI(i,metodo){
   const st=window._CTRLNOI,r=st&&st.rows&&st.rows[i];if(!r)return;
   if(r.tipo_calculo!=='FINIQUITO')r.metodo_pago='TRANSFERENCIA';
+}
+async function ctrlRespaldosCeroNOI(cruces,items,cierre){
+  const fuera=cruces.filter(x=>x.w&&x.n.m===0&&!items.some(i=>i.trabajador_id===x.w.id));
+  if(!fuera.length)return {sinServicio:new Map(),finiquitos:new Set()};
+  const {data,error}=await sb.rpc('control_noi_sin_servicio',{p_cierre:cierre.id});
+  if(error||!Array.isArray(data))throw Error('No se pudo verificar el respaldo de los ceros sin servicio. No se guardó NOI. '+(error?.message||'Respuesta inválida.'));
+  const sinServicio=new Map(data.map(x=>[x.trabajador_id,x]));
+  const personal=fuera.filter(x=>!sinServicio.has(x.w.id)).map(x=>x.w);
+  const historicos=await proyCargarHistoricos(personal);
+  const fins=proyFiniquitosSemana(personal,cierre.snapshot?.desde,cierre.snapshot?.hasta,historicos);
+  return {sinServicio,finiquitos:new Set(fins.filter(w=>w.monto_finiquito!=null&&Number(w.monto_finiquito)===0).map(w=>w.id))};
+}
+async function ctrlActualizarFotoNOI(){
+  const st=window._CTRLNOI,c=window._CTRL_CIERRE,obra=OBRA.id,flow=window.PLATINUM_FLOWS;
+  if(!st?.file||!st.finiquitosFuera?.length||!c||!flow||st.actualizando)return;
+  if(!['BORRADOR','REVISADO'].includes(c.estado)){toast('Solicita reapertura: la fotografía autorizada no se modifica.','err');return;}
+  if(!confirm('¿Preparar la fotografía actual del borrador y volver a comparar este archivo NOI? No se autoriza el cierre ni se alteran pagos.'))return;
+  st.actualizando=true;const btn=$('noi-foto');if(btn)btn.disabled=true;
+  try{
+    await flow.abrirCierre(c.id);
+    if(OBRA.id!==obra||window._CTRL_CIERRE!==c||window._CTRLNOI!==st)throw Error('Cambió el contexto; no se preparó este archivo.');
+    await flow.preparar(c.id);
+    if(OBRA.id!==obra||window._CTRL_CIERRE!==c||window._CTRLNOI!==st)throw Error('Cambió el contexto; vuelve a abrir la conciliación.');
+    const d=await flow.call('DETALLE',{cierre_id:c.id});
+    if(!st.finiquitosFuera.every(id=>(d.cierre?.snapshot?.items||[]).some(i=>i.trabajador_id===id&&i.tipo==='FINIQUITO'&&Number(i.monto)===0))){
+      toast('La fotografía no se ha aplicado. Revisa el flujo de preparación o la aprobación histórica; no se guardó NOI.','err');return;
+    }
+    await ctrlOpenConciliacion(c.id);
+    if(OBRA.id!==obra||window._CTRL_CIERRE?.id!==c.id)throw Error('Cambió el centro o el cierre.');
+    await ctrlLeerArchivoNOI({files:[st.file]});
+  }catch(e){toast(e.message,'err');}finally{st.actualizando=false;if($('noi-foto')===btn&&btn)btn.disabled=false;}
 }
 async function ctrlLeerArchivoNOI(inp){
   const file=inp.files&&inp.files[0];if(!file)return;
@@ -307,18 +338,23 @@ async function ctrlLeerArchivoNOI(inp){
     if(OBRA.id!==contexto.obra||window._CTRL_CIERRE!==contexto.cierre||$('noi-preview')!==contexto.preview||inp.files[0]!==file)throw Error('Cambió el centro, el cierre o el archivo durante la lectura. Vuelve a seleccionar el archivo.');
     const exp=(window._CTRL_CIERRE.snapshot&&window._CTRL_CIERRE.snapshot.items)||[],out=[],usados=new Set();
     const cruces=ctrlCruzarIdentidadNOI(leidas,exp,WORKERS,OBRA.id),noi=new Map(cruces.filter(x=>x.w).map(x=>[x.w.id,x]));
+    const ceros=cruces.some(x=>x.n.m===0)?await ctrlRespaldosCeroNOI(cruces,exp,contexto.cierre):{sinServicio:new Map(),finiquitos:new Set()};
     if(exp.some(x=>noi.has(x.trabajador_id)&&exp.filter(z=>z.trabajador_id===x.trabajador_id).length>1))throw Error('Una persona tiene varios conceptos en la fotografía. Se requiere un desglose NOI por concepto; no se reutilizará el mismo neto.');
     exp.forEach(x=>{const cruce=noi.get(x.trabajador_id),n=cruce?.n,w=WORKERS.find(z=>z.id===x.trabajador_id);if(n)usados.add(cruce);out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:x.trabajador_id,
       trabajador_numero:x.numero,trabajador_nombre:x.nombre,tipo_calculo:x.tipo||'NOMINA',metodo_pago:x.tipo==='FINIQUITO'?(finTransDe(w,window._CTRL_CIERRE.semana)?'TRANSFERENCIA':'CHEQUE'):'TRANSFERENCIA',monto_platinum:redondearCentavos(Number(x.monto)-(x.tipo==='FINIQUITO'?0:Math.min(Number(x.prevision_social)||0,Number(x.monto)))),monto_noi:n?n.m:null,
       detalle:{sueldo_nomina:x.sueldo_nomina||0,prevision_social:x.prevision_social||0,retenciones:x.retenciones||0,identidad_noi:cruce?.identidad||null,archivo:file.name,hojas:detectadas.map(d=>d.hoja.nombre),lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
-    cruces.forEach(cruce=>{const n=cruce.n;if(!usados.has(cruce))out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:null,trabajador_numero:n.no,trabajador_nombre:String(n.nombre||'NO EN SNAPSHOT'),
-      tipo_calculo:n.tipo,metodo_pago:n.tipo==='FINIQUITO'?'CHEQUE':'TRANSFERENCIA',monto_platinum:null,monto_noi:n.m,detalle:{identidad_noi:cruce.identidad,archivo:file.name,hoja:n.hoja,fila:n.fila,lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
+    cruces.forEach(cruce=>{if(usados.has(cruce))return;const {n,w}=cruce,sinServicio=n.m===0&&w?ceros.sinServicio.get(w.id):null;
+      const finCero=n.m===0&&w&&ceros.finiquitos.has(w.id),tipo=finCero?'FINIQUITO':n.tipo;
+      out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:w?.id||null,trabajador_numero:w?.no_trab??n.no,trabajador_nombre:String(n.nombre||'NO EN SNAPSHOT'),
+      tipo_calculo:tipo,metodo_pago:tipo==='FINIQUITO'?'CHEQUE':'TRANSFERENCIA',monto_platinum:sinServicio&&tipo==='NOMINA'?0:null,monto_noi:n.m,
+      detalle:{identidad_noi:cruce.identidad,...(sinServicio&&tipo==='NOMINA'?{sin_servicio_confirmado:sinServicio}:{}),archivo:file.name,hoja:n.hoja,fila:n.fila,lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
     const hash=await ctrlSha(buf);
     if(OBRA.id!==contexto.obra||window._CTRL_CIERRE!==contexto.cierre||$('noi-preview')!==contexto.preview||inp.files[0]!==file)throw Error('Cambió el centro, el cierre o el archivo durante la lectura. Vuelve a seleccionar el archivo.');
-    window._CTRLNOI={rows:out,file,hash,lector:porIA?'IA_LAYOUT':'AUTOMATICO',registrosNOI:cruces.length};
+    window._CTRLNOI={rows:out,file,hash,lector:porIA?'IA_LAYOUT':'AUTOMATICO',registrosNOI:cruces.length,finiquitosFuera:[...ceros.finiquitos]};
     const prev=out.map((x,i)=>({...x,_i:i,diferencia:redondearCentavos((x.monto_platinum||0)-(x.monto_noi||0)),estatus:x.monto_platinum==null?'SIN_PLATINUM':x.monto_noi==null?'SIN_NOI':redondearCentavos(x.monto_platinum-x.monto_noi)===0?'COINCIDE':'DIFERENCIA'}));
     const resumen=`<div style="background:var(--blue-bg);border:1px solid var(--border);border-radius:9px;padding:9px 12px;margin-bottom:10px;font-size:12px"><b>Lectura por identidad:</b> ${cruces.length} trabajador(es) · ${detectadas.map(d=>`${esc(d.hoja.nombre)}, encabezados fila ${d.layout.fila+1}`).join(' · ')}. Se conservan las claves de NOI y de la fotografía.</div>`;
-    $('noi-preview').innerHTML=(porIA?IA_BANNER:'')+resumen+`<div style="margin-bottom:8px"><button class="btn dark" id="noi-save" onclick="ctrlGuardarNOI()">💾 Guardar conciliación</button> <b>${esc(file.name)}</b><div class="fhint">Nómina normal: pago pendiente, sin cheque automático. Desde el sábado 12:00 revisa y confirma candidatos. Finiquitos: cheque por defecto, salvo transferencia previamente autorizada.</div></div>`+ctrlRenderConciliacion(prev,true);
+    const foto=ceros.finiquitos.size?`<div role="alert" style="padding:10px;border:1px solid var(--amber);border-radius:9px;margin-bottom:8px">${ceros.finiquitos.size} finiquito(s) cero confirmado(s) aún no está(n) en la fotografía guardada. No se omitirá su desglose de retenciones. <button class="btn" id="noi-foto" onclick="ctrlActualizarFotoNOI()">Preparar fotografía y volver a comparar</button></div>`:'';
+    $('noi-preview').innerHTML=(porIA?IA_BANNER:'')+resumen+foto+`<div style="margin-bottom:8px"><button class="btn dark" id="noi-save" onclick="ctrlGuardarNOI()">💾 Guardar conciliación</button> <b>${esc(file.name)}</b><div class="fhint">Nómina normal: pago pendiente, sin cheque automático. Desde el sábado 12:00 revisa y confirma candidatos. Finiquitos: cheque por defecto, salvo transferencia previamente autorizada. Casos sin servicio y finiquitos de neto cero: sin pago ni cheque.</div></div>`+ctrlRenderConciliacion(prev,true);
   }catch(e){
     if(e.conflictosNOI?.length&&OBRA.id===contexto.obra&&window._CTRL_CIERRE===contexto.cierre&&$('noi-preview')===contexto.preview){
       $('noi-preview').innerHTML=`<div role="alert" style="padding:12px;border:1px solid var(--red);border-radius:9px"><b>Archivo leído: ${e.conflictosNOI.length} conflicto(s) de identidad por revisar.</b><p>No se guardó ni se sustituyó la conciliación. Las fichas y los pagos están intactos. Compara estos campos con los documentos y vuelve a importar después de corregir la fuente equivocada.</p>${ctrlTabla(['Hoja / fila','No. NOI / nombre','Diferencia'],e.conflictosNOI.map(x=>`<tr><td>${esc(x.hoja)} / ${esc(x.fila)}</td><td>#${esc(x.numero)} ${esc(x.nombre)}</td><td>${esc(x.mensaje)}</td></tr>`))}</div>`;
