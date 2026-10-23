@@ -117,7 +117,7 @@ async function openCtrlCierres(){
       <td style="white-space:nowrap"><button class="btn" style="padding:4px 7px" onclick="ctrlOpenConciliacion('${c.id}')">Conciliar</button>
       <button class="btn" style="padding:4px 7px" onclick="ctrlRevisarPagosSemana(${c.semana})">Pagos</button>
       <button class="btn" style="padding:4px 7px" onclick="PLATINUM_FLOWS.abrirCierre('${c.id}')">Flujo integrado</button>
-      ${next&&puedeEditarTrabajador()&&(next[0]!=='AUTORIZADO'||esAdmin())?`<button class="btn dark" style="padding:4px 7px" onclick="ctrlCambiarCierre('${c.id}','${next[0]}')">${next[1]}</button>`:''}
+      ${next&&puedeEditarTrabajador()&&(!['AUTORIZADO','PAGADO'].includes(next[0])||esVip()||esAdmin())?`<button class="btn dark" style="padding:4px 7px" onclick="ctrlCambiarCierre('${c.id}','${next[0]}')">${next[1]}</button>`:''}
       ${esAdmin()?`<button class="btn danger" style="padding:4px 7px" onclick="ctrlEliminarCierre('${c.id}')">Eliminar cierre</button>`:''}</td></tr>`; }),'Aún no hay cierres de nómina.');
 }
 async function ctrlRevisarPagosSemana(sem){

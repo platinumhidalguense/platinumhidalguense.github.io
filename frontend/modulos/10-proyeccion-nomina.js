@@ -20,6 +20,24 @@ async function proyCargarHistoricos(personal){
   return proyLeerFiniquitos(personal.filter(w=>w.fecha_baja&&(w.estatus==='ACTIVO'&&w.fecha_reingreso>w.fecha_baja
     ||w.estatus==='BAJA'&&w.monto_finiquito!=null&&w.monto_finiquito!==''&&Number(w.monto_finiquito)===0)));
 }
+async function proyLeerBajasHistoricas(personal,obraId){
+  const r=await fetchAllRows(()=>sb.from('historial')
+    .select('id,obra_id,trabajador_id,fecha,baja:datos_despues->>fecha_baja,monto:datos_despues->>monto_finiquito,estado:datos_despues->>estatus')
+    .eq('obra_id',obraId).eq('accion','BAJA').order('fecha',{ascending:false}));
+  if(r.error||!Array.isArray(r.data))throw Error('No se pudieron verificar los ciclos de bajas históricos. '+(r.error?.message||'Respuesta incompleta.'));
+  const workers=new Map(personal.map(w=>[w.id,w])),seen=new Set(),out=[];
+  for(const h of r.data){
+    const w=workers.get(h.trabajador_id),key=h.trabajador_id+'|'+h.baja;
+    if(!w||h.obra_id!==obraId||h.estado!=='BAJA'||!/^\d{4}-\d{2}-\d{2}$/.test(h.baja||'')
+      ||h.monto==null||h.monto===''||!Number.isFinite(Number(h.monto))||Number(h.monto)<0||seen.has(key))continue;
+    seen.add(key);
+    // Sólo un ciclo anterior que fue reemplazado por otra baja. El registro
+    // vigente jamás se sobreescribe y no se inventa una fecha de reingreso.
+    if(!w.fecha_baja||h.baja>=w.fecha_baja)continue;
+    out.push({...w,estatus:'BAJA',fecha_baja:h.baja,fecha_reingreso:null,monto_finiquito:Number(h.monto),_baja_historial:h.id});
+  }
+  return out;
+}
 function pyCandidatos(d1,d2,periodo){
   // En una semana histórica, el estado actual no sustituye a las fechas de
   // alta, baja y reingreso. Una baja de esa semana va solo a finiquitos.
@@ -28,7 +46,11 @@ function pyCandidatos(d1,d2,periodo){
     &&(w.estatus==='ACTIVO'||(w.estatus==='BAJA'&&w.fecha_baja>d2)));
   if(periodo!=='TODOS')act=act.filter(w=>(w.periodo_pago||'SEMANAL')===periodo);
   act.sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
-  const fins=proyFiniquitosSemana(WORKERS.filter(w=>!sinServicio.has(w.id)),d1,d2,globalThis._PY_FINIQUITOS_HISTORICOS||[]);
+  const actuales=new Map(WORKERS.map(w=>[w.id,w.obra_id]));
+  const historicas=(globalThis._PY_BAJAS_HISTORICAS||[]).filter(w=>actuales.get(w.id)===w.obra_id);
+  const candidatos=WORKERS.concat(historicas).filter(w=>!sinServicio.has(w.id));
+  const fins=proyFiniquitosSemana(candidatos,d1,d2,globalThis._PY_FINIQUITOS_HISTORICOS||[]);
+  if(new Set(fins.map(w=>w.id)).size!==fins.length)throw Error('Hay varias bajas de una persona en el periodo. Revisa sus ciclos antes de preparar la nómina.');
   fins.sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9));
   return {act,fins};
 }
@@ -57,9 +79,14 @@ async function pyDatosFrescos(){
     return false;
   }
   try{
-    const historicos=await proyCargarHistoricos(tw||[]);
+    const bajas=await proyLeerBajasHistoricas(tw||[],id);
+    const historicos=(await proyCargarHistoricos(tw||[])).concat(await proyLeerFiniquitos(bajas));
     if(OBRA.id!==id)return false;
     globalThis._PY_FINIQUITOS_HISTORICOS=historicos;
+    globalThis._PY_BAJAS_HISTORICAS=bajas.map(w=>{
+      const a=historicos.find(x=>x.trabajador_id===w.id&&x.obra_id===w.obra_id&&x.periodo===w.fecha_baja&&x.monto_aplicado!=null);
+      return a?{...w,monto_finiquito:Number(a.monto_aplicado)}:w;
+    });
   }catch(e){
     if($('py-prev'))$('py-prev').innerHTML='<div class="fhint" style="color:var(--red)">No se pudieron consultar los finiquitos históricos. Vuelve a abrir la proyección.</div>';
     for(const bid of ['py-btn','py-ambas'])if($(bid))$(bid).disabled=true;

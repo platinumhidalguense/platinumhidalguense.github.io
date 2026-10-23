@@ -1,0 +1,23 @@
+// Interfaz ejecutada en VM; sin navegador ni datos reales.
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+let calls=[],messages=[],capture=0,permission={escritura:true,admin:false,aprobar_cierre:true},confirmed=true;
+let c={id:'c',obra_id:'o',semana:29,estado:'BORRADOR',snapshot_sha256:'vieja',snapshot:{items:[{trabajador_id:'ficticio',monto:100}],total_neto:100}};
+let f=null,view='';const ctx={obra:{id:'o',nombre:'Obra ficticia'},sb:{rpc:async(_,q)=>{calls.push(q);
+ if(q.p_accion==='PERMISOS')return{data:permission};
+ if(q.p_accion==='DETALLE')return{data:{cierre:c,flujo:f,diagnostico:{filas:[]},saldos:[],versiones:[],solicitudes:[]}};
+ if(q.p_accion==='PREPARAR_LEGADO')f={preparado_sha256:'nueva',sucio:false};
+ return{data:{ok:true}};
+}}};
+const box={Date,Intl,confirm:()=>confirmed,prompt:()=> 'AUTORIZAR S29'};vm.createContext(box);vm.runInContext(fs.readFileSync('platinum-workflows.js','utf8'),box);
+box.PLATINUM_FLOWS.configure({context:()=>ctx,esc:String,money:String,$:()=>null,table:()=>'',modal:v=>view=v,toast:m=>messages.push(m),reload:async()=>{},capture:async()=>{capture++;throw Error('No recalcular legado');}});
+(async()=>{const p=box.PLATINUM_FLOWS;
+ await p.transicion('c','REVISADO');assert(calls.some(x=>x.p_accion==='PREPARAR_LEGADO'));assert(calls.some(x=>x.p_accion==='TRANSICION'));assert.equal(capture,0);
+ assert.equal(calls.find(x=>x.p_accion==='PREPARAR_LEGADO').p_datos.snapshot.total_neto,100);
+ calls=[];c={...c,estado:'REVISADO'};await p.abrirCierre('c');assert(view.includes('Autorizar versión'));
+ await p.transicion('c','AUTORIZADO');assert(calls.some(x=>x.p_accion==='TRANSICION'));
+ calls=[];await p.transicion('c','CANCELADO');assert(!calls.some(x=>x.p_accion==='TRANSICION'));
+ permission={escritura:true,admin:false,aprobar_cierre:false};calls=[];await p.transicion('c','AUTORIZADO');await p.transicion('c','PAGADO');assert(!calls.some(x=>x.p_accion==='TRANSICION'));
+ permission={escritura:true,admin:false,aprobar_cierre:true};c={...c,estado:'TIMBRADO'};calls=[];await p.transicion('c','PAGADO');assert(calls.some(x=>x.p_accion==='TRANSICION'));
+ f=null;c={...c,estado:'BORRADOR'};confirmed=false;calls=[];await p.transicion('c','REVISADO');assert(!calls.some(x=>['PREPARAR_LEGADO','TRANSICION'].includes(x.p_accion)));
+ console.log('PASS 10 controles UI: legado sin recalcular, confirmación, VIP, consulta y cancelación exclusiva admin.');
+})().catch(e=>{console.error(e.message);process.exitCode=1;});

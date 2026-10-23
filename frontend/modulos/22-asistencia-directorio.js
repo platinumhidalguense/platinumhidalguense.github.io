@@ -13,7 +13,7 @@ function asVigenteSemana(w,d1,d2){
   const reingreso=String(w.fecha_reingreso||'').slice(0,10);
   if(!alta||alta>d2)return false;
   if(reingreso>d2)return !!baja&&baja>d1&&baja<reingreso;
-  if(reingreso)return !baja||baja<reingreso||baja>Math.max(d1,reingreso);
+  if(reingreso)return !baja||baja<reingreso||baja>(d1>reingreso?d1:reingreso);
   return !baja||baja>d1;
 }
 function asSinServicioSemana(d1,obra=OBRA,registros=ALTAS_CORTAS){

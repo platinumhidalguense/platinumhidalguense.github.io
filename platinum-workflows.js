@@ -56,14 +56,14 @@
    `<button class="btn" onclick="ctrlOpenConciliacion('${c.id}')">Importar / revisar NOI</button>`];
   if(root.PLATINUM_PAGOS_SABADO)actions.push(`<button class="btn" onclick="PLATINUM_PAGOS_SABADO.abrir(${c.semana})">Revisión de pagos · sábado 12:00</button>`);
   if(typeof window!=='undefined'&&window.PLATINUM_RRHH)actions.push(`<button class="btn" onclick="PLATINUM_RRHH.abrir('corte',null,${c.semana})">Corte semanal guiado</button><button class="btn" onclick="PLATINUM_RRHH.abrir('importe',null,${c.semana},'${c.id}')">Explicar importes</button>`);
-  if(write&&!closed)actions.push(`<button class="btn dark" onclick="PLATINUM_FLOWS.preparar('${c.id}')">Preparar fotografía actual</button>`);
+  if(write&&!closed)actions.push(`<button class="btn dark" onclick="PLATINUM_FLOWS.preparar('${c.id}')">${esLegadoSinPreparar(d)?'Preparar histórico conciliado':'Preparar fotografía actual'}</button>`);
   if(write&&(d.recibos_sin_leer||[]).length)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.leerRecibos('${c.id}')">Leer ${d.recibos_sin_leer.length} recibo(s) archivado(s)</button>`);
   if(write&&!closed&&c.estado==='BORRADOR')actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.transicion('${c.id}','REVISADO')">Enviar a revisión</button>`);
-  if(permissions.admin&&c.estado==='REVISADO')actions.push(`<button class="btn dark" onclick="PLATINUM_FLOWS.transicion('${c.id}','AUTORIZADO')">Autorizar versión</button>`);
+  if(permissions.aprobar_cierre&&c.estado==='REVISADO')actions.push(`<button class="btn dark" onclick="PLATINUM_FLOWS.transicion('${c.id}','AUTORIZADO')">Autorizar versión</button>`);
   if(write&&closed)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.solicitar('${c.id}','REAPERTURA')">Solicitar reapertura</button>`);
   if(permissions.admin&&closed&&!f?.version_id)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.adoptar('${c.id}')">Revisar y adoptar legado</button>`);
   if(write&&c.estado==='AUTORIZADO')actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.transicion('${c.id}','TIMBRADO')">Verificar y marcar timbrado</button>`);
-  if(write&&c.estado==='TIMBRADO')actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.transicion('${c.id}','PAGADO')">Verificar y marcar pagado</button>`);
+  if(permissions.aprobar_cierre&&c.estado==='TIMBRADO')actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.transicion('${c.id}','PAGADO')">Verificar y marcar pagado</button>`);
   if(rows.length)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.exportar('${c.id}')">⬇ Excel de saldos</button>`);
   const issues=(diag.filas||[]).filter(x=>x.estado!=='COINCIDE');
   const sourceFlags=(!f?'Sin preparar':f.sucio?'Fuentes modificadas · volver a preparar':closed?'Versión autorizada fija':'Fotografía preparada');
@@ -88,7 +88,11 @@
  function avisarCambio(){if(state&&el('flow-change')){state.dirty=true;el('flow-change').textContent='Hay cambios compartidos. Actualiza esta vista antes de aprobar; tu captura no se ha borrado.';}}
  async function preparar(id){return operation(async()=>{
   ensureState(id);if(!permissions.escritura)throw Error('Acceso de consulta.');
-  const d=await call('DETALLE',{cierre_id:id}),captured=await cfg.capture(d.cierre.semana,d.cierre.periodo);
+  const d=await call('DETALLE',{cierre_id:id});
+  if(esLegadoSinPreparar(d)){
+   if(await prepararLegado(d)){cfg.toast('Fotografía histórica conciliada preparada; importes preservados.','ok');await cfg.reload();await abrirCierre(id);}return;
+  }
+  const captured=await cfg.capture(d.cierre.semana,d.cierre.periodo);
   const historical=captured.snapshot.hasta<today();
   const reg=(d.solicitudes||[]).find(r=>r.tipo==='REGULARIZACION'&&r.estado==='APROBADO'&&!r.aplicado_en&&same(r.propuesta?.snapshot,captured.snapshot));
   if(historical&&!same(captured.snapshot,d.cierre.snapshot)&&!d.flujo?.reapertura_id&&!reg){
@@ -96,6 +100,12 @@
   }
   await call('PREPARAR',{cierre_id:id,...captured,solicitud_id:reg?.id||null});cfg.toast('Fotografía actualizada. Revisa otra vez las diferencias NOI.','ok');await cfg.reload();await abrirCierre(id);
  });}
+ function esLegadoSinPreparar(d){return !d.flujo&&!d.cierre.snapshot?.modelo&&['BORRADOR','REVISADO'].includes(d.cierre.estado);}
+ async function prepararLegado(d){
+  await loadPermissions();if(!permissions.aprobar_cierre)throw Error('La preparación histórica requiere acceso VIP.');
+  if(!root.confirm(`S${d.cierre.semana}: ¿preparar esta fotografía histórica conservando sus importes?\n\nLa base comprobará que todo coincide con NOI y los comprobantes. No se recalculará con los trabajadores actuales ni se registrarán pagos.`))return false;
+  await call('PREPARAR_LEGADO',{cierre_id:d.cierre.id,revision:d.cierre.snapshot_sha256,snapshot:d.cierre.snapshot,confirmacion:'PRESERVAR S'+d.cierre.semana});return true;
+ }
  function mostrarComparacion(old,next,id){
   const prev=new Map((old.items||[]).map(x=>[x.trabajador_id+'|'+x.tipo,x]));
   const rows=(next.items||[]).map(x=>{const a=prev.get(x.trabajador_id+'|'+x.tipo);return `<tr><td>${esc(x.numero)}</td><td>${esc(x.nombre)}</td><td>${esc(x.tipo)}</td><td>${a?'$'+money(a.monto):'No figuraba'}</td><td>$${money(x.monto)}</td></tr>`;});
@@ -109,8 +119,10 @@
  });}
  async function transicion(id,estado){return operation(async()=>{
   await loadPermissions();if(!permissions.escritura)throw Error('Tu cuenta es de consulta.');
-  if(['AUTORIZADO','CANCELADO'].includes(estado)&&!permissions.admin)throw Error('Sólo el administrador puede autorizar o cancelar cierres.');
+  if(['AUTORIZADO','PAGADO'].includes(estado)&&!permissions.aprobar_cierre)throw Error('Se requiere acceso VIP para autorizar o marcar pagado.');
+  if(estado==='CANCELADO'&&!permissions.admin)throw Error('Sólo el administrador puede cancelar cierres.');
   const current=await call('DETALLE',{cierre_id:id});
+  if(estado==='REVISADO'&&esLegadoSinPreparar(current)&&!await prepararLegado(current))return;
   if(!root.confirm(`¿Cambiar S${current.cierre.semana} a ${estado}?\n\n${estado==='AUTORIZADO'?'Se fijará esta fotografía y sus obligaciones. Las diferencias bloquean la autorización.':'La base verificará los requisitos de esta etapa.'}`))return;
   if(estado==='AUTORIZADO'&&root.prompt('Escribe AUTORIZAR S'+current.cierre.semana)!=='AUTORIZAR S'+current.cierre.semana)return;
   await call('TRANSICION',{cierre_id:id,estado});cfg.toast('Etapa confirmada: '+estado,'ok');await cfg.reload();await abrirCierre(id);

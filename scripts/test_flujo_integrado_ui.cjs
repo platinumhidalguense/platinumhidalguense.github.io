@@ -18,7 +18,7 @@ const flow=box.PLATINUM_FLOWS;flow.configure({context:()=>ctx,$:id=>elements[id]
 (async()=>{
  await flow.transicion('c','AUTORIZADO');assert(!calls.some(x=>x.p_accion==='TRANSICION'));checks++;
  permission={escritura:false,admin:false};await flow.transicion('c','REVISADO');assert(!calls.some(x=>x.p_accion==='TRANSICION'));checks++;
- permission={escritura:true,admin:true};release={};const first=flow.transicion('c','AUTORIZADO');while(!release.resolve)await new Promise(r=>setImmediate(r));
+ permission={escritura:true,admin:true,aprobar_cierre:true};release={};const first=flow.transicion('c','AUTORIZADO');while(!release.resolve)await new Promise(r=>setImmediate(r));
  await flow.transicion('c','AUTORIZADO');assert.equal(calls.filter(x=>x.p_accion==='TRANSICION').length,1);checks++;release.resolve();await first;release=null;
  const frozen={filas:[{w:{id:'w',obra_id:'o',contratista:'MG',periodo_pago:'SEMANAL'},fin:false,neto:2000,costo:2200,items:[]}]};
  const model=await flow.versionarModelo({filas:[{w:{id:'w',obra_id:'o'},neto:9999,costo:9999,items:[]}]},{obras:['o'],sem:'S29',periodo:'SEMANAL',versiones:{cierres:[{obra_id:'o',estado:'AUTORIZADO',periodo:'SEMANAL',version_id:'v',snapshot:{modelo:frozen}}]}});

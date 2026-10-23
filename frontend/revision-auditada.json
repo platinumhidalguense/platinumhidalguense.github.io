@@ -1,4 +1,8 @@
 {
+  "asVigenteSemana": "Compara fechas ISO lexicográficamente, sin convertirlas a NaN mediante Math.max; conserva alta, baja y reingreso, y no modifica datos ni cálculos monetarios.",
+  "openCtrlCierres": "Muestra autorización y marcado pagado a VIP activos con edición; conserva administración exclusiva de eliminación y delega toda transición al servidor.",
+  "pyCandidatos": "Recupera finiquitos de ciclos anteriores desde la bitácora, sin sustituir la baja vigente; bloquea ciclos duplicados y conserva exclusión de casos sin servicio y filtros existentes.",
+  "pyDatosFrescos": "Lee los ciclos históricos de bajas junto con sus cálculos auditados, por obra y UUID; falla de forma segura ante lecturas incompletas y nunca cambia fichas o importes autorizados.",
   "openPrestaciones": "Añade acceso al papel versionado y tablas visibles, conservando entradas y motor monetario intactos.",
   "usarEnBaja": "Guarda primero el papel ordinario con autor y confirmación de ISR manual, bloquea ante errores y enlaza su huella; no cambia cálculos ni controles de bajas/pagos.",
   "proyCargarHistoricos": "Consulta también el respaldo de bajas con cero explícito, para conservar sólo los finiquitos cero confirmados con desglose. No modifica salarios, retenciones ni fotografías autorizadas.",
