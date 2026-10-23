@@ -3,6 +3,9 @@ const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypt
 const root=path.resolve(__dirname,'..'),manifest=JSON.parse(fs.readFileSync(path.join(root,'frontend/modulos.json'),'utf8'));
 const data=manifest.modules.map(p=>({path:p,source:fs.readFileSync(path.join(root,p),'utf8')}));
 const source=data.map(x=>x.source).join('');new vm.Script(source);
+// No generar una publicación cuyo aviso se considere antiguo a sí mismo.
+const versions=[...source.matchAll(/const APP_VERSION='([^']+)';/g)];
+if(versions.length!==1||versions[0][1]!==manifest.version)throw Error('APP_VERSION debe coincidir con frontend/modulos.json antes de publicar');
 const sha=crypto.createHash('sha256').update(source).digest('hex'),sri=crypto.createHash('sha384').update(source).digest('base64');
 const entry='assets/platinum-app.'+sha.slice(0,16)+'.js';fs.mkdirSync(path.join(root,'assets'),{recursive:true});fs.writeFileSync(path.join(root,entry),source);
 const template=fs.readFileSync(path.join(root,'frontend/index.template.html'),'utf8');if(!template.includes('<!-- PLATINUM_APP -->'))throw Error('Plantilla sin punto de entrada');

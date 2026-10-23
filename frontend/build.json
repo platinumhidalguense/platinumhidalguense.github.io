@@ -1,8 +1,8 @@
 {
   "version": "2026-10-23.4",
-  "entry": "assets/platinum-app.5bea412c9431f09b.js",
-  "sha256": "5bea412c9431f09bbcb7f942d7e690888f53f59d47ac927d1a7f1b2310818042",
-  "integrity": "sha384-HCnRu1VV4VwHyOg/H0gmlINhyd7Z+IeC5R6euuOJmH8jIVLXDmxTOKL6Nx+LQumE",
+  "entry": "assets/platinum-app.ce69e28ca25b8a98.js",
+  "sha256": "ce69e28ca25b8a98b015077919f39d768df765f94fecd990abcd7f47913085bf",
+  "integrity": "sha384-SFN/yK70zK4jgBkLhC10DCvibhcl47FQIcQIkLS2BIsz29bzDCr3l0UAbpbDL7Jl",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "a2e4de4eb3054d6f0186c9cdf015a6021d7a1b22657c3dcd0789c24b38f7899e"
+      "sha256": "4c93e500f7b9d4ea2ab97adc051b8bc0f7c913873015e86f1f292212f9ab463f"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
