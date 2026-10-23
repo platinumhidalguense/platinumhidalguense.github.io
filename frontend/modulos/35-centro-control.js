@@ -231,8 +231,9 @@ function ctrlCruzarIdentidadNOI(leidas,items,workers,obraId){
   const claves=['rfc','curp','nss'],idx=Object.fromEntries(claves.map(k=>[k,new Map()])),nombres=new Map();
   const add=(map,key,w)=>{if(key)map.set(key,[...(map.get(key)||[]),w]);};
   padron.forEach(w=>{claves.forEach(k=>add(idx[k],ctrlIdentificadorNOI(k,w[k]),w));add(nombres,ctrlNombreIdentidadNOI(w.nombre),w);});
-  const seen=new Map(),out=[];
+  const seen=new Map(),out=[],errores=[];
   leidas.forEach(n=>{
+   try{
     const ids=Object.fromEntries(claves.map(k=>[k,ctrlIdentificadorNOI(k,n[k])])),nombre=ctrlNombreIdentidadNOI(n.nombre),hits=new Map();
     claves.forEach(k=>{const a=ids[k]?idx[k].get(ids[k])||[]:[];if(a.length>1)throw Error(`Identidad ${k.toUpperCase()} duplicada en el padrón. Revisa la fila ${n.fila} de ${n.hoja}.`);a.forEach(w=>hits.set(w.id,w));});
     if(hits.size>1)throw Error(`Los identificadores de la fila ${n.fila} corresponden a personas distintas. No se importó NOI.`);
@@ -240,14 +241,17 @@ function ctrlCruzarIdentidadNOI(leidas,items,workers,obraId){
     if(!w&&nombre){const a=nombres.get(nombre)||[];if(a.length>1)throw Error(`Nombre ambiguo en la fila ${n.fila}. Se requiere RFC, CURP o NSS.`);w=a[0];}
     if(!nombre&&!claves.some(k=>ids[k]))throw Error(`Fila ${n.fila}: se requiere nombre, RFC, CURP o NSS. El número de trabajador por sí solo no verifica identidad.`);
     if(w){
-      if(claves.some(k=>ids[k]&&ctrlIdentificadorNOI(k,w[k])&&ids[k]!==ctrlIdentificadorNOI(k,w[k])))throw Error(`Identificadores contradictorios en la fila ${n.fila}. Revisa la persona antes de conciliar.`);
+      const distintos=claves.filter(k=>ids[k]&&ctrlIdentificadorNOI(k,w[k])&&ids[k]!==ctrlIdentificadorNOI(k,w[k]));
+      if(distintos.length)throw Error(`Identificadores contradictorios en la fila ${n.fila} (#${n.no} ${n.nombre}): ${distintos.map(k=>`${k.toUpperCase()} NOI ${ids[k]} / ficha ${ctrlIdentificadorNOI(k,w[k])}`).join('; ')}. Coteja el documento y corrige la fuente equivocada; no se reemplazará la identidad automáticamente.`);
       if(nombre&&ctrlNombreIdentidadNOI(w.nombre)&&nombre!==ctrlNombreIdentidadNOI(w.nombre))throw Error(`El nombre y la identidad no concuerdan en la fila ${n.fila}. Revisa el reporte y la ficha.`);
     }
     const identidad={version:1,metodo:w?metodo:'SIN_IDENTIFICAR',...ids,nombre:n.nombre,numero_noi:n.no,numero_plataforma:w?.no_trab??null,hoja:n.hoja,fila:n.fila};
     const key=w?'UUID:'+w.id:'FUENTE:'+JSON.stringify([ids,nombre,n.no]),prev=seen.get(key);
     if(prev){if(prev.n.m!==n.m||prev.n.no!==n.no||prev.n.tipo!==n.tipo||JSON.stringify(prev.ids)!==JSON.stringify(ids)||prev.nombre!==nombre)throw Error(`El reporte repite una identidad con datos distintos en la fila ${n.fila}.`);return;}
     seen.set(key,{n,ids,nombre});out.push({n,w,identidad});
+   }catch(e){errores.push({hoja:n.hoja,fila:n.fila,numero:n.no,nombre:n.nombre,mensaje:e.message});}
   });
+  if(errores.length){const e=Error(errores.map(x=>x.mensaje).join('\n'));e.conflictosNOI=errores;throw e;}
   return out;
 }
 function ctrlTextoLayoutNOI(hojas){
@@ -272,6 +276,7 @@ async function ctrlOpenConciliacion(id){
     <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap"><div style="flex:1"><label>Reporte final exportado de NOI (.xlsx, .xls o .csv)</label><input id="noi-file" type="file" accept=".xlsx,.xls,.csv" onchange="ctrlLeerArchivoNOI(this)"></div>
     <button class="btn" onclick="ctrlExportConciliacion()">⬇ Excel</button><button class="btn" onclick="PLATINUM_FLOWS.abrirCierre('${id}')">Versión, recibos y saldos</button></div>
     <div class="fhint" style="margin-top:6px">Detecta encabezados como Número/Clave del trabajador y Neto/Total neto. NOI sigue siendo la referencia final de timbrado; el sistema exige diferencia $0.00 para autorizar.</div>
+    ${['BORRADOR','REVISADO'].includes(c.estado)?'<div class="fhint" style="margin-top:6px">Si cambiaste incidencias o reglas de retención, abre «Versión, recibos y saldos» y usa «Preparar fotografía actual» antes de conciliar. Volver a importar NOI compara contra la fotografía guardada: no recalcula el borrador ni requiere eliminar el cierre.</div>':''}
     <div id="noi-preview" style="margin-top:12px">${ctrlRenderConciliacion(filas||[])}</div></div>`,'lg');
   ctrlAuditar('CONCILIACION_NOI','ABRIR',{semana:c.semana},'CIERRE',id);
 }
@@ -314,7 +319,12 @@ async function ctrlLeerArchivoNOI(inp){
     const prev=out.map((x,i)=>({...x,_i:i,diferencia:redondearCentavos((x.monto_platinum||0)-(x.monto_noi||0)),estatus:x.monto_platinum==null?'SIN_PLATINUM':x.monto_noi==null?'SIN_NOI':redondearCentavos(x.monto_platinum-x.monto_noi)===0?'COINCIDE':'DIFERENCIA'}));
     const resumen=`<div style="background:var(--blue-bg);border:1px solid var(--border);border-radius:9px;padding:9px 12px;margin-bottom:10px;font-size:12px"><b>Lectura por identidad:</b> ${cruces.length} trabajador(es) · ${detectadas.map(d=>`${esc(d.hoja.nombre)}, encabezados fila ${d.layout.fila+1}`).join(' · ')}. Se conservan las claves de NOI y de la fotografía.</div>`;
     $('noi-preview').innerHTML=(porIA?IA_BANNER:'')+resumen+`<div style="margin-bottom:8px"><button class="btn dark" id="noi-save" onclick="ctrlGuardarNOI()">💾 Guardar conciliación</button> <b>${esc(file.name)}</b><div class="fhint">Nómina normal: pago pendiente, sin cheque automático. Desde el sábado 12:00 revisa y confirma candidatos. Finiquitos: cheque por defecto, salvo transferencia previamente autorizada.</div></div>`+ctrlRenderConciliacion(prev,true);
-  }catch(e){toast('No se pudo leer NOI: '+e.message,'err');}
+  }catch(e){
+    if(e.conflictosNOI?.length&&OBRA.id===contexto.obra&&window._CTRL_CIERRE===contexto.cierre&&$('noi-preview')===contexto.preview){
+      $('noi-preview').innerHTML=`<div role="alert" style="padding:12px;border:1px solid var(--red);border-radius:9px"><b>Archivo leído: ${e.conflictosNOI.length} conflicto(s) de identidad por revisar.</b><p>No se guardó ni se sustituyó la conciliación. Las fichas y los pagos están intactos. Compara estos campos con los documentos y vuelve a importar después de corregir la fuente equivocada.</p>${ctrlTabla(['Hoja / fila','No. NOI / nombre','Diferencia'],e.conflictosNOI.map(x=>`<tr><td>${esc(x.hoja)} / ${esc(x.fila)}</td><td>#${esc(x.numero)} ${esc(x.nombre)}</td><td>${esc(x.mensaje)}</td></tr>`))}</div>`;
+      toast(`Archivo leído: revisa los ${e.conflictosNOI.length} conflictos de identidad que se muestran abajo.`,'err');
+    }else toast('No se pudo leer NOI: '+e.message,'err');
+  }
 }
 async function ctrlGuardarNOI(){
   if(!window.PLATINUM_FLOWS){toast('No cargó el flujo integrado. No se reemplazó NOI.','err');return;}

@@ -1,4 +1,6 @@
 {
+  "ctrlOpenConciliacion": "Aclara que importar compara contra la fotografía guardada y que un borrador se recalcula por el flujo de preparación existente, sin eliminarlo ni tocar cierres autorizados.",
+  "cuotaFonacotCalendario": "Corrección solicitada S30: cuota mensual entre días reales del mes por días efectivos del periodo, redondeada al final; elimina diferencias de un centavo por residuos de semanas ajenas. Mantiene ajustes explícitos y fotografías autorizadas.",
   "buildProyDispersionWS": "Presenta sueldo registrado, previsión social condicional y neto del mismo modelo, en ese orden; subtotales por columna sin recalcular ni duplicar deducciones, con orden, colores y retenciones conservados.",
   "buildProyContratistaWS": "Restaura la columna condicional de previsión social como dato separado, sin incorporarla al costo del contratista ni alterar los créditos o el motor.",
   "ctrlGuardarSemanaIMSS": "Recalcula el periodo completo al editar una incapacidad quincenal ya aplicada; bloquea calendarios incompletos y conserva la rama semanal.",
@@ -44,7 +46,7 @@
   "loadObraData": "Carga completa, atómica y paginada; conserva DOM en recargas del mismo centro, no redibuja el padrón idéntico y difiere el intercambio si hay una captura abierta. Motores y datos intactos.",
   "ctrlRenderConciliacion": "Nómina pendiente no implica cheque; muestra las claves distintas del documento y la fotografía para auditar el cruce por identidad.",
   "ctrlMetodoNOI": "No crea intención automática de cheque ordinario desde importación.",
-  "ctrlLeerArchivoNOI": "Cruza por identificadores o nombre completo único, nunca sólo por número o importe; bloquea contradicciones y duplicados, conserva trazabilidad y no modifica importes del motor.",
+  "ctrlLeerArchivoNOI": "Cruza por identidad sin modificar importes; distingue un archivo ilegible de conflictos de padrón y muestra todos los conflictos con fila, persona y campos, sin guardar parcial ni alterar fichas/pagos.",
   "openAutorrellenar": "Lectura paginada por razón social e invalidación de selección anterior.",
   "openDetail": "Conserva ficha y herramientas; añade accesos de lectura y un UUID de contexto en el contenedor, sin transmitir valores, para el visor exclusivo del administrador.",
   "openControlEmpresarial": "Añadir un único acceso a los cuatro engranes de operación RRHH, sin retirar controles.",

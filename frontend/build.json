@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-22.4",
-  "entry": "assets/platinum-app.b5768cf681435f6d.js",
-  "sha256": "b5768cf681435f6dc55a49b1444bfd0055d6f387eafb76bca4391af76d139392",
-  "integrity": "sha384-bvC/Xu3P3AJ1rldihb0irGanGSYuwVHLfnqfQ2l5dyIPvwgZJVoum0pOvmn+d2kX",
+  "version": "2026-10-23.1",
+  "entry": "assets/platinum-app.ab67416617e96ce7.js",
+  "sha256": "ab67416617e96ce73ec0fd0abfa75664a88d7bd53880f879a6897c1c60e1b311",
+  "integrity": "sha384-ni827PQgcNOCXquO3ZnB2vu5VkS9VdouKqWVP4cHZlr5A7BJs5XOohmIQ9nMWi6b",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "6146f5d52c0c5593a4fd45175bd915459a0b53f16b426614c7f80cd3d7d241e4"
+      "sha256": "2f70735037e7d01231a92441f08eeaf0934a51049b4b35542c2947f2c590dc02"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -38,7 +38,7 @@
     },
     {
       "path": "frontend/modulos/08-retenciones-incidencias.js",
-      "sha256": "66e155eabe82863420f191bcd0ebf2e801ae835e57ab0d286a1adac41a49c262"
+      "sha256": "656767fa75b1e08e13bb24bae8662eed98782c2ddcb2618f3be82bafed4b6a33"
     },
     {
       "path": "frontend/modulos/09-documentacion-reportes.js",
@@ -146,7 +146,7 @@
     },
     {
       "path": "frontend/modulos/35-centro-control.js",
-      "sha256": "1590d2703b637d098ca63627fbe86d25686397cf1100c0be73f2f8c52140f3f8"
+      "sha256": "5e70c57eb1d1a15cc8fafe5b49c20e2cb02aaa4965e9edbcfbc236ef69e74aad"
     },
     {
       "path": "frontend/modulos/36-imss-sin-servicio-st7.js",

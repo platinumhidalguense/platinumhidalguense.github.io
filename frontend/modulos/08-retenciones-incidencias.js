@@ -57,11 +57,11 @@ function cuotaFonacotCalendario(mensual,desde,hasta){
     const f=retFecha(fecha),diasMes=new Date(Date.UTC(f.getUTCFullYear(),f.getUTCMonth()+1,0,12)).getUTCDate();
     const finMes=retISO(new Date(Date.UTC(f.getUTCFullYear(),f.getUTCMonth()+1,0,12)));
     const finTramo=hasta<finMes?hasta:finMes;
-    const ultimoDia=retFecha(finTramo).getUTCDate();
-    // La diferencia entre acumulados redondeados evita que las semanas o
-    // quincenas del mismo mes sumen un centavo de más/de menos a la cédula.
-    total+=redondearCentavos(Number(mensual)*ultimoDia/diasMes)
-      -redondearCentavos(Number(mensual)*(f.getUTCDate()-1)/diasMes);
+    const diasTramo=Math.round((retFecha(finTramo)-f)/86400000)+1;
+    // Cuota mensual / días reales del mes * días del periodo, como NOI.
+    // Conservar decimales internos y redondear una sola vez al terminar;
+    // no trasladar residuos de otras semanas a una retención independiente.
+    total+=Number(mensual)/diasMes*diasTramo;
     fecha=retSumarDias(finTramo,1);
   }
   return redondearCentavos(total);

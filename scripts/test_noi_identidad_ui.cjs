@@ -8,7 +8,7 @@ const w1={id:'a',obra_id:'o',no_trab:7,rfc:'PRUA900101AB1',nss:'01234567890',nom
 const items=[{trabajador_id:'a',numero:7,nombre:w1.nombre,monto:100,tipo:'NOMINA'},{trabajador_id:'b',numero:3,nombre:w2.nombre,monto:100,tipo:'NOMINA'}];
 const matrix=[['Clave','Nombre del trabajador','RFC','NSS','Neto pagado'],[3,'ANA PRUEBA ALFA',w1.rfc,1234567890,100],[7,'LUIS PRUEBA BETA',w2.rfc,'',100]];
 const box={window:{_CTRL_CIERRE:{id:'c',snapshot:{items}}},OBRA:{id:'o'},WORKERS:[w1,w2],USER:{email:'fixture@test.invalid'},
- redondearCentavos:n=>Math.round(Number(n)*100)/100,finTransDe:()=>false,esc:String,$:()=>el,ctrlSha:async()=> 'a'.repeat(64),toast:m=>messages.push(m),ctrlRenderConciliacion:r=>{box.preview=r;return '';},
+ redondearCentavos:n=>Math.round(Number(n)*100)/100,finTransDe:()=>false,esc:String,$:()=>el,ctrlSha:async()=> 'a'.repeat(64),toast:m=>messages.push(m),ctrlRenderConciliacion:r=>{box.preview=r;return '';},ctrlTabla:(headers,rows)=>headers.join(' ')+rows.join(''),
  XLSX:{read:()=>({SheetNames:['FICTICIO'],Sheets:{FICTICIO:matrix}}),utils:{sheet_to_json:s=>s}}};
 vm.createContext(box);vm.runInContext(code,box);
 const layout=box.ctrlDetectarLayoutNOI(matrix),rows=box.ctrlExtraerFilasNOI(matrix,layout,'FICTICIO'),cross=(r=rows,w=[w1,w2])=>box.ctrlCruzarIdentidadNOI(r,items,w,'o');
@@ -28,13 +28,19 @@ ok(cross([rows[0],{...rows[0]}]).length===1,'Duplicado exacto no suma dos veces'
 ok(cross([{...rows[0],rfc:'',nss:''}])[0].w.id==='a','Nombre completo único sin identificadores');
 ok(cross([{...rows[0],rfc:'',nss:'',nombre:'OTRA PERSONA'}])[0].w===undefined,'No acepta sólo el mismo número');
 ok(cross([{...rows[0],rfc:'PRUC900101AB3',nss:'',nombre:'OTRA PERSONA'}],[{...w1,obra_id:'otra'}])[0].w===undefined,'Identidad de otro centro no cruza');
+let conflictos;
+try{cross([{...rows[0],rfc:'PRUX900101AB1'},{...rows[1],rfc:'PRUY900101AB2'}]);}catch(e){conflictos=e;}
+ok(conflictos?.conflictosNOI?.length===2,'Informa todos los conflictos en una lectura, no sólo el primero');
+ok(conflictos.message.includes('PRUX900101AB1')&&conflictos.message.includes(w1.rfc),'Explica el campo y ambos valores sin sobrescribirlos');
+ok(conflictos.conflictosNOI[0].fila===2&&conflictos.conflictosNOI[1].fila===3,'Conserva hoja, fila y persona para corregir la fuente');
 (async()=>{
  await box.ctrlLeerArchivoNOI({files:[{name:'FICTICIO.xlsx',arrayBuffer:async()=>new ArrayBuffer(0)}]});
  ok(!messages.length,messages.join(' '));ok(box.preview.length===2&&box.preview.every(x=>x.estatus==='COINCIDE'),'Importador completo cruza por UUID, sin falsos faltantes');
  ok(box.window._CTRLNOI.rows[0].detalle.identidad_noi.numero_noi===3,'Fuente trazable en payload');
  matrix[1][2]=w2.rfc;
  await box.ctrlLeerArchivoNOI({files:[{name:'ERROR.xlsx',arrayBuffer:async()=>new ArrayBuffer(0)}]});
- ok(box.window._CTRLNOI===null&&messages.length===1,'Fallo invalida conciliación anterior sin permitir guardarla');matrix[1][2]=w1.rfc;
+ ok(box.window._CTRLNOI===null&&messages.length===1,'Fallo invalida conciliación anterior sin permitir guardarla');
+ ok(el.innerHTML.includes('conflicto(s) de identidad')&&!el.innerHTML.includes('id="noi-save"'),'Archivo legible con discrepancia: panel accionable y sin guardar parcial');matrix[1][2]=w1.rfc;
  const previous=box.window._CTRL_CIERRE;
  await box.ctrlLeerArchivoNOI({files:[{name:'CAMBIO.xlsx',arrayBuffer:async()=>{box.window._CTRL_CIERRE={...previous};return new ArrayBuffer(0);}}]});
  ok(box.window._CTRLNOI===null&&messages.at(-1).includes('Cambió'),'Descarta lectura al cambiar cierre');
