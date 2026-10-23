@@ -110,10 +110,10 @@ async function openCtrlCierres(){
   modal(ctrlNav('🔐 Cierre de nómina')+`<div class="m-body"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoCierre()">＋ Nuevo cierre</button><button class="btn" onclick="openCtrlConciliacionSelector()">⚖️ Conciliación NOI</button><button class="btn" onclick="ctrlExportCierres()">⬇ Excel</button>${esAdmin()?'<button class="btn" onclick="openCtrlCierresEliminados()">🗄 Historial eliminados</button>':''}</div><div id="ctrl-cierres"></div></div>`,'lg');
   const {data,error}=await ctrlLeer(CTRL_TABLAS.cierres);if(error){$('ctrl-cierres').innerHTML=esc(ctrlFaltaScript(error));return;}
   window._CTRLCIERRES=(data||[]).sort((a,b)=>b.semana-a.semana||String(b.created_at).localeCompare(String(a.created_at)));
-  $('ctrl-cierres').innerHTML=ctrlTabla(['Semana','Periodo','Estado','Trabajadores','Neto','Revisión / autorización','Acciones'],window._CTRLCIERRES.map(c=>{
-    const next=c.estado==='BORRADOR'?['REVISADO','Enviar a revisión']:c.estado==='REVISADO'?['AUTORIZADO','Autorizar']:c.estado==='AUTORIZADO'?['TIMBRADO','Marcar timbrado']:c.estado==='TIMBRADO'?['PAGADO','Marcar pagado']:null;
+  $('ctrl-cierres').innerHTML=ctrlTabla(['Semana','Periodo','Estado','Trabajadores','Neto','Autorización / pago','Acciones'],window._CTRLCIERRES.map(c=>{
+    const next=['BORRADOR','REVISADO'].includes(c.estado)?['AUTORIZADO','Autorizar']:c.estado==='AUTORIZADO'?['TIMBRADO','Marcar timbrado']:c.estado==='TIMBRADO'?['PAGADO','Marcar pagado']:null;
     return `<tr><td><b>S${c.semana}</b></td><td>${esc(c.periodo)}</td><td>${ctrlEstado(c.estado)}</td><td>${c.total_trabajadores}</td><td><b>$${money(c.total_neto)}</b></td>
-      <td style="font-size:10px">${esc(c.revisado_por_email||'Sin revisar')}<br>${esc(c.autorizado_por_email||'Sin autorizar')}</td>
+      <td style="font-size:10px">${esc(c.autorizado_por_email||'Sin autorizar')}<br>${esc(c.pagado_por_email||'Sin marcar pagado')}</td>
       <td style="white-space:nowrap"><button class="btn" style="padding:4px 7px" onclick="ctrlOpenConciliacion('${c.id}')">Conciliar</button>
       <button class="btn" style="padding:4px 7px" onclick="ctrlRevisarPagosSemana(${c.semana})">Pagos</button>
       <button class="btn" style="padding:4px 7px" onclick="PLATINUM_FLOWS.abrirCierre('${c.id}')">Flujo integrado</button>
@@ -269,6 +269,11 @@ async function ctrlLayoutNOIConIA(hojas){
   return {hoja:h,layout};
 }
 async function ctrlOpenConciliacion(id){
+  if(puedeEditarTrabajador()&&(esVip()||esAdmin())){
+    const {data:ajuste,error:eAjuste}=await sb.rpc('control_flujo_operar',{p_accion:'APLICAR_CENTAVOS_APROBADOS',p_datos:{cierre_id:id}});
+    if(eAjuste){toast('No se abrió la conciliación: '+eAjuste.message,'err');return;}
+    if(ajuste?.aplicado)toast('Corrección histórica aprobada aplicada y auditada; salarios y pagos intactos.','ok');
+  }
   const {data:c,error}=await sb.from(CTRL_TABLAS.cierres).select('*').eq('id',id).eq('obra_id',OBRA.id).single();
   if(error){toast(ctrlFaltaScript(error),'err');return;}window._CTRL_CIERRE=c;window._CTRLNOI=null;
   const {data:filas,error:eFilas}=await fetchAllRows(()=>sb.from(CTRL_TABLAS.noi).select('*').eq('obra_id',OBRA.id).eq('cierre_id',id));
@@ -286,8 +291,8 @@ function ctrlRenderConciliacion(rows,editable=false){
   const dif=rows.filter(x=>x.estatus!=='COINCIDE');
   return `<div class="stats"><div class="stat g"><div class="n">${rows.length-dif.length}</div><div class="l">Coinciden</div></div><div class="stat r"><div class="n">${dif.length}</div><div class="l">Diferencias / faltantes</div></div></div>
     ${ctrlTabla(['No.','Trabajador','Tipo','Método de pago','PLATINUM','NOI','Diferencia','Estado'],rows.map((x,i)=>`<tr><td>${x.trabajador_numero??'—'}${x.detalle?.identidad_noi&&Number(x.detalle.identidad_noi.numero_noi)!==Number(x.trabajador_numero)?'<br><small>NOI #'+esc(x.detalle.identidad_noi.numero_noi)+'</small>':''}</td><td>${esc(x.trabajador_nombre)}</td><td>${x.tipo_calculo}</td>
-      <td>${x.detalle?.sin_servicio_confirmado&&x.monto_platinum===0&&x.monto_noi===0?'SIN SERVICIO CONFIRMADO · sin pago':x.tipo_calculo==='FINIQUITO'&&x.monto_platinum===0&&x.monto_noi===0?'FINIQUITO NETO $0 · sin cheque':editable?(x.tipo_calculo==='FINIQUITO'?ctrlEstado(x.metodo_pago||'CHEQUE'):'PAGO PENDIENTE · sin cheque automático'):`${ctrlEstado(x.metodo_pago||'TRANSFERENCIA')}${x.cheque_id?' <span title="Cheque vinculado">🧾</span>':x.pago_id?' <span title="Transferencia vinculada">💸</span>':''}`}</td>
-      <td>${x.monto_platinum==null?'—':'$'+money(x.monto_platinum)}</td><td>${x.monto_noi==null?'—':'$'+money(x.monto_noi)}</td><td style="color:${Number(x.diferencia)?'var(--red)':'var(--green)'}"><b>$${money(x.diferencia)}</b></td><td>${ctrlEstado(x.estatus)}</td></tr>`))}`;
+      <td>${x.detalle?.excepcion_noi?'EFECTIVO · EXCEPCIÓN AUTORIZADA':x.detalle?.sin_servicio_confirmado&&x.monto_platinum===0&&x.monto_noi===0?'SIN SERVICIO CONFIRMADO · sin pago'+(x.detalle.sin_servicio_confirmado.idse_pendiente?'<br><small>IDSE pendiente de completar</small>':''):x.tipo_calculo==='FINIQUITO'&&x.monto_platinum===0&&x.monto_noi===0?'FINIQUITO NETO $0 · sin cheque':editable?(x.tipo_calculo==='FINIQUITO'?ctrlEstado(x.metodo_pago||'CHEQUE'):'PAGO PENDIENTE · sin cheque automático'):`${ctrlEstado(x.metodo_pago||'TRANSFERENCIA')}${x.cheque_id?' <span title="Cheque vinculado">🧾</span>':x.pago_id?' <span title="Transferencia vinculada">💸</span>':''}`}</td>
+      <td>${x.monto_platinum==null?'—':'$'+money(x.monto_platinum)}</td><td>${x.monto_noi==null?'—':'$'+money(x.monto_noi)}${x.detalle?.excepcion_noi?`<br><small>NOI original $${money(x.detalle.excepcion_noi.neto_original)}<br>Nómina por transferencia $${money(x.detalle.excepcion_noi.nomina_transferencia)}<br>Finiquito en efectivo $${money(x.detalle.excepcion_noi.finiquito_efectivo)}</small>`:''}</td><td style="color:${Number(x.diferencia)?'var(--red)':'var(--green)'}"><b>$${money(x.diferencia)}</b></td><td>${ctrlEstado(x.estatus)}</td></tr>`))}`;
 }
 function ctrlMetodoNOI(i,metodo){
   const st=window._CTRLNOI,r=st&&st.rows&&st.rows[i];if(!r)return;
@@ -350,9 +355,15 @@ async function ctrlLeerArchivoNOI(inp){
       tipo_calculo:tipo,metodo_pago:tipo==='FINIQUITO'?'CHEQUE':'TRANSFERENCIA',monto_platinum:sinServicio&&tipo==='NOMINA'?0:null,monto_noi:n.m,
       detalle:{identidad_noi:cruce.identidad,...(sinServicio&&tipo==='NOMINA'?{sin_servicio_confirmado:sinServicio}:{}),archivo:file.name,hoja:n.hoja,fila:n.fila,lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
     const hash=await ctrlSha(buf);
+    const {data:excepciones,error:errorExcepciones}=await sb.rpc('control_excepciones_noi',{p_cierre:contexto.cierre.id,p_sha:hash});
+    if(errorExcepciones)throw errorExcepciones;
+    if(!Array.isArray(excepciones))throw Error('No se pudo comprobar el alcance de las excepciones autorizadas.');
+    const excepcionPorId=new Map(excepciones.map(e=>[e.trabajador_id,e]));
     if(OBRA.id!==contexto.obra||window._CTRL_CIERRE!==contexto.cierre||$('noi-preview')!==contexto.preview||inp.files[0]!==file)throw Error('Cambió el centro, el cierre o el archivo durante la lectura. Vuelve a seleccionar el archivo.');
     window._CTRLNOI={rows:out,file,hash,lector:porIA?'IA_LAYOUT':'AUTOMATICO',registrosNOI:cruces.length,finiquitosFuera:[...ceros.finiquitos]};
-    const prev=out.map((x,i)=>({...x,_i:i,diferencia:redondearCentavos((x.monto_platinum||0)-(x.monto_noi||0)),estatus:x.monto_platinum==null?'SIN_PLATINUM':x.monto_noi==null?'SIN_NOI':redondearCentavos(x.monto_platinum-x.monto_noi)===0?'COINCIDE':'DIFERENCIA'}));
+    const prev=out.map((x,i)=>{const e=excepcionPorId.get(x.trabajador_id),aplica=e&&x.tipo_calculo==='FINIQUITO'&&x.monto_noi===Number(e.neto_original);
+      const m=aplica?Number(e.finiquito_efectivo):x.monto_noi;
+      return {...x,_i:i,monto_noi:m,detalle:{...x.detalle,...(aplica?{excepcion_noi:e}:{})},diferencia:redondearCentavos((x.monto_platinum||0)-(m||0)),estatus:x.monto_platinum==null?'SIN_PLATINUM':m==null?'SIN_NOI':redondearCentavos(x.monto_platinum-m)===0?'COINCIDE':'DIFERENCIA'};});
     const resumen=`<div style="background:var(--blue-bg);border:1px solid var(--border);border-radius:9px;padding:9px 12px;margin-bottom:10px;font-size:12px"><b>Lectura por identidad:</b> ${cruces.length} trabajador(es) · ${detectadas.map(d=>`${esc(d.hoja.nombre)}, encabezados fila ${d.layout.fila+1}`).join(' · ')}. Se conservan las claves de NOI y de la fotografía.</div>`;
     const foto=ceros.finiquitos.size?`<div role="alert" style="padding:10px;border:1px solid var(--amber);border-radius:9px;margin-bottom:8px">${ceros.finiquitos.size} finiquito(s) cero confirmado(s) aún no está(n) en la fotografía guardada. No se omitirá su desglose de retenciones. <button class="btn" id="noi-foto" onclick="ctrlActualizarFotoNOI()">Preparar fotografía y volver a comparar</button></div>`:'';
     $('noi-preview').innerHTML=(porIA?IA_BANNER:'')+resumen+foto+`<div style="margin-bottom:8px"><button class="btn dark" id="noi-save" onclick="ctrlGuardarNOI()">💾 Guardar conciliación</button> <b>${esc(file.name)}</b><div class="fhint">Nómina normal: pago pendiente, sin cheque automático. Desde el sábado 12:00 revisa y confirma candidatos. Finiquitos: cheque por defecto, salvo transferencia previamente autorizada. Casos sin servicio y finiquitos de neto cero: sin pago ni cheque.</div></div>`+ctrlRenderConciliacion(prev,true);

@@ -1,7 +1,7 @@
 // Identidades ficticias. Importador real en VM, sin navegador ni escrituras.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),acorn=require('acorn');
 const src=fs.readFileSync('frontend/modulos/35-centro-control.js','utf8');
-const names=['ctrlNormHdr','ctrlNumero','ctrlPuntajeColNOI','ctrlDetectarLayoutNOI','ctrlExtraerFilasNOI','ctrlIdentificadorNOI','ctrlNombreIdentidadNOI','ctrlCruzarIdentidadNOI','ctrlLeerArchivoNOI'];
+const names=['ctrlNormHdr','ctrlNumero','ctrlPuntajeColNOI','ctrlDetectarLayoutNOI','ctrlExtraerFilasNOI','ctrlIdentificadorNOI','ctrlNombreIdentidadNOI','ctrlCruzarIdentidadNOI','ctrlRespaldosCeroNOI','ctrlLeerArchivoNOI'];
 const code=acorn.parse(src,{ecmaVersion:'latest'}).body.filter(n=>n.type==='FunctionDeclaration'&&names.includes(n.id.name)).map(n=>src.slice(n.start,n.end)).join('\n');
 let checks=0;const ok=(v,m)=>{assert.ok(v,m);checks++;},el={innerHTML:''},messages=[];
 const w1={id:'a',obra_id:'o',no_trab:7,rfc:'PRUA900101AB1',nss:'01234567890',nombre:'PRUEBA ALFA ANA'},w2={id:'b',obra_id:'o',no_trab:3,rfc:'PRUB900101AB2',nombre:'PRUEBA BETA LUIS'};
@@ -10,6 +10,7 @@ const matrix=[['Clave','Nombre del trabajador','RFC','NSS','Neto pagado'],[3,'AN
 const box={window:{_CTRL_CIERRE:{id:'c',snapshot:{items}}},OBRA:{id:'o'},WORKERS:[w1,w2],USER:{email:'fixture@test.invalid'},
  redondearCentavos:n=>Math.round(Number(n)*100)/100,finTransDe:()=>false,esc:String,$:()=>el,ctrlSha:async()=> 'a'.repeat(64),toast:m=>messages.push(m),ctrlRenderConciliacion:r=>{box.preview=r;return '';},ctrlTabla:(headers,rows)=>headers.join(' ')+rows.join(''),
  XLSX:{read:()=>({SheetNames:['FICTICIO'],Sheets:{FICTICIO:matrix}}),utils:{sheet_to_json:s=>s}}};
+box.sb={rpc:async()=>({data:[],error:null})};
 vm.createContext(box);vm.runInContext(code,box);
 const layout=box.ctrlDetectarLayoutNOI(matrix),rows=box.ctrlExtraerFilasNOI(matrix,layout,'FICTICIO'),cross=(r=rows,w=[w1,w2])=>box.ctrlCruzarIdentidadNOI(r,items,w,'o');
 ok(rows[0].nss===1234567890&&rows[0].rfc===w1.rfc,'Conserva identificadores de la fila');

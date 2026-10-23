@@ -24,7 +24,7 @@
   }}finally{s.busy=false;if(state===s&&ctx().obra?.id===s.obra&&el('ri-body'))render();}}
  function detener(){active().stop=true;}
  async function confirmar(i){const s=active(),r=s.rows[i],l=r?.lectura;if(s.busy)return;if(!s.can||l?.estado!=='PROPUESTA')throw Error('La lectura no está lista para confirmar.');
-  if(!cfg.confirm('¿Revisaste el PDF original y confirmas que el neto es $'+l.datos.neto+' para #'+r.numero+' '+r.nombre+' en S'+s.sem+'? Sólo se completará el importe faltante del recibo.'))return;
+  if(!cfg.confirm('¿Revisaste el PDF original y confirmas que el neto es $'+l.datos.neto+' para #'+r.numero+' '+r.nombre+' en S'+s.sem+'?'+(l.datos.cfdi_uuid?' También se comprobará el folio fiscal '+l.datos.cfdi_uuid+' y su sello SAT, sin simular una consulta de vigencia.':' Sólo se completará el importe; no acredita timbrado sin folio fiscal y sello SAT.')))return;
   s.busy=true;render();try{await call('CONFIRMAR',{lectura_id:l.id,confirmacion:'CONFIRMAR IMPORTE DEL RECIBO'});cfg.changed();s.page=0;await listar();}finally{s.busy=false;if(state===s&&ctx().obra?.id===s.obra&&el('ri-body'))render();}}
  async function pagina(delta){const s=active();if(s.busy)return;const p=s.page+delta;if(p<0||p*20>=s.total)return;s.page=p;return listar();}
  async function actualizar(){if(active().busy)return;return listar();}

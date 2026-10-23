@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-23.5",
-  "entry": "assets/platinum-app.9bc82c22100803e8.js",
-  "sha256": "9bc82c22100803e891baa01876a47599f05dc1da60d767641395889497f59d46",
-  "integrity": "sha384-vZOQ6Y0fkrYov/+CeNSl/8+7OkOO7QnYn1rgOHZIntSXgUOexRzH9mQNXwRCPBVS",
+  "version": "2026-10-23.6",
+  "entry": "assets/platinum-app.057a81f6f7d56bf5.js",
+  "sha256": "057a81f6f7d56bf5336cd6a05843df1c975479135a302680b1e53492ffb0c74a",
+  "integrity": "sha384-qqNtlKuI5IbjkXN10LtIdmYC0MkNyu/DoGb1b//zkAVpEKzUphJikbeGa8An98sb",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "6c86606fb1e2188fbb0356cab9d72e3ee97a0395f1a637fce139d16b78c93c2d"
+      "sha256": "2b0f187689a1056377260f685c647dab4b5a7c97a5ea9863c1077148adefd92a"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -38,7 +38,7 @@
     },
     {
       "path": "frontend/modulos/08-retenciones-incidencias.js",
-      "sha256": "656767fa75b1e08e13bb24bae8662eed98782c2ddcb2618f3be82bafed4b6a33"
+      "sha256": "a88f8ec889cfcd9fddd2bbdd49db3dec0e2d6ecba7596c489a4e0cbdd0558d91"
     },
     {
       "path": "frontend/modulos/09-documentacion-reportes.js",
@@ -146,7 +146,7 @@
     },
     {
       "path": "frontend/modulos/35-centro-control.js",
-      "sha256": "930bf98d239eb3982fcb2e874f0e93b00a25f9e9d42cc7a03b8eac75ea5cf169"
+      "sha256": "1b7c6e280a4cd4cf01ae48aa623dbfcda4051744a4efbbdd877f8ff935f91522"
     },
     {
       "path": "frontend/modulos/36-imss-sin-servicio-st7.js",
@@ -174,7 +174,7 @@
     },
     {
       "path": "frontend/modulos/42-recibos-lectura-ia.js",
-      "sha256": "25b681c06c97d935cf9ae017f8772e0f1d4323ff6b4d01944b9dd08580bda936"
+      "sha256": "edec65a159ea7dde306dcb42ec3077fccb48f16e520ee6ed5c4503f173bcb481"
     },
     {
       "path": "frontend/modulos/43-actividad-administrador.js",
@@ -182,7 +182,7 @@
     },
     {
       "path": "frontend/modulos/44-respaldo-recibos.js",
-      "sha256": "4f484a9a9682682f0eefaa5fc1d294b74017e640425025b0fb6b07024397bf70"
+      "sha256": "90d8c45939fbe19e7e08db03aa633adf23e194b6f8b5f80387dc75ece508e4fa"
     },
     {
       "path": "frontend/modulos/45-exportacion-altas-noi.js",

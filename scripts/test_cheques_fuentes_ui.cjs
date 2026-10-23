@@ -5,6 +5,10 @@ const box={Date,console};box.window=box;vm.createContext(box);vm.runInContext(fs
 const parse=box.PLATINUM_RESPALDO_RECIBO.parsear,txt='RFC PRUP900101AA1 NSS 12345678901 Período del 21/Sep/2026 al 27/Sep/2026 Total de percepciones: 2,200.00 Total de deducciones: 200.00 Neto pagado: 2,000.00';
 let p=parse(txt);ok(p.neto===2000&&p.datos.percepciones===2200&&p.datos.deducciones===200,'Neto y desglose sin tomar salario');ok(p.datos.periodo_inicio==='2026-09-21'&&p.datos.periodo_fin==='2026-09-27','Fechas reales');ok(p.datos.identificadores.includes('PRUP900101AA1'),'Identificadores extraídos');ok(p.tipo===null,'No infiere nómina por ausencia de finiquito');
 ok(parse(txt+' AGUINALDO').tipo===null,'Aguinaldo no determina finiquito');ok(parse(txt+' FINIQUITO').tipo==='FINIQUITO','Acepta tipo expreso');
+const folio='10000000-0000-4000-8000-000000000099',fiscal=txt+' Folio fiscal: '+folio+' Sello digital del SAT: '+'AbC123+/'.repeat(12);
+ok(parse(fiscal).datos.cfdi_uuid===folio.toUpperCase(),'Extrae folio fiscal sólo junto a sello SAT');
+ok(parse(txt+' UUID: '+folio).datos.cfdi_uuid===null,'Un folio sin sello no acredita timbrado');
+ok(parse(txt+' Sello digital del SAT: '+'AbC123+/'.repeat(12)).datos.cfdi_uuid===null,'Un sello sin folio no acredita timbrado');
 ok(parse(txt.replace('21/Sep/2026 al 27/Sep/2026','21/09/26 al 27/09/26')).datos.periodo_fin==='2026-09-27','Fechas numéricas');
 ok(parse(txt.replace('21/Sep/2026 al 27/Sep/2026','2026-09-21 al 2026-09-27')).datos.periodo_inicio==='2026-09-21','Fechas ISO');
 ok(parse(txt.replace('21/Sep/2026','31/Sep/2026')).datos.periodo_inicio===null,'No normaliza fechas imposibles');

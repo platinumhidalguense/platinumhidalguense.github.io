@@ -179,8 +179,32 @@ function retencionAplicadaPeriodo(d,w,semStr,P){
 }
 function retencionesDePeriodo(w,semStr,opts){
   const original=DESC;
-  try{DESC=original.map(d=>d.trabajador_id===w.id?adaptarRetencionPeriodo(d,w,semStr):d);return descuentosDe(w,semStr,opts);}
+  try{DESC=original.map(d=>d.trabajador_id===w.id?adaptarRetencionPeriodo(d,w,semStr):d);
+    if(typeof incAuditarCalculoGuardado==='function')for(const d of DESC){
+      if(d.trabajador_id!==w.id||!d.activo||d.recurrente||d.semana!==semStr)continue;
+      const a=incAuditarCalculoGuardado(d,w,opts?.dias);
+      if(a?.desactualizado)throw Error(`#${w.no_trab} · ${semStr}: incidencia automática guardada $${money(d.monto)}; cálculo vigente $${money(a.monto)}. Revisa y vuelve a capturar la incidencia. No se exportará el importe antiguo ni se alterará una fotografía autorizada.`);
+    }
+    return descuentosDe(w,semStr,opts);}
   finally{DESC=original;}
+}
+// No infiere días de notas libres ni recalcula importes manuales. Reutiliza el motor.
+function incAuditarCalculoGuardado(d,w,dias){
+  if(d.recurrente||!['FALTA','INCIDENCIA'].includes(d.tipo))return null;
+  const meta=d.ajustes_semana?._calculo_incidencia;
+  let faltas,incap,premios;
+  if(meta){
+    if(meta.modo!=='AUTOMATICO')return null;
+    ({faltas,incapacidad_imss:incap,premios}=meta);
+  }else{
+    // Compatibilidad únicamente con la firma exacta del generador antiguo.
+    const m=String(d.motivo||'').match(/^(\d+) FALTAS? · NETO NOI [−-]\$\d+\.\d{2} \(BRUTO [−-]\d+\.\d{2}, ISR [−+-]\d+\.\d{2}, IMSS [−-]\d+\.\d{2}\)$/);
+    if(d.recalculo_auto!==true||!m||d.tipo!=='FALTA')return null;
+    faltas=Number(m[1]);incap=0;premios=0;
+  }
+  if(!Number.isInteger(faltas)||!Number.isInteger(incap)||faltas<0||incap<0||faltas+incap>perDe(w,dias).dias||!Number.isFinite(premios)||premios<0)return null;
+  const r=descuentoFaltasNOI(w,faltas,premios,dias,incap);
+  return {monto:r.monto,desactualizado:Math.round(Number(d.monto)*100)!==Math.round(r.monto*100),resultado:r};
 }
 function descuentosDe(w,semStr,opts){
   const P=perDe(w,(opts||{}).dias);
@@ -474,6 +498,8 @@ async function saveIncidencias(){
       // queda explícita en el motivo y no se cuenta como falta para aguinaldo.
       inserts.push({trabajador_id:w.id,obra_id:w.obra_id,tipo:f>0?'FALTA':incap>0?'INCIDENCIA':raw.includes('FALTA')?'FALTA':'INCIDENCIA',
         motivo:mot,monto:m,recurrente:false,semana:sem,creado_por:USER.email,
+        ajustes_semana:{_calculo_incidencia:{version:1,modo:(f>0||incap>0)&&redondearCentavos(m)===descuentoFaltasNOI(w,f,Number($('inc-p-'+i)?.value)||0,undefined,incap).monto?'AUTOMATICO':'MANUAL',
+          faltas:f,incapacidad_imss:incap,premios:Number($('inc-p-'+i)?.value)||0,sd:Number(w.sd),sdi:Number(w.sdi),sueldo_registrado:Number(w.sal_semanal),dias:perDe(w).dias}},
         periodicidad:periodoPago(w)});   // deja constancia de con qué periodo se calculó
     }
   });

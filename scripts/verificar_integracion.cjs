@@ -40,6 +40,9 @@ else console.log('ALCANCE PÚBLICO CEROS: se prueban contratos UI; las 49 compro
 if(netoPrivate)suites.push('test_cheques_fuentes_pg');
 else console.log('ALCANCE PÚBLICO RESPALDO: los contratos de interfaz se ejecutan; 37 pruebas PostgreSQL de fuentes alternas requieren las migraciones privadas.');
 suites.push('test_cierres_legado_vip_ui','test_s28_ciclos_historicos_ui');
+suites.push('test_incidencias_vigencia');
+if(fs.readdirSync('supabase/migrations').filter(n=>/_(cierres_autorizacion_directa_y_excepcion_acotada|excepcion_noi_individual_auditada|correcciones_historicas_centavos_aprobadas)\.sql$/.test(n)).length===3)suites.push('test_cierres_directos_pg','test_excepcion_individual_pg');
+if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_timbrado_xml_o_pdf_verificado.sql')))suites.push('test_timbrado_fuentes_pg');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cierres_legado_preparacion_y_vip.sql')))suites.push('test_cierres_legado_vip_pg');
 for(const file of suites){
  const r=spawnSync(process.execPath,['scripts/'+file+'.cjs'],{encoding:'utf8',maxBuffer:4e6});
