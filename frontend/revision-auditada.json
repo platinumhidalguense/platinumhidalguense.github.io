@@ -1,4 +1,6 @@
 {
+  "openPrestaciones": "Añade acceso al papel versionado y tablas visibles, conservando entradas y motor monetario intactos.",
+  "usarEnBaja": "Guarda primero el papel ordinario con autor y confirmación de ISR manual, bloquea ante errores y enlaza su huella; no cambia cálculos ni controles de bajas/pagos.",
   "proyCargarHistoricos": "Consulta también el respaldo de bajas con cero explícito, para conservar sólo los finiquitos cero confirmados con desglose. No modifica salarios, retenciones ni fotografías autorizadas.",
   "proyFiniquitosSemana": "Conserva finiquitos de neto cero sólo con desglose de retención expresamente confirmado, por UUID, obra y fecha; no convierte bajas sin cálculo en pagos ni genera cheques cero.",
   "ctrlOpenConciliacion": "Aclara que importar compara contra la fotografía guardada y que un borrador se recalcula por el flujo de preparación existente, sin eliminarlo ni tocar cierres autorizados.",

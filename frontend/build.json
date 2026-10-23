@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-23.3",
-  "entry": "assets/platinum-app.1f48ab7165d2988f.js",
-  "sha256": "1f48ab7165d2988fe8eaa3300b0309508229bb02a718eff00789117672621f38",
-  "integrity": "sha384-7n25B3NL61ltLFLaIPodOmGOXRyMebpfj9aJNGjHtVrX/r4eKVbOMP0BEVdc7b1E",
+  "version": "2026-10-23.4",
+  "entry": "assets/platinum-app.5bea412c9431f09b.js",
+  "sha256": "5bea412c9431f09bbcb7f942d7e690888f53f59d47ac927d1a7f1b2310818042",
+  "integrity": "sha384-HCnRu1VV4VwHyOg/H0gmlINhyd7Z+IeC5R6euuOJmH8jIVLXDmxTOKL6Nx+LQumE",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -138,7 +138,7 @@
     },
     {
       "path": "frontend/modulos/33-finiquitos.js",
-      "sha256": "24a5265c1c20044964d27a7739c07cd72bd28468ca55dd603912d280ebef7b3f"
+      "sha256": "a0ec9e6d9caee80f9525ffebd639bc2a2030cd7ee9a6e3b0b6ce43be4af9a051"
     },
     {
       "path": "frontend/modulos/34-dashboard-respaldos.js",
@@ -146,7 +146,7 @@
     },
     {
       "path": "frontend/modulos/35-centro-control.js",
-      "sha256": "f56e55229e2ff9a55cd96d1d07f4f393c8919f230a87a1dcc4212228753e7935"
+      "sha256": "80861afa2d5b0526e0cbd338ac2258d97d0e198a12d87aa5ee01076b2b2d37e3"
     },
     {
       "path": "frontend/modulos/36-imss-sin-servicio-st7.js",
@@ -187,6 +187,10 @@
     {
       "path": "frontend/modulos/45-exportacion-altas-noi.js",
       "sha256": "b71a7eaf1c6299a7bb8d8e4f2976c4132053bdb0ad62975c395495e326090a09"
+    },
+    {
+      "path": "frontend/modulos/46-papeles-prestaciones.js",
+      "sha256": "039ce9bc6de2d0f2ec992f124d44e6477955175ee5890dc35ae0add95bdfb9ce"
     }
   ]
 }

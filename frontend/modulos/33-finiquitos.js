@@ -116,14 +116,16 @@ function openPrestaciones(id){
         <div id="pr-isr-hint" style="font-size:11.5px;color:var(--mut);padding-bottom:8px">Si contabilidad cambió D001 en NOI, captura aquí ese ISR para recalcular el neto y dejar el ajuste visible. El finiquito según NOI, si se captura, sigue mandando sobre el modelo para el cheque.</div>
       </div>
       <div id="pr-out" style="margin-top:16px"></div>
+      ${typeof ppfTablasHTML==='function'?ppfTablasHTML():''}
       <p style="font-size:11.5px;color:var(--mut);margin-top:10px">Cálculo conforme a LFT vigente: aguinaldo 15 días (art. 87), vacaciones desde 12 días (art. 76), prima vacacional 25% (art. 80), indemnización según causal y prima de antigüedad (art. 162). Sólo si la ficha tiene <b>retención INFONAVIT activa</b> se propone un día adicional cuando la baja es lunes, independientemente de salarios pendientes; escribe 0 si ya quedó retenido en otro corte. Confirma el aviso, la cédula SUA y el detalle de NOI antes de pagar: el modelo no sustituye esa conciliación.</p>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn" onclick="ppfDesdeFicha('${id}')">Papel semanal · ISR preciso</button>
       <button class="btn dark" id="pr-usar" onclick="usarEnBaja('${id}')">Usar total como finiquito en BAJA</button>
     </div>`,'lg prestaciones-form');
   calcPrestaciones(id);
-  prCargarAjusteNoi(id,estadoNoi);
+  estadoNoi.promesa=prCargarAjusteNoi(id,estadoNoi);
 }
 let PR_TOTAL=0;
 function prMotivoSeparacion(escenario){
@@ -449,6 +451,12 @@ async function usarEnBaja(id){
   if(globalThis._PR_AUDIT.trabajador_id!==id){toast('El cálculo no corresponde a este trabajador.','err');return;}
   if(globalThis._PR_AUDIT.requiere_noi_manual){toast('Confirma el importe en NOI antes de usar este finiquito de alta y baja el mismo día.','err');return;}
   const audit=globalThis._PR_AUDIT,legal=audit.entradas&&audit.entradas.separacion_legal;
+  if(!legal&&typeof ppfGuardarDesdeFicha==='function'){
+    const firma=JSON.stringify(audit),papel=await ppfGuardarDesdeFicha(id,audit);
+    if(!papel)return;
+    if(!$('pr-fecha')||JSON.stringify(globalThis._PR_AUDIT)!==firma){toast('El cálculo cambió; revisa antes de aplicar.','err');return;}
+    audit.papel_prestaciones_id=papel.id;audit.papel_prestaciones_huella=papel.huella;
+  }
   if(legal){
     calcPrestaciones(id);
     if(!esAdmin()||globalThis._PR_AUDIT.invalido||globalThis._PR_AUDIT.requiere_revision_legal||!Number.isFinite(PR_TOTAL)){
