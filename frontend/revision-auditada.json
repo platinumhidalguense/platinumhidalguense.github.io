@@ -1,4 +1,6 @@
 {
+  "proyCargarHistoricos": "Consulta también el respaldo de bajas con cero explícito, para conservar sólo los finiquitos cero confirmados con desglose. No modifica salarios, retenciones ni fotografías autorizadas.",
+  "proyFiniquitosSemana": "Conserva finiquitos de neto cero sólo con desglose de retención expresamente confirmado, por UUID, obra y fecha; no convierte bajas sin cálculo en pagos ni genera cheques cero.",
   "ctrlOpenConciliacion": "Aclara que importar compara contra la fotografía guardada y que un borrador se recalcula por el flujo de preparación existente, sin eliminarlo ni tocar cierres autorizados.",
   "cuotaFonacotCalendario": "Corrección solicitada S30: cuota mensual entre días reales del mes por días efectivos del periodo, redondeada al final; elimina diferencias de un centavo por residuos de semanas ajenas. Mantiene ajustes explícitos y fotografías autorizadas.",
   "buildProyDispersionWS": "Presenta sueldo registrado, previsión social condicional y neto del mismo modelo, en ese orden; subtotales por columna sin recalcular ni duplicar deducciones, con orden, colores y retenciones conservados.",

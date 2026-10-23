@@ -4,15 +4,21 @@ function proyFiniquitosSemana(personal,d1,d2,historicos=[]){
   return personal.flatMap(w=>{
     if(!w.fecha_baja||w.fecha_baja<d1||w.fecha_baja>d2)return [];
     if(w.estatus==='BAJA'&&Number(w.monto_finiquito)>0)return [w];
+    // Un cero confirmado con desglose no es un finiquito ausente. Conserva
+    // su costo/retención en ambas proyecciones, sin crear un cheque de $0.
+    const cero=historicos.find(x=>x.trabajador_id===w.id&&x.obra_id===w.obra_id&&x.periodo===w.fecha_baja
+      &&x.monto_aplicado!=null&&Number(x.monto_aplicado)===0&&x.resultado?.finiquito_cero_retencion_confirmada===true);
+    if(w.estatus==='BAJA'&&w.monto_finiquito!=null&&w.monto_finiquito!==''&&Number(w.monto_finiquito)===0&&cero)return [w];
     // Reingreso posterior al corte: rescatar el finiquito de la baja anterior,
     // sin volver a colocarlo en la ficha vigente ni en la nómina del reingreso.
     if(w.estatus!=='ACTIVO'||!w.fecha_reingreso||w.fecha_reingreso<=d2)return [];
     const a=historicos.find(x=>x.trabajador_id===w.id&&x.obra_id===w.obra_id&&x.periodo===w.fecha_baja);
-    return a&&Number(a.monto_aplicado)>0?[{...w,monto_finiquito:Number(a.monto_aplicado)}]:[];
+    return a&&(Number(a.monto_aplicado)>0||a===cero)?[{...w,monto_finiquito:Number(a.monto_aplicado)}]:[];
   });
 }
 async function proyCargarHistoricos(personal){
-  return proyLeerFiniquitos(personal.filter(w=>w.estatus==='ACTIVO'&&w.fecha_baja&&w.fecha_reingreso>w.fecha_baja));
+  return proyLeerFiniquitos(personal.filter(w=>w.fecha_baja&&(w.estatus==='ACTIVO'&&w.fecha_reingreso>w.fecha_baja
+    ||w.estatus==='BAJA'&&w.monto_finiquito!=null&&w.monto_finiquito!==''&&Number(w.monto_finiquito)===0)));
 }
 function pyCandidatos(d1,d2,periodo){
   // En una semana histórica, el estado actual no sustituye a las fechas de
