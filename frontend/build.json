@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-23.8",
-  "entry": "assets/platinum-app.f49533c36dd00722.js",
-  "sha256": "f49533c36dd007227e83fb81c207dbcc299a2e4c68b1d2eedaaf47168175299f",
-  "integrity": "sha384-lwx9R++A3Sb/KZ7htv+vfZjOI9pZ/F66JnIwl2GNwnQzHnHDq3ghqzmVas1IWjnN",
+  "version": "2026-10-24.1",
+  "entry": "assets/platinum-app.484949dfbe629e85.js",
+  "sha256": "484949dfbe629e8576a26337f74ecec1fcec462cff41f90040d4952eebb21315",
+  "integrity": "sha384-KuzC4+YJGkREKXY5gOKiEmPIjsiqrXAomhY3in3DZPhu4evY0R6ZZyZsnJi/koYy",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "2be3d2771bb709ba8dbbe2c8a3441c974cac13d0b37a9d879f08630ae133c0df"
+      "sha256": "5684382252c6d40b0c73f556b84a5c9ed6541f9801b7cc8eb871dabadbd3d9d3"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -158,7 +158,7 @@
     },
     {
       "path": "frontend/modulos/38-adaptadores-arranque.js",
-      "sha256": "dd8f53e6f6d93ad0b95643e7e09e403b8e07da8dff4362e9c46e77e3112e0c4e"
+      "sha256": "5ad87806856844722d5836da2f0fec47774f0357ac66d72f9c5c74845eebfe12"
     },
     {
       "path": "frontend/modulos/39-rrhh-adaptadores.js",
@@ -191,6 +191,10 @@
     {
       "path": "frontend/modulos/46-papeles-prestaciones.js",
       "sha256": "039ce9bc6de2d0f2ec992f124d44e6477955175ee5890dc35ae0add95bdfb9ce"
+    },
+    {
+      "path": "frontend/modulos/47-contexto-historico-nomina.js",
+      "sha256": "a1229dc9ba5291553578037e5aa44c4df3007fd9950bad28793c94b73e4a4fbb"
     }
   ]
 }

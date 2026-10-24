@@ -1,4 +1,5 @@
 {
+  "proySnapshotIntegrado": "Para reconstrucciones semanales históricas recupera ciclos y versiones documentadas de créditos, sólo como entradas temporales y con referencias de bitácora; conserva el motor, no modifica fichas ni pagos, restaura las fuentes y evita duplicar bajas. La regularización conserva vista previa y aprobación por la ruta existente.",
   "proyLeerFiniquitos": "Lee entradas.fecha_calculo como fecha efectiva de baja en auditorías antiguas que usaban la fecha de captura en periodo; conserva el periodo original como dato auxiliar. No modifica personas, retenciones, importes ni la bitácora.",
   "asVigenteSemana": "Compara fechas ISO lexicográficamente, sin convertirlas a NaN mediante Math.max; conserva alta, baja y reingreso, y no modifica datos ni cálculos monetarios.",
   "openCtrlCierres": "Elimina la etapa de revisión y ofrece autorización directa VIP. Muestra firmas de autorización y pago. Conserva eliminación administrativa y validación de transiciones en servidor.",
@@ -64,7 +65,6 @@
   "openDetail": "Conserva ficha y herramientas; añade accesos de lectura y un UUID de contexto en el contenedor, sin transmitir valores, para el visor exclusivo del administrador.",
   "openControlEmpresarial": "Añadir un único acceso a los cuatro engranes de operación RRHH, sin retirar controles.",
   "startRealtime": "Inicia presencia efímera aislada y notifica cambios al módulo RRHH sin sobrescribir capturas abiertas; la actividad no recarga datos de trabajadores.",
-  "proySnapshotIntegrado": "Añadir referencias exactas de fuentes a fotografías futuras, sin cambiar los importes calculados ni los motores.",
   "openForm": "Retirar indicación insegura de copiar una contraseña compartida; captura y validaciones intactas.",
   "correoCfg": "Eliminar contraseña incrustada y no leer claves de configuración compartida.",
   "crearCorreo": "Mantener creación de dirección sin copiar contraseñas; acceso al proveedor sin opener.",

@@ -1,7 +1,7 @@
 // Prueba de contrato de la Edge Function con PDF y respuestas ficticias.
 const fs=require('node:fs'),assert=require('node:assert/strict'),vm=require('node:vm');let n=0;const ok=(v,m)=>{assert.ok(v,m);n++;};
 (async()=>{const path=require('node:path').resolve('supabase/functions/gemini-recibos/core.mjs');if(!fs.existsSync(path)){console.log('ALCANCE PÚBLICO: núcleo Edge privado no incluido. No se ejecutan sus pruebas.');return;}
- const{handle,googleRead,storagePath,parseResult}=await import(require('node:url').pathToFileURL(path));
+ const{handle,googleRead,storagePath,parseResult,ServicioLecturaTemporal}=await import(require('node:url').pathToFileURL(path));
  const bytes=new TextEncoder().encode('%PDF-1.4 FICTICIO'),calls=[],data={recibos:1,neto:1800};
  const opts={headers:{'Content-Type':'application/json'},auth:async()=>({id:'FICTICIO'}),limit:()=>false,model:'modelo-prueba',hash:async()=>'a'.repeat(64),download:async()=>bytes,read:async()=>data,rpc:async(u,a,j)=>{calls.push([a,j]);return a==='PREPARAR'?{archivo:'obra/recibo.pdf',revision:'REV'}:{id:'LECTURA',datos:j.datos};}};
  const req=body=>new Request('https://example.test',{method:'POST',body:JSON.stringify(body||{obra_id:'O',documento_id:'D'})});
@@ -17,5 +17,9 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),vm=require('nod
  const response=data=>({candidates:[{finishReason:'STOP',content:{parts:[{text:JSON.stringify(data)}]}}]});ok(parseResult(response(data)).neto===1800,'JSON estructurado');assert.throws(()=>parseResult({candidates:[{finishReason:'MAX_TOKENS'}]}));n++;
  let tries=0;const answer=await googleRead({bytes,mime:'application/pdf',model:'modelo-prueba',key:'FICTICIA',sleep:async()=>{},fetcher:async(url,opts)=>{tries++;ok(!url.includes('FICTICIA')&&opts.headers['x-goog-api-key']==='FICTICIA','Llave no en URL');return tries<3?new Response('busy',{status:503}):new Response(JSON.stringify(response(data)));}});ok(tries===3&&answer.neto===1800,'Reintenta 503 en forma acotada');
  await assert.rejects(googleRead({bytes,mime:'application/pdf',model:'modelo-prueba',key:'FICTICIA',sleep:async()=>{},fetcher:async()=>new Response('busy',{status:503})}),/503/);n++;
+ let wait=[],attempts=0;await assert.rejects(googleRead({bytes,mime:'application/pdf',model:'gemini-2.5-flash',key:'FICTICIA',sleep:async ms=>wait.push(ms),fetcher:async(_,o)=>{attempts++;ok(JSON.parse(o.body).generationConfig.thinkingConfig.thinkingBudget===0,'Transcripción sin tokens internos');return new Response('busy',{status:503,headers:{'Retry-After':'500'}});}}),/temporalmente/);ok(attempts===3&&wait.every(x=>x<=5000),'Retry-After y reintentos acotados');
+ attempts=0;const connected=await googleRead({bytes,mime:'application/pdf',model:'modelo-prueba',key:'FICTICIA',sleep:async()=>{},fetcher:async()=>{if(++attempts<3)throw Error('Fallo de red');return new Response(JSON.stringify(response(data)));}});ok(attempts===3&&connected.neto===1800,'Recupera fallos transitorios de conexión');
+ r=await handle(req(),{...opts,read:async()=>{throw new ServicioLecturaTemporal(503);}});const temporary=await r.json();ok(r.status===503&&temporary.retryable&&r.headers.get('Retry-After')==='30','Servicio temporal no se presenta como PDF ilegible');
+ ok(!calls.some(x=>x[0]==='CONFIRMAR'),'No confirma un neto al reintentar');
  console.log(`PASS ${n} contratos Edge IA: autorización, PDF privado, huella, límites, JSON completo, reintentos y no confirmación automática.`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

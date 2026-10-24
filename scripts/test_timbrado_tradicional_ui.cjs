@@ -29,5 +29,7 @@ box.PLATINUM_FLOWS.configure({context:()=>ctx,esc:String,money:String,$:()=>null
  assert(!calls.some(x=>x.p_accion==='TRANSICION'));assert(view.includes('Folio ilegible en PDF ficticio'));assert(view.includes('PERSONA FICTICIA'));n+=3;
  calls=[];mode='ok';cierre.snapshot.items.push({...cierre.snapshot.items[0],tipo:'FINIQUITO'});await box.PLATINUM_FLOWS.transicion('c','TIMBRADO');
  assert(!calls.some(x=>x.p_accion==='TRANSICION'));assert(view.includes('ambiguo'));n+=2;
+ cierre.snapshot.items.pop();ctx.workers=[{id:'w0',rfc:'OTRO900101AA1'}];calls=[];seen=new Set();await box.PLATINUM_FLOWS.transicion('c','TIMBRADO');
+ assert(!calls.some(x=>x.p_accion==='TRANSICION'));assert(view.includes('RFC del receptor'));n+=2;
  console.log('PASS '+n+' controles de lector NOI y timbrado: ISR separado, otros pagos, fechas, contradicciones, clasificación por cierre, concurrencia y errores por trabajador.');
 })().catch(e=>{console.error(e.stack);process.exitCode=1;});

@@ -152,6 +152,12 @@
      const tipos=[...new Set(items.map(x=>x.tipo||'NOMINA'))],tipo=info.tipo||(tipos.length===1?tipos[0]:null);
      if(!tipo||!tipos.includes(tipo))throw Error('El concepto del PDF es ambiguo o no corresponde a la fotografía; revisa nómina/finiquito.');
      if(fiscal&&(!info.datos.cfdi_uuid||!info.datos.evidencia_timbrado))throw Error('No se pudo verificar el folio fiscal y el sello SAT en el PDF; revisar el archivo o su XML.');
+     const trabajador=context().workers?.find(w=>w.id===doc.trabajador_id);
+     if(fiscal&&trabajador?.rfc){
+      const rfc=String(trabajador.rfc).trim().toUpperCase(),ids=info.datos.identificadores||[];
+      if(String(info.datos.rfc||'').toUpperCase()!==rfc&&!ids.some(i=>String(i).toUpperCase()===rfc))
+       throw Error('El PDF sí se leyó, pero el RFC del receptor no coincide con la ficha. Coteja su constancia y el CFDI; Gemini no corrige una identidad distinta.');
+     }
      await call('RECIBO',{cierre_id:d.cierre.id,documento_id:doc.id,hash:doc.hash,neto:info.neto,tipo,datos:info.datos});ok++;
     }catch(e){failed.push({documento_id:doc.id,nombre,causa:e.message||String(e)});}
     finally{done++;progress();}

@@ -3,10 +3,27 @@ async function proySnapshotIntegrado(sem,periodo){
   const obra=OBRA;if(!obra)throw Error('Selecciona un centro.');
   const source=await window.PLATINUM_FLOWS.call('FUENTE',{obra_id:obra.id,semana:sem});
   if(!await pyDatosFrescos()||OBRA?.id!==obra.id)throw Error('No se pudo preparar con datos actuales.');
-  const [desde,hasta]=semRange(sem),{act,fins}=pyCandidatos(desde,hasta,periodo);
+  const [desde,hasta]=semRange(sem);
+  const entradasHistoricas={workers:WORKERS,desc:DESC};
+  const historico=periodo==='SEMANAL'&&hasta<today()?await proyLeerContextoHistorico(WORKERS,DESC,obra.id,hasta):null;
+  if(OBRA?.id!==obra.id||WORKERS!==entradasHistoricas.workers||DESC!==entradasHistoricas.desc)throw Error('Cambiaron el centro o las fuentes al recuperar el histórico. Vuelve a preparar.');
+  let act,fins;
+  const padron=WORKERS,ciclos=globalThis._PY_BAJAS_HISTORICAS;
+  try{
+    if(historico){
+      WORKERS=historico.personal.map(w=>{
+        const previo=(ciclos||[]).find(h=>h.id===w.id&&h.obra_id===w.obra_id&&h.fecha_baja===w.fecha_baja);
+        return previo?{...w,monto_finiquito:previo.monto_finiquito}:w;
+      });
+      globalThis._PY_BAJAS_HISTORICAS=(ciclos||[]).filter(h=>!WORKERS.some(w=>w.id===h.id&&w.fecha_baja===h.fecha_baja));
+    }
+    ({act,fins}=pyCandidatos(desde,hasta,periodo));
+  }finally{WORKERS=padron;globalThis._PY_BAJAS_HISTORICAS=ciclos;}
   const sources={DESC,DIFS,FINTRANS},audits=await proyLeerFiniquitos(fins);
   if(OBRA?.id!==obra.id||DESC!==sources.DESC||DIFS!==sources.DIFS||FINTRANS!==sources.FINTRANS)throw Error('Cambió el contexto durante el cálculo. Intenta nuevamente.');
-  const live=proyModelo(act,fins,'S'+sem,audits);
+  let live;
+  try{if(historico)DESC=historico.descuentos;live=proyModelo(act,fins,'S'+sem,audits);}
+  finally{DESC=sources.DESC;}
   // Sólo los campos necesarios para reproducir las exportaciones, no el expediente personal.
   const fields=['id','obra_id','no_trab','nombres','primer_apellido','segundo_apellido','contratista','puesto','periodo_pago','cuenta','clabe','banco','forma_pago','fecha_baja'];
   const filas=live.filas.map(f=>{const w=Object.fromEntries(fields.map(k=>[k,f.w[k]??null]));return {...f,w,items:f.items.map(i=>({...i,w}))};});
@@ -18,6 +35,7 @@ async function proySnapshotIntegrado(sem,periodo){
     items:filas.map(f=>({trabajador_id:f.w.id,numero:f.w.no_trab,nombre:fullName(f.w),tipo:f.fin?'FINIQUITO':'NOMINA',metodo_pago:f.pago,
       sueldo_nomina:f.sueldo,prevision_social:f.prevision,retenciones:f.fin?0:redondearCentavos(f.incidencias+f.creditos+f.otras),monto:f.neto}))};
   snapshot.trazabilidad=rrhhReferenciasModelo(live.filas,audits,'S'+sem,source.fuente);
+  if(historico)snapshot.contexto_historico=historico.trazabilidad;
   return {obra_id:obra.id,semana:sem,periodo,snapshot,fuente:source.fuente};
 }
 if(window.PLATINUM_FLOWS)window.PLATINUM_FLOWS.configure({
@@ -27,9 +45,12 @@ if(window.PLATINUM_FLOWS)window.PLATINUM_FLOWS.configure({
   openNoi:ctrlOpenConciliacion,openPayments:openControlPagos,openControl:openControlEmpresarial,
   exportRows:(title,headers,rows,name)=>ctrlExportar(title,headers,rows,name,'FLUJO_INTEGRADO'),
   readReceipt:async doc=>{const r=await sb.storage.from('expedientes').download(doc.archivo);if(r.error||!r.data)throw Error('No se pudo descargar el recibo privado.');
-    const bytes=new Uint8Array(await r.data.arrayBuffer());if(doc.hash&&await sha256Hex(bytes)!==doc.hash)throw Error('El archivo no coincide con su huella.');
+    const bytes=new Uint8Array(await r.data.arrayBuffer());if(doc.hash&&await sha256Hex(bytes)!==doc.hash)throw Error('El PDF almacenado no coincide con la huella registrada. Debe cotejarse el archivo original; usar Gemini no resuelve una huella distinta.');
     const info=window.PLATINUM_RESPALDO_RECIBO?.parsear(await pdfBytesToText(bytes));
-    if(!info||!Number.isFinite(info.neto)||info.errores?.length||info.datos.recibos!==1||!info.datos.periodo_inicio||!info.datos.periodo_fin||!info.datos.identificadores.length||info.datos.percepciones==null||info.datos.deducciones==null)throw Error(info?.errores?.join('; ')||'El PDF no permite verificar identidad, fechas o importes. Usa Leer recibos con Gemini y confirma su lectura.');
+    if(!info)throw Error('No está disponible el lector tradicional de recibos. Actualiza la plataforma.');
+    if(info.errores?.length)throw Error(info.errores.join('; '));
+    const faltan=[!Number.isFinite(info.neto)&&'neto',info.datos.recibos!==1&&'un único recibo',(!info.datos.periodo_inicio||!info.datos.periodo_fin)&&'fechas del periodo',!info.datos.identificadores.length&&'identificadores',info.datos.percepciones==null&&'percepciones',info.datos.deducciones==null&&'deducciones'].filter(Boolean);
+    if(faltan.length)throw Error('Lectura tradicional incompleta: '+faltan.join(', ')+'. Revisa el original o usa Gemini y confirma la propuesta.');
     return info;}
 });
 init();
