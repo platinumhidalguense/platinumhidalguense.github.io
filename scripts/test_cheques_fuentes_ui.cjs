@@ -7,6 +7,10 @@ let p=parse(txt);ok(p.neto===2000&&p.datos.percepciones===2200&&p.datos.deduccio
 ok(parse(txt+' AGUINALDO').tipo===null,'Aguinaldo no determina finiquito');ok(parse(txt+' FINIQUITO').tipo==='FINIQUITO','Acepta tipo expreso');
 const folio='10000000-0000-4000-8000-000000000099',fiscal=txt+' Folio fiscal: '+folio+' Sello digital del SAT: '+'AbC123+/'.repeat(12);
 ok(parse(fiscal).datos.cfdi_uuid===folio.toUpperCase(),'Extrae folio fiscal sólo junto a sello SAT');
+const fragmentado=txt+' Folio fiscal: Fecha de emisión: 2026-10-23 '+folio+' Sello Digital del SAT: '+('AbC123+/'.repeat(12).match(/.{1,8}/g).join(' '))+' Cadena Original del complemento de certificación digital del SAT';
+ok(parse(fragmentado).datos.cfdi_uuid===folio.toUpperCase(),'Folio separado y sello fragmentado por pdf.js conservan la evidencia');
+ok(parse(fragmentado.replace('AbC123+/','AbC&23+/')).datos.cfdi_uuid===null,'No limpia caracteres inválidos para fabricar un sello');
+ok(parse(fiscal+' 20000000-0000-4000-8000-000000000099').datos.cfdi_uuid===null,'Varios folios distintos bloquean la lectura fiscal');
 ok(parse(txt+' UUID: '+folio).datos.cfdi_uuid===null,'Un folio sin sello no acredita timbrado');
 ok(parse(txt+' Sello digital del SAT: '+'AbC123+/'.repeat(12)).datos.cfdi_uuid===null,'Un sello sin folio no acredita timbrado');
 ok(parse(txt.replace('21/Sep/2026 al 27/Sep/2026','21/09/26 al 27/09/26')).datos.periodo_fin==='2026-09-27','Fechas numéricas');

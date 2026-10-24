@@ -25,10 +25,16 @@
   const ids=[...new Set((t.toUpperCase().match(/\b[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}\b|\b[A-ZÑ]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d\b|\b\d{11}\b/g)||[]))];
   const tipo=/\b(?:FINIQUITO|LIQUIDACI[ÓO]N)\b/i.test(t)?'FINIQUITO':null;
   const folio=t.match(/(?:Folio\s+fiscal(?:\s*\(?UUID\)?)?|UUID)\s*:?\s*([a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})\b/i);
-  const sello=t.match(/Sello\s+digital\s+(?:del\s+)?SAT\s*:?\s*[a-zA-Z0-9+/=]{40,}/i);
+  // pdf.js puede separar la etiqueta de su valor en el orden de extracción.
+  // Sólo rescatar el folio si existe la etiqueta y hay UN único UUID distinto.
+  const uuids=[...new Set((t.match(/\b[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\b/gi)||[]).map(x=>x.toUpperCase()))];
+  const uuid=uuids.length===1&&/(?:Folio\s+fiscal|UUID)/i.test(t)?uuids[0]:null;
+  const bloque=t.match(/Sello\s+digital\s+(?:del\s+)?SAT\s*:?\s*([\s\S]*?)(?=Cadena\s+Original|Este\s+documento|$)/i);
+  const compacto=bloque?bloque[1].replace(/\s/g,''):'';
+  const sello=/^[a-zA-Z0-9+/=]{40,4096}$/.test(compacto)?'Sello Digital del SAT: '+compacto:null;
   const emisor=ids.find(x=>/^[A-ZÑ&]{3}[0-9]{6}[A-Z0-9]{3}$/.test(x))||null;
   return {neto,tipo,errores,datos:{recibos:netos.length,nombre:null,numero:null,rfc:null,curp:null,nss:null,rfc_emisor:emisor,identificadores:ids,periodo_inicio:desde,periodo_fin:hasta,percepciones,deducciones,otros_pagos:otros||0,neto,evidencia_neto:netos[0]?.[0]||'',
-    cfdi_uuid:folio&&sello?folio[1].toUpperCase():null,evidencia_timbrado:folio&&sello?folio[0]+' | '+sello[0]:null}};
+    cfdi_uuid:uuid&&sello?uuid:null,evidencia_timbrado:uuid&&sello?(folio?.[0]||'Folio fiscal: '+uuid)+' | '+sello:null}};
  }
  root.PLATINUM_RESPALDO_RECIBO=Object.freeze({parsear});
 })(window);
