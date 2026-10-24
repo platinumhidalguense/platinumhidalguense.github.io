@@ -75,6 +75,7 @@
    <div class="stats"><div class="stat b"><div class="n">$${money(c.total_neto)}</div><div class="l">Versión del cierre</div></div><div class="stat g"><div class="n">$${money(pago)}</div><div class="l">Pago registrado</div></div><div class="stat a"><div class="n">$${money(saldo)}</div><div class="l">Saldo por aplicar</div></div><div class="stat a"><div class="n">$${money(entrega)}</div><div class="l">Cheque: entrega pendiente</div></div></div>
    <div style="display:flex;gap:7px;flex-wrap:wrap;margin:12px 0">${actions.join('')}</div>
    <p id="flow-progress" class="fhint" role="status"></p>
+   ${st.receiptErrors?.length?`<details open><summary><b>PDF por revisar: ${st.receiptErrors.length}</b></summary>${table(['Trabajador','Causa'],st.receiptErrors.map(x=>`<tr><td>${esc(x.nombre)}</td><td>${esc(x.causa)}</td></tr>`))}</details>`:''}
    ${d.timbrado?`<details><summary><b>Respaldo del timbrado: ${d.timbrado.pendientes} pendiente(s) · XML o PDF fiscal verificado</b></summary><p class="fhint">Se cotejan folio, emisor, trabajador, periodo e importe. XML y PDF del mismo folio no se suman dos veces. Comprobación documental interna; no es consulta de vigencia ante SAT.</p>${table(['Trabajador (UUID)','XML','PDF','Estado'],(d.timbrado.filas||[]).map(x=>`<tr><td>${esc((diag.filas||[]).find(z=>z.trabajador_id===x.tid)?.nombre||x.tid)}</td><td>${x.xml}</td><td>${x.pdf}</td><td>${esc(x.estado)}</td></tr>`))}</details>`:''}
    <details ${issues.length?'open':''}><summary><b>Conciliación motor / NOI / recibos: ${issues.length} pendiente(s)${diag.fuera_snapshot?' · '+diag.fuera_snapshot+' fila(s) NOI fuera de fotografía':''}</b></summary>
    ${table(['No.','Trabajador','Concepto','Motor fiscal','NOI','PDF / XML','Estado'],(diag.filas||[]).map(x=>`<tr><td>${esc(x.numero)}</td><td>${esc(x.nombre)}</td><td>${esc(x.tipo)}</td><td>$${money(x.motor)}</td><td>${x.noi==null?(x.neto_respaldo==null?'Sin respaldo':'PDF $'+money(x.neto_respaldo)):'$'+money(x.noi)}</td><td>${x.pdf} / ${x.xml}</td><td>${esc(x.estado)}</td></tr>`))}</details>
@@ -124,26 +125,45 @@
   await loadPermissions();if(!permissions.escritura)throw Error('Tu cuenta es de consulta.');
   if(['AUTORIZADO','PAGADO'].includes(estado)&&!permissions.aprobar_cierre)throw Error('Se requiere acceso VIP para autorizar o marcar pagado.');
   if(estado==='CANCELADO'&&!permissions.admin)throw Error('Sólo el administrador puede cancelar cierres.');
-  const current=await call('DETALLE',{cierre_id:id});
+  let current=await call('DETALLE',{cierre_id:id});
   if(estado==='REVISADO')throw Error('La etapa de revisión fue retirada. Autoriza directamente con acceso VIP.');
   if(estado==='AUTORIZADO'&&esLegadoSinPreparar(current)&&!await prepararLegado(current))return;
+  if(estado==='TIMBRADO'&&(current.recibos_sin_leer||[]).length){
+   if(!root.confirm(`Se verificarán ${current.recibos_sin_leer.length} PDF archivados de S${current.cierre.semana}, con el lector tradicional.\n\nSe guardará su evidencia de identidad, fechas, neto y timbrado; no se modifican salarios, pagos ni la fotografía. ¿Continuar?`))return;
+   const result=await procesarRecibos(current,true);current=await call('DETALLE',{cierre_id:id});
+   if(result.failed.length){await abrirCierre(id);state.receiptErrors=result.failed;renderCierre();throw Error(`${result.ok} PDF verificados; ${result.failed.length} requieren revisión. Se muestran los trabajadores y la causa; no se marcó timbrado.`);}
+  }
   if(!root.confirm(`¿Cambiar S${current.cierre.semana} a ${estado}?\n\n${estado==='AUTORIZADO'?'Se fijará esta fotografía y sus obligaciones. Las diferencias bloquean la autorización.':'La base verificará los requisitos de esta etapa.'}`))return;
   if(estado==='AUTORIZADO'&&root.prompt('Escribe AUTORIZAR S'+current.cierre.semana)!=='AUTORIZAR S'+current.cierre.semana)return;
   await call('TRANSICION',{cierre_id:id,estado});cfg.toast('Etapa confirmada: '+estado,'ok');await cfg.reload();await abrirCierre(id);
  });}
+ async function procesarRecibos(d,fiscal=false){
+  const docs=d.recibos_sin_leer||[],failed=[],cache=new Map();let next=0,ok=0,done=0;
+  const check=()=>{if(context().obra?.id!==d.cierre.obra_id)throw Error('Cambió el centro; abre otra vez el cierre.');};
+  const progress=()=>{if(el('flow-progress'))el('flow-progress').textContent=`Verificando PDF ${done}/${docs.length} · ${ok} correctos · ${failed.length} por revisar…`;};
+  progress();
+  await Promise.all(Array.from({length:Math.min(3,docs.length)},async()=>{
+   while(next<docs.length){const doc=docs[next++],items=(d.cierre.snapshot.items||[]).filter(x=>x.trabajador_id===doc.trabajador_id);
+    const nombre=items[0]?`#${items[0].numero} ${items[0].nombre}`:doc.trabajador_id;
+    try{
+     check();const key=doc.hash||doc.archivo;if(!cache.has(key))cache.set(key,Promise.resolve().then(()=>cfg.readReceipt(doc)));
+     const info=await cache.get(key);check();
+     if(!Number.isFinite(info.neto)||info.errores?.length)throw Error(info.errores?.join('; ')||'No se pudo extraer el neto.');
+     const tipos=[...new Set(items.map(x=>x.tipo||'NOMINA'))],tipo=info.tipo||(tipos.length===1?tipos[0]:null);
+     if(!tipo||!tipos.includes(tipo))throw Error('El concepto del PDF es ambiguo o no corresponde a la fotografía; revisa nómina/finiquito.');
+     if(fiscal&&(!info.datos.cfdi_uuid||!info.datos.evidencia_timbrado))throw Error('No se pudo verificar el folio fiscal y el sello SAT en el PDF; revisar el archivo o su XML.');
+     await call('RECIBO',{cierre_id:d.cierre.id,documento_id:doc.id,hash:doc.hash,neto:info.neto,tipo,datos:info.datos});ok++;
+    }catch(e){failed.push({documento_id:doc.id,nombre,causa:e.message||String(e)});}
+    finally{done++;progress();}
+   }
+  }));
+  return {ok,failed};
+ }
  async function leerRecibos(id){return operation(async()=>{
   ensureState(id);if(!permissions.escritura)throw Error('Acceso de consulta.');
-  const d=await call('DETALLE',{cierre_id:id});let ok=0;const failed=[];
-  for(const doc of d.recibos_sin_leer||[]){
-   if(el('flow-progress'))el('flow-progress').textContent=`Leyendo recibos ${ok+failed.length+1}/${d.recibos_sin_leer.length}…`;
-   try{
-    const info=await cfg.readReceipt(doc);if(!Number.isFinite(info.neto))throw Error('No se pudo extraer el neto.');
-    const tipo=info.tipo||String(root.prompt('El PDF no indica el concepto expresamente. Tras revisarlo, escribe NOMINA o FINIQUITO:')||'').trim().toUpperCase();
-    if(!['NOMINA','FINIQUITO'].includes(tipo))throw Error('Recibo sin clasificación confirmada.');
-    await call('RECIBO',{documento_id:doc.id,hash:doc.hash,neto:info.neto,tipo,datos:info.datos});ok++;
-   }catch(e){failed.push(doc.id);}
-  }
-  cfg.toast(`${ok} recibo(s) leídos${failed.length?`; ${failed.length} requieren revisión manual, sin inventar importes`:''}.`,failed.length?'err':'ok');await abrirCierre(id);
+  const d=await call('DETALLE',{cierre_id:id}),result=await procesarRecibos(d);
+  cfg.toast(`${result.ok} recibo(s) verificados${result.failed.length?`; ${result.failed.length} requieren revisión`:''}.`,result.failed.length?'err':'ok');
+  await abrirCierre(id);state.receiptErrors=result.failed;renderCierre();
  });}
  function solicitar(id,tipo){
   if(!permissions.escritura){cfg.toast('Acceso de consulta.','err');return;}

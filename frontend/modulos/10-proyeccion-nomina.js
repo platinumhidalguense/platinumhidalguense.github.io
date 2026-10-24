@@ -180,10 +180,13 @@ async function proyLeerFiniquitos(fins){
   // crédito semanal para un finiquito cuyo proporcional ya fue aplicado.
   for(let i=0;i<fins.length;i+=100){
     const {data,error}=await fetchAllRows(()=>sb.from('auditoria_calculos_nomina')
-      .select('id,obra_id,trabajador_id,periodo,resultado,monto_aplicado,created_at')
+      .select('id,obra_id,trabajador_id,periodo,entradas,resultado,monto_aplicado,created_at')
       .in('trabajador_id',fins.slice(i,i+100).map(w=>w.id)).eq('tipo_calculo','FINIQUITO_APLICADO').order('created_at',{ascending:false}));
     if(error)throw Error('No se pudo consultar el desglose de finiquitos: '+error.message);
-    out.push(...(data||[]));
+    // Los primeros registros guardaban la fecha de captura en periodo. La baja real
+    // ya está en entradas.fecha_calculo; no se recalcula ni se modifica la bitácora.
+    out.push(...(data||[]).map(a=>({...a,periodo_captura:a.periodo,
+      periodo:/^\d{4}-\d{2}-\d{2}$/.test(a.entradas?.fecha_calculo||'')?a.entradas.fecha_calculo:a.periodo})));
     const hr=await fetchAllRows(()=>sb.from('historial')
       .select('id,obra_id,trabajador_id,datos_despues,fecha')
       .in('trabajador_id',fins.slice(i,i+100).map(w=>w.id)).eq('accion','AJUSTE_FINIQUITO_NOI')

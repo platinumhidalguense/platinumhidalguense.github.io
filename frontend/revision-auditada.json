@@ -1,4 +1,5 @@
 {
+  "proyLeerFiniquitos": "Lee entradas.fecha_calculo como fecha efectiva de baja en auditorías antiguas que usaban la fecha de captura en periodo; conserva el periodo original como dato auxiliar. No modifica personas, retenciones, importes ni la bitácora.",
   "asVigenteSemana": "Compara fechas ISO lexicográficamente, sin convertirlas a NaN mediante Math.max; conserva alta, baja y reingreso, y no modifica datos ni cálculos monetarios.",
   "openCtrlCierres": "Elimina la etapa de revisión y ofrece autorización directa VIP. Muestra firmas de autorización y pago. Conserva eliminación administrativa y validación de transiciones en servidor.",
   "retencionesDePeriodo": "Valida incidencias automáticas guardadas contra el motor vigente antes de proyectar; bloquea residuos desactualizados con aviso, sin recalcular importes manuales ni modificar DESC o fotografías autorizadas.",

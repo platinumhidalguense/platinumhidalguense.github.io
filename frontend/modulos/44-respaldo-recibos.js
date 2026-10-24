@@ -9,7 +9,15 @@
   const netos=[...t.matchAll(new RegExp('Neto\\s+pagado\\s*:?\\s*\\$?\\s*'+importe,'gi'))];
   const neto=netos.length===1?Number(netos[0][1].replace(/,/g,'')):null;
   const percepciones=capturar(new RegExp('Total\\s+(?:de\\s+)?percepciones\\s*:?\\s*\\$?\\s*'+importe,'i'));
-  const deducciones=capturar(new RegExp('Total\\s+(?:de\\s+)?deducciones\\s*:?\\s*\\$?\\s*'+importe,'i'));
+  const otros=capturar(new RegExp('Total\\s+(?:de\\s+)?otros\\s+pagos\\s*:?\\s*\\$?\\s*'+importe,'i'));
+  let deducciones=capturar(new RegExp('Total\\s+(?:de\\s+)?deducciones\\s*:?\\s*\\$?\\s*'+importe,'i'));
+  const sinISR=capturar(new RegExp('Total\\s+(?:de\\s+)?deducciones\\s+sin\\s+ISR\\s*:?\\s*\\$?\\s*'+importe,'i'));
+  const isr=capturar(new RegExp('ISR\\s+retenido\\s*:?\\s*\\$?\\s*'+importe,'i'));
+  // NOI imprime deducciones sin ISR en el resumen fiscal. Nunca tratarlas como total.
+  if(deducciones==null&&sinISR!=null&&isr!=null)deducciones=(Math.round(sinISR*100)+Math.round(isr*100))/100;
+  const errores=[];
+  if(deducciones!=null&&sinISR!=null&&isr!=null&&Math.round(deducciones*100)!==Math.round(sinISR*100)+Math.round(isr*100))errores.push('Los dos desgloses de deducciones se contradicen');
+  if(neto!=null&&percepciones!=null&&deducciones!=null&&Math.round(percepciones*100)+Math.round((otros||0)*100)-Math.round(deducciones*100)!==Math.round(neto*100))errores.push('Percepciones, otros pagos y deducciones no cuadran con el neto');
   const dt='(\\d{1,2})[ /-]+([A-Za-zÁÉÍÓÚáéíóú]{3,10}\\.?|\\d{1,2})[ /-]+(\\d{2,4})';
   const per=t.match(new RegExp('(?:Del\\s+|Per[ií]odo\\s*(?:del)?\\s*:?\\s*)?'+dt+'\\s+(?:al|a|hasta)\\s+'+dt,'i'));
   const iso=t.match(/(\d{4}-\d{2}-\d{2})\s+(?:al|a|hasta)\s+(\d{4}-\d{2}-\d{2})/i);
@@ -18,7 +26,8 @@
   const tipo=/\b(?:FINIQUITO|LIQUIDACI[ÓO]N)\b/i.test(t)?'FINIQUITO':null;
   const folio=t.match(/(?:Folio\s+fiscal(?:\s*\(?UUID\)?)?|UUID)\s*:?\s*([a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})\b/i);
   const sello=t.match(/Sello\s+digital\s+(?:del\s+)?SAT\s*:?\s*[a-zA-Z0-9+/=]{40,}/i);
-  return {neto,tipo,datos:{recibos:netos.length,nombre:null,numero:null,rfc:null,curp:null,nss:null,identificadores:ids,periodo_inicio:desde,periodo_fin:hasta,percepciones,deducciones,neto,evidencia_neto:netos[0]?.[0]||'',
+  const emisor=ids.find(x=>/^[A-ZÑ&]{3}[0-9]{6}[A-Z0-9]{3}$/.test(x))||null;
+  return {neto,tipo,errores,datos:{recibos:netos.length,nombre:null,numero:null,rfc:null,curp:null,nss:null,rfc_emisor:emisor,identificadores:ids,periodo_inicio:desde,periodo_fin:hasta,percepciones,deducciones,otros_pagos:otros||0,neto,evidencia_neto:netos[0]?.[0]||'',
     cfdi_uuid:folio&&sello?folio[1].toUpperCase():null,evidencia_timbrado:folio&&sello?folio[0]+' | '+sello[0]:null}};
  }
  root.PLATINUM_RESPALDO_RECIBO=Object.freeze({parsear});
