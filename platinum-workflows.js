@@ -66,6 +66,7 @@
   if(permissions.admin&&closed&&!f?.version_id)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.adoptar('${c.id}')">Revisar y adoptar legado</button>`);
   if(write&&c.estado==='AUTORIZADO')actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.transicion('${c.id}','TIMBRADO')">Verificar y marcar timbrado</button>`);
   if(permissions.aprobar_cierre&&c.estado==='TIMBRADO')actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.transicion('${c.id}','PAGADO')">Verificar y marcar pagado</button>`);
+  if(write&&closed&&f?.version_id)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.revisarComprobantes('${c.id}')">Conciliar comprobantes importados</button>`);
   if(rows.length)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.exportar('${c.id}')">⬇ Excel de saldos</button>`);
   const issues=(diag.filas||[]).filter(x=>x.estado!=='COINCIDE');
   const sourceFlags=(!f?'Sin preparar':f.sucio?'Fuentes modificadas · volver a preparar':closed?'Versión autorizada fija':'Fotografía preparada');
@@ -119,13 +120,16 @@
  async function importarNOI(st,c){return operation(async()=>{
   if(!st?.rows||!c?.id)throw Error('Vuelve a leer el archivo NOI.');
   const r=await call('IMPORTAR_NOI',{cierre_id:c.id,filas:st.rows,archivo:st.file.name,sha256:st.hash,revision:c.snapshot_sha256});
-  cfg.toast(`NOI guardado completo: ${r.filas} filas. Revisa la conciliación antes de autorizar.`,'ok');await cfg.reload();await cfg.openNoi(c.id);
+  cfg.toast(r.sin_cambios?`NOI verificado: ${r.filas} filas idénticas a la versión autorizada. No se modificó el cierre.`:`NOI guardado completo: ${r.filas} filas. Revisa la conciliación antes de autorizar.`,'ok');await cfg.reload();await cfg.openNoi(c.id);
  });}
  async function transicion(id,estado){return operation(async()=>{
   await loadPermissions();if(!permissions.escritura)throw Error('Tu cuenta es de consulta.');
   if(['AUTORIZADO','PAGADO'].includes(estado)&&!permissions.aprobar_cierre)throw Error('Se requiere acceso VIP para autorizar o marcar pagado.');
   if(estado==='CANCELADO'&&!permissions.admin)throw Error('Sólo el administrador puede cancelar cierres.');
   let current=await call('DETALLE',{cierre_id:id});
+  if(estado==='PAGADO'&&(current.saldos||[]).some(s=>s.vigente&&s.cierre_id===id&&Number(s.saldo)!==0)){
+   await mostrarRevisionComprobantes(id);return;
+  }
   if(estado==='REVISADO')throw Error('La etapa de revisión fue retirada. Autoriza directamente con acceso VIP.');
   if(estado==='AUTORIZADO'&&esLegadoSinPreparar(current)&&!await prepararLegado(current))return;
   if(estado==='TIMBRADO'&&(current.recibos_sin_leer||[]).length){
@@ -204,6 +208,40 @@
   const phrase='ADOPTAR S'+d.cierre.semana;if(root.prompt('Escribe '+phrase)!==phrase)return;
   const motivo=root.prompt('Motivo de la revisión histórica (mínimo 10 caracteres):');if(motivo===null)return;
   await call('ADOPTAR_LEGADO',{cierre_id:id,confirmacion:phrase,motivo});await abrirCierre(id);
+ });}
+ async function mostrarRevisionComprobantes(id){
+  if(!state||state.id!==id||context().obra?.id!==state.obraId)await abrirCierre(id);
+  const st=ensureState(id),r=await call('PLAN_COMPROBANTES',{cierre_id:id});ensureState(id);
+  if(r.cierre_id!==id)throw Error('La revisión pertenece a otro cierre.');
+  st.paymentReview=r;
+  const labels={EXACTO_POR_VINCULAR:'Comprobante exacto importado · falta vincular',SIN_COMPROBANTE_EXACTO:'Falta comprobante exacto o autorización del finiquito',REVISAR_EXCEDENTE:'Excedente por revisar',PARCIAL_POR_REVISAR:'Pago parcial · revisar reparto',COMPROBANTES_AMBIGUOS:'Más de un comprobante posible',COMPROBANTE_YA_APLICADO:'El comprobante ya se aplicó',REPARTO_AMBIGUO_DEL_COMPROBANTE:'El importe no alcanza para todos los conceptos'};
+  cfg.modal(head(`Comprobantes importados · S${r.semana}`,`PLATINUM_FLOWS.abrirCierre('${id}')`)+`<div class="m-body">
+   <p>Esta revisión sólo vincula comprobantes existentes. No transfiere dinero, no crea cheques y no marca la semana como pagada.</p>
+   <p><b>${r.vinculables} obligación(es) con comprobante exacto por vincular · ${r.pendientes} saldo(s) por resolver.</b></p>
+   ${r.historico?'<p class="fhint">Por tratarse de un histórico, el administrador debe confirmar los vínculos mostrados.</p>':''}
+   <p class="fhint">Los cheques pendientes sin llenar no acreditan pago. Los comprobantes ambiguos, parciales y los finiquitos por transferencia sin autorización se revisan individualmente.</p>
+   <div id="flow-link-progress" role="status"></div>
+   ${table(['No.','Trabajador','Concepto','Importe','Saldo','Comprobante','Estado / acción'],r.filas.filter(x=>Number(x.saldo)!==0).map(x=>`<tr><td>${esc(x.numero)}</td><td>${esc(x.nombre)}</td><td>${esc(x.tipo)}</td><td>$${money(x.importe)}</td><td>$${money(x.saldo)}</td><td>${x.comprobante?esc(x.comprobante.pago_id?'Transferencia · '+x.comprobante.fuente.folio:'Cheque · '+x.comprobante.fuente.numero):'—'}</td><td>${esc(labels[x.estado]||x.estado)}${Number(x.saldo)>0?` <button class="btn" onclick="PLATINUM_FLOWS.comprobantes('${x.obligacion_id}')">Revisar individual</button>`:''}</td></tr>`))}
+   </div><div class="m-foot">${r.puede_confirmar&&Number(r.vinculables)>0?`<button class="btn dark" id="flow-link-confirm" onclick="PLATINUM_FLOWS.confirmarVinculos('${id}')">Confirmar vínculos exactos</button>`:''}<button class="btn" onclick="PLATINUM_FLOWS.abrirCierre('${id}')">Volver al cierre</button></div>`,'lg');
+ }
+ async function revisarComprobantes(id){return operation(async()=>{await mostrarRevisionComprobantes(id);});}
+ async function confirmarVinculos(id){return operation(async()=>{
+  const st=ensureState(id),r=st.paymentReview;
+  if(!r||!r.puede_confirmar||!Number(r.vinculables))throw Error('Genera una revisión nueva de los comprobantes.');
+  if(!root.confirm(`¿Vincular ${r.vinculables} obligación(es) de S${r.semana} con los comprobantes exactos mostrados?\n\nSe conservarán comprobantes, importes y auditoría. No se marcará pagado.`))return;
+  if(r.historico&&!root.confirm('Confirmación del administrador: apruebo estos vínculos históricos específicos de la vista previa.'))return;
+  if(el('flow-link-confirm'))el('flow-link-confirm').disabled=true;
+  let total=0,restantes=Number(r.vinculables);
+  try{while(restantes>0){ensureState(id);
+   const batch=await call('VINCULAR_COMPROBANTES_LOTE',{cierre_id:id,plan_sha256:r.plan_sha256,confirmacion:'VINCULAR S'+r.semana});ensureState(id);
+   if(batch.plan_sha256!==r.plan_sha256)throw Error('Cambió la evidencia. Revisa nuevamente los vínculos restantes.');
+   total+=Number(batch.vinculados);restantes=Number(batch.restantes);
+   if(el('flow-link-progress'))el('flow-link-progress').textContent=`${total} vínculo(s) confirmado(s) · ${restantes} por procesar`;
+   if(restantes>0&&!(Number(batch.vinculados)>0))throw Error('El lote no avanzó. Revisa los comprobantes pendientes.');
+  }
+  cfg.toast(`${total} vínculo(s) confirmado(s). Revisa los saldos; marcar pagado sigue siendo una acción separada de otra persona VIP.`,'ok');
+  await abrirCierre(id);
+  }finally{if(el('flow-link-confirm'))el('flow-link-confirm').disabled=false;}
  });}
  function comprobantes(oid){try{
   const o=state?.data.saldos.find(x=>x.id===oid);if(!o)throw Error('Actualiza el cierre.');
@@ -333,6 +371,6 @@
    neto:round(filas.reduce((n,x)=>n+Number(x.neto),0)),costo:round(filas.reduce((n,x)=>n+Number(x.costo),0)),versiones:notas};
  }
  function manual(){cfg.modal(head('Guía breve · flujo integrado')+`<div class="m-body" style="line-height:1.65"><p><b>1. Preparar.</b> Registra movimientos, incidencias, créditos e incapacidades. El motor existente genera la fotografía del borrador. Una incidencia automática desactualizada debe revisarse antes de exportar.</p><p><b>2. Conciliar.</b> Usa NOI o el recibo individual verificable; si existen ambos deben coincidir. Las diferencias bloquean autorización y expedición.</p><p><b>3. Autorizar.</b> Cualquier VIP con edición autoriza directamente, con confirmación. No hay etapa de revisión. Queda una versión fija; un cambio posterior exige reapertura.</p><p><b>4. Timbrado.</b> XML o PDF fiscal verificado de cada persona. Se validan folio, identidad, empresa, periodo e importe. Ambas representaciones del mismo folio no duplican el total. No se simula consulta de vigencia ante SAT.</p><p><b>5. Pagar y comprobar.</b> Otra persona VIP distinta de quien autorizó marca pagado, sólo al resolver los saldos. Los históricos requieren revisión administrativa. Una aplicación no dispersa dinero en el banco. Los cheques expedidos cuentan como pago registrado y su entrega se controla aparte.</p><p><b>6. Historia y excepciones.</b> Reabrir conserva versiones y comprobantes. Las regularizaciones se aprueban expresamente. Una excepción individual de efectivo no autoriza otras ni crea una transferencia ficticia.</p><p class="fhint">Todo se limita a tus empresas, centros y permisos. No se envían correos ni se realizan trámites ante autoridades desde este módulo.</p></div>`,'lg');}
- root.PLATINUM_FLOWS=Object.freeze({configure,crearCierre,abrirCierre,filtrar,preparar,enviarPropuesta,importarNOI,transicion,leerRecibos,solicitar,enviarSolicitud,revisarSolicitud,decidir,aplicarSolicitud,adoptar,comprobantes,buscarComprobantes,aplicarComprobante,aplicaciones,retirar,transferencia,confirmarTransferencia,bandeja,abrirCentro,historicos,abrirHistorico,exportar,resolverNeto,obtenerVersiones,filtrarAbiertos,versionarModelo,pagosUnicos,avisarCambio,manual,call,
+ root.PLATINUM_FLOWS=Object.freeze({configure,crearCierre,abrirCierre,filtrar,preparar,enviarPropuesta,importarNOI,transicion,leerRecibos,solicitar,enviarSolicitud,revisarSolicitud,decidir,aplicarSolicitud,adoptar,comprobantes,buscarComprobantes,aplicarComprobante,aplicaciones,retirar,transferencia,confirmarTransferencia,bandeja,abrirCentro,historicos,abrirHistorico,exportar,resolverNeto,obtenerVersiones,filtrarAbiertos,versionarModelo,pagosUnicos,avisarCambio,manual,call,revisarComprobantes,confirmarVinculos,
   _test:Object.freeze({canon,same,round})});
 })(typeof window==='undefined'?globalThis:window);

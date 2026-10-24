@@ -17,6 +17,12 @@ ok(rows[0].nss===1234567890&&rows[0].rfc===w1.rfc,'Conserva identificadores de l
 ok(box.ctrlExtraerFilasNOI([...matrix,[9,'NOMBRE','','','']],layout,'FICTICIO').length===2,'Un neto vacío no se convierte en pago cero');
 ok(cross()[0].w.id==='a'&&cross()[1].w.id==='b','Números intercambiados y netos iguales no intercambian personas');
 ok(cross()[0].identidad.numero_noi===3&&cross()[0].identidad.numero_plataforma===7,'Conserva ambas numeraciones');
+const historical={...rows[0],rfc:'PRUA900101IY6',curp:'PRUA900101HHGRRA01'},current={...w1,rfc:'PRUA9001011Y6',curp:historical.curp};
+const resolution={id:'RESOLUCION-FICTICIA',trabajador_id:current.id,rfc_origen:historical.rfc,rfc_validado:current.rfc,curp:historical.curp,nss:current.nss,nombre:historical.nombre};
+assert.throws(()=>box.ctrlCruzarIdentidadNOI([historical],items,[current],'o'),/contradictorios/);checks++;
+const resolved=box.ctrlCruzarIdentidadNOI([historical],items,[current],'o',[resolution])[0];ok(resolved.identidad.rfc===historical.rfc&&current.rfc===resolution.rfc_validado,'Conserva ambas fuentes sin corregir caracteres globalmente');
+assert.throws(()=>box.ctrlCruzarIdentidadNOI([{...historical,nss:'99999999999'}],items,[current],'o',[resolution]),/contradictorios|personas distintas/);checks++;
+assert.throws(()=>box.ctrlCruzarIdentidadNOI([historical],items,[current],'o',[{...resolution,trabajador_id:'OTRO'}]),/contradictorios/);checks++;
 ok(box.ctrlIdentificadorNOI('nss',1234567890)==='01234567890','Conserva cero inicial NSS');
 ok(box.ctrlNombreIdentidadNOI('ÁNA Prueba Alfa')===box.ctrlNombreIdentidadNOI('PRUEBA ALFA ANA'),'Orden del nombre y acentos');
 assert.throws(()=>cross([{...rows[0],rfc:w2.rfc,nss:''}]),/contradictorios|no concuerdan/);checks++;

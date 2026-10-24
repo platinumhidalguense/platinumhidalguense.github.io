@@ -10,7 +10,7 @@ const c={id:'c',estado:'BORRADOR',snapshot:{items:[],desde:'2026-10-19',hasta:'2
 const box={window:{_CTRL_CIERRE:c},OBRA:{id:'o'},WORKERS:[w],USER:{email:'ficticio@test.invalid'},
  $:id=>elements[id]||null,esc:String,money:n=>Number(n).toFixed(2),ctrlEstado:String,ctrlTabla:(h,r)=>h.join(' ')+r.join(''),toast:m=>messages.push(m),confirm:()=>confirmed,
  redondearCentavos:n=>Math.round(Number(n)*100)/100,finTransDe:()=>false,ctrlSha:async()=> 'b'.repeat(64),
- sb:{rpc:async name=>{if(name==='control_excepciones_noi')return{data:[],error:null};calls++;return{data:facts,error:rpcFail?{message:'Falla ficticia'}:null};}},
+ sb:{rpc:async name=>{if(['control_excepciones_noi','control_identidades_noi_resueltas'].includes(name))return{data:[],error:null};calls++;return{data:facts,error:rpcFail?{message:'Falla ficticia'}:null};}},
  proyCargarHistoricos:async()=>hist,proyFiniquitosSemana:(p,d1,d2,h)=>p.filter(x=>h.includes(x.id)),
  XLSX:{read:()=>({SheetNames:['FICTICIO'],Sheets:{FICTICIO:matrix}}),utils:{sheet_to_json:s=>s}}};
 vm.createContext(box);vm.runInContext(code,box);

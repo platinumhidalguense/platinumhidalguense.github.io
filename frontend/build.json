@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-24.2",
-  "entry": "assets/platinum-app.85f0ac0dd9258c3b.js",
-  "sha256": "85f0ac0dd9258c3bac5a97ea0101e011ac0004525c47d7b281434aa21a9ff7a6",
-  "integrity": "sha384-xlXD9PzxGj2M2ovUnceVLMLUtHEvBqxeH5KxYvh9PGgWBjiMeVZdgFwGOmTxZsOH",
+  "version": "2026-10-24.3",
+  "entry": "assets/platinum-app.89264e15ba1c2751.js",
+  "sha256": "89264e15ba1c275197180315d61cd82f3d2e63e85b53c52c51cc5d5160f63a17",
+  "integrity": "sha384-SKvLlxsZy3x/k6eGJtChPz80SLpPpbHGuY8aeR/R/N/0Cmg0ZQvx1uWCiNBLYiD9",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "2cdd64db70cafabc63bf4ee7b91fd115fd3fa46606b5fa2ae645f137ba9834eb"
+      "sha256": "dfeee92ceca1e657eacce40f2138c8106c0eae75a612f4919a0dcf6f778a84ec"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -146,7 +146,7 @@
     },
     {
       "path": "frontend/modulos/35-centro-control.js",
-      "sha256": "1b7c6e280a4cd4cf01ae48aa623dbfcda4051744a4efbbdd877f8ff935f91522"
+      "sha256": "1ef50c34e409aa51654bb110b36790c0e1f5f4859eae02b1df6aba97bdd95adb"
     },
     {
       "path": "frontend/modulos/36-imss-sin-servicio-st7.js",

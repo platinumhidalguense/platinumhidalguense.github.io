@@ -226,7 +226,7 @@ function ctrlIdentificadorNOI(tipo,valor){
   return (tipo==='rfc'?/^[A-ZÑ&]{4}\d{6}[A-Z0-9]{3}$/:tipo==='curp'?/^[A-ZÑ]{4}\d{6}[HM][A-ZÑ]{5}[A-Z0-9]\d$/:/^\d{11}$/).test(s)?s:'';
 }
 function ctrlNombreIdentidadNOI(v){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9 ]/g,' ').split(/\s+/).filter(Boolean).sort().join(' ');}
-function ctrlCruzarIdentidadNOI(leidas,items,workers,obraId){
+function ctrlCruzarIdentidadNOI(leidas,items,workers,obraId,resueltas=[]){
   const padron=workers.filter(w=>(!w.obra_id||w.obra_id===obraId)&&!w.eliminado).map(w=>({...w,nombre:w.nombre||[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolean).join(' ')}));
   items.forEach(x=>{if(!padron.some(w=>w.id===x.trabajador_id))padron.push({id:x.trabajador_id,no_trab:x.numero,nombre:x.nombre});});
   const claves=['rfc','curp','nss'],idx=Object.fromEntries(claves.map(k=>[k,new Map()])),nombres=new Map();
@@ -243,7 +243,9 @@ function ctrlCruzarIdentidadNOI(leidas,items,workers,obraId){
     if(!nombre&&!claves.some(k=>ids[k]))throw Error(`Fila ${n.fila}: se requiere nombre, RFC, CURP o NSS. El número de trabajador por sí solo no verifica identidad.`);
     if(w){
       const distintos=claves.filter(k=>ids[k]&&ctrlIdentificadorNOI(k,w[k])&&ids[k]!==ctrlIdentificadorNOI(k,w[k]));
-      if(distintos.length)throw Error(`Identificadores contradictorios en la fila ${n.fila} (#${n.no} ${n.nombre}): ${distintos.map(k=>`${k.toUpperCase()} NOI ${ids[k]} / ficha ${ctrlIdentificadorNOI(k,w[k])}`).join('; ')}. Coteja el documento y corrige la fuente equivocada; no se reemplazará la identidad automáticamente.`);
+      const resuelta=distintos.length===1&&distintos[0]==='rfc'?resueltas.find(r=>r.trabajador_id===w.id&&r.rfc_origen===ids.rfc&&r.rfc_validado===ctrlIdentificadorNOI('rfc',w.rfc)
+        &&r.curp===ids.curp&&r.nss===ids.nss&&ctrlNombreIdentidadNOI(r.nombre)===nombre):null;
+      if(distintos.length&&!resuelta)throw Error(`Identificadores contradictorios en la fila ${n.fila} (#${n.no} ${n.nombre}): ${distintos.map(k=>`${k.toUpperCase()} NOI ${ids[k]} / ficha ${ctrlIdentificadorNOI(k,w[k])}`).join('; ')}. Coteja el documento y corrige la fuente equivocada; no se reemplazará la identidad automáticamente.`);
       if(nombre&&ctrlNombreIdentidadNOI(w.nombre)&&nombre!==ctrlNombreIdentidadNOI(w.nombre))throw Error(`El nombre y la identidad no concuerdan en la fila ${n.fila}. Revisa el reporte y la ficha.`);
     }
     const identidad={version:1,metodo:w?metodo:'SIN_IDENTIFICAR',...ids,nombre:n.nombre,numero_noi:n.no,numero_plataforma:w?.no_trab??null,hoja:n.hoja,fila:n.fila};
@@ -343,7 +345,10 @@ async function ctrlLeerArchivoNOI(inp){
     if(!leidas.length)throw new Error('Se localizaron encabezados, pero no se encontraron trabajadores con un neto válido.');
     if(OBRA.id!==contexto.obra||window._CTRL_CIERRE!==contexto.cierre||$('noi-preview')!==contexto.preview||inp.files[0]!==file)throw Error('Cambió el centro, el cierre o el archivo durante la lectura. Vuelve a seleccionar el archivo.');
     const exp=(window._CTRL_CIERRE.snapshot&&window._CTRL_CIERRE.snapshot.items)||[],out=[],usados=new Set();
-    const cruces=ctrlCruzarIdentidadNOI(leidas,exp,WORKERS,OBRA.id),noi=new Map(cruces.filter(x=>x.w).map(x=>[x.w.id,x]));
+    const hash=await ctrlSha(buf);
+    const {data:resueltas,error:errorResueltas}=await sb.rpc('control_identidades_noi_resueltas',{p_cierre:contexto.cierre.id,p_sha:hash});
+    if(errorResueltas||!Array.isArray(resueltas))throw Error('No se pudieron verificar las resoluciones de identidad del archivo: '+(errorResueltas?.message||'respuesta incompleta'));
+    const cruces=ctrlCruzarIdentidadNOI(leidas,exp,WORKERS,OBRA.id,resueltas),noi=new Map(cruces.filter(x=>x.w).map(x=>[x.w.id,x]));
     const ceros=cruces.some(x=>x.n.m===0)?await ctrlRespaldosCeroNOI(cruces,exp,contexto.cierre):{sinServicio:new Map(),finiquitos:new Set()};
     if(exp.some(x=>noi.has(x.trabajador_id)&&exp.filter(z=>z.trabajador_id===x.trabajador_id).length>1))throw Error('Una persona tiene varios conceptos en la fotografía. Se requiere un desglose NOI por concepto; no se reutilizará el mismo neto.');
     exp.forEach(x=>{const cruce=noi.get(x.trabajador_id),n=cruce?.n,w=WORKERS.find(z=>z.id===x.trabajador_id);if(n)usados.add(cruce);out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:x.trabajador_id,
@@ -354,7 +359,6 @@ async function ctrlLeerArchivoNOI(inp){
       out.push({obra_id:OBRA.id,cierre_id:window._CTRL_CIERRE.id,trabajador_id:w?.id||null,trabajador_numero:w?.no_trab??n.no,trabajador_nombre:String(n.nombre||'NO EN SNAPSHOT'),
       tipo_calculo:tipo,metodo_pago:tipo==='FINIQUITO'?'CHEQUE':'TRANSFERENCIA',monto_platinum:sinServicio&&tipo==='NOMINA'?0:null,monto_noi:n.m,
       detalle:{identidad_noi:cruce.identidad,...(sinServicio&&tipo==='NOMINA'?{sin_servicio_confirmado:sinServicio}:{}),archivo:file.name,hoja:n.hoja,fila:n.fila,lector:porIA?'IA_LAYOUT':'AUTOMATICO'},importado_por_email:USER.email||''});});
-    const hash=await ctrlSha(buf);
     const {data:excepciones,error:errorExcepciones}=await sb.rpc('control_excepciones_noi',{p_cierre:contexto.cierre.id,p_sha:hash});
     if(errorExcepciones)throw errorExcepciones;
     if(!Array.isArray(excepciones))throw Error('No se pudo comprobar el alcance de las excepciones autorizadas.');
@@ -365,7 +369,8 @@ async function ctrlLeerArchivoNOI(inp){
       const m=aplica?Number(e.finiquito_efectivo):x.monto_noi;
       return {...x,_i:i,monto_noi:m,detalle:{...x.detalle,...(aplica?{excepcion_noi:e}:{})},diferencia:redondearCentavos((x.monto_platinum||0)-(m||0)),estatus:x.monto_platinum==null?'SIN_PLATINUM':m==null?'SIN_NOI':redondearCentavos(x.monto_platinum-m)===0?'COINCIDE':'DIFERENCIA'};});
     const resumen=`<div style="background:var(--blue-bg);border:1px solid var(--border);border-radius:9px;padding:9px 12px;margin-bottom:10px;font-size:12px"><b>Lectura por identidad:</b> ${cruces.length} trabajador(es) · ${detectadas.map(d=>`${esc(d.hoja.nombre)}, encabezados fila ${d.layout.fila+1}`).join(' · ')}. Se conservan las claves de NOI y de la fotografía.</div>`;
-    const foto=ceros.finiquitos.size?`<div role="alert" style="padding:10px;border:1px solid var(--amber);border-radius:9px;margin-bottom:8px">${ceros.finiquitos.size} finiquito(s) cero confirmado(s) aún no está(n) en la fotografía guardada. No se omitirá su desglose de retenciones. <button class="btn" id="noi-foto" onclick="ctrlActualizarFotoNOI()">Preparar fotografía y volver a comparar</button></div>`:'';
+    const identidades=resueltas.length?`<div role="status" class="fhint">Identidad histórica documentada: ${resueltas.map(r=>`RFC del reporte ${esc(r.rfc_origen)} · RFC vigente ${esc(r.rfc_validado)}`).join('; ')}. Se conserva el RFC original del archivo; la resolución sólo aplica a este periodo, trabajador y huella.</div>`:'';
+    const foto=identidades+(ceros.finiquitos.size?`<div role="alert" style="padding:10px;border:1px solid var(--amber);border-radius:9px;margin-bottom:8px">${ceros.finiquitos.size} finiquito(s) cero confirmado(s) aún no está(n) en la fotografía guardada. No se omitirá su desglose de retenciones. <button class="btn" id="noi-foto" onclick="ctrlActualizarFotoNOI()">Preparar fotografía y volver a comparar</button></div>`:'');
     $('noi-preview').innerHTML=(porIA?IA_BANNER:'')+resumen+foto+`<div style="margin-bottom:8px"><button class="btn dark" id="noi-save" onclick="ctrlGuardarNOI()">💾 Guardar conciliación</button> <b>${esc(file.name)}</b><div class="fhint">Nómina normal: pago pendiente, sin cheque automático. Desde el sábado 12:00 revisa y confirma candidatos. Finiquitos: cheque por defecto, salvo transferencia previamente autorizada. Casos sin servicio y finiquitos de neto cero: sin pago ni cheque.</div></div>`+ctrlRenderConciliacion(prev,true);
   }catch(e){
     if(e.conflictosNOI?.length&&OBRA.id===contexto.obra&&window._CTRL_CIERRE===contexto.cierre&&$('noi-preview')===contexto.preview){
