@@ -21,8 +21,14 @@ async function proySnapshotIntegrado(sem,periodo){
   }finally{WORKERS=padron;globalThis._PY_BAJAS_HISTORICAS=ciclos;}
   const sources={DESC,DIFS,FINTRANS},audits=await proyLeerFiniquitos(fins);
   if(OBRA?.id!==obra.id||DESC!==sources.DESC||DIFS!==sources.DIFS||FINTRANS!==sources.FINTRANS)throw Error('Cambió el contexto durante el cálculo. Intenta nuevamente.');
-  let live;
-  try{if(historico)DESC=historico.descuentos;live=proyModelo(act,fins,'S'+sem,audits);}
+  let live,trazabilidad;
+  // Modelo y referencias deben consumir la misma fuente, sin await entre ambos.
+  // Restaurar DESC antes de documentar mezcla créditos actuales e históricos.
+  try{
+    if(historico)DESC=historico.descuentos;
+    live=proyModelo(act,fins,'S'+sem,audits);
+    trazabilidad=rrhhReferenciasModelo(live.filas,audits,'S'+sem,source.fuente);
+  }
   finally{DESC=sources.DESC;}
   // Sólo los campos necesarios para reproducir las exportaciones, no el expediente personal.
   const fields=['id','obra_id','no_trab','nombres','primer_apellido','segundo_apellido','contratista','puesto','periodo_pago','cuenta','clabe','banco','forma_pago','fecha_baja'];
@@ -34,7 +40,7 @@ async function proySnapshotIntegrado(sem,periodo){
     total_finiquitos:sum(f=>f.fin?f.neto:0),total_neto:modelo.neto,total_trabajadores:filas.length,modelo,
     items:filas.map(f=>({trabajador_id:f.w.id,numero:f.w.no_trab,nombre:fullName(f.w),tipo:f.fin?'FINIQUITO':'NOMINA',metodo_pago:f.pago,
       sueldo_nomina:f.sueldo,prevision_social:f.prevision,retenciones:f.fin?0:redondearCentavos(f.incidencias+f.creditos+f.otras),monto:f.neto}))};
-  snapshot.trazabilidad=rrhhReferenciasModelo(live.filas,audits,'S'+sem,source.fuente);
+  snapshot.trazabilidad=trazabilidad;
   if(historico)snapshot.contexto_historico=historico.trazabilidad;
   return {obra_id:obra.id,semana:sem,periodo,snapshot,fuente:source.fuente};
 }
