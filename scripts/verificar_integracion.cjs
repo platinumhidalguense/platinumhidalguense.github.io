@@ -45,6 +45,8 @@ suites.push('test_contexto_historico_nomina','test_captura_historica_ui','test_c
 suites.push('test_cierres_comprobantes_ui');
 if(fs.readdirSync('supabase/migrations').filter(n=>/_(noi_identidad_historica_documentada|cierres_vinculacion_comprobantes_en_lote)\.sql$/.test(n)).length===2)suites.push('test_cierres_identidad_y_pagos_pg','test_comprobantes_lote_pg','test_comprobantes_masivos_pg','test_cierre_s31_integrado_pg');
 suites.push('test_incidencias_vigencia');
+suites.push('test_reingreso_fecha');
+if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_reingresos_ciclos_sin_reabrir_cierres.sql')))suites.push('test_reingreso_cierres_pg');
 if(fs.readdirSync('supabase/migrations').filter(n=>/_(cierres_autorizacion_directa_y_excepcion_acotada|excepcion_noi_individual_auditada|correcciones_historicas_centavos_aprobadas)\.sql$/.test(n)).length===3)suites.push('test_cierres_directos_pg','test_excepcion_individual_pg');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_timbrado_xml_o_pdf_verificado.sql')))suites.push('test_timbrado_fuentes_pg');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_optimizar_autorizacion_cierre_masivo.sql')))suites.push('test_autorizacion_masiva_pg');
