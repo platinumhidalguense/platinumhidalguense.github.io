@@ -389,22 +389,31 @@ function openCtrlNuevaAltaCorta(){
       <div><label>Baja usada en NOI (modelo)</label><input id="ab-bn" type="date"></div>
       <div><label>Faltas usadas en NOI</label><input id="ab-f" type="number" step="0.0001" min="0"></div>
       <div><label>Neto NOI ($)</label><input id="ab-n" type="number" step="0.01" min="0"></div>
+      <div><label>Días pagados según NOI</label><input id="ab-dias" type="number" step="0.0001" min="0" max="7"><small>Captura 0 si NOI indica cero días. Vacío significa pendiente, no cero.</small></div>
       <div style="grid-column:span 2"><label>Observaciones / referencia de acuses</label><textarea id="ab-nota" rows="2"></textarea></div>
     </div><p class="fhint">No inventes fechas IDSE ni captures una falta ficticia como ausencia real. El modelo NOI se registra únicamente como conciliación.</p></div>
     <div class="m-foot"><button class="btn" onclick="openCtrlAltasCortas()">Cancelar</button><button class="btn dark" onclick="ctrlGuardarAltaCorta()">Guardar</button></div>`,'lg');
+}
+function ctrlDatosCasoNOI(netoTexto,diasTexto,estado){
+  const neto=String(netoTexto??'').trim()===''?null:Number(netoTexto),dias=String(diasTexto??'').trim()===''?null:Number(diasTexto);
+  if(neto!==null&&(!Number.isFinite(neto)||neto<0))throw Error('Captura un neto NOI válido, sin importes negativos.');
+  if(dias!==null&&(!Number.isFinite(dias)||dias<0||dias>7))throw Error('Los días pagados NOI deben estar entre 0 y 7.');
+  if(estado==='SIN_SERVICIO_CONFIRMADO'&&neto===0&&dias!==0)throw Error('Faltan los días pagados NOI: captura 0 sólo si el reporte indica cero días. Si pagó días, revisa la clasificación antes de conciliar.');
+  return {neto,dias};
 }
 async function ctrlGuardarAltaCorta(){
   const w=WORKERS.find(x=>x.id===$('ab-w').value),sem=Number($('ab-sem').value);if(!w||!Number.isInteger(sem)||sem<1||sem>53){toast('Selecciona trabajador y semana válidos.','err');return;}
   const [ini,fin]=semRange(sem);
   if(w.fecha_alta>fin||w.fecha_baja<ini){toast('El alta y la baja registradas no coinciden con esa semana.','err');return;}
   const estado=$('ab-est').value,nota=$('ab-nota').value.trim();
+  let noi;try{noi=ctrlDatosCasoNOI($('ab-n').value,$('ab-dias').value,estado);}catch(e){toast(e.message,'err');return;}
   if(estado==='SIN_SERVICIO_CONFIRMADO'&&!confirm('Confirma con evidencia operativa que no hubo ninguna hora de trabajo efectivo. Esta marca no elimina obligaciones legales ni fechas IMSS.'))return;
   const f={obra_id:OBRA.id,trabajador_id:w.id,anio:Number(ini.slice(0,4)),semana:sem,estado_servicio:estado,
     fecha_alta_base:w.fecha_alta,fecha_baja_base:w.fecha_baja,
     fecha_alta_idse:$('ab-ai').value||null,fecha_baja_idse:$('ab-bi').value||null,
     fecha_alta_modelo_noi:$('ab-an').value||null,fecha_baja_modelo_noi:$('ab-bn').value||null,
     faltas_modelo_noi:$('ab-f').value?Number($('ab-f').value):null,
-    dias_pagados_noi:null,neto_noi:$('ab-n').value?Number($('ab-n').value):null,
+    dias_pagados_noi:noi.dias,neto_noi:noi.neto,
     observaciones:nota||null,fuente:'CAPTURA_MANUAL'};
   markWrite();const {data,error}=await sb.from(CTRL_TABLAS.altasCortas).insert(f).select('id').single();
   if(error){toast(ctrlFaltaScript(error),'err');return;}
@@ -418,6 +427,7 @@ function openCtrlEditarAltaCorta(id){
     <p><b>${esc(w?fullName(w):'Trabajador')}</b> · Base: ${fmtD(x.fecha_alta_base)} / ${fmtD(x.fecha_baja_base)}</p>
     <div class="grid" style="grid-template-columns:1fr 1fr"><div><label>Situación real</label><select id="abe-est"><option>PENDIENTE</option><option>SIN_SERVICIO_CONFIRMADO</option><option>CON_SERVICIO</option><option>REVISAR</option></select></div>
     <div><label>Neto NOI ($)</label><input id="abe-net" type="number" step="0.01" min="0" value="${x.neto_noi??''}"></div>
+    <div><label>Días pagados según NOI</label><input id="abe-dias" type="number" step="0.0001" min="0" max="7" value="${x.dias_pagados_noi??''}"><small>Vacío = pendiente. Para conciliar sin servicio y neto cero, confirma 0 días según NOI.</small></div>
     <div><label>Alta efectiva IDSE</label><input id="abe-ai" type="date" value="${x.fecha_alta_idse||''}"></div><div><label>Baja efectiva IDSE</label><input id="abe-bi" type="date" value="${x.fecha_baja_idse||''}"></div>
     <div style="grid-column:span 2"><label>Observaciones / acuses</label><textarea id="abe-nota" rows="3">${esc(x.observaciones||'')}</textarea></div></div></div>
     <div class="m-foot"><button class="btn" onclick="openCtrlAltasCortas()">Cancelar</button><button class="btn dark" onclick="ctrlActualizarAltaCorta('${id}')">Guardar revisión</button></div>`,'lg');
@@ -426,10 +436,11 @@ function openCtrlEditarAltaCorta(id){
 async function ctrlActualizarAltaCorta(id){
   const x=(window._CTRLALT||[]).find(a=>a.id===id);if(!x)return;
   const estado=$('abe-est').value,ai=$('abe-ai').value||null,bi=$('abe-bi').value||null;
+  let noi;try{noi=ctrlDatosCasoNOI($('abe-net').value,$('abe-dias').value,estado);}catch(e){toast(e.message,'err');return;}
   if(ai&&bi&&bi<ai){toast('La baja IDSE no puede ser anterior al alta IDSE.','err');return;}
   if(estado==='SIN_SERVICIO_CONFIRMADO'&&x.estado_servicio!==estado&&!confirm('Confirma que no hubo trabajo efectivo; conserva evidencia y acuses IMSS.'))return;
   const up={estado_servicio:estado,fecha_alta_idse:ai,fecha_baja_idse:bi,
-    neto_noi:$('abe-net').value!==''?Number($('abe-net').value):null,
+    neto_noi:noi.neto,dias_pagados_noi:noi.dias,
     observaciones:$('abe-nota').value.trim()||null,updated_at:new Date().toISOString()};
   markWrite();const {error}=await sb.from(CTRL_TABLAS.altasCortas).update(up).eq('id',id).eq('obra_id',OBRA.id);
   if(error){toast(ctrlFaltaScript(error),'err');return;}

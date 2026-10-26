@@ -1,4 +1,8 @@
 {
+  "openCtrlNuevaAltaCorta": "Añade campo explícito de días pagados según NOI; no transforma blancos en cero ni modifica las fechas laborales, el criterio de candidatos o el motor monetario.",
+  "ctrlGuardarAltaCorta": "Captura explícitamente los días pagados NOI y distingue pendiente de cero; valida datos antes de guardar y mantiene confirmación de ausencia real de servicio, fechas, permisos e historial. No recalcula nómina.",
+  "ctrlActualizarAltaCorta": "Permite completar los días NOI al revisar un caso, sin inventar cero a partir de un campo vacío. Conserva acuses, fechas y validaciones; no altera finiquitos, pagos ni cierres.",
+  "openCtrlEditarAltaCorta": "Expone días pagados NOI con cero visible y vacío pendiente, para que la edición permita completar el respaldo exigido por la conciliación. No cambia la clasificación ni las fechas originales.",
   "proySnapshotIntegrado": "Para reconstrucciones semanales históricas recupera ciclos y versiones documentadas de créditos. Calcula modelo y referencias de trazabilidad dentro del mismo contexto síncrono de retenciones y restaura DESC con finally, incluso si falla la documentación. No modifica motores, fichas ni pagos; conserva las guardas, vista previa y aprobación de regularizaciones. Regresión integrada con botones de crear y preparar cierre.",
   "proyLeerFiniquitos": "Lee entradas.fecha_calculo como fecha efectiva de baja en auditorías antiguas que usaban la fecha de captura en periodo; conserva el periodo original como dato auxiliar. No modifica personas, retenciones, importes ni la bitácora.",
   "asVigenteSemana": "Compara fechas ISO lexicográficamente, sin convertirlas a NaN mediante Math.max; conserva alta, baja y reingreso, y no modifica datos ni cálculos monetarios.",

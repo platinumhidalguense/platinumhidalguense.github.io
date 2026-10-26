@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-24.3",
-  "entry": "assets/platinum-app.89264e15ba1c2751.js",
-  "sha256": "89264e15ba1c275197180315d61cd82f3d2e63e85b53c52c51cc5d5160f63a17",
-  "integrity": "sha384-SKvLlxsZy3x/k6eGJtChPz80SLpPpbHGuY8aeR/R/N/0Cmg0ZQvx1uWCiNBLYiD9",
+  "version": "2026-10-26.1",
+  "entry": "assets/platinum-app.e1c7f86c0476c099.js",
+  "sha256": "e1c7f86c0476c09915a95eb1d45db061934eebfeeeff736d4c7d2e7aa0a4384d",
+  "integrity": "sha384-aI7TwzIEllqa4QdPD44khjECfMeBVIfnxeNZeg7NDviwfVKqUgqME6Q/ma3i7t0C",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "dfeee92ceca1e657eacce40f2138c8106c0eae75a612f4919a0dcf6f778a84ec"
+      "sha256": "4b7c4a77b73ea0e63956eba8e15cc952a3b8d9bbbb02c63d64f82c7efba4958c"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -150,7 +150,7 @@
     },
     {
       "path": "frontend/modulos/36-imss-sin-servicio-st7.js",
-      "sha256": "e08349b9538d39df4ad6bd5feafcf612ebe2fa76620ca3e4ab3d874ed2bee387"
+      "sha256": "31eefa70a3e952af7ffc2506cad6560e0f9c4c5e05fb975ec1ad1081ac284330"
     },
     {
       "path": "frontend/modulos/37-avisos-infonavit.js",
