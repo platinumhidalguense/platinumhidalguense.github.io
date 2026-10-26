@@ -66,7 +66,7 @@
   if(permissions.admin&&closed&&!f?.version_id)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.adoptar('${c.id}')">Revisar y adoptar legado</button>`);
   if(write&&c.estado==='AUTORIZADO')actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.transicion('${c.id}','TIMBRADO')">Verificar y marcar timbrado</button>`);
   if(permissions.aprobar_cierre&&c.estado==='TIMBRADO')actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.transicion('${c.id}','PAGADO')">Verificar y marcar pagado</button>`);
-  if(write&&closed&&f?.version_id)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.revisarComprobantes('${c.id}')">Conciliar comprobantes importados</button>`);
+  if(write&&closed&&f?.version_id)actions.push(`<button class="btn dark" onclick="PLATINUM_FLOWS.revisarComprobantes('${c.id}')">Vincular comprobantes masivamente</button>`);
   if(rows.length)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.exportar('${c.id}')">⬇ Excel de saldos</button>`);
   const issues=(diag.filas||[]).filter(x=>x.estado!=='COINCIDE');
   const sourceFlags=(!f?'Sin preparar':f.sucio?'Fuentes modificadas · volver a preparar':closed?'Versión autorizada fija':'Fotografía preparada');
@@ -218,11 +218,12 @@
   cfg.modal(head(`Comprobantes importados · S${r.semana}`,`PLATINUM_FLOWS.abrirCierre('${id}')`)+`<div class="m-body">
    <p>Esta revisión sólo vincula comprobantes existentes. No transfiere dinero, no crea cheques y no marca la semana como pagada.</p>
    <p><b>${r.vinculables} obligación(es) con comprobante exacto por vincular · ${r.pendientes} saldo(s) por resolver.</b></p>
+   <p class="fhint">El botón vincula todos los coincidentes en lotes automáticos de hasta 20 para evitar tiempos de espera. No necesitas seleccionar ni confirmar trabajador por trabajador.</p>
    ${r.historico?'<p class="fhint">Por tratarse de un histórico, el administrador debe confirmar los vínculos mostrados.</p>':''}
    <p class="fhint">Los cheques pendientes sin llenar no acreditan pago. Los comprobantes ambiguos, parciales y los finiquitos por transferencia sin autorización se revisan individualmente.</p>
    <div id="flow-link-progress" role="status"></div>
    ${table(['No.','Trabajador','Concepto','Importe','Saldo','Comprobante','Estado / acción'],r.filas.filter(x=>Number(x.saldo)!==0).map(x=>`<tr><td>${esc(x.numero)}</td><td>${esc(x.nombre)}</td><td>${esc(x.tipo)}</td><td>$${money(x.importe)}</td><td>$${money(x.saldo)}</td><td>${x.comprobante?esc(x.comprobante.pago_id?'Transferencia · '+x.comprobante.fuente.folio:'Cheque · '+x.comprobante.fuente.numero):'—'}</td><td>${esc(labels[x.estado]||x.estado)}${Number(x.saldo)>0?` <button class="btn" onclick="PLATINUM_FLOWS.comprobantes('${x.obligacion_id}')">Revisar individual</button>`:''}</td></tr>`))}
-   </div><div class="m-foot">${r.puede_confirmar&&Number(r.vinculables)>0?`<button class="btn dark" id="flow-link-confirm" onclick="PLATINUM_FLOWS.confirmarVinculos('${id}')">Confirmar vínculos exactos</button>`:''}<button class="btn" onclick="PLATINUM_FLOWS.abrirCierre('${id}')">Volver al cierre</button></div>`,'lg');
+   </div><div class="m-foot">${r.puede_confirmar&&Number(r.vinculables)>0?`<button class="btn dark" id="flow-link-confirm" onclick="PLATINUM_FLOWS.confirmarVinculos('${id}')">Vincular todos los coincidentes (${Number(r.vinculables)})</button>`:''}<button class="btn" onclick="PLATINUM_FLOWS.abrirCierre('${id}')">Volver al cierre</button></div>`,'lg');
  }
  async function revisarComprobantes(id){return operation(async()=>{await mostrarRevisionComprobantes(id);});}
  async function confirmarVinculos(id){return operation(async()=>{
@@ -235,6 +236,9 @@
   try{while(restantes>0){ensureState(id);
    const batch=await call('VINCULAR_COMPROBANTES_LOTE',{cierre_id:id,plan_sha256:r.plan_sha256,confirmacion:'VINCULAR S'+r.semana});ensureState(id);
    if(batch.plan_sha256!==r.plan_sha256)throw Error('Cambió la evidencia. Revisa nuevamente los vínculos restantes.');
+   if(batch.vinculados==null||batch.restantes==null||!Number.isInteger(Number(batch.vinculados))||Number(batch.vinculados)<0||Number(batch.vinculados)>Math.min(20,restantes)
+     ||!Number.isInteger(Number(batch.restantes))||Number(batch.restantes)<0||Number(batch.restantes)>restantes-Number(batch.vinculados))
+    throw Error('La base devolvió un resultado de lote incompleto. Actualiza la revisión antes de continuar.');
    total+=Number(batch.vinculados);restantes=Number(batch.restantes);
    if(el('flow-link-progress'))el('flow-link-progress').textContent=`${total} vínculo(s) confirmado(s) · ${restantes} por procesar`;
    if(restantes>0&&!(Number(batch.vinculados)>0))throw Error('El lote no avanzó. Revisa los comprobantes pendientes.');
