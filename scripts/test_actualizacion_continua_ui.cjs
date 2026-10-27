@@ -37,6 +37,6 @@ function fixture(){
  const q=core.createQueue({...clock,delay:1200,minInterval:10000,canRefresh:()=>true,refresh:async()=>{calls++;starts.push(now);applied=revision;return true;}});
  for(let i=0;i<600;i++){revision++;q.request();await advance(100);}ok(calls<=6,'600 señales en un minuto no generan 600 consultas');await advance(12000);ok(applied===revision,'No pierde el último cambio de una ráfaga continua');ok(starts.every((s,i)=>!i||s-starts[i-1]>=10000),'Intervalo mínimo comprobado con reloj controlado');
  q.request(true);await advance(0);ok(starts.at(-1)===now,'Actualización manual inmediata sin esperar intervalo');q.stop();const previous=calls;q.request();await advance(12000);ok(calls===previous,'Desconexión limpia detiene consultas');
- ok(html.includes('refresh:()=>softRefresh(false)'),'Tiempo real no añade avisos de éxito invasivos en cada señal');
+ ok(html.includes('refresh:cambio=>softRefresh(false,cambio)'),'Tiempo real conserva origen de cambios y no añade avisos de éxito invasivos');
  console.log(`PASS ${tests} regresiones de actualización continua: tabla visible, fuentes íntegras, cambios reales, acuses, búsqueda, scroll, capturas y 600 señales agrupadas.`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

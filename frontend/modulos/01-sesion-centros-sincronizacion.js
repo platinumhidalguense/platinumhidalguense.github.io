@@ -60,7 +60,7 @@ function startRealtime(){
   window._PLATINUM_RT=window.PLATINUM_SYNC.connect({client:sb,userId:USER.id,window,document,
     getObraId:()=>OBRA?.id,
     canRefresh:()=>!NAV_BUSY&&!$('modals').innerHTML,
-    refresh:()=>softRefresh(false),
+    refresh:cambio=>softRefresh(false,cambio),
     onDeferred:()=>{window._pendingRT=true;window.PLATINUM_FLOWS?.avisarCambio();window.PLATINUM_RRHH?.avisarCambio();window.PLATINUM_PAGOS_SABADO?.avisarCambio();},
     onStatus:({transport,dataState,online})=>{
       const el=$('rt-status');if(!el)return;
@@ -79,7 +79,7 @@ function rtQueue(){
     softRefresh(!own);
   },600);
 }
-async function softRefresh(notify=true){
+async function softRefresh(notify=true,cambio=null){
   const actualId=OBRA?.id,step=NAV_STEP;
   try{
     const {data:ob,error}=await sb.from('obras').select('*').order('orden');
@@ -90,7 +90,7 @@ async function softRefresh(notify=true){
     if(actualId)OBRA=OBRAS.find(o=>o.id===actualId);
     if(OBRA&&NAV_STEP==='trabajadores'){
       EMPRESA_ACTIVA=empresaDeObra(OBRA);
-      const lectura={segundoPlano:true};
+      const lectura={segundoPlano:true,fuentes:cambio?.sources};
       if(!await loadObraData(actualId,lectura))return lectura.diferida?'pending':false;
     }
     renderObraBar();
@@ -312,7 +312,7 @@ async function selectEmpresa(codigo){
   try{localStorage.setItem('platinum_empresa_activa',codigo);}catch(e){}
   showNavStep('obra');
 }
-let OBRA_CARGA_SECUENCIA=0,OBRA_DATOS_ID=null;
+let OBRA_CARGA_SECUENCIA=0,OBRA_DATOS_ID=null,OBRA_LECTURA_VERIFICADA=null;
 /* Todos los datos siguen completos y sincronizados. Sólo se construye el DOM
    de la herramienta visible; las demás se pintan al abrirlas. */
 function pintarVistaObra(vista){
@@ -343,9 +343,22 @@ function falloLecturaObra(id,mensaje){
 }
 async function loadObraData(id,opciones={}){
   const secuencia=++OBRA_CARGA_SECUENCIA;
-  const vigente=()=>secuencia===OBRA_CARGA_SECUENCIA&&OBRA&&OBRA.id===id;
+  const sesionActual=()=>(typeof USER==='undefined'?'':USER?.id||'')+':'+(typeof esVip==='function'?esVip():false);
+  const sesion=sesionActual();
+  const vigente=()=>secuencia===OBRA_CARGA_SECUENCIA&&OBRA&&OBRA.id===id&&sesion===sesionActual();
   if(!vigente())return false;
   const conservarVista=OBRA_DATOS_ID===id;
+  const tablas=['trabajadores','cheques','descuentos','documentos','vacaciones','actas','nom035','pagos','prima_pagos','cuadrillas','diferenciales','bloques_cheques','sueldos_internos','control_cierres_nomina','control_conciliacion_noi','control_altas_bajas_cortas','control_finiquitos_transferencia'];
+  const cache=OBRA_LECTURA_VERIFICADA;
+  // Memoria de una sola obra, una sola sesión, máximo 60 s desde la lectura
+  // completa. Manual, reconexión, cambio de centro y eventos no específicos
+  // siempre releen todo. No se guarda personal en localStorage/IndexedDB.
+  const edad=cache?Date.now()-cache.completa:Infinity;
+  const parcial=opciones.segundoPlano&&conservarVista&&cache?.obra===id&&cache.sesion===sesion&&edad>=0&&edad<60000&&Array.isArray(opciones.fuentes)&&opciones.fuentes.length>0&&opciones.fuentes.every(t=>tablas.includes(t));
+  const fuentes=parcial?new Set(opciones.fuentes):null;
+  const leer=(tabla,consulta)=>fuentes&&!fuentes.has(tabla)?Promise.resolve({data:JSON.parse(JSON.stringify(cache.datos[tabla]))}):consulta();
+  const inicioLectura=Date.now();
+  OBRA_LECTURA_VERIFICADA=null;
   // Sólo al entrar por primera vez o cambiar de centro: nunca borrar la lista
   // verificada del mismo centro por una señal en vivo, foco o actualización.
   if(!conservarVista){
@@ -355,35 +368,35 @@ async function loadObraData(id,opciones={}){
   }
   let lecturas;
   try{lecturas=await Promise.all([
-    fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
-    fetchAllRows(()=>sb.from('cheques').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('documentos').select('*').eq('obra_id',id).eq('anulado',false)),
-    fetchAllRows(()=>sb.from('vacaciones').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('actas').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('nom035').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('pagos').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('prima_pagos').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('cuadrillas').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('diferenciales').select('*').eq('obra_id',id).eq('activo',true)),
-    fetchAllRows(()=>sb.from('bloques_cheques').select('*').eq('obra_id',id)),
+    leer('trabajadores',()=>fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false))),
+    leer('cheques',()=>fetchAllRows(()=>sb.from('cheques').select('*').eq('obra_id',id))),
+    leer('descuentos',()=>fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id))),
+    leer('documentos',()=>fetchAllRows(()=>sb.from('documentos').select('*').eq('obra_id',id).eq('anulado',false))),
+    leer('vacaciones',()=>fetchAllRows(()=>sb.from('vacaciones').select('*').eq('obra_id',id))),
+    leer('actas',()=>fetchAllRows(()=>sb.from('actas').select('*').eq('obra_id',id))),
+    leer('nom035',()=>fetchAllRows(()=>sb.from('nom035').select('*').eq('obra_id',id))),
+    leer('pagos',()=>fetchAllRows(()=>sb.from('pagos').select('*').eq('obra_id',id))),
+    leer('prima_pagos',()=>fetchAllRows(()=>sb.from('prima_pagos').select('*').eq('obra_id',id))),
+    leer('cuadrillas',()=>fetchAllRows(()=>sb.from('cuadrillas').select('*').eq('obra_id',id))),
+    leer('diferenciales',()=>fetchAllRows(()=>sb.from('diferenciales').select('*').eq('obra_id',id).eq('activo',true))),
+    leer('bloques_cheques',()=>fetchAllRows(()=>sb.from('bloques_cheques').select('*').eq('obra_id',id))),
     /* Si el usuario NO es VIP, la política de la base devuelve cero filas: la
        cifra no llega al navegador, no es que se esconda con CSS. */
-    fetchAllRows(()=>sb.from('sueldos_internos').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('control_cierres_nomina').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('control_conciliacion_noi').select('*').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('id,trabajador_id,anio,semana,estado_servicio').eq('obra_id',id)),
-    fetchAllRows(()=>sb.from('control_finiquitos_transferencia').select('*').eq('obra_id',id))
-  ]);}catch(e){return vigente()?falloLecturaObra(id,'No se pudo actualizar el centro: '+e.message):false;}
+    leer('sueldos_internos',()=>fetchAllRows(()=>sb.from('sueldos_internos').select('*').eq('obra_id',id))),
+    leer('control_cierres_nomina',()=>fetchAllRows(()=>sb.from('control_cierres_nomina').select('*').eq('obra_id',id))),
+    leer('control_conciliacion_noi',()=>fetchAllRows(()=>sb.from('control_conciliacion_noi').select('*').eq('obra_id',id))),
+    leer('control_altas_bajas_cortas',()=>fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('id,trabajador_id,anio,semana,estado_servicio').eq('obra_id',id))),
+    leer('control_finiquitos_transferencia',()=>fetchAllRows(()=>sb.from('control_finiquitos_transferencia').select('*').eq('obra_id',id)))
+  ]);}catch(e){if(vigente())OBRA_LECTURA_VERIFICADA=null;return vigente()?falloLecturaObra(id,'No se pudo actualizar el centro: '+e.message):false;}
   if(!vigente())return false;
-  const fuentes=['trabajadores','cheques','incidencias y retenciones','documentos','vacaciones','actas','NOM-035','pagos','primas','cuadrillas','diferenciales','bloques de cheques','control interno autorizado','cierres de nómina','conciliación NOI','altas y bajas sin servicio','finiquitos por transferencia'];
+  const etiquetas=['trabajadores','cheques','incidencias y retenciones','documentos','vacaciones','actas','NOM-035','pagos','primas','cuadrillas','diferenciales','bloques de cheques','control interno autorizado','cierres de nómina','conciliación NOI','altas y bajas sin servicio','finiquitos por transferencia'];
   const fallo=lecturas.findIndex(r=>r?.error||!Array.isArray(r?.data));
-  if(fallo>=0)return falloLecturaObra(id,`No se pudieron verificar ${fuentes[fallo]}: ${lecturas[fallo]?.error?.message||'respuesta incompleta'}. No se sustituyeron los datos por listas vacías.`);
+  if(fallo>=0){OBRA_LECTURA_VERIFICADA=null;return falloLecturaObra(id,`No se pudieron verificar ${etiquetas[fallo]}: ${lecturas[fallo]?.error?.message||'respuesta incompleta'}. No se sustituyeron los datos por listas vacías.`);}
   const [{data:tw},{data:ch},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn},{data:ab},{data:ft}]=lecturas;
   // El expediente pertenece al trabajador, incluso si el acuse se archivó
   // antes de un cambio de centro. Consulta dirigida y paginada; respeta RLS.
   let acuses;
-  try{acuses=await cargarAcusesTrabajadores(tw);}catch(e){return vigente()?falloLecturaObra(id,'No se pudieron verificar los acuses IMSS: '+e.message):false;}
+  try{acuses=parcial&&!fuentes.has('trabajadores')&&!fuentes.has('documentos')?{data:JSON.parse(JSON.stringify(cache.acuses))}:await cargarAcusesTrabajadores(tw);}catch(e){return vigente()?falloLecturaObra(id,'No se pudieron verificar los acuses IMSS: '+e.message):false;}
   if(!vigente())return false;
   if(acuses?.error||!Array.isArray(acuses?.data))return falloLecturaObra(id,'No se pudieron verificar los acuses IMSS: '+(acuses?.error?.message||'respuesta incompleta'));
   if(opciones.segundoPlano&&typeof window!=='undefined'&&$('modals')?.innerHTML){window._pendingRT=true;opciones.diferida=true;return false;}
@@ -418,6 +431,11 @@ async function loadObraData(id,opciones={}){
   if(!vigente())return false;
   updateAlertas();
   globalThis.PLATINUM_PAGOS_SABADO?.avisarDesdeContexto();
+  // Copia privada: editar un formulario o activar un alta programada no puede
+  // mutar una lectura reutilizable. Sólo se publica después de verificar todo.
+  OBRA_LECTURA_VERIFICADA={obra:id,sesion,completa:parcial?cache.completa:inicioLectura,
+    datos:JSON.parse(JSON.stringify(Object.fromEntries(tablas.map((t,i)=>[t,i===0?WORKERS:lecturas[i].data])))),
+    acuses:JSON.parse(JSON.stringify(acuses.data))};
   return true;
 }
 let CFGEMP={};
@@ -433,7 +451,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-10-26.2';
+const APP_VERSION='2026-10-27.1';
 window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){

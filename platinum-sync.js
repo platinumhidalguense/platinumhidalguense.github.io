@@ -11,10 +11,14 @@
   ]);
   function createQueue(options){
     const later=options.setTimer||setTimeout,cancel=options.clearTimer||clearTimeout,now=options.now||Date.now;
-    let timer=null,running=false,dirty=false,stopped=false,deferred=false,lastEnded=-Infinity,urgent=false;
+    let timer=null,running=false,dirty=false,stopped=false,deferred=false,lastEnded=-Infinity,urgent=false,full=false;
+    const pendingSources=new Set();
     const state=s=>{if(options.onState)options.onState(s);};
-    function request(immediate=false){
+    function request(immediate=false,source=null){
       if(stopped)return;
+      // Sólo nombres de fuente, nunca filas ni importes recibidos por Realtime.
+      if(typeof source==='string'&&SOURCES.includes(source))pendingSources.add(source);
+      else full=true;
       dirty=true;urgent=urgent||immediate===true;
       if(running)return;
       // Ventana fija: una importación continua no reinicia el reloj sin fin.
@@ -30,19 +34,25 @@
         if(options.onDeferred)options.onDeferred();
         return;
       }
+      const sources=full?null:[...pendingSources];
+      full=false;pendingSources.clear();
       deferred=false;dirty=false;urgent=false;running=true;state('loading');
       try{
-        const ok=await options.refresh();
+        const ok=await options.refresh({sources});
+        // Un fallo o una captura abierta invalida la reutilización: el próximo
+        // intento será completo. No repetir automáticamente sin límite.
+        if(ok!==true)full=true;
+        if(ok==='pending')deferred=true;
         if(!stopped)state(ok===true?'fresh':ok==='pending'?'pending':'error');
-      }catch(e){if(!stopped)state('error');}
+      }catch(e){full=true;if(!stopped)state('error');}
       finally{
         running=false;lastEnded=now();
-        if(dirty&&!stopped)request();
+        if(dirty&&!stopped)request(false,pendingSources.values().next().value);
       }
     }
     return Object.freeze({request,
       resume(){if(deferred||dirty)request();},
-      stop(){stopped=true;dirty=false;if(timer!==null)cancel(timer);timer=null;},
+      stop(){stopped=true;dirty=false;full=false;pendingSources.clear();if(timer!==null)cancel(timer);timer=null;},
       inspect:()=>({running,dirty,deferred,stopped})
     });
   }
@@ -64,7 +74,7 @@
     });
     const channel=options.client.channel('platinum-rt',{config:{presence:{key:options.userId}}});
     for(const table of SOURCES)channel.on('postgres_changes',{event:'*',schema:'public',table},payload=>{
-      if(active&&relevant({...payload,table},options.getObraId()))queue.request();
+      if(active&&relevant({...payload,table},options.getObraId()))queue.request(false,table);
     });
     channel.on('presence',{event:'sync'},()=>{
       if(!active)return;
@@ -99,5 +109,5 @@
       }
     });
   }
-  root.PLATINUM_SYNC=Object.freeze({version:'2026-10-20.5',sources:SOURCES,createQueue,relevant,connect});
+  root.PLATINUM_SYNC=Object.freeze({version:'2026-10-27.1',sources:SOURCES,createQueue,relevant,connect});
 })(typeof window==='undefined'?globalThis:window);
