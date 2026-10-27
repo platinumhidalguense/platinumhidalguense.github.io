@@ -1,4 +1,5 @@
 {
+  "openChequeForm": "Identifica el cheque persistido en el formulario mediante UUID; conserva campos, eliminación y captura. Permite distinguir expedición de un pendiente existente de la creación de un cheque nuevo, sin cambiar datos ni importes.",
   "openCtrlNuevaAltaCorta": "Añade campo explícito de días pagados según NOI; no transforma blancos en cero ni modifica las fechas laborales, el criterio de candidatos o el motor monetario.",
   "ctrlGuardarAltaCorta": "Captura explícitamente los días pagados NOI y distingue pendiente de cero; valida datos antes de guardar y mantiene confirmación de ausencia real de servicio, fechas, permisos e historial. No recalcula nómina.",
   "ctrlActualizarAltaCorta": "Permite completar los días NOI al revisar un caso, sin inventar cero a partir de un campo vacío. Conserva acuses, fechas y validaciones; no altera finiquitos, pagos ni cierres.",
@@ -32,7 +33,7 @@
   "buildProyDestinoWS": "Despacha al formato corporativo del contratista de diez columnas; conserva intacto el exportador compacto de dispersión y no modifica el modelo.",
   "buildProyRetencionesWS": "Sólo para contratista colorea el tipo de crédito INFONAVIT/FONACOT; importes, fórmulas y salida de dispersión intactos.",
   "proyLibro": "Transmite el destino al estilo del detalle de retenciones; conserva ambos libros, marcas corporativas y alcance de obras.",
-  "chqTraerRecibo": "Usa el respaldo verificado NOI o PDF por identidad, semana y concepto; separa el importe verificado de los requisitos de autorización del cierre y conserva contexto durante lecturas.",
+  "chqTraerRecibo": "Conserva respaldo NOI/PDF por identidad, semana y concepto y validación de contexto; informa que la captura física de un pendiente persistido idéntico no requiere aprobar el cierre. Crear o cambiar identidad/importe/concepto conserva las guardas previas.",
   "ctrlExtraerFilasNOI": "Conserva RFC, CURP y NSS originales de cada fila para cruzar por identidad y archivar la clave NOI sin asociar sólo por número.",
   "softRefresh": "Propaga únicamente nombres de fuentes invalidadas al lector; conserva consulta de centros autorizados, alcance, errores visibles y captura diferida. Manual y reconexión solicitan una comprobación completa.",
   "actualizarDatosCompartidos": "La acción manual pide prioridad inmediata a la cola sin permitir consultas simultáneas ni saltarse el bloqueo de capturas abiertas.",
@@ -52,7 +53,7 @@
   "pagoCancelarCheque": "Sin folios se elimina la captura; sólo un cheque físico completo puede cancelarse. Importes y comprobantes intactos.",
   "renderChqStats": "Excluye explícitamente la papelera de todos los conteos de cheques.",
   "chqFiltered": "Excluye explícitamente capturas eliminadas de lista y exportaciones.",
-  "saveCheque": "Mantiene neto y controles de la base; anticipa requisitos pendientes del cierre antes de enviar una expedición y conserva la captura sin guardar ante el bloqueo.",
+  "saveCheque": "Separa captura física de cheques ya persistidos de aprobación del cierre para todas las semanas y obras. Exige el mismo importe comprobado, trabajador, obra, semana y concepto, más número y consecutivo; conserva fuentes, duplicados, contexto y validación del servidor. Crear un cheque o cambiar sus datos económicos no usa esta excepción.",
   "eliminarChequeErroneo": "Distingue importe de cheque físico; no permite eliminar registros foliados o expedidos.",
   "metodoPagoPredeterminado": "Nómina sin cuenta queda POR DEFINIR; sólo finiquitos tienen cheque por defecto. No cambia importes.",
   "pgRender": "Distingue pendientes no expedidos de pagos y permite revisar automáticos en lote; parser y montos intactos.",

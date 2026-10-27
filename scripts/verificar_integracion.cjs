@@ -31,6 +31,8 @@ if(actividadPrivate)suites.push('test_actividad_pg');
 else console.log('ALCANCE PÚBLICO ACTIVIDAD: contratos de interfaz en VM; 27 comprobaciones PostgreSQL requieren la migración privada.');
 const netoPrivate=recibosPrivate&&revisionPrivate&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cheques_neto_fuentes_alternas.sql'));
 suites.push('test_cheques_fuentes_ui','test_proyeccion_destinos','test_exportacion_altas_noi','test_imss_periodos_ui');
+if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cheques_existentes_expedicion_independiente.sql')))suites.push('test_cheque_existente_sin_cierre_pg');
+else console.log('ALCANCE PÚBLICO CAPTURA DE CHEQUES: el contrato UI se prueba; las 37 comprobaciones PostgreSQL de expedición independiente requieren la migración privada.');
 suites.push('test_noi_identidad_ui','test_cheque_estado_cierre_ui','test_noi_s30_regresion','test_finiquito_cero_confirmado','test_noi_ceros_ui');
 const identidadPrivate=netoPrivate&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_noi_identidad_y_estado_expedicion.sql'));
 if(identidadPrivate)suites.push('test_noi_identidad_pg');

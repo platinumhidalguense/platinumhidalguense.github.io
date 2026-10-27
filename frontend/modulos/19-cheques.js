@@ -149,11 +149,17 @@ async function chqResolverNeto(c){
   if(!window.PLATINUM_FLOWS)return {error:'El flujo integrado no cargó. Recarga antes de expedir.'};
   return window.PLATINUM_FLOWS.resolverNeto(c);
 }
-function chqMostrarRespaldo(r){
+function chqCapturaExistente(c,w,semana,tipo,neto){
+  return !!(c?.id&&c.estatus==='PENDIENTE'&&!c.eliminado&&c.obra_id===OBRA?.id
+    &&c.trabajador_id&&c.trabajador_id===w?.id&&normSem(c.semana)===normSem(semana)
+    &&c.tipo_pago===tipo&&Number(c.importe)===Number(neto)&&Number(neto)>0);
+}
+function chqMostrarRespaldo(r,existente=false){
   const aviso=$('c-neto-fuente');if(!aviso)return;
   aviso.textContent=`Importe verificado: $${money(r.neto)} · ${r.origen} · ${r.desde} al ${r.hasta}.`;
   if(r.advertencias?.length){const nota=document.createElement('div');nota.textContent='Lectura adicional del PDF pendiente. El importe ya tiene respaldo en '+r.origen+'. '+r.advertencias.join(' ');aviso.appendChild(nota);}
-  if(r.expedicion&&!r.expedicion.requisitos_cierre_cumplidos){
+  if(existente){const texto=document.createElement('div');texto.textContent='Cheque existente: puedes capturar su número y consecutivo sin autorizar o reabrir el cierre. La vinculación al cierre se revisa por separado.';aviso.appendChild(texto);}
+  if(!existente&&r.expedicion&&!r.expedicion.requisitos_cierre_cumplidos){
     const texto=document.createElement('div');texto.textContent='Expedición pendiente: '+r.expedicion.pendiente;aviso.appendChild(texto);
     if(r.expedicion.cierre_id){const b=document.createElement('button');b.type='button';b.className='btn';b.textContent='Revisar cierre S'+r.semana;
       b.onclick=()=>{if(confirm('Se abrirá el cierre sin guardar esta captura. Los números que acabas de escribir no se han registrado. ¿Continuar?'))window.PLATINUM_FLOWS.abrirCierre(r.expedicion.cierre_id);};aviso.appendChild(b);}
@@ -167,7 +173,8 @@ async function chqTraerRecibo(){
   if(!aviso||aviso!==$('c-neto-fuente')||rec.obra_id!==OBRA?.id||rec.trabajador_id!==(WORKERS.find(x=>fullName(x).toUpperCase()===($('c-nombre')?.value||'').trim().toUpperCase())?.id)||rec.semana!==$('f-c-semana')?.value||rec.tipo_pago!==$('c-tipo')?.value)return;
   if(r.error){aviso.textContent=r.error;if(r.puede_leer_pdf&&window.PLATINUM_RECIBOS_IA){const b=document.createElement('button');b.type='button';b.className='btn';b.textContent='Leer recibos con Gemini';b.onclick=()=>window.PLATINUM_RECIBOS_IA.abrir(normSem(rec.semana));aviso.appendChild(b);}toast(r.error,'err');return;}
   if(input)input.value=r.neto.toFixed(2);
-  chqMostrarRespaldo(r);
+  const previo=CHEQUES.find(c=>c.id===$('c-save')?.dataset?.chequeId);
+  chqMostrarRespaldo(r,chqCapturaExistente(previo,w,rec.semana,rec.tipo_pago,r.neto));
   toast(`Importe $${money(r.neto)} verificado contra ${r.origen}.`,'ok');
 }
 function renderCheques(){
@@ -219,7 +226,7 @@ function openChequeForm(id){
     <div class="m-foot">
       ${c&&puedeEliminarCheque()?`<button class="btn danger" style="background:#7a1414;border-color:#7a1414;margin-right:auto" onclick="eliminarChequeErroneo('${c.id}')">🗑 Eliminar (captura errónea)</button>`:''}
       <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn dark" id="c-save" onclick="saveCheque(${c?`'${c.id}'`:'null'})">💾 Guardar</button>
+      <button class="btn dark" id="c-save" data-cheque-id="${esc(c?.id||'')}" onclick="saveCheque(${c?`'${c.id}'`:'null'})">💾 Guardar</button>
     </div>`,'md');
   /* v36.1 · BUG CORREGIDO: `fld()` crea los inputs con el prefijo `f-`
      (id="f-c-semana"), así que `$('c-semana')` siempre devolvía null y esta
@@ -273,8 +280,10 @@ async function saveCheque(id){
     const respaldo=await chqResolverNeto(captura);
     if(OBRA?.id!==contextoInicial.obra||$('c-save')!==contextoInicial.form||g('c-semana')!==captura.semana||$('c-tipo')?.value!==captura.tipo_pago||g('c-nombre')!==captura.nombre){toast('La captura cambió durante la verificación. Vuelve a verificar el cheque.','err');return;}
     if(respaldo.error){toast(respaldo.error,'err');return;}
-    chqMostrarRespaldo(respaldo);
-    if(['EXPEDIDO','ENTREGADO'].includes(estatus)&&respaldo.expedicion&&!respaldo.expedicion.requisitos_cierre_cumplidos){toast('Importe verificado. '+respaldo.expedicion.pendiente,'err');return;}
+    const existente=chqCapturaExistente(previo,w,captura.semana,captura.tipo_pago,respaldo.neto);
+    chqMostrarRespaldo(respaldo,existente);
+    if(existente&&['EXPEDIDO','ENTREGADO'].includes(estatus)&&(!g('c-num')||!g('c-consec'))){toast('Captura el número de cheque y su consecutivo antes de expedir.','err');return;}
+    if(!existente&&['EXPEDIDO','ENTREGADO'].includes(estatus)&&respaldo.expedicion&&!respaldo.expedicion.requisitos_cierre_cumplidos){toast('Importe verificado. '+respaldo.expedicion.pendiente,'err');return;}
     neto=respaldo.neto;
     if($('f-c-importe'))$('f-c-importe').value=neto.toFixed(2);
   }

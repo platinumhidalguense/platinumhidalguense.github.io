@@ -5,6 +5,7 @@ async function makeDatabase({sinReingresos=false}={}){const db=await base.makeDa
   const f=fs.readdirSync('supabase/migrations').find(f=>f.endsWith(end));if(!f)throw Error('Falta migración privada '+end);await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
  }
  if(!sinReingresos){const f=fs.readdirSync('supabase/migrations').find(f=>f.endsWith('_reingresos_ciclos_sin_reabrir_cierres.sql'));if(f)await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));}
+ const cheque=fs.readdirSync('supabase/migrations').find(f=>f.endsWith('_cheques_existentes_expedicion_independiente.sql'));if(cheque)await db.exec(fs.readFileSync('supabase/migrations/'+cheque,'utf8'));
  return db;
  }catch(e){await db.close();throw e;}}
 module.exports={...base,makeDatabase};
