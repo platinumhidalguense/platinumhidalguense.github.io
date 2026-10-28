@@ -221,7 +221,7 @@ function openChequeForm(id){
         ${fld('c-obs','Observaciones',c?c.observaciones:'',{cls:'c3'})}
       </div>
       <datalist id="dl-trab">${WORKERS.map(w=>`<option data-id="${w.id}">${esc(fullName(w))}</option>`).join('')}</datalist>
-      <p style="margin-top:12px;font-size:12px;color:var(--mut)">Un cheque que sí se expidió y luego se anula se marca <b>CANCELADO</b> (queda en el historial). <b>Eliminar</b> es solo para <b>capturas por error</b> que nunca existieron: se van a la papelera y dejan de contar en todo (recuperable por el admin).</p>
+      <p style="margin-top:12px;font-size:12px;color:var(--mut)">Un cheque expedido puede marcarse <b>CANCELADO</b>. Si hubo un error de captura o en el cheque físico, <b>Eliminar</b> lo retira del listado con auditoría. Los folios capturados requieren confirmar que no fue entregado ni cobrado; se conservan en la papelera.</p>
     </div>
     <div class="m-foot">
       ${c&&puedeEliminarCheque()?`<button class="btn danger" style="background:#7a1414;border-color:#7a1414;margin-right:auto" onclick="eliminarChequeErroneo('${c.id}')">🗑 Eliminar (captura errónea)</button>`:''}
@@ -326,20 +326,22 @@ async function saveCheque(id){
 }
 /* Eliminar cheque = mover a la papelera (eliminado=true). Admin o permiso puntual.
    No borra físicamente (la base lo prohíbe con un trigger): deja de aparecer
-   y de contar en todo, pero es recuperable desde Supabase. Pensado para
-   capturas por error que nunca existieron. */
+   y de contar en todo, pero es recuperable desde Supabase. Para un cheque
+   numerado erróneo se exige confirmación y se conserva la anulación física. */
 async function eliminarChequeErroneo(id){
   if(!puedeEliminarCheque()){toast('No tienes permiso para eliminar cheques.','err');return;}
   const c=CHEQUES.find(x=>x.id===id); if(!c)return;
-  if(String(c.num_cheque||'').trim()||String(c.consecutivo||'').trim()||['EXPEDIDO','ENTREGADO'].includes(c.estatus)){
-    toast('Este cheque tiene folio o fue expedido. Revisa su cancelación física; no se puede eliminar.','err');return;
+  if(c.estatus==='ENTREGADO'){
+    toast('Este cheque figura entregado. Revisa su entrega y pago antes de eliminarlo.','err');return;
   }
-  const aviso='<p class="fhint">Registro sin número ni consecutivo: se elimina del listado, no se marca CANCELADO. Se conserva auditoría.</p>';
+  const fisico=!!(String(c.num_cheque||'').trim()||String(c.consecutivo||'').trim());
+  window._CHQ_ELIMINACION={id,obra:c.obra_id,fisico,numero:String(c.num_cheque||''),consecutivo:String(c.consecutivo||'')};
+  const aviso=fisico?'<p class="fhint">Cheque físico con error: se retirará del listado y quedará CANCELADO en la papelera, conservando número, consecutivo e historial. Si tiene una aplicación de pago, sólo el administrador puede retirarla; un cierre PAGADO requiere reapertura. El saldo vuelve a pendiente sin borrar comprobantes.</p>':'<p class="fhint">Registro sin número ni consecutivo: se elimina del listado, no se marca CANCELADO. Se conserva auditoría.</p>';
   modal(`
     <div class="m-head"><h2>🗑 Eliminar cheque (captura errónea)</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       ${aviso}
-      <p style="font-size:13px">Vas a mandar este cheque a la <b>papelera</b>. Dejará de aparecer en la lista, en los conteos, el dashboard y las exportaciones —como si nunca se hubiera capturado—. Es recuperable por el administrador desde Supabase.</p>
+      <p style="font-size:13px">Vas a mandar este cheque a la <b>papelera</b>. Dejará de aparecer en la lista, los conteos y las exportaciones. El registro original seguirá disponible para auditoría.</p>
       <div class="kv"><b>Trabajador</b><span>${esc(c.nombre)||'—'}</span></div>
       <div class="kv"><b>Consecutivo</b><span>${esc(c.consecutivo)||'—'}</span></div>
       <div class="kv"><b>Número de cheque</b><span>${esc(c.num_cheque)||'(vacío)'}</span></div>
@@ -347,6 +349,7 @@ async function eliminarChequeErroneo(id){
       <div class="kv"><b>Estatus</b><span>${esc(c.estatus)}</span></div>
       <label style="margin-top:12px">Motivo obligatorio (queda registrado)</label>
       <input id="del-motivo" maxlength="1000" placeholder="Ej. finiquito pagado por transferencia; cheque no expedido">
+      ${fisico?'<label style="display:flex;gap:8px;margin-top:14px"><input type="checkbox" id="del-fisico-confirm">Confirmo que este cheque no fue entregado ni cobrado y que el folio erróneo quedó anulado o resguardado.</label>':''}
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
@@ -357,11 +360,22 @@ async function doEliminarCheque(id){
   if(!puedeEliminarCheque()){toast('No tienes permiso para eliminar cheques.','err');return;}
   const motivo=($('del-motivo')&&$('del-motivo').value.trim())||'';
   if(!motivo){toast('Indica el motivo de eliminación.','err');return;}
+  const captura=window._CHQ_ELIMINACION;
+  const actual=CHEQUES.find(x=>x.id===id);
+  const fisico=!!(String(actual?.num_cheque||'').trim()||String(actual?.consecutivo||'').trim());
+  if(fisico&&(!captura||captura.id!==id||captura.obra!==OBRA?.id||captura.fisico!==true)){
+    toast('Vuelve a abrir la confirmación del cheque físico.','err');return;
+  }
+  if(fisico&&(!$('del-fisico-confirm')?.checked||motivo.length<10)){
+    toast('Describe el error (mínimo 10 caracteres) y confirma que el cheque físico no fue entregado ni cobrado.','err');return;
+  }
   const btn=$('del-chq-btn');if(!btn||btn.disabled)return;
   btn.disabled=true;btn.innerHTML='<span class="spin"></span> Eliminando...';
   markWrite();
   try{
-    const {data,error}=await sb.rpc('control_eliminar_cheque',{p_cheque_id:id,p_motivo:motivo});
+    const {data,error}=await sb.rpc(fisico?'control_eliminar_cheque_fisico':'control_eliminar_cheque',fisico?
+      {p_cheque_id:id,p_motivo:motivo,p_numero_esperado:captura.numero,p_consecutivo_esperado:captura.consecutivo,p_confirmado:true}:
+      {p_cheque_id:id,p_motivo:motivo});
     if(error)throw error;
     if(data?.id!==id||data?.eliminado!==true)throw new Error('No se confirmó la eliminación del cheque.');
   }catch(error){
@@ -369,6 +383,7 @@ async function doEliminarCheque(id){
     toast('No se confirmó la operación: '+error.message,'err');
     return;
   }
+  delete window._CHQ_ELIMINACION;
   closeModal();toast('Cheque movido a la papelera; comprobantes y pagos conservados.','ok');
   try{
     await loadObraData(OBRA.id);

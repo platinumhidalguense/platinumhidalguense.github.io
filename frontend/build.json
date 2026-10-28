@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-28.1",
-  "entry": "assets/platinum-app.45a41defd75a3a4d.js",
-  "sha256": "45a41defd75a3a4d744701c1804a069d6b65ff7aeb7d3f2818bca2c354564302",
-  "integrity": "sha384-s3zyeL5+FLX/fM6byyWhDhL0Mg0FCD64XeM4IkkJm2WqSs/YwfCSLPLK4JOx0nG1",
+  "version": "2026-10-28.2",
+  "entry": "assets/platinum-app.18d69f91b944c260.js",
+  "sha256": "18d69f91b944c2608fc68bfa6683c89e2b0638c3761cc03ff11b137671e8bdec",
+  "integrity": "sha384-femLp/erz4YQxJ8lUvhGQ+fuDzFI9KYOuHe6UeKqHiVHiV49rdGcXb2xWEGwjvF7",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "716b03ee6cafa8c9459635b9e856483a2da135accf4552d9cc28e4e990ad9133"
+      "sha256": "1bac8374991cdda543205cf1652a86eecfe48c0ed76ed42d2315db8e5a2b72ad"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -82,7 +82,7 @@
     },
     {
       "path": "frontend/modulos/19-cheques.js",
-      "sha256": "1d6c97517f3bee1bd0fa49d1248ee7dcf381662ce20c20c525b1c58d005685f1"
+      "sha256": "c3088fc841aa4427f619b7cb677edb7ad217eba92118d859cd47ec913b5916c5"
     },
     {
       "path": "frontend/modulos/20-movimientos-semanales.js",
