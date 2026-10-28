@@ -1,4 +1,8 @@
 {
+  "pyPreview": "Integra una composición exclusiva de segunda quincena desde octubre de 2026. Conserva proyModelo y el motor semanal intactos y consulta acumulados ISR confirmados antes de versionar; rechaza fuentes ausentes o desactualizadas.",
+  "proyAuditoria": "Añade al resultado auditado el desglose del ajuste mensual quincenal y su revisión de origen. No recalcula conceptos ni modifica importes de semanas cerradas.",
+  "exportProyeccion": "Compone el ajuste mensual sólo para filas quincenales antes de elegir la versión sellada y construir ambos Excel. Los motores y el recorrido semanal permanecen intactos; pruebas de compensación y fuentes confirmadas.",
+  "exportProyContratista": "Aplica la misma composición quincenal usada en la proyección general y el cierre. Reutiliza importes sellados y registra referencias del ajuste sin compensar faltas o créditos ni modificar la nómina semanal.",
   "openChequeForm": "Identifica el cheque persistido en el formulario mediante UUID; conserva campos, eliminación y captura. Permite distinguir expedición de un pendiente existente de la creación de un cheque nuevo, sin cambiar datos ni importes.",
   "openCtrlNuevaAltaCorta": "Añade campo explícito de días pagados según NOI; no transforma blancos en cero ni modifica las fechas laborales, el criterio de candidatos o el motor monetario.",
   "ctrlGuardarAltaCorta": "Captura explícitamente los días pagados NOI y distingue pendiente de cero; valida datos antes de guardar y mantiene confirmación de ausencia real de servicio, fechas, permisos e historial. No recalcula nómina.",

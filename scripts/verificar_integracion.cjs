@@ -47,6 +47,8 @@ suites.push('test_contexto_historico_nomina','test_captura_historica_ui','test_c
 suites.push('test_cierres_comprobantes_ui');
 suites.push('test_vincular_masivo_listado_ui');
 suites.push('test_transferencia_selectiva_ui');
+suites.push('test_isr_quincenal');
+if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_isr_mensual_quincenal.sql')))suites.push('test_isr_quincenal_pg');
 if(fs.readdirSync('supabase/migrations').filter(n=>/_(noi_identidad_historica_documentada|cierres_vinculacion_comprobantes_en_lote)\.sql$/.test(n)).length===2)suites.push('test_cierres_identidad_y_pagos_pg','test_comprobantes_lote_pg','test_comprobantes_masivos_pg','test_cierre_s31_integrado_pg');
 suites.push('test_incidencias_vigencia');
 suites.push('test_sin_servicio_dias_noi_ui');

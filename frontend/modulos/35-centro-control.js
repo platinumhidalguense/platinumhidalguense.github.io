@@ -78,6 +78,7 @@ async function openControlEmpresarial(){
           ['💳','Revisión de pagos del sábado','Pagos pendientes, transferencias y cheques sólo con confirmación desde las 12:00 CDMX','PLATINUM_PAGOS_SABADO.abrir()'],
           ['⚖️','Conciliación NOI','Compara netos por trabajador y detecta diferencias al centavo','openCtrlConciliacionSelector()'],
           ['🧮','Papeles de prestaciones','Cálculos semanales, ISR preciso, propuesta D001 e histórico de consulta','openPapelesFiniquito()'],
+          ['🧾','ISR mensual quincenal','Acumulados, ajuste de la segunda quincena y compensación del diferencial','openISRQuincenal()'],
           ['📒','Concentrado por contratista','Percepciones, ISR, IMSS, neto y evidencia de pago por semana','openCtrlConcentradoContratistas()'],
           ['📅','IMSS · IDSE · SUA','Altas, bajas, salarios e incapacidades con fechas y evidencias','openCtrlMovimientos()'],
           ['↔️','Altas y bajas sin servicio','Distingue registros IMSS sin trabajo efectivo de faltas y finiquitos','openCtrlAltasCortas()'],

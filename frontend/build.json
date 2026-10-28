@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-27.2",
-  "entry": "assets/platinum-app.56f8fc726d16f3d8.js",
-  "sha256": "56f8fc726d16f3d8f11e65417901f94a6f62eb199f07412acfe80bfe0d2b9820",
-  "integrity": "sha384-g2rG86S585ocYGFSrTkz7HR6V+OYsFJPQ5TXTcWBPEwnRjVypyPOg6G+4/xNntBx",
+  "version": "2026-10-28.1",
+  "entry": "assets/platinum-app.45a41defd75a3a4d.js",
+  "sha256": "45a41defd75a3a4d744701c1804a069d6b65ff7aeb7d3f2818bca2c354564302",
+  "integrity": "sha384-s3zyeL5+FLX/fM6byyWhDhL0Mg0FCD64XeM4IkkJm2WqSs/YwfCSLPLK4JOx0nG1",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "6611d3f2e904ef909c51672ab932cb8dd623cdd04ac7e2aaa303e97ad1e0dfad"
+      "sha256": "716b03ee6cafa8c9459635b9e856483a2da135accf4552d9cc28e4e990ad9133"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -46,7 +46,7 @@
     },
     {
       "path": "frontend/modulos/10-proyeccion-nomina.js",
-      "sha256": "39dbbbfd8a9c49b410bd06dfded855c064912a39d7b90c79dd694ccad0393750"
+      "sha256": "5cc93a398446738365d26d15d96c79e0b580f903b2e36f86150a6192de99f5c6"
     },
     {
       "path": "frontend/modulos/11-expedientes-excel.js",
@@ -58,7 +58,7 @@
     },
     {
       "path": "frontend/modulos/13-control-salarial-diferenciales.js",
-      "sha256": "a8988dfb4f3389b2a0944616ec4661487319a84d0a96f9231d10c0ceb05aafa2"
+      "sha256": "a56b7d7f3142aca01b46375df71273531e05fb12dcaeea5e8b0e0feee39e3261"
     },
     {
       "path": "frontend/modulos/14-importacion-documental.js",
@@ -146,7 +146,7 @@
     },
     {
       "path": "frontend/modulos/35-centro-control.js",
-      "sha256": "8c7e22d4010d21a219fbe0817c9e0344c33f82368db93ecfc8f0f92c898be0d5"
+      "sha256": "76ec2a6af71b17be712f96a47eba7a05ebd50b32596ea9f0a737de9a2cdea7c6"
     },
     {
       "path": "frontend/modulos/36-imss-sin-servicio-st7.js",
@@ -158,11 +158,11 @@
     },
     {
       "path": "frontend/modulos/38-adaptadores-arranque.js",
-      "sha256": "e8b57906cec36c9c736a59117016c539c2975fcce244b8ebef99e31d7a69bbb0"
+      "sha256": "b20707f69fc56cc0abd9032ae56703182492c468333e5af088e4e2421ea6e9f0"
     },
     {
       "path": "frontend/modulos/39-rrhh-adaptadores.js",
-      "sha256": "db48a2c70dd6538deca949332f3df0569fe8807d45b940ca6c288752b867b6bf"
+      "sha256": "42cb9c75da75affa7dc5e32965dc8273fa4311f7a79ad323044051b642d9d47b"
     },
     {
       "path": "frontend/modulos/40-pagos-sabado-adaptadores.js",
@@ -195,6 +195,10 @@
     {
       "path": "frontend/modulos/47-contexto-historico-nomina.js",
       "sha256": "a1229dc9ba5291553578037e5aa44c4df3007fd9950bad28793c94b73e4a4fbb"
+    },
+    {
+      "path": "frontend/modulos/48-isr-mensual-quincenal.js",
+      "sha256": "7566e6868e27b52977982b2a72bf20a2a014924511770d2cb58c56958bd8b83e"
     }
   ]
 }

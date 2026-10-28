@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "version": "2026-10-27.2",
+  "version": "2026-10-28.1",
   "modules": [
     "frontend/modulos/00-configuracion-utilidades.js",
     "frontend/modulos/01-sesion-centros-sincronizacion.js",
@@ -49,7 +49,8 @@
     "frontend/modulos/44-respaldo-recibos.js",
     "frontend/modulos/45-exportacion-altas-noi.js",
     "frontend/modulos/46-papeles-prestaciones.js",
-    "frontend/modulos/47-contexto-historico-nomina.js"
+    "frontend/modulos/47-contexto-historico-nomina.js",
+    "frontend/modulos/48-isr-mensual-quincenal.js"
   ],
   "originalSha256": "9c8d55e50d79a8c1d4dda73f83ff26f8b1c9f200e3f6e8c6b96624b12857af04"
 }

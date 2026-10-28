@@ -29,9 +29,12 @@ async function rrhhVistaActual(id,sem,permisos){
   if(!await pyDatosFrescos()||OBRA?.id!==obra.id)throw Error('No se pudieron leer las fuentes actuales.');
   const [desde,hasta]=semRange(sem),c=pyCandidatos(desde,hasta,'TODOS'),act=c.act.filter(w=>w.id===id),fins=c.fins.filter(w=>w.id===id),audits=await proyLeerFiniquitos(fins);
   if(OBRA?.id!==obra.id)throw Error('Cambió el centro durante la carga.');
-  const modelo=proyModelo(act,fins,'S'+sem,audits),f=modelo.filas[0];
+  let modelo=proyModelo(act,fins,'S'+sem,audits);
+  if(modelo.filas.some(f=>!f.fin&&f.w.periodo_pago==='QUINCENAL'))modelo=await isrQAplicarModelo(modelo);
+  const f=modelo.filas[0];
   if(!f)throw Error('Este trabajador no es candidato a nómina o finiquito de esa semana según las fuentes actuales. No se inventará un importe.');
   const referencias=rrhhReferenciasModelo(modelo.filas,audits,'S'+sem,before.fuente).trabajadores[id];
+  if(f.isr_mensual)referencias.isr_mensual=f.isr_mensual;
   const after=await window.PLATINUM_FLOWS.call('FUENTE',{obra_id:obra.id,semana:sem});
   if(OBRA?.id!==obra.id||before.fuente!==after.fuente)throw Error('Una fuente cambió durante la lectura. Actualiza antes de revisar.');
   if(!permisos.vip)delete referencias.prevision;if(!permisos.salud)delete referencias.finiquito_detalle;

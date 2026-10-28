@@ -244,6 +244,7 @@ async function exportProyeccion(eleccion){
     const actual={DESC,DIFS,FINTRANS};let m;
     try{DESC=fuentes.DESC;DIFS=fuentes.DIFS;FINTRANS=fuentes.FINTRANS;m=proyModelo(act,fins,sem,audits);}
     finally{DESC=actual.DESC;DIFS=actual.DIFS;FINTRANS=actual.FINTRANS;}
+    if(m.filas.some(f=>!f.fin&&f.w.periodo_pago==='QUINCENAL'))m=await isrQAplicarModelo(m);
     if(window.__PLATINUM_REQUIERE_FLUJO&&!window.PLATINUM_FLOWS)throw Error('El módulo de coordinación no cargó. Recarga la plataforma.');
     if(window.PLATINUM_FLOWS)m=await window.PLATINUM_FLOWS.versionarModelo(m,{obras:[obra.id],sem,periodo,desde:d1,hasta:d2,versiones});
     if(!m.filas.length)throw Error('No hay trabajadores en el periodo seleccionado.');
@@ -342,6 +343,7 @@ async function exportProyContratista(eleccion){
     // Primero validar y construir TODOS; un desglose incompleto no deja un lote parcial.
     for(const c of modelos){
       let m=c.modelo;
+      if(m.filas.some(f=>!f.fin&&f.w.periodo_pago==='QUINCENAL'))m=await isrQAplicarModelo(m);
       if(window.__PLATINUM_REQUIERE_FLUJO&&!window.PLATINUM_FLOWS)throw Error('El módulo de coordinación no cargó. Recarga la plataforma.');
       if(window.PLATINUM_FLOWS)m=await window.PLATINUM_FLOWS.versionarModelo(m,{obras:oid?[oid]:obrasEmpresa(codigo).map(o=>o.id),sem,periodo,contratista:c.ct,desde:d1,hasta:d2,versiones});
       if(!m.filas.length)continue;

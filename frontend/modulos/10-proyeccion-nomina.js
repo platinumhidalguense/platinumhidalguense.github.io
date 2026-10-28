@@ -136,6 +136,7 @@ async function pyPreview(){
     const audits=await proyLeerFiniquitos(fins);
     if(version!==window._PY_PREVIEW_VERSION||!$('py-prev'))return;
     let m=proyModelo(act,fins,sem,audits);
+    if(m.filas.some(f=>!f.fin&&f.w.periodo_pago==='QUINCENAL'))m=await isrQAplicarModelo(m);
     if(window.__PLATINUM_REQUIERE_FLUJO&&!window.PLATINUM_FLOWS)throw Error('El módulo de coordinación no cargó. Recarga la plataforma.');
     if(window.PLATINUM_FLOWS)m=await window.PLATINUM_FLOWS.versionarModelo(m,{obras:[OBRA.id],sem,periodo:$('py-periodo').value,desde:$('py-d1').value,hasta:$('py-d2').value,versiones});
     if(version!==window._PY_PREVIEW_VERSION||!$('py-prev'))return;
@@ -435,6 +436,7 @@ function proyLibro(modelo,destino,meta){
   wb.__retencionesContratista=destino==='CONTRATISTA';
   XLSX.utils.book_append_sheet(wb,buildProyDestinoWS({...meta,modelo,destino,titulo:meta.titulo+' · '+label}),`SEMANA ${String(modelo.sem).replace('S','')}`);
   XLSX.utils.book_append_sheet(wb,buildProyRetencionesWS(modelo,meta.colB,destino),'RETENCIONES');
+  if(modelo.filas.some(f=>f.isr_mensual))XLSX.utils.book_append_sheet(wb,isrQHoja(modelo),'ISR MENSUAL');
   wb.__empresaPorHoja={};wb.SheetNames.forEach(n=>wb.__empresaPorHoja[n]=meta.codigo);wb.__auditObraIds=[...new Set(modelo.filas.map(x=>x.w.obra_id))];
   return wb;
 }
@@ -442,7 +444,7 @@ function proyAuditoria(modelo,destinos){
   return modelo.filas.map(x=>({obra_id:x.w.obra_id,empresa_codigo:empresaDeTrabajador(x.w),trabajador_id:x.w.id,trabajador_numero:x.w.no_trab,trabajador_nombre:fullName(x.w),
     tipo_calculo:x.fin?'FINIQUITO_EN_PROYECCION':'PROYECCION_NOMINA',periodo:modelo.sem,
     entradas:{destinos,sueldo_registrado:x.sueldo,incidencias:x.incidencias,creditos:x.creditos,otras:x.otras,prevision_social:x.prevision,fuente_finiquito:x.fuente||null},
-    resultado:{importe_contratista:x.costo,neto:x.neto,forma_pago:x.pago},monto_modelo:x.neto,monto_aplicado:x.neto,ajuste_noi:0}));
+    resultado:{importe_contratista:x.costo,neto:x.neto,forma_pago:x.pago,isr_mensual:x.isr_mensual||null},monto_modelo:x.neto,monto_aplicado:x.neto,ajuste_noi:0}));
 }
 function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
   /* MONTO TOTAL = SUELDO NÓMINA + PREVISIÓN SOCIAL − RETENCIONES.

@@ -30,6 +30,8 @@ async function proySnapshotIntegrado(sem,periodo){
     trazabilidad=rrhhReferenciasModelo(live.filas,audits,'S'+sem,source.fuente);
   }
   finally{DESC=sources.DESC;}
+  if(live.filas.some(f=>!f.fin&&f.w.periodo_pago==='QUINCENAL'))live=await isrQAplicarModelo(live);
+  for(const f of live.filas)if(f.isr_mensual)trazabilidad.trabajadores[f.w.id].isr_mensual=f.isr_mensual;
   // Sólo los campos necesarios para reproducir las exportaciones, no el expediente personal.
   const fields=['id','obra_id','no_trab','nombres','primer_apellido','segundo_apellido','contratista','puesto','periodo_pago','cuenta','clabe','banco','forma_pago','fecha_baja'];
   const filas=live.filas.map(f=>{const w=Object.fromEntries(fields.map(k=>[k,f.w[k]??null]));return {...f,w,items:f.items.map(i=>({...i,w}))};});
