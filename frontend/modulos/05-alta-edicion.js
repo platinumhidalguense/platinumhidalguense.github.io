@@ -32,7 +32,7 @@ function openForm(id){
     <div class="wf-stepper" role="group" aria-label="Pasos del registro">
       ${['Asignación','Datos personales','Documentos'].map((txt,i)=>`<button type="button" id="wf-tab-${i+1}" onclick="workerFormPaso(${i+1})"><span>${i+1}</span><b>${txt}</b></button>`).join('')}
     </div>
-    <div class="m-body" id="worker-form-body" data-worker-id="${w?w.id:''}" data-user-id="${esc(USER.id)}" data-step="1">
+    <div class="m-body" id="worker-form-body" data-worker-id="${w?w.id:''}" data-worker-version="${esc(w?.updated_at||'')}" data-worker-obra="${esc(w?.obra_id||'')}" data-user-id="${esc(USER.id)}" data-step="1">
       <div class="sect">Obra y puesto</div>
       <div class="grid">
         <div class="c2"><label>Centro de trabajo · ${esc(EMPRESAS[EMPRESA_ACTIVA].corto)}</label><select id="f-obra_id">${obrasAlta.map(o=>`<option value="${o.id}" ${(w?w.obra_id:OBRA.id)===o.id?'selected':''}>${esc(o.nombre)}</option>`).join('')}</select><div class="fhint">Para cambiar de razón social usa “Transferir” y genera la baja/reingreso correspondiente.</div></div>
@@ -757,10 +757,20 @@ async function saveWorker(id){
   finally{if($('worker-form-body')===formularioGuardando)formGuardando(false);}
 }
 async function guardarRegistroTrabajador(valores,id){
-  let q=id?sb.from('trabajadores').update(valores).eq('id',id):sb.from('trabajadores').insert(valores);
+  const form=$('worker-form-body');
+  if(id&&(!form||form.dataset.workerId!==id||!form.dataset.workerVersion||!form.dataset.workerObra)){
+    return {error:{message:'No se tiene la versión original de esta ficha. Vuelve a abrirla antes de guardar; tu captura no se ha enviado.'}};
+  }
+  // La versión pertenece a la ficha abierta, no al caché que Realtime puede renovar.
+  // Impide que una edición antigua borre un reingreso o restaure un finiquito previo.
+  let q=id?sb.from('trabajadores').update(valores).eq('id',id)
+    .eq('obra_id',form.dataset.workerObra).eq('updated_at',form.dataset.workerVersion)
+    :sb.from('trabajadores').insert(valores);
   const {data,error}=await q.select('id');
   if(error)return {error};
-  if(!data||data.length!==1)return {error:{message:'No se confirmó el registro. Verifica tus permisos y actualiza la ficha antes de reintentar.'}};
+  if(!data||data.length!==1)return {error:{message:id
+    ?'La ficha cambió desde que la abriste o ya no tienes acceso. No se sobrescribió ningún dato. Conserva tu captura y vuelve a abrir la ficha para revisar los cambios.'
+    :'No se confirmó el registro. Verifica tus permisos y actualiza la ficha antes de reintentar.'}};
   return {data,error:null};
 }
 /* ---------- ¿EL QUE ACABO DE DAR DE ALTA VENÍA EN PAPELES? -------------

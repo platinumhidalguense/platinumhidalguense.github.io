@@ -1,4 +1,5 @@
 {
+  "incAuditarCalculoGuardado": "Verifica faltas incrementales sobre una incidencia IMSS ya aplicada: resta el descuento base del cálculo combinado y exige referencia activa, mismo trabajador, obra, semana e importe base vigente. Bloquea exportación si cambia la fuente; no altera fórmulas ni reclasifica incapacidades como faltas.",
   "openLegajos": "Añade acceso al selector de chequeras físicas de 50 consecutivos. Conserva la fila manual, su orden, fechas, recibos y generación originales; no modifica pagos ni datos personales.",
   "openBloques": "Añade acceso a chequeras físicas sin cambiar la agrupación semanal ni las reuniones de entrega. Las exportaciones físicas consultan datos por centro y no modifican estados ni importes.",
   "pyPreview": "Integra una composición exclusiva de segunda quincena desde octubre de 2026. Conserva proyModelo y el motor semanal intactos y consulta acumulados ISR confirmados antes de versionar; rechaza fuentes ausentes o desactualizadas.",
@@ -77,7 +78,8 @@
   "openDetail": "Conserva ficha y herramientas; añade accesos de lectura y un UUID de contexto en el contenedor, sin transmitir valores, para el visor exclusivo del administrador.",
   "openControlEmpresarial": "Añadir un único acceso a los cuatro engranes de operación RRHH, sin retirar controles.",
   "startRealtime": "Propaga fuentes agrupadas de invalidación sin usar filas del evento como datos; conserva presencia efímera aislada, permisos y notificaciones de módulos, sin sobrescribir capturas abiertas.",
-  "openForm": "Retirar indicación insegura de copiar una contraseña compartida; captura y validaciones intactas.",
+  "openForm": "Captura la versión y obra originales en el formulario para impedir sobrescrituras de reingresos y finiquitos por una ficha desactualizada; conserva captura, pasos y validaciones.",
+  "guardarRegistroTrabajador": "Edición condicionada por id, obra y updated_at de la ficha abierta. Rechaza versión ausente o actualizada sin perder captura; altas nuevas y reintentos por columnas faltantes conservan validaciones y permisos.",
   "correoCfg": "Eliminar contraseña incrustada y no leer claves de configuración compartida.",
   "crearCorreo": "Mantener creación de dirección sin copiar contraseñas; acceso al proveedor sin opener.",
   "openCorreos": "Directorio por razón social paginado, sin exposición de contraseñas.",

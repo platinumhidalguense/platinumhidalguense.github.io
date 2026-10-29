@@ -21,4 +21,20 @@ assert.equal(b.incAuditarCalculoGuardado(auto,w).desactualizado,true);
 assert.equal(b.incAuditarCalculoGuardado({...auto,ajustes_semana:{_calculo_incidencia:{modo:'MANUAL'}}},w),null);
 assert.equal(b.incAuditarCalculoGuardado({...auto,recurrente:true},w),null);
 assert.equal(b.incAuditarCalculoGuardado({...auto,ajustes_semana:{_calculo_incidencia:{modo:'AUTOMATICO',faltas:8,incapacidad_imss:0,premios:0}}},w),null);
-console.log('PASS 14 controles: motor vigente al centavo, incidencia anterior detectada, importe manual respetado, sin mutaciones y sin contaminar otras semanas.');
+const wi={id:'ficticio-imss',obra_id:'obra',no_trab:2,sd:362,sdi:379.8521,sal_semanal:2400.26};
+const imss={id:'base-imss',obra_id:'obra',trabajador_id:wi.id,activo:true,recurrente:false,semana:'S31',tipo:'INCIDENCIA',monto:635.93};
+const falta={id:'faltas',obra_id:'obra',trabajador_id:wi.id,activo:true,recurrente:false,semana:'S31',tipo:'FALTA',monto:823.36,
+ ajustes_semana:{_calculo_incidencia:{modo:'INCREMENTAL_IMSS',faltas:2,incapacidad_imss:2,premios:0,descuento_base_id:imss.id}}};
+b.DESC=[imss,falta];const combined=b.incAuditarCalculoGuardado(falta,wi);
+assert.equal(combined.monto,823.36);assert.equal(combined.desactualizado,false);
+assert.equal(combined.resultado.conFaltas.neto,940.97);
+assert.equal(b.descuentoFaltasNOI({...wi,sdi:379.85},2,0,undefined,2).conFaltas.neto,940.98);
+assert.equal(Math.round((wi.sal_semanal-imss.monto-falta.monto)*100)/100,940.97);
+const snapshot=JSON.stringify(b.DESC);assert.doesNotThrow(()=>b.retencionesDePeriodo(wi,'S31'));assert.equal(JSON.stringify(b.DESC),snapshot);
+for(const patch of [{activo:false},{monto:500},{semana:'S32'},{obra_id:'otra'},{trabajador_id:'otro'},{tipo:'FALTA'}]){
+ b.DESC=[{...imss,...patch},falta];assert.equal(b.incAuditarCalculoGuardado(falta,wi).desactualizado,true);
+ assert.throws(()=>b.retencionesDePeriodo(wi,'S31'),/incidencia automática guardada/);
+}
+b.DESC=[imss,{...falta,monto:800}];assert.equal(b.incAuditarCalculoGuardado(b.DESC[1],wi).desactualizado,true);
+assert.throws(()=>b.incAuditarCalculoGuardado({...falta,ajustes_semana:{_calculo_incidencia:{modo:'INCREMENTAL_IMSS',faltas:7,incapacidad_imss:2,premios:0}}},wi),/días inválidos/);
+console.log('PASS incidencias: vigencia, centavos y faltas incrementales con incapacidad; referencia, ámbito, días y suma auditados sin duplicar ni mutar fuentes.');

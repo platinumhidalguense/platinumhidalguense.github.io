@@ -193,6 +193,17 @@ function incAuditarCalculoGuardado(d,w,dias){
   if(d.recurrente||!['FALTA','INCIDENCIA'].includes(d.tipo))return null;
   const meta=d.ajustes_semana?._calculo_incidencia;
   let faltas,incap,premios;
+  if(meta?.modo==='INCREMENTAL_IMSS'){
+    const base=DESC.find(x=>x.id===meta.descuento_base_id&&x.activo&&!x.recurrente&&x.tipo==='INCIDENCIA'
+      &&x.trabajador_id===d.trabajador_id&&x.obra_id===d.obra_id&&x.semana===d.semana);
+    const f=meta.faltas,i=meta.incapacidad_imss,p=meta.premios;
+    if(!Number.isInteger(f)||f<=0||!Number.isInteger(i)||i<=0||f+i>perDe(w,dias).dias||!Number.isFinite(p)||p<0)
+      throw Error('La incidencia combinada con IMSS tiene días inválidos; revisa su desglose.');
+    const imss=descuentoFaltasNOI(w,0,p,dias,i),completo=descuentoFaltasNOI(w,f,p,dias,i);
+    const monto=redondearCentavos(completo.monto-imss.monto);
+    return {monto,desactualizado:!base||Math.round(Number(base.monto)*100)!==Math.round(imss.monto*100)
+      ||Math.round(Number(d.monto)*100)!==Math.round(monto*100),resultado:completo,base_imss:imss};
+  }
   if(meta){
     if(meta.modo!=='AUTOMATICO')return null;
     ({faltas,incapacidad_imss:incap,premios}=meta);
