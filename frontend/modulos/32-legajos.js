@@ -118,6 +118,8 @@ function openLegajos(){
       <button class="btn dark" id="lgj-btn" onclick="generarLegajos()">🖨 Generar documento</button>
     </div>`,'lg');
   lgPinta();
+  const cuerpo=$('lg-out')?.parentElement;
+  if(cuerpo){const acceso=document.createElement('button');acceso.className='btn dark';acceso.textContent='📚 Armar por bloques físicos de 50 consecutivos';acceso.onclick=openChequerasFisicas;cuerpo.prepend(acceso);}
 }
 
 function lgAgregar(){

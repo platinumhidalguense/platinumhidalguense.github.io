@@ -29,7 +29,7 @@ function openBloques(){
   modal(`
     <div class="m-head"><h2>📦 Bloques de cheques · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><button class="btn dark" onclick="openReunionesEntrega()">🤝 Reuniones de entrega</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><button class="btn dark" onclick="openReunionesEntrega()">🤝 Reuniones de entrega</button><button class="btn" onclick="openChequerasFisicas()">📚 Chequeras físicas de 50</button></div>
       <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px">El sistema crea el bloque <b>automáticamente al expedir el primer cheque</b> de cada obra y semana, conservando fecha y hora. Los importes siempre se calculan desde los cheques vigentes. Usa “Reuniones de entrega” para elegir uno o varios bloques y confirmar cada entrega física.</p>
       <div id="bq-out"></div>
     </div>

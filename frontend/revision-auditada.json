@@ -1,4 +1,6 @@
 {
+  "openLegajos": "Añade acceso al selector de chequeras físicas de 50 consecutivos. Conserva la fila manual, su orden, fechas, recibos y generación originales; no modifica pagos ni datos personales.",
+  "openBloques": "Añade acceso a chequeras físicas sin cambiar la agrupación semanal ni las reuniones de entrega. Las exportaciones físicas consultan datos por centro y no modifican estados ni importes.",
   "pyPreview": "Integra una composición exclusiva de segunda quincena desde octubre de 2026. Conserva proyModelo y el motor semanal intactos y consulta acumulados ISR confirmados antes de versionar; rechaza fuentes ausentes o desactualizadas.",
   "proyAuditoria": "Añade al resultado auditado el desglose del ajuste mensual quincenal y su revisión de origen. No recalcula conceptos ni modifica importes de semanas cerradas.",
   "exportProyeccion": "Compone el ajuste mensual sólo para filas quincenales antes de elegir la versión sellada y construir ambos Excel. Los motores y el recorrido semanal permanecen intactos; pruebas de compensación y fuentes confirmadas.",

@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-28.2",
-  "entry": "assets/platinum-app.18d69f91b944c260.js",
-  "sha256": "18d69f91b944c2608fc68bfa6683c89e2b0638c3761cc03ff11b137671e8bdec",
-  "integrity": "sha384-femLp/erz4YQxJ8lUvhGQ+fuDzFI9KYOuHe6UeKqHiVHiV49rdGcXb2xWEGwjvF7",
+  "version": "2026-10-28.3",
+  "entry": "assets/platinum-app.ec5fa7eb12feb108.js",
+  "sha256": "ec5fa7eb12feb108ab36cd74be146fa58f1e5abac9e1046c1ffcb67562a9708a",
+  "integrity": "sha384-bYT+34cce5ectN2Eq06gWkeVPpPfRn7fM7PCW2hgkylATKvj8yBpoo9pm/etfDdy",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "1bac8374991cdda543205cf1652a86eecfe48c0ed76ed42d2315db8e5a2b72ad"
+      "sha256": "a12ee3d703fe5a6f4a1e2b61d6e947d74490fe13051a03734fca70974f6b7565"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -54,7 +54,7 @@
     },
     {
       "path": "frontend/modulos/12-bloques-entregas.js",
-      "sha256": "0731af724d9b690e555bfbb04b8535760fd720406138cde47e1a143651c51c42"
+      "sha256": "b852b2baf4efcbbbac11cf43089e100ae46c5a83c715198e672aca36bb6fceec"
     },
     {
       "path": "frontend/modulos/13-control-salarial-diferenciales.js",
@@ -134,7 +134,7 @@
     },
     {
       "path": "frontend/modulos/32-legajos.js",
-      "sha256": "194bb7a1888a7bbecab80921391e11532242717bfa3fd770eb064a75defed5f2"
+      "sha256": "be62d7daced22018c3a79683c5ed17a634597abe92557f76446f6043c619024a"
     },
     {
       "path": "frontend/modulos/33-finiquitos.js",
@@ -199,6 +199,10 @@
     {
       "path": "frontend/modulos/48-isr-mensual-quincenal.js",
       "sha256": "7566e6868e27b52977982b2a72bf20a2a014924511770d2cb58c56958bd8b83e"
+    },
+    {
+      "path": "frontend/modulos/49-chequeras-fisicas.js",
+      "sha256": "767f8d311ca9718ee11365a43bee6f35fcfc42766f8310b2ac2ddd7b58925cc9"
     }
   ]
 }

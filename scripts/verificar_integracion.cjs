@@ -49,6 +49,7 @@ suites.push('test_vincular_masivo_listado_ui');
 suites.push('test_transferencia_selectiva_ui');
 suites.push('test_isr_quincenal');
 suites.push('test_cheques_error_fisico_ui');
+suites.push('test_chequeras_fisicas');
 suites.push('test_permiso_eliminar_cheques');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cheques_error_fisico_auditado.sql')))suites.push('test_cheques_error_fisico_pg');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_isr_mensual_quincenal.sql')))suites.push('test_isr_quincenal_pg');
