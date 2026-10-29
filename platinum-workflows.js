@@ -333,7 +333,7 @@
   const task=(async()=>{try{
    const initial=context().obra?.id;if(initial!==c.obra_id)throw Error('Abre el cheque en su centro de trabajo.');
    let r=await call('NETO_CHEQUE',c);const notes=[],tp=c.tipo_pago==='FINIQUITO'?'FINIQUITO':'NOMINA';
-   if(!r.error||r.estado==='SIN_RESPALDO')for(const doc of (r.recibos_sin_leer||[]).slice(0,20)){
+   if(!r.error||['SIN_RESPALDO','DIFERENCIA_FUENTES'].includes(r.estado))for(const doc of [...new Map((r.recibos_sin_leer||[]).map(d=>[d.id,d])).values()].slice(0,20)){
     if(context().obra?.id!==initial)throw Error('Cambió el centro durante la verificación.');
     try{
      const info=doc.datos_confirmados?{neto:Number(doc.datos_confirmados.neto),tipo:doc.nomina_tipo||null,datos:doc.datos_confirmados}:await cfg.readReceipt(doc);
@@ -348,7 +348,7 @@
    r=await call('NETO_CHEQUE',c);
    if(r.error)return {...r,error:r.error+(notes.length?' '+[...new Set(notes)].join(' '):''),puede_leer_pdf:!!r.recibos_sin_leer?.length};
    if(!Number.isFinite(Number(r.neto))||Number(r.neto)<=0)return {error:'El respaldo de este concepto indica $0 o un neto no positivo; no corresponde expedir cheque.'};
-   return {...r,neto:Number(r.neto),advertencias:[...new Set(notes)]};
+   return {...r,neto:Number(r.neto),advertencias:[...new Set([...(r.advertencias||[]),...notes])]};
   }catch(e){return {error:e.message};}})();
   netosEnCurso.set(key,task);try{return await task;}finally{netosEnCurso.delete(key);}
  }

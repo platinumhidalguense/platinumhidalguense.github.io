@@ -25,7 +25,15 @@ const c={obra_id:'o',trabajador_id:'w',semana:'S26',tipo_pago:'CHEQUE'};
 (async()=>{
  let r=await flow.resolverNeto(c);ok(r.neto===2000&&stored,'Lee PDF y guarda metadato mediante RPC validado');ok(calls.some(x=>x.p_accion==='RECIBO'&&x.p_datos.datos.identificadores.includes('PRUP900101AA1')),'Envía identidad y fechas, no sólo neto');
  calls=[];mode='noi';r=await flow.resolverNeto(c);ok(r.neto===2100&&!calls.some(x=>x.p_accion==='RECIBO'),'NOI funciona sin PDF');
- mode='conflict';const before=read;r=await flow.resolverNeto(c);ok(r.error&&read===before,'Conflicto no sustituye por una fuente conveniente');
+ mode='conflict';const before=read;r=await flow.resolverNeto(c);ok(r.error&&read===before,'Conflicto sin documentos verificables no se sustituye');
+ const originalRpc=context.sb.rpc;context.sb.rpc=async()=>({data:{neto:2000,estado:'COINCIDE',cfdi_prioritario:true,origen:'PDF TIMBRADO',advertencias:['Reporte NOI difiere'],recibos_sin_leer:[]}});
+ r=await flow.resolverNeto(c);ok(r.neto===2000&&r.advertencias.includes('Reporte NOI difiere'),'Conserva la advertencia fiscal enviada por el servidor');context.sb.rpc=originalRpc;
+ stored=false;readReturn={...p,tipo:'NOMINA'};context.sb.rpc=async(name,args)=>{
+  if(args.p_accion==='RECIBO'){stored=true;return{data:{ok:true}};}
+  return{data:stored?{neto:2000,estado:'COINCIDE',cfdi_prioritario:true,origen:'PDF TIMBRADO',advertencias:['NOI distinto']}
+   :{error:'NOI difiere',estado:'DIFERENCIA_FUENTES',recibos_sin_leer:[{id:'d',archivo:'a.pdf'}]}};
+ };
+ r=await flow.resolverNeto(c);ok(stored&&r.neto===2000&&r.advertencias.includes('NOI distinto'),'Relee PDF timbrado aunque haya diferencia previa con NOI');context.sb.rpc=originalRpc;
  mode='zero';ok((await flow.resolverNeto(c)).error.includes('$0'),'Neto cero impide expedir');
  mode='pdf';stored=false;readReturn={...p,tipo:'FINIQUITO'};r=await flow.resolverNeto(c);ok(r.error&&!stored,'No guarda concepto distinto');
  readReturn={...p,tipo:null};box.confirm=()=>false;r=await flow.resolverNeto(c);ok(r.error&&!stored,'No inventa clasificación del PDF');

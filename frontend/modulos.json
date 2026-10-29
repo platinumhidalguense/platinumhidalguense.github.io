@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "version": "2026-10-29.2",
+  "version": "2026-10-29.3",
   "modules": [
     "frontend/modulos/00-configuracion-utilidades.js",
     "frontend/modulos/01-sesion-centros-sincronizacion.js",

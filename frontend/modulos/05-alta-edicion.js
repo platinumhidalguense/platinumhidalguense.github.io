@@ -67,7 +67,7 @@ function openForm(id){
         <div><label>SD ($)</label><input id="f-sd" type="number" step="0.01" value="${esc(w?(w.sd??''):'')}">
           <div class="fhint" id="h-sd">Mín. CONASAMI 2026: $315.04 · 
           <a href="#" onclick="event.preventDefault();smAssist(10)">SM+10</a> · <a href="#" onclick="event.preventDefault();smAssist(20)">SM+20</a> · <a href="#" onclick="event.preventDefault();smAssist(30)">SM+30</a></div></div>
-        ${fld('sdi','SDI ($)',w?(w.sdi??''):'',{type:'number',extra:'step="0.01"'})}
+        ${fld('sdi','SDI ($)',w?(w.sdi??''):'',{type:'number',extra:'step="any"',hint:'Conserva los decimales completos del reporte NOI; no redondear al capturar.'})}
         ${fld('sal_semanal','Salario del periodo ($)',w?(w.sal_semanal??''):'',{type:'number',extra:'step="0.01"',hint:'Monto que cobra por semana o por quincena según su periodo.'})}
       </div>
       <div class="sect">Datos personales</div>
@@ -260,16 +260,24 @@ async function saveIMSSWorker(id){
   }catch(e){toast('No se guardó: '+e.message,'err');}
   finally{if($('imss-save')===btn){btn.disabled=false;btn.textContent='Guardar control IMSS';}}
 }
+function sdiInicialSugerido(sd){
+  // Primer año: aguinaldo 15 días y prima de 25% sobre 12 días de vacaciones.
+  // Es una sugerencia; un SDI de NOI documentado siempre se conserva al editar.
+  return (Number(sd)*(1+(15+12*.25)/365)).toFixed(4);
+}
 function tabAssist(){
   const tab=CFGEMP['tabulador']||{};
   const p=$('f-puesto').value.trim().toUpperCase();
   const sd=tab[p];
   if(!sd){if($('h-puesto'))$('h-puesto').textContent='Al elegir un puesto del tabulador, el salario se llena solo.';return;}
   $('f-sd').value=sd;
-  $('f-sdi').value=(Math.round(sd*1.0493*100)/100).toFixed(2);
+  const versionOriginal=$('worker-form-body')?.dataset?.workerId;
+  const actual=Number($('f-sdi').value),sdAnterior=Number(WORKERS.find(w=>w.id===versionOriginal)?.sd);
+  // Una sugerencia del tabulador no sustituye el SDI documentado al editar.
+  if(!versionOriginal||!actual||Number(sd)!==sdAnterior)$('f-sdi').value=sdiInicialSugerido(sd);
   const nn=semanalNeto(sd,$('f-sdi').value);
   if(!$('f-sal_semanal').value)$('f-sal_semanal').value=nn.neto.toFixed(2);
-  $('h-puesto').innerHTML=`<b>Tabulador aplicado:</b> SD $${sd} · SDI 1.0493 · <b>semanal NETO $${money(nn.neto)}</b> = bruto $${money(nn.bruto)} − ISR $${money(nn.isr)}${nn.sub?` (ya con subsidio $${money(nn.sub)})`:''} − IMSS $${money(nn.imss)} — igual que NOI; ajústalo solo si su pago real difiere.`;
+  $('h-puesto').innerHTML=`<b>Tabulador aplicado:</b> SD $${sd} · SDI $${esc($('f-sdi').value)} · <b>semanal NETO $${money(nn.neto)}</b> = bruto $${money(nn.bruto)} − ISR $${money(nn.isr)}${nn.sub?` (ya con subsidio $${money(nn.sub)})`:''} − IMSS $${money(nn.imss)}. El SDI nuevo es una estimación de primer año (15 días de aguinaldo, 12 de vacaciones y prima 25%); valida antigüedad, prestaciones y valor de NOI.`;
 }
 function cuentaModo(){
   const crear=$('f-cuenta-modo').value==='CREAR';

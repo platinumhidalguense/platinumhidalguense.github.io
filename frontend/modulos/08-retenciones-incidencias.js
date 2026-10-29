@@ -87,7 +87,8 @@ function montoDescuento(d,P,semStr,w){
 function montoDobleDescuento(d,w,P,semStr){
   const normal=montoDescuento(d,P,semStr,w);
   if(String(d&&d.tipo||'').toUpperCase()==='INFONAVIT'){
-    let fecha=fechaFinSemanaISO(semStr);
+    // S31 de la obra no es la semana ISO 31. Usar sus fechas efectivas.
+    let fecha=semStr&&w?retFecha(rangoRetencion(w,semStr)[1]):fechaFinSemanaISO(semStr);
     if(d.infonavit_avisos_historial?.length){
       const fin=rangoRetencion(w,semStr)[1];
       const cambio=d.infonavit_avisos_historial.some(x=>x.desde<=fin&&['factor','modalidad','monto','periodicidad'].some(k=>String(x.antes?.[k]??'')!==String(x.despues?.[k]??'')));

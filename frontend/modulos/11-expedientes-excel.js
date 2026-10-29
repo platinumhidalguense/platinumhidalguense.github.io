@@ -78,7 +78,7 @@ function expedienteCampos(w){
     ['Motivo de pendiente',w.motivo_pendiente],
     'SUELDO Y PAGO',
     ['Salario diario (SD)',w.sd,'money'],
-    ['Salario diario integrado (SDI)',w.sdi,'money'],
+    ['Salario diario integrado (SDI)',w.sdi],
     ['Sueldo por periodo ('+perDe(w).etiqueta+')',w.sal_semanal,'money'],
     ['Periodo de pago',w.periodo_pago||'SEMANAL'],
     ['Días que cubre el pago',perDe(w).dias],

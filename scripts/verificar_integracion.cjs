@@ -60,6 +60,8 @@ suites.push('test_incidencias_vigencia');
 suites.push('test_sin_servicio_dias_noi_ui');
 suites.push('test_reingreso_fecha');
 suites.push('test_edicion_trabajador_version');
+suites.push('test_precision_sdi_calendarios');
+if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cheques_cfdi_prioridad.sql')))suites.push('test_cheques_cfdi_prioridad_pg');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_reingresos_ciclos_sin_reabrir_cierres.sql')))suites.push('test_reingreso_cierres_pg');
 if(fs.readdirSync('supabase/migrations').filter(n=>/_(cierres_autorizacion_directa_y_excepcion_acotada|excepcion_noi_individual_auditada|correcciones_historicas_centavos_aprobadas)\.sql$/.test(n)).length===3)suites.push('test_cierres_directos_pg','test_excepcion_individual_pg');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_timbrado_xml_o_pdf_verificado.sql')))suites.push('test_timbrado_fuentes_pg');

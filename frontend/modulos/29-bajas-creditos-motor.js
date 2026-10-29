@@ -83,7 +83,10 @@ async function verificarNOI(inp){
       if((w.no_trab??null)!==e.clave){d.push(`número: base #${w.no_trab??'—'} vs NOI #${e.clave}`);numDif=true;}
       if(w.nss!==e.nss)d.push(`NSS: base ${w.nss||'—'} vs NOI ${e.nss}`);
       if(Math.abs((Number(w.sd)||0)-e.sd)>0.01){d.push(`SD: base $${money(w.sd)} vs NOI $${money(e.sd)}`);sdDif=true;}
-      if(e.sdi!=null&&Math.abs((Number(w.sdi)||0)-e.sdi)>0.01){d.push(`SDI: base $${money(w.sdi)} vs NOI $${money(e.sdi)}`);sdiDif=true;}
+      if(e.sdi!=null&&Number(w.sdi)!==Number(e.sdi)
+        &&((String(e.sdi).split('.')[1]||'').length>2||(String(w.sdi).split('.')[1]||'').length<=2||Math.abs(Number(w.sdi)-Number(e.sdi))>.01)){
+        d.push(`SDI: base $${esc(w.sdi??'—')} vs NOI $${esc(e.sdi)}`);sdiDif=true;
+      }
       if(e.quincenal!=null&&Math.abs((Number(w.sal_semanal)||0)-e.quincenal)>0.01){d.push(`${(w.periodo_pago==='QUINCENAL'?'quincenal':'sueldo')}: base $${money(w.sal_semanal)} vs NOI $${money(e.quincenal)}`);quinDif=true;}
       if(d.length)difs.push({e,w,tipo:'DIFERENCIA',det:d.join(' · '),numDif,sdDif,sdiDif,quinDif}); else ok++;
     });
@@ -100,7 +103,7 @@ async function verificarNOI(inp){
         ${d.w?`<div style="margin-top:5px;font-size:12px;display:flex;flex-wrap:wrap;gap:6px 14px">
           ${d.numDif?`<label><input type="checkbox" id="vn-n-${i}" checked> ✔ número NOI <b>#${d.e.clave}</b></label>`:''}
           ${d.sdDif?`<label><input type="checkbox" id="vn-s-${i}" checked> ✔ SD NOI <b>$${money(d.e.sd)}</b></label>`:''}
-          ${d.sdiDif?`<label><input type="checkbox" id="vn-sdi-${i}" checked> ✔ SDI NOI <b>$${money(d.e.sdi)}</b></label>`:''}
+          ${d.sdiDif?`<label><input type="checkbox" id="vn-sdi-${i}" checked> ✔ SDI NOI <b>$${esc(d.e.sdi)}</b></label>`:''}
           ${d.quinDif?`<label><input type="checkbox" id="vn-q-${i}" checked> ✔ ${d.w.periodo_pago==='QUINCENAL'?'quincenal':'sueldo'} NOI <b>$${money(d.e.quincenal)}</b></label>`:''}
         </div>`:''}</div>`).join('')||'<div class="empty">✔ Todo cuadra con NOI.</div>'}
       ${difs.some(d=>d.w&&(d.numDif||d.sdDif||d.sdiDif||d.quinDif))?`<div style="margin-top:12px">
@@ -115,7 +118,7 @@ function smAssist(extra){
   const f=FISC();
   const sd=Math.round((f.sm+extra)*100)/100;
   $('f-sd').value=sd;
-  $('f-sdi').value=(Math.round(sd*1.0493*100)/100).toFixed(2);
+  $('f-sdi').value=sdiInicialSugerido(sd);
   const nn=semanalNeto(sd,$('f-sdi').value);
   if(!$('f-sal_semanal').value)$('f-sal_semanal').value=nn.neto.toFixed(2);
   $('h-sd').innerHTML=`<b>SD = mínimo CONASAMI 2026 ($${f.sm}) + $${extra}</b> (DOF 09/12/2025) · <b>semanal NETO $${money(nn.neto)}</b> (bruto − ISR/subsidio − IMSS, igual que NOI).`;

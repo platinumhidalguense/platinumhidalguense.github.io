@@ -143,7 +143,7 @@ async function crCrearFaltantes(){
   toast(err?`Creados ${ok}, ${err} con error.`:`✔ ${ok} cheque(s) PENDIENTE(S) creados desde los recibos.`,err?'err':'ok');
   await loadObraData(OBRA.id);
 }
-/* El importe se toma del NOI importado; sin NOI, del PDF individual de la
+/* El importe prioriza CFDI timbrado y después NOI; sin NOI, PDF individual de la
    misma obra, semana, persona Y tipo. Nunca sustituir finiquito por sueldo. */
 async function chqResolverNeto(c){
   if(!window.PLATINUM_FLOWS)return {error:'El flujo integrado no cargó. Recarga antes de expedir.'};
@@ -157,7 +157,7 @@ function chqCapturaExistente(c,w,semana,tipo,neto){
 function chqMostrarRespaldo(r,existente=false){
   const aviso=$('c-neto-fuente');if(!aviso)return;
   aviso.textContent=`Importe verificado: $${money(r.neto)} · ${r.origen} · ${r.desde} al ${r.hasta}.`;
-  if(r.advertencias?.length){const nota=document.createElement('div');nota.textContent='Lectura adicional del PDF pendiente. El importe ya tiene respaldo en '+r.origen+'. '+r.advertencias.join(' ');aviso.appendChild(nota);}
+  if(r.advertencias?.length){const nota=document.createElement('div');nota.textContent=r.advertencias.join(' ');aviso.appendChild(nota);}
   if(existente){const texto=document.createElement('div');texto.textContent='Cheque existente: puedes capturar su número y consecutivo sin autorizar o reabrir el cierre. La vinculación al cierre se revisa por separado.';aviso.appendChild(texto);}
   if(!existente&&r.expedicion&&!r.expedicion.requisitos_cierre_cumplidos){
     const texto=document.createElement('div');texto.textContent='Expedición pendiente: '+r.expedicion.pendiente;aviso.appendChild(texto);
