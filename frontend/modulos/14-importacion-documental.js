@@ -275,6 +275,8 @@ function renderPdfImp(){
   $('pdf-btn').classList.remove('hide');
 }
 async function applyPdfImport(){
+  const contextoImportacion={obra:OBRA?.id,user:USER?.id};
+  const mismaCaptura=()=>OBRA?.id===contextoImportacion.obra&&USER?.id===contextoImportacion.user;
   const cat=$('pdf-cat').value, sub=$('pdf-sub').value, sem=$('pdf-sem').value.trim().toUpperCase(), fd=$('pdf-fecha').value||null;
   const sel=PDFIMP.filter(x=>x.sel&&x.ownerId&&!x.error);
   if(!sel.length){toast('No hay documentos identificados y seleccionados.','err');return;}
@@ -288,8 +290,9 @@ async function applyPdfImport(){
   if(!confirm(`¿Archivar ${detalle}${nDup?`\n\n⚠ ATENCIÓN: ${nDup} de ellos están marcados como DUPLICADOS (ya existen en un expediente) y se archivarían POR SEGUNDA VEZ.`:''}`))return;
   $('pdf-btn').innerHTML='<span class="spin"></span> Archivando...';
   markWrite();
-  let ok=0,fail=0;
+  let ok=0,fail=0;const recibosArchivados=[];
   for(const x of sel){
+    if(!mismaCaptura()){toast('Cambió el centro o la sesión. Se detuvo la importación; los archivos ya guardados se conservan.','err');return;}
     const w=WORKERS.find(z=>z.id===x.ownerId);
     /* En un acuse multipágina cada trabajador manda su propio subtipo y su
        propia fecha de movimiento (las que trae SU renglón del acuse), no las
@@ -303,11 +306,14 @@ async function applyPdfImport(){
     const path=`${x.ownerId}/${cat}/${Date.now()}_${safe}${safe.toLowerCase().endsWith('.pdf')?'':'.pdf'}`;
     const {error:e1}=await sb.storage.from('expedientes').upload(path,new Blob([x.bytes],{type:'application/pdf'}));
     if(e1){fail++;continue;}
+    if(!mismaCaptura()){toast('Cambió el centro o la sesión después de subir el archivo. Revisa los documentos antes de reintentar.','err');return;}
     const fila={trabajador_id:x.ownerId,obra_id:w?w.obra_id:OBRA.id,categoria:cat,
       subtipo:cat==='ACUSE_IMSS'?subX:'RECIBO',semana:(cat==='RECIBO_NOMINA'?(sem||x.sem||''):sem),fecha_doc:fdX,archivo:path,nombre_archivo:nombreX.slice(0,120),subido_por:USER.email,hash:x.hash||'',mime_type:'application/pdf'};
-    let {error:e2}=await sb.from('documentos').insert(fila);
-    if(e2&&/hash/i.test(e2.message||'')){delete fila.hash;({error:e2}=await sb.from('documentos').insert(fila));} // si falta el Script 33, archiva sin huella
+    const guardar=()=>{const q=sb.from('documentos').insert(fila);return cat==='RECIBO_NOMINA'?q.select('id,archivo,hash,trabajador_id,obra_id,semana').single():q;};
+    let {error:e2,data:documentoGuardado}=await guardar();
+    if(e2&&/hash/i.test(e2.message||'')){delete fila.hash;({error:e2,data:documentoGuardado}=await guardar());} // compatibilidad con archivos antiguos sin huella
     if(e2){fail++;continue;}
+    if(cat==='RECIBO_NOMINA'&&documentoGuardado?.id)recibosArchivados.push({...documentoGuardado,bytes:x.bytes});
     ok++;
     if(cat==='ACUSE_IMSS'&&w){
       const mv=subX==='ALTA'?'ALTA CON ACUSE':(subX==='BAJA'?'BAJA CON ACUSE':'MODIFICACION CON ACUSE');
@@ -329,5 +335,9 @@ async function applyPdfImport(){
   closeModal();
   toast(`Expedientes actualizados: ${ok} documento(s) archivados${fail?`, ${fail} con error`:''}.`,fail?'err':'ok');
   await loadObraData(OBRA.id);
+  if(mismaCaptura()&&recibosArchivados.length&&window.PLATINUM_RECIBOS_VERIFICACION){
+    try{await window.PLATINUM_RECIBOS_VERIFICACION.trasImportar(recibosArchivados);}
+    catch(e){toast('Los PDF sí quedaron archivados; la verificación se detuvo: '+e.message+'. Continúa en Verificación de recibos por semana.','err');}
+  }
 }
 

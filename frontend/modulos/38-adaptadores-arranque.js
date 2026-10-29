@@ -46,19 +46,24 @@ async function proySnapshotIntegrado(sem,periodo){
   if(historico)snapshot.contexto_historico=historico.trazabilidad;
   return {obra_id:obra.id,semana:sem,periodo,snapshot,fuente:source.fuente};
 }
+async function leerReciboArchivado(doc,bytesCapturados=null){
+  let bytes;
+  if(bytesCapturados)bytes=new Uint8Array(bytesCapturados);
+  else{const r=await sb.storage.from('expedientes').download(doc.archivo);if(r.error||!r.data)throw Error('No se pudo descargar el recibo privado. '+(r.error?.message||''));bytes=new Uint8Array(await r.data.arrayBuffer());}
+  if(doc.hash&&await sha256Hex(bytes)!==doc.hash)throw Error('El PDF almacenado no coincide con la huella registrada. Debe cotejarse el archivo original; usar Gemini no resuelve una huella distinta.');
+  const info=window.PLATINUM_RESPALDO_RECIBO?.parsear(await pdfBytesToText(bytes));
+  if(!info)throw Error('No está disponible el lector tradicional de recibos. Actualiza la plataforma.');
+  if(info.errores?.length)throw Error(info.errores.join('; '));
+  const faltan=[!Number.isFinite(info.neto)&&'neto',info.datos.recibos!==1&&'un único recibo',(!info.datos.periodo_inicio||!info.datos.periodo_fin)&&'fechas del periodo',!info.datos.identificadores.length&&'identificadores',info.datos.percepciones==null&&'percepciones',info.datos.deducciones==null&&'deducciones'].filter(Boolean);
+  if(faltan.length)throw Error('Lectura tradicional incompleta: '+faltan.join(', ')+'. Revisa el original o usa Gemini y confirma la propuesta.');
+  return info;
+}
 if(window.PLATINUM_FLOWS)window.PLATINUM_FLOWS.configure({
   context:()=>({sb,obra:OBRA,workers:WORKERS,empresaNombre:OBRA?razonSocialEmpresa(empresaDeObra(OBRA)):''}),
   $,esc,money,table:ctrlTabla,modal,toast,fullName,capture:proySnapshotIntegrado,
   reload:()=>loadObraData(OBRA.id),go:async id=>{await selectObra(id);if(OBRA?.id!==id)throw Error('No se pudo abrir el centro.');},
   openNoi:ctrlOpenConciliacion,openPayments:openControlPagos,openControl:openControlEmpresarial,
   exportRows:(title,headers,rows,name)=>ctrlExportar(title,headers,rows,name,'FLUJO_INTEGRADO'),
-  readReceipt:async doc=>{const r=await sb.storage.from('expedientes').download(doc.archivo);if(r.error||!r.data)throw Error('No se pudo descargar el recibo privado.');
-    const bytes=new Uint8Array(await r.data.arrayBuffer());if(doc.hash&&await sha256Hex(bytes)!==doc.hash)throw Error('El PDF almacenado no coincide con la huella registrada. Debe cotejarse el archivo original; usar Gemini no resuelve una huella distinta.');
-    const info=window.PLATINUM_RESPALDO_RECIBO?.parsear(await pdfBytesToText(bytes));
-    if(!info)throw Error('No está disponible el lector tradicional de recibos. Actualiza la plataforma.');
-    if(info.errores?.length)throw Error(info.errores.join('; '));
-    const faltan=[!Number.isFinite(info.neto)&&'neto',info.datos.recibos!==1&&'un único recibo',(!info.datos.periodo_inicio||!info.datos.periodo_fin)&&'fechas del periodo',!info.datos.identificadores.length&&'identificadores',info.datos.percepciones==null&&'percepciones',info.datos.deducciones==null&&'deducciones'].filter(Boolean);
-    if(faltan.length)throw Error('Lectura tradicional incompleta: '+faltan.join(', ')+'. Revisa el original o usa Gemini y confirma la propuesta.');
-    return info;}
+  readReceipt:leerReciboArchivado
 });
 init();

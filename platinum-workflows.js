@@ -49,11 +49,13 @@
    permissions=p;state={id,obraId:initial,data:d,dirty:false};renderCierre();
   }catch(e){cfg.toast(e.message,'err');}
  }
+ function saldosVigentes(d){return(d.saldos||[]).filter(x=>x.vigente&&x.cierre_id===d.cierre.id&&(!d.flujo?.version_id||x.version_id===d.flujo.version_id));}
  function renderCierre(){
   const st=state,d=st.data,c=d.cierre,f=d.flujo,diag=d.diagnostico,rows=d.saldos||[];
-  const saldo=round(rows.reduce((n,x)=>n+Number(x.saldo),0)),pago=round(rows.reduce((n,x)=>n+Number(x.pago_registrado),0)),entrega=round(rows.reduce((n,x)=>n+Number(x.entrega_pendiente),0));
+  const actuales=saldosVigentes(d),saldo=round(actuales.reduce((n,x)=>n+Number(x.saldo),0)),pago=round(actuales.reduce((n,x)=>n+Number(x.pago_registrado),0)),entrega=round(actuales.reduce((n,x)=>n+Number(x.entrega_pendiente),0));
   const closed=['AUTORIZADO','TIMBRADO','PAGADO'].includes(c.estado),write=permissions.escritura;
   const actions=[`<button class="btn" onclick="PLATINUM_FLOWS.abrirCierre('${c.id}')">↻ Actualizar</button>`,
+   `<button class="btn" onclick="PLATINUM_RECIBOS_VERIFICACION.abrir(${c.semana})">Verificación de recibos por semana</button>`,
    `<button class="btn" onclick="PLATINUM_FLOWS.historicos(false)">Revisión de cierres</button>`,
    `<button class="btn" onclick="ctrlOpenConciliacion('${c.id}')">Importar / revisar NOI</button>`];
   if(root.PLATINUM_PAGOS_SABADO)actions.push(`<button class="btn" onclick="PLATINUM_PAGOS_SABADO.abrir(${c.semana})">Revisión de pagos · sábado 12:00</button>`);
@@ -142,6 +144,7 @@
   await call('TRANSICION',{cierre_id:id,estado});cfg.toast('Etapa confirmada: '+estado,'ok');await cfg.reload();await abrirCierre(id);
  });}
  async function procesarRecibos(d,fiscal=false){
+  if(root.PLATINUM_RECIBOS_VERIFICACION)return root.PLATINUM_RECIBOS_VERIFICACION.procesarCierre(d,fiscal);
   const docs=d.recibos_sin_leer||[],failed=[],cache=new Map();let next=0,ok=0,done=0;
   const check=()=>{if(context().obra?.id!==d.cierre.obra_id)throw Error('Cambió el centro; abre otra vez el cierre.');};
   const progress=()=>{if(el('flow-progress'))el('flow-progress').textContent=`Verificando PDF ${done}/${docs.length} · ${ok} correctos · ${failed.length} por revisar…`;};

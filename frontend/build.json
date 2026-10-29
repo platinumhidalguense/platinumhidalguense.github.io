@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-29.3",
-  "entry": "assets/platinum-app.38edca47ff16facc.js",
-  "sha256": "38edca47ff16facc50334aa4ef421be971c243d4ca35507c35c4b7f1c03d85aa",
-  "integrity": "sha384-fJSpX5tKWqWEkERdZXaBkbEIvUI5iqD1O/8//JzSBVZUo5nU1WYW8Wqj+HJweAf0",
+  "version": "2026-10-29.4",
+  "entry": "assets/platinum-app.2e6a88d3879fda15.js",
+  "sha256": "2e6a88d3879fda15fe606cf6263bd0e15cbf355ca9ee0cb346707fe865e5cccd",
+  "integrity": "sha384-68Pmn2dsQMXBT7B9dqAclMpa8UE+mno/xVtdZoMoAOKtR55QzvosVHNzOb2f+XPk",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "16fe2e5a7740280afd0682aea835c85ec112297b46c92bf359deb21fb0889e9f"
+      "sha256": "5f302f54d9bb00c72e640411f8ccd5054fcf90e9157a8c89f58dbe30e8da6159"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -62,7 +62,7 @@
     },
     {
       "path": "frontend/modulos/14-importacion-documental.js",
-      "sha256": "bd397023b406f6f51c0fda882087886f30c96076b9b7f43608cab82d4a91393f"
+      "sha256": "b84c9e2683ec6303f85106384ed590a1813f31bdebc8074000e78d94f43ecd10"
     },
     {
       "path": "frontend/modulos/15-banca-conciliacion.js",
@@ -146,7 +146,7 @@
     },
     {
       "path": "frontend/modulos/35-centro-control.js",
-      "sha256": "76ec2a6af71b17be712f96a47eba7a05ebd50b32596ea9f0a737de9a2cdea7c6"
+      "sha256": "ea44fe7fdb7e7a4bb61d21e0efdb8e8694349336dcfca97bb6c7bc4bcb12a0d9"
     },
     {
       "path": "frontend/modulos/36-imss-sin-servicio-st7.js",
@@ -158,7 +158,7 @@
     },
     {
       "path": "frontend/modulos/38-adaptadores-arranque.js",
-      "sha256": "b20707f69fc56cc0abd9032ae56703182492c468333e5af088e4e2421ea6e9f0"
+      "sha256": "b03a6b1084ae971d692c3e16b1131aeeb15db2fe6efb4165a7a7cea45e13b2cb"
     },
     {
       "path": "frontend/modulos/39-rrhh-adaptadores.js",
@@ -207,6 +207,10 @@
     {
       "path": "frontend/modulos/50-cheques-importes.js",
       "sha256": "5fa22bec8fbfee5057017126b4fe56b6790b7d6ca88a963f3277f3c9e3fb3c79"
+    },
+    {
+      "path": "frontend/modulos/51-recibos-verificacion.js",
+      "sha256": "5e0df31022a69c6fa5e3a73bd75984437bcffd31b941808bbf4d9bcbfe9315a9"
     }
   ]
 }

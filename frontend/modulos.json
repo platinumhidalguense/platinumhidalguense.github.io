@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "version": "2026-10-29.3",
+  "version": "2026-10-29.4",
   "modules": [
     "frontend/modulos/00-configuracion-utilidades.js",
     "frontend/modulos/01-sesion-centros-sincronizacion.js",
@@ -52,7 +52,8 @@
     "frontend/modulos/47-contexto-historico-nomina.js",
     "frontend/modulos/48-isr-mensual-quincenal.js",
     "frontend/modulos/49-chequeras-fisicas.js",
-    "frontend/modulos/50-cheques-importes.js"
+    "frontend/modulos/50-cheques-importes.js",
+    "frontend/modulos/51-recibos-verificacion.js"
   ],
   "originalSha256": "9c8d55e50d79a8c1d4dda73f83ff26f8b1c9f200e3f6e8c6b96624b12857af04"
 }

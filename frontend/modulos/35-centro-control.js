@@ -108,7 +108,7 @@ async function ctrlSha(valor){
 }
 async function openCtrlCierres(){
   ctrlAuditar('CIERRE_NOMINA','ABRIR');
-  modal(ctrlNav('🔐 Cierre de nómina')+`<div class="m-body"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoCierre()">＋ Nuevo cierre</button><button class="btn" onclick="openCtrlConciliacionSelector()">⚖️ Conciliación NOI</button><button class="btn" onclick="ctrlExportCierres()">⬇ Excel</button>${esAdmin()?'<button class="btn" onclick="openCtrlCierresEliminados()">🗄 Historial eliminados</button>':''}</div><div id="ctrl-cierres"></div></div>`,'lg');
+  modal(ctrlNav('🔐 Cierre de nómina')+`<div class="m-body"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoCierre()">＋ Nuevo cierre</button><button class="btn" onclick="openCtrlConciliacionSelector()">⚖️ Conciliación NOI</button><button class="btn" onclick="PLATINUM_RECIBOS_VERIFICACION.abrir()">Verificar recibos · todas las semanas</button><button class="btn" onclick="ctrlExportCierres()">⬇ Excel</button>${esAdmin()?'<button class="btn" onclick="openCtrlCierresEliminados()">🗄 Historial eliminados</button>':''}</div><div id="ctrl-cierres"></div></div>`,'lg');
   const {data,error}=await ctrlLeer(CTRL_TABLAS.cierres);if(error){$('ctrl-cierres').innerHTML=esc(ctrlFaltaScript(error));return;}
   window._CTRLCIERRES=(data||[]).sort((a,b)=>b.semana-a.semana||String(b.created_at).localeCompare(String(a.created_at)));
   $('ctrl-cierres').innerHTML=ctrlTabla(['Semana','Periodo','Estado','Trabajadores','Neto','Autorización / pago','Acciones'],window._CTRLCIERRES.map(c=>{
