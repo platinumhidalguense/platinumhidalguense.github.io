@@ -214,6 +214,7 @@ function openChequeForm(id){
         ${fld('c-importe','Importe verificado ($)',c?(c.importe??''):'',{type:'number',extra:'step="0.01" readonly'})}
         <div style="display:flex;align-items:end"><button type="button" class="btn" style="width:100%;padding:8px;font-size:12px" onclick="chqTraerRecibo()" title="Verifica NOI o recibo de la misma semana y tipo">🧾 Verificar neto</button></div>
         <div class="c3" id="c-neto-fuente" style="font-size:12px;color:var(--amber)">El importe se verificará automáticamente antes de guardar.</div>
+        ${c&&puedeEliminarCheque()&&c.estatus==='PENDIENTE'&&!c.num_cheque&&!c.consecutivo?`<div class="c3"><button type="button" class="btn" onclick="openCorregirImporteCheque('${c.id}')">✎ Corregir importe manualmente</button></div>`:''}
         <div><label>Tipo de pago</label><select id="c-tipo" onchange="chqTraerRecibo()">${['CHEQUE','FINIQUITO'].map(t=>`<option ${(c&&c.tipo_pago)===t?'selected':''}>${t}</option>`).join('')}</select></div>
         ${fld('c-num','Número de cheque',c?c.num_cheque:'',{hint:'Al capturarlo, el estatus pasa a EXPEDIDO automáticamente.'})}
         ${fld('c-consec','No. consecutivo',c?c.consecutivo:'')}
@@ -234,7 +235,7 @@ function openChequeForm(id){
      llenaba solo al escribir la semana. */
   const elSem=$('f-c-semana'), elPer=$('f-c-periodo');
   if(elSem&&elPer){elSem.oninput=()=>{const n=parseInt(String(elSem.value).replace(/\D/g,''));if(n>0)elPer.value=periodoCorto(n);};elSem.onchange=()=>chqTraerRecibo();}
-  if(c&&c.estatus==='PENDIENTE')chqTraerRecibo();
+  if(c&&c.estatus==='PENDIENTE'&&$('c-neto-fuente'))$('c-neto-fuente').textContent='Importe guardado: $'+money(c.importe)+'. Verifica el neto antes de expedir. La corrección manual requiere el permiso de cheques.';
 }
 function chqAutofill(){
   const nom=$('c-nombre').value.trim().toUpperCase();
@@ -280,6 +281,9 @@ async function saveCheque(id){
     const respaldo=await chqResolverNeto(captura);
     if(OBRA?.id!==contextoInicial.obra||$('c-save')!==contextoInicial.form||g('c-semana')!==captura.semana||$('c-tipo')?.value!==captura.tipo_pago||g('c-nombre')!==captura.nombre){toast('La captura cambió durante la verificación. Vuelve a verificar el cheque.','err');return;}
     if(respaldo.error){toast(respaldo.error,'err');return;}
+    if(previo&&Number(neto)!==Number(respaldo.neto)){
+      toast('El importe guardado o capturado difiere del neto de NOI/recibo ($'+money(respaldo.neto)+'). Usa Verificar neto para adoptar ese importe, o revisa la conciliación. No se cambiará automáticamente.','err');return;
+    }
     const existente=chqCapturaExistente(previo,w,captura.semana,captura.tipo_pago,respaldo.neto);
     chqMostrarRespaldo(respaldo,existente);
     if(existente&&['EXPEDIDO','ENTREGADO'].includes(estatus)&&(!g('c-num')||!g('c-consec'))){toast('Captura el número de cheque y su consecutivo antes de expedir.','err');return;}
