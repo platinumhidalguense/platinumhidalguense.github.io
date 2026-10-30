@@ -18,13 +18,20 @@ function isrQCalcular(j){
   if(dias>30.4||local>acumulado+actual||local>r((acumulado+actual)*.05))throw Error('Revisa días de subsidio o impuesto local: no son válidos.');
   const base=r(acumulado+actual-local),tramo=ISR_M.find(t=>base>=t[0]&&base<=t[1]);
   if(base>0&&!tramo)throw Error('Base fuera de la tarifa mensual.');
-  const impuestoRaw=tramo?tramo[2]+(base-tramo[0])*tramo[3]/100:0;
+  const criterio=j.criterio_limite_inferior||'TARIFA_SAT';
+  if(!['TARIFA_SAT','NOI_SUPERIOR_ANTERIOR'].includes(criterio))throw Error('Criterio de límite ISR no validado.');
+  // Perfil documentado en el desglose NOI: resta el límite superior del
+  // tramo anterior. Se guarda por fuente; no altera tarifas semanales ni
+  // recalcula las fuentes históricas que emplean el otro criterio.
+  const limite=tramo?(criterio==='NOI_SUPERIOR_ANTERIOR'&&tramo[0]>.01?r(tramo[0]-.01):tramo[0]):0;
+  const impuestoRaw=tramo?tramo[2]+(base-limite)*tramo[3]/100:0;
   // UMA mensual publicada para 2026; enero tiene porcentaje transitorio.
   const cuota=p.mes.endsWith('-01')?r(3439.46*.1559):r(3566.22*.1502);
   const subsidio=base>0&&base<=11492.66?r(cuota*Math.min(1,dias/30.4)):0;
   const mensualRaw=Math.max(0,impuestoRaw-subsidio),mensual=r(mensualRaw),quincenalRaw=mensualRaw-retenido;
   const saldoFavor=r(Math.max(0,-quincenalRaw)),isr=r(Math.max(0,quincenalRaw));
-  return {version:'ISR_MENSUAL_QUINCENAL_2026_V1',...p,base_mensual:base,limite_inferior:tramo?.[0]||0,tasa:tramo?.[3]||0,cuota_fija:tramo?.[2]||0,
+  if(j.compensar_prevision===false&&j.confirmar_sin_compensacion!==true)throw Error('Confirma la excepción sin compensación de previsión.');
+  return {version:'ISR_MENSUAL_QUINCENAL_2026_V1',...p,criterio_limite_inferior:criterio,compensar_prevision:j.compensar_prevision!==false,base_mensual:base,limite_inferior:limite,tasa:tramo?.[3]||0,cuota_fija:tramo?.[2]||0,
     impuesto_raw:impuestoRaw,subsidio_mensual:subsidio,isr_mensual_raw:mensualRaw,isr_mensual:mensual,isr_acumulado:retenido,isr_ordinario:ordinario,
     isr_quincenal_raw:quincenalRaw,isr_quincenal:isr,delta_isr:r(isr-ordinario),saldo_favor:saldoFavor};
 }
@@ -46,10 +53,10 @@ function isrQAplicarFila(f,s){
   }
   if(a.saldo_favor>0)throw Error(`#${f.w.no_trab}: ISR acumulado mayor al mensual; revisar saldo a favor.`);
   if(s.resultado&&r(s.resultado.isr_quincenal)!==a.isr_quincenal)throw Error('El cálculo fiscal difiere del respaldo guardado.');
-  const sueldo=r(f.sueldo-a.delta_isr),prevision=r(f.prevision+a.delta_isr);
-  if(sueldo-f.incidencias<0||prevision<0||(a.delta_isr!==0&&f.prevision<=0))throw Error(`#${f.w.no_trab}: previsión o neto fiscal insuficiente para compensar ISR. Revisión requerida.`);
+  const sueldo=r(f.sueldo-a.delta_isr),prevision=r(f.prevision+(a.compensar_prevision?a.delta_isr:0));
+  if(sueldo-f.incidencias<0||prevision<0||(a.compensar_prevision&&a.delta_isr!==0&&f.prevision<=0))throw Error(`#${f.w.no_trab}: previsión o neto fiscal insuficiente para compensar ISR. Revisión requerida.`);
   const neto=r(Math.max(0,sueldo+prevision-f.incidencias-f.creditos-f.otras));
-  if(neto!==f.neto)throw Error('El ajuste ISR no conservó el neto previo.');
+  if(a.compensar_prevision&&neto!==f.neto)throw Error('El ajuste ISR no conservó el neto previo.');
   return {...f,sueldo,prevision,costo:r(f.costo-a.delta_isr),neto,
     isr_mensual:{...a,fuente_id:s.id,fuente_sha256:s.archivo_sha256,revision:s.revision,sueldo_sin_ajuste:f.sueldo,prevision_sin_ajuste:f.prevision,prevision_origen:previsionOrigen}};
 }

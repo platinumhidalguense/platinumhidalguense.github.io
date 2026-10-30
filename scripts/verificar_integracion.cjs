@@ -48,6 +48,7 @@ suites.push('test_cierres_comprobantes_ui');
 suites.push('test_vincular_masivo_listado_ui');
 suites.push('test_transferencia_selectiva_ui');
 suites.push('test_isr_quincenal');
+suites.push('test_quincena_corte_y_diferenciales');
 suites.push('test_cheques_error_fisico_ui');
 suites.push('test_chequeras_fisicas');
 suites.push('test_cheques_importe_manual_ui');

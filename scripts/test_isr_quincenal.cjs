@@ -11,6 +11,11 @@ let checks=0;const plain=x=>x===undefined?'__undefined__':JSON.parse(JSON.string
 const bad=(f,re)=>{assert.throws(f,re);checks++;};
 (async()=>{
  const a=box.isrQCalcular(input);eq(a.isr_mensual,2383.65);eq(a.isr_quincenal,1333.65);eq(a.delta_isr,333.65);
+ const perfil={...input,gravable_acumulado:5331.11,gravable_actual:5331.11,isr_acumulado:132.66,isr_ordinario:132.66,criterio_limite_inferior:'NOI_SUPERIOR_ANTERIOR'};
+ eq(box.isrQCalcular(perfil).limite_inferior,7168.51);eq(box.isrQCalcular(perfil).isr_quincenal,132.76);
+ eq(box.isrQCalcular({...perfil,criterio_limite_inferior:'TARIFA_SAT'}).isr_quincenal,132.75);
+ bad(()=>box.isrQCalcular({...perfil,criterio_limite_inferior:'DESCONOCIDO'}),/Criterio/);
+ bad(()=>box.isrQCalcular({...perfil,compensar_prevision:false}),/Confirma/);
  for(const [m,last]of[['02','28'],['04','30'],['10','31']])eq(box.isrQCalcular({...input,desde:`2026-${m}-16`,hasta:`2026-${m}-${last}`}).isr_quincenal,1333.65);
  bad(()=>box.isrQCalcular({...input,desde:'2026-10-01',hasta:'2026-10-15'}),/segunda/);
  bad(()=>box.isrQCalcular({...input,desde:'2026-02-16',hasta:'2026-02-29'}),/quincena|fiscales/);
@@ -27,6 +32,8 @@ const bad=(f,re)=>{assert.throws(f,re);checks++;};
  const down=box.isrQAplicarFila(row,{...source,isr_ordinario:1500});eq(down.prevision,1833.65);eq(down.sueldo,10166.35);eq(down.neto,row.neto);
  const interna=box.isrQAplicarFila({...row,prevision:0,neto:9050},{...source,prevision_referencia:2000});eq(interna.neto,11050);eq(interna.prevision,2333.65);eq(interna.isr_mensual.prevision_origen,'CONTROL_INTERNO_QUINCENAL');
  bad(()=>box.isrQAplicarFila({...row,prevision:0},source),/insuficiente/);
+ const sinComp=box.isrQAplicarFila({...row,prevision:0,neto:9050},{...source,compensar_prevision:false,confirmar_sin_compensacion:true});
+ eq(sinComp.prevision,0);eq(sinComp.neto,8716.35);eq(sinComp.isr_mensual.compensar_prevision,false);
  bad(()=>box.isrQAplicarFila({...row,prevision:10},{...source,isr_ordinario:1500}),/insuficiente/);
  bad(()=>box.isrQAplicarFila(row,{...source,isr_acumulado:9999}),/saldo a favor/);
  eq(box.isrQAplicarFila({...row,fin:true},source),{...row,fin:true});

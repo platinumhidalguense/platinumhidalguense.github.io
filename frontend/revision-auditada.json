@@ -1,4 +1,10 @@
 {
+  "difSugerido": "Conserva la unidad semanal o quincenal del sueldo; elimina el prorrateo indebido por siete días. Pruebas sintéticas de ambos periodos.",
+  "dfPinta": "Identifica sueldo del periodo y origen de la sugerencia sin presentar la quincena como importe semanal.",
+  "openSueldoInterno": "Aclara los usos del control interno en sugerencias y previsión quincenal confirmada.",
+  "rangoRetencion": "Desde el corte 26/10 selecciona la quincena que contiene su día de pago (15 o último del mes). Conserva semanas naturales y periodos anteriores; contraste con PostgreSQL.",
+  "isrQCalcular": "Permite el criterio documentado de límite inferior NOI por fuente y una excepción confirmada sin compensación; preserva criterios anteriores y motor semanal.",
+  "isrQAplicarFila": "Compensa previsión salvo excepción por fuente confirmada; conserva incidencias y créditos, valida suficiencia y evita aplicación duplicada.",
   "applyPdfImport": "Archiva el PDF y conserva su ID y bytes para verificarlo automáticamente mediante el lector compartido, con límites de sesión y centro. Errores de lectura no eliminan el archivo; acuses IMSS conservan su flujo previo. Pruebas VM de recibos, hash y acuses.",
   "openCtrlCierres": "Añade acceso a la verificación fiscal por todas las semanas del centro, con resumen independiente de saldos bancarios. No cambia transiciones, autorizaciones ni importes.",
   "leerReciboArchivado": "Centraliza extracción tradicional y cotejo de huella, fechas, identidad y sumas. Reutiliza bytes recién importados para evitar otra descarga. La validación fiscal y permisos permanecen en PostgreSQL.",

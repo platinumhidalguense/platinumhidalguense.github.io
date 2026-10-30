@@ -46,7 +46,15 @@ function rangoRetencion(w,semStr){
   const n=parseInt(String(semStr||'').replace(/\D/g,''))||isoWeek();
   const [ini,fin]=semRange(n);
   if(periodoPago(w)!=='QUINCENAL')return [ini,fin];
-  const f=retFecha(fin),a=f.getUTCFullYear(),m=f.getUTCMonth(),dia=f.getUTCDate();
+  let referencia=fin;
+  // Desde este corte, una semana que contiene el día de pago quincenal
+  // corresponde a esa quincena, aunque el domingo pertenezca al mes siguiente.
+  // Los periodos históricos conservan el calendario con que fueron capturados.
+  if(ini>='2026-10-26')for(let d=ini;d<=fin;d=retSumarDias(d,1)){
+    const x=retFecha(d),ultimo=new Date(Date.UTC(x.getUTCFullYear(),x.getUTCMonth()+1,0)).getUTCDate();
+    if(x.getUTCDate()===15||x.getUTCDate()===ultimo){referencia=d;break;}
+  }
+  const f=retFecha(referencia),a=f.getUTCFullYear(),m=f.getUTCMonth(),dia=f.getUTCDate();
   return dia<=15?[`${a}-${String(m+1).padStart(2,'0')}-01`,`${a}-${String(m+1).padStart(2,'0')}-15`]
     :[`${a}-${String(m+1).padStart(2,'0')}-16`,retISO(new Date(Date.UTC(a,m+1,0,12)))];
 }

@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-30.1",
-  "entry": "assets/platinum-app.32962c2287012435.js",
-  "sha256": "32962c22870124352f2371e790a0d9008fb9b81ac3faedc3048abbbdd7fcedf4",
-  "integrity": "sha384-hokDizLx45D6INqLsy3WN3TonHfXRW7GXrxMhxVd1XvlZ6aoFeT8/6rb+lyw1hwI",
+  "version": "2026-10-30.2",
+  "entry": "assets/platinum-app.1bbecf23331060d9.js",
+  "sha256": "1bbecf23331060d964bcf1c67676e4aede516965e3ae50121bf924cd9ef869d9",
+  "integrity": "sha384-0VzEUg/0AlxDpD50bb+14VH+MUiXxtcAcjCzpitkMAw9xr0OTljhOEWYg6PABVrS",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "13c91b5132729ada5f4e354709cf5e15920c0f286fd22ef64148b2c7d980a321"
+      "sha256": "c8c0489e7672453db70d2573cb4eac09e232fb16fdaee54598390bd64e910ede"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -38,7 +38,7 @@
     },
     {
       "path": "frontend/modulos/08-retenciones-incidencias.js",
-      "sha256": "faadcf27f31cbc6957a800dbff3aa4b6564c22a9dc3a653657bfb73c2d22f18d"
+      "sha256": "ff098a7141302d4c1ad727772487754aadf160ae86a8ad2a162aa6f1d524e91d"
     },
     {
       "path": "frontend/modulos/09-documentacion-reportes.js",
@@ -58,7 +58,7 @@
     },
     {
       "path": "frontend/modulos/13-control-salarial-diferenciales.js",
-      "sha256": "a56b7d7f3142aca01b46375df71273531e05fb12dcaeea5e8b0e0feee39e3261"
+      "sha256": "142ea93bc198bbb53866a26d30a21e09648e3af65efb1332e430b36a6f59d371"
     },
     {
       "path": "frontend/modulos/14-importacion-documental.js",
@@ -198,7 +198,7 @@
     },
     {
       "path": "frontend/modulos/48-isr-mensual-quincenal.js",
-      "sha256": "7566e6868e27b52977982b2a72bf20a2a014924511770d2cb58c56958bd8b83e"
+      "sha256": "ac0946d7f99d1656c27215dce9761413b4242d688778151fe86abd0f2f0f63ca"
     },
     {
       "path": "frontend/modulos/49-chequeras-fisicas.js",

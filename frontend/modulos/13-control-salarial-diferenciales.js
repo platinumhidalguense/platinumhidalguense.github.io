@@ -10,7 +10,7 @@ async function openSueldoInterno(id){
     <div class="m-head"><h2>🔒 Control interno salarial</h2><button class="x" onclick="closeModal2()">×</button></div>
     <div class="m-body">
       <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px"><b>${esc(fullName(w))}</b> · #${w.no_trab??'—'}<br>
-      Solo para medir. <b>No modifica</b> el sueldo del tabulador, ni la nómina, ni el ISR, ni el IMSS: ningún cálculo lee estos campos.</p>
+      Referencia interna del sueldo pactado. Alimenta las sugerencias de diferencial y, cuando corresponda, la previsión base del ajuste quincenal confirmado. Guardarlo no sustituye el salario de la ficha ni sus tablas fiscales.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr">
         <div><label>Sueldo registrado (IMSS)</label><input id="si-imss" type="number" step="0.01" min="0" value="${si.sueldo_imss!=null?si.sueldo_imss:''}" placeholder="0.00"></div>
         <div><label>Sueldo real</label><input id="si-real" type="number" step="0.01" min="0" value="${si.sueldo_real!=null?si.sueldo_real:''}" placeholder="0.00"></div>
@@ -54,10 +54,10 @@ async function siBorrar(id){
    como valor de arranque para no capturarlo a mano uno por uno.
 
    DOS CUIDADOS:
-   · LA UNIDAD. Los sueldos internos se capturan en el periodo DEL
-     TRABAJADOR (van junto al "Salario semanal/quincenal" de su ficha),
-     pero un diferencial es de UNA SEMANA. A un quincenal hay que llevarle
-     la diferencia a la semana (× 7/15) o se le pagaría el doble.
+   · LA UNIDAD. La proyección usa el sueldo completo del periodo DEL
+     TRABAJADOR. El diferencial debe conservar la misma unidad: semanal
+     para un semanal y quincenal para un quincenal. La semana es una clave
+     de selección; no convierte la quincena en siete días.
    · LA PRIVACIDAD. sueldos_internos solo le llega a un VIP (lo decide la
      RLS de la base, no la app). A quien no lo es, SUELDOSINT viene vacío
      y esto devuelve null: el modal se comporta igual que antes y la cifra
@@ -70,8 +70,7 @@ function difSugerido(w){
   if(!si||si.sueldo_real==null||si.sueldo_imss==null)return null;
   const dif=Number(si.sueldo_real)-Number(si.sueldo_imss);
   if(!(dif>0))return null;                       // sin diferencia, nada que sugerir
-  const dias=perDe(w).dias;
-  return Math.round(dif*7/dias*100)/100;
+  return Math.round(dif*100)/100;
 }
 function openDiferenciales(){
   const sem=normSem($('py-sem')?$('py-sem').value:semObra())||String(semObra());
@@ -145,7 +144,7 @@ function dfPinta(){
   const cur={}; st.gente.forEach(w=>{const e=$('df-m-'+w.id); if(e)cur[w.id]=e.value;});
   const valor=w=>cur[w.id]!==undefined?cur[w.id]:dfValor(w);
   $('df-out').innerHTML = vis.length
-    ? `<div class="imp-row head" style="grid-template-columns:52px 1.7fr 1fr 1fr"><span>No.</span><span>Trabajador</span><span>Sueldo semanal</span><span>Diferencial</span></div>`+
+    ? `<div class="imp-row head" style="grid-template-columns:52px 1.7fr 1fr 1fr"><span>No.</span><span>Trabajador</span><span>Sueldo del periodo</span><span>Diferencial</span></div>`+
       vis.map(w=>{
         const v=valor(w), sug=difSugerido(w);
         // "auto" solo si el valor que se muestra ES el sugerido y nadie lo tocó
@@ -157,7 +156,7 @@ function dfPinta(){
         <span style="display:flex;align-items:center;gap:6px">
           <input type="number" step="0.01" min="0" id="df-m-${w.id}" value="${esc(String(v))}"
               placeholder="0.00" oninput="dfMarcaTocado('${w.id}')" style="padding:4px 8px;font-size:12.5px">
-          <span id="df-a-${w.id}" title="Calculado del control interno: sueldo real − sueldo IMSS${perDe(w).dias!==7?' , llevado a 7 días':''}"
+          <span id="df-a-${w.id}" title="Calculado del control interno: sueldo real − sueldo IMSS del mismo periodo de pago"
             style="display:${esAuto?'inline':'none'};font-size:10px;font-weight:700;color:var(--accent)">auto</span>
         </span>
       </div>`;}).join('')

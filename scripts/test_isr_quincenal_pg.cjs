@@ -9,12 +9,15 @@ let checks=0;
  const heredadas=JSON.parse(fs.readFileSync('work/isr_quincenal_20261028/antes.json','utf8'))[0].jsonb_build_object.defs;
  // Dependencia heredada, copiada sin cambios de producción sólo al entorno aislado.
  await db.exec(heredadas.find(f=>f.name==='periodo_nomina').def);
- const definiciones=(await db.query("select md5(string_agg(pg_get_functiondef(oid),'' order by proname)) h from pg_proc where pronamespace='platinum_internal'::regnamespace and proname in('fuente','periodo_nomina')")).rows[0].h;
+ const definiciones=(await db.query("select md5(string_agg(pg_get_functiondef(oid),'' order by proname)) h from pg_proc where pronamespace='platinum_internal'::regnamespace and proname='fuente'")).rows[0].h;
  await db.exec(sql);
  const sello=fs.readdirSync('supabase/migrations').find(n=>n.endsWith('_isr_quincenal_sello_autorizado.sql'));
  if(sello)await db.exec(fs.readFileSync('supabase/migrations/'+sello,'utf8'));
  else if(process.argv[3])await db.exec(fs.readFileSync(process.argv[3],'utf8'));
- assert.equal((await db.query("select md5(string_agg(pg_get_functiondef(oid),'' order by proname)) h from pg_proc where pronamespace='platinum_internal'::regnamespace and proname in('fuente','periodo_nomina')")).rows[0].h,definiciones);checks++;
+ const correccion=fs.readdirSync('supabase/migrations').find(n=>n.endsWith('_quincenas_fuentes_noi_y_diferenciales.sql'));
+ const correccionPath=correccion?'supabase/migrations/'+correccion:process.argv[4];
+ if(correccionPath)await db.exec(fs.readFileSync(correccionPath,'utf8'));
+ assert.equal((await db.query("select md5(string_agg(pg_get_functiondef(oid),'' order by proname)) h from pg_proc where pronamespace='platinum_internal'::regnamespace and proname='fuente'")).rows[0].h,definiciones);checks++;
  assert((await db.query("select pg_get_triggerdef(oid) d from pg_trigger where tgname='b_isr_quincenal_snapshot'")).rows[0].d.includes('WHEN'));checks++;
  const {ids}=base;
  await base.owner(db,"update public.obras set fecha_inicio='2026-03-30' where id=$1",[ids.obra]);
@@ -24,6 +27,15 @@ let checks=0;
  const call=async(user,a,p=payload)=>{await base.actor(db,user);return(await db.query('select public.control_isr_quincenal($1,$2) d',[a,JSON.stringify(p)])).rows[0].d;};
  const eq=(a,b)=>{assert.deepEqual(a,b);checks++;};
  const bad=async(p,re)=>{await assert.rejects(p,re);checks++;};
+ if(correccionPath){
+  eq((await base.owner(db,'select platinum_internal.periodo_nomina($1,$2,31) p',[ids.obra,ids.w])).rows[0].p,{desde:'2026-10-16',hasta:'2026-10-31'});
+  eq((await base.owner(db,'select platinum_internal.periodo_nomina($1,$2,29) p',[ids.obra,ids.w])).rows[0].p,{desde:'2026-10-16',hasta:'2026-10-31'});
+  const sint={...input,gravable_acumulado:5331.11,gravable_actual:5331.11,isr_acumulado:132.66,isr_ordinario:132.66,criterio_limite_inferior:'NOI_SUPERIOR_ANTERIOR'};
+  const r=(await base.owner(db,'select platinum_internal.isr_quincenal_calcular($1) r',[JSON.stringify(sint)])).rows[0].r;
+  eq(r.limite_inferior,7168.51);eq(r.isr_quincenal,132.76);eq(r.compensar_prevision,true);
+  await bad(base.owner(db,'select platinum_internal.isr_quincenal_calcular($1)',[JSON.stringify({...sint,compensar_prevision:false})]),/Confirma/);
+  eq((await base.owner(db,'select platinum_internal.isr_quincenal_calcular($1) r',[JSON.stringify({...sint,compensar_prevision:false,confirmar_sin_compensacion:true})])).rows[0].r.compensar_prevision,false);
+ }
  await bad(call('consulta','GUARDAR'),/permiso/);
  await bad(call('jire','GUARDAR'),/permiso/);
  await bad(call('conta','GUARDAR',{...payload,confirmado:false}),/Confirma/);
