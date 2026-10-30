@@ -62,6 +62,7 @@ suites.push('test_reingreso_fecha');
 suites.push('test_edicion_trabajador_version');
 suites.push('test_precision_sdi_calendarios');
 suites.push('test_recibos_todas_semanas_ui','test_recibos_importacion_auto');
+suites.push('test_recibos_otros_pagos_desplazados');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_recibos_verificacion_todas_semanas.sql')))suites.push('test_recibos_todas_semanas_pg');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cheques_cfdi_prioridad.sql')))suites.push('test_cheques_cfdi_prioridad_pg');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_reingresos_ciclos_sin_reabrir_cierres.sql')))suites.push('test_reingreso_cierres_pg');

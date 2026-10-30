@@ -65,7 +65,8 @@ let checks=0;
  const hire=async(d)=>{await actor(db,'conta');return db.query("insert into trabajadores(id,obra_id,no_trab,nombres,estatus,fecha_alta) values($1,$2,$3,'FICTICIO','ACTIVO',$4)",[crypto.randomUUID(),ids.obra,900+checks,d]);};
  await hire(today);checks++;await assert.rejects(hire(start(26)),/S26.*reapertura/);checks++;
  // Quincenal y centro sin fecha inicial: se respeta el periodo real sellado.
- const past=shift(monday,-7),end=shift(monday,3);
+ // Incluir hoy durante los siete días: el jueves fijo fallaba al ejecutar viernes.
+ const past=shift(monday,-7),end=shift(monday,6);
  const q=await cierre(ids.otra,30,'AUTORIZADO',past,end,'QUINCENAL');
  await db.exec('alter table obras disable trigger user');await owner(db,'update obras set fecha_inicio=null where id=$1',[ids.otra]);await db.exec('alter table obras enable trigger user');
  await actor(db,'jire');await assert.rejects(db.query("update trabajadores set estatus='BAJA',fecha_baja=$2,monto_finiquito=50 where id=$1",[ids.wOtra,today]),/S30.*reapertura/);checks++;

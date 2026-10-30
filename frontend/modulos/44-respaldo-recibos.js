@@ -9,13 +9,22 @@
   const netos=[...t.matchAll(new RegExp('Neto\\s+pagado\\s*:?\\s*\\$?\\s*'+importe,'gi'))];
   const neto=netos.length===1?Number(netos[0][1].replace(/,/g,'')):null;
   const percepciones=capturar(new RegExp('Total\\s+(?:de\\s+)?percepciones\\s*:?\\s*\\$?\\s*'+importe,'i'));
-  const otros=capturar(new RegExp('Total\\s+(?:de\\s+)?otros\\s+pagos\\s*:?\\s*\\$?\\s*'+importe,'i'));
+  let otros=capturar(new RegExp('Total\\s+(?:de\\s+)?otros\\s+pagos\\s*:?\\s*\\$?\\s*'+importe,'i'));
+  // En algunos NOI, PDF.js entrega la columna «Otros pagos» después del total.
+  // Rescatar sólo ese diseño literal completo; nunca obtenerlo por diferencia.
+  const desplazados=[...t.matchAll(new RegExp('Total\\s+(?:de\\s+)?otros\\s+pagos\\s*:\\s*ISR\\s+retenido\\s*:\\s*\\$?\\s*'+importe+'\\s+Total\\s*:\\s*\\$?\\s*'+importe+'\\s+\\$?\\s*'+importe+'\\s*\\+\\s*-\\s*=','gi'))];
+  const desplazado=desplazados.length===1?desplazados[0]:null;
+  if(otros==null&&desplazado)otros=Number(desplazado[3].replace(/,/g,''));
   let deducciones=capturar(new RegExp('Total\\s+(?:de\\s+)?deducciones\\s*:?\\s*\\$?\\s*'+importe,'i'));
   const sinISR=capturar(new RegExp('Total\\s+(?:de\\s+)?deducciones\\s+sin\\s+ISR\\s*:?\\s*\\$?\\s*'+importe,'i'));
   const isr=capturar(new RegExp('ISR\\s+retenido\\s*:?\\s*\\$?\\s*'+importe,'i'));
   // NOI imprime deducciones sin ISR en el resumen fiscal. Nunca tratarlas como total.
   if(deducciones==null&&sinISR!=null&&isr!=null)deducciones=(Math.round(sinISR*100)+Math.round(isr*100))/100;
   const errores=[];
+  if(desplazados.length>1)errores.push('Hay más de un resumen de otros pagos; revisa el recibo individual');
+  if(/Total\s+(?:de\s+)?otros\s+pagos/i.test(t)&&otros==null)errores.push('No se pudo asociar el importe literal de otros pagos');
+  if(desplazado&&isr!=null&&Number(desplazado[1].replace(/,/g,''))!==isr)errores.push('El ISR del resumen desplazado se contradice');
+  if(desplazado&&neto!=null&&Number(desplazado[2].replace(/,/g,''))!==neto)errores.push('El neto pagado no coincide con el total fiscal impreso');
   if(deducciones!=null&&sinISR!=null&&isr!=null&&Math.round(deducciones*100)!==Math.round(sinISR*100)+Math.round(isr*100))errores.push('Los dos desgloses de deducciones se contradicen');
   if(neto!=null&&percepciones!=null&&deducciones!=null&&Math.round(percepciones*100)+Math.round((otros||0)*100)-Math.round(deducciones*100)!==Math.round(neto*100))errores.push('Percepciones, otros pagos y deducciones no cuadran con el neto');
   const dt='(\\d{1,2})[ /-]+([A-Za-zÁÉÍÓÚáéíóú]{3,10}\\.?|\\d{1,2})[ /-]+(\\d{2,4})';
