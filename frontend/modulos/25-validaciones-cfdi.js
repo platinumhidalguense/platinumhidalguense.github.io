@@ -106,6 +106,11 @@ async function actualizarNombreRenapo(){
 
 /* ---------- IMPORTAR CFDI TIMBRADOS (XML del PAC / NOI) ---------- */
 let CFDIIMP=[];
+function cfdiTotalImportado(valor){
+  const texto=String(valor??'').trim(),n=Number(texto);
+  if(!/^\d+(?:\.\d{1,6})?$/.test(texto)||!Number.isFinite(n)||n<0)throw Error('El XML no contiene un total monetario válido.');
+  return n;
+}
 function openCfdiImport(){
   modal(`
     <div class="m-head"><h2>🧾 Importar CFDI de nómina timbrados (XML)</h2><button class="x" onclick="closeModal()">×</button></div>
@@ -145,6 +150,7 @@ async function parseCfdi(inp){
       const uuid=limpio(tfd?tfd.getAttribute('UUID'):'');
       const fecha=(comp.getAttribute('Fecha')||'').slice(0,10);
       const total=comp.getAttribute('Total')||'';
+      cfdiTotalImportado(total);
       const fechaPago=(nom?(nom.getAttribute('FechaPago')||''):'').slice(0,10);
       const periodoInicio=(nom?(nom.getAttribute('FechaInicialPago')||''):'').slice(0,10);
       const periodoFin=(nom?(nom.getAttribute('FechaFinalPago')||''):'').slice(0,10);
@@ -189,6 +195,7 @@ async function parseCfdi(inp){
 async function applyCfdi(){
   const sel=CFDIIMP.filter(x=>x.sel&&x.w&&x.uuid);
   if(!sel.length){toast('No hay CFDI válidos seleccionados (requieren UUID y RFC que exista en la base).','err');return;}
+  let totales;try{totales=new Map(sel.map(x=>[x,cfdiTotalImportado(x.total)]));}catch(e){toast(e.message,'err');return;}
   if(!confirm(`¿Archivar ${sel.length} CFDI timbrado(s) en los expedientes?`))return;
   $('cf-btn').innerHTML='<span class="spin"></span> Archivando...';
   markWrite();
@@ -201,7 +208,7 @@ async function applyCfdi(){
     if(e1){fail++;continue;}
     const fila={trabajador_id:x.w.id,obra_id:x.w.obra_id,categoria:'CFDI_NOMINA',
       subtipo:'CFDI TIMBRADO',semana:sem,fecha_doc:x.fechaPago||x.fecha||null,archivo:path,nombre_archivo:`${x.uuid}.xml ($${x.total})`,subido_por:USER.email,
-      cfdi_uuid:x.uuid,cfdi_total:Number(x.total)||null,cfdi_fecha_pago:x.fechaPago||null,periodo_inicio:x.periodoInicio||null,periodo_fin:x.periodoFin||null,mime_type:'application/xml',
+      cfdi_uuid:x.uuid,cfdi_total:totales.get(x),cfdi_fecha_pago:x.fechaPago||null,periodo_inicio:x.periodoInicio||null,periodo_fin:x.periodoFin||null,mime_type:'application/xml',
       hash:await sha256Hex(new TextEncoder().encode(x.txt))};
     let {error:e2}=await sb.from('documentos').insert(fila);
     if(e2&&/hash/i.test(e2.message||'')){delete fila.hash;({error:e2}=await sb.from('documentos').insert(fila));}

@@ -11,6 +11,8 @@ if(!rrhhPrivate)console.log('ALCANCE PÚBLICO RRHH: se prueban botones y contrat
 if(pagosPrivate)suites.push('test_pagos_sabado_pg','test_pagos_sabado_retiros_pg');
 else console.log('ALCANCE PÚBLICO PAGOS: las 50 comprobaciones PostgreSQL de revisión de sábado requieren las migraciones privadas; no se cuentan como ejecutadas.');
 suites.push('test_pagos_sabado_ui');
+suites.push('test_pagos_xml_ui');
+if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_pagos_consulta_ruta_autenticada.sql')))suites.push('test_pagos_ruta_autenticada_pg');
 if(chequesPrivate)suites.push('test_cheques_estado_pg');
 else console.log('ALCANCE PÚBLICO CHEQUES: las 12 comprobaciones PostgreSQL del estado físico requieren la migración privada; no se cuentan como ejecutadas.');
 suites.push('test_cheques_estado_ui','test_rendimiento_centros','test_revision_pagos_seleccion_ui','test_visor_pagos_ui','test_recibos_ia_ui','test_actualizacion_continua_ui','test_actividad_ui');

@@ -1,8 +1,8 @@
 {
-  "version": "2026-10-30.3",
-  "entry": "assets/platinum-app.e5d71f56e2caf43c.js",
-  "sha256": "e5d71f56e2caf43c271778f0b78d80c22aaf22073d6dd77b4cb126e6d41d0b91",
-  "integrity": "sha384-kxZ3eZfL36Kh/9NIRcMrJmo5HFeGBtd12+pEyFQgWLZpNKbmsGS4EfzMhAy79pNc",
+  "version": "2026-10-30.4",
+  "entry": "assets/platinum-app.47ddfad3d1beccd9.js",
+  "sha256": "47ddfad3d1beccd9bfde0a83f1101d4314a63de3f34d3625db2a86fb5ebc6446",
+  "integrity": "sha384-md0rZI+WzNLBJxEYHVzS5w449upG0CBLqPIHXKgS6UjKIoqIUpNu+/AnEDiqpce6",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "77ac535e2bc16b66794ad152c78da81940fdd8ef897bcdb2e9d5cdc1b1b58738"
+      "sha256": "f87bb79ec0b0287549874cd29608e6a334e60249a4bab94a203fe6d0b6cc73ad"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -66,7 +66,7 @@
     },
     {
       "path": "frontend/modulos/15-banca-conciliacion.js",
-      "sha256": "d0873d39ff2d7921c9093e344436292ed4ef57523f155432dc3a495539993678"
+      "sha256": "a30a13de1a050808d1947c1756ae844ddc0d86afda3723197b572f503864b22a"
     },
     {
       "path": "frontend/modulos/16-control-pagos-folios.js",
@@ -106,7 +106,7 @@
     },
     {
       "path": "frontend/modulos/25-validaciones-cfdi.js",
-      "sha256": "6ccf2916b0fe25940a240d288a139996bf8eb6125d6adb949e1a52094944f1fc"
+      "sha256": "9e6f6fbd945c731899fbd79700079c8af3d774795f601482d6e9d87e16dd6099"
     },
     {
       "path": "frontend/modulos/26-prestaciones-anuales.js",

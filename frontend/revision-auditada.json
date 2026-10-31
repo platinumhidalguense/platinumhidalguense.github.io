@@ -82,7 +82,7 @@
   "pgRender": "Distingue pendientes no expedidos de pagos y permite revisar automáticos en lote; parser y montos intactos.",
   "conciliaSemanaDatos": "Transferencia registrada prevalece sobre intención de cheque ordinario; evidencia doble expedida exige revisión.",
   "auHacerCheque": "Nómina ordinaria usa revisión confirmada de sábado; conserva finiquitos.",
-  "auRender": "Acceso por obra correcta y etiqueta de pago pendiente, sin exigir cheque a transferencias.",
+  "auRender": "Muestra transferencias reconocidas, cheques y fuentes por revisar aun antes del corte del sábado. Una lista sin candidatos no se presenta como certificación de que todos estén pagados.",
   "concNuevoCheque": "Desvía el acceso heredado de cheque de nómina al lote confirmado; no escribe comprobantes.",
   "loadObraData": "Reutiliza lecturas verificadas sólo en memoria, misma obra y sesión VIP, hasta 60 segundos desde la comprobación completa, con invalidación dirigida por fuentes. Manual, reconexión, origen desconocido, permisos, cambio de obra y errores fuerzan lectura completa. Conserva paginación, acuses, DOM y compromiso atómico; no modifica motores ni escrituras.",
   "ctrlMetodoNOI": "No crea intención automática de cheque ordinario desde importación.",
@@ -131,5 +131,9 @@
   "incExistentes": "Lista incidencias aplicadas al periodo quincenal aunque su clave de captura sea otra semana; mantiene orden, buscador y alcance del centro.",
   "incQuitar": "Desactiva la incidencia en su semana original cuando se muestra desde otra semana de la misma quincena, conservando controles de autorización.",
   "ctrlImporteIMSSPeriodo": "La incapacidad parcial quincenal utiliza contexto de fechas y días naturales del motor quincenal; las incapacidades completas y el servicio semanal conservan su resultado.",
-  "cuotasSemana": "Calculadora exclusivamente semanal; rechaza periodo quincenal y más de siete días para evitar mezclar parámetros. No modifica fórmulas de cuotas."
+  "cuotasSemana": "Calculadora exclusivamente semanal; rechaza periodo quincenal y más de siete días para evitar mezclar parámetros. No modifica fórmulas de cuotas.",
+  "auCargar": "Consulta de auditoría vinculada al centro y a la solicitud vigente; no reutiliza resultados de otra obra con la misma semana y descarta respuestas tardías.",
+  "auCargarGlobal": "Consulta histórica de auditoría con alcance del centro y control de concurrencia; no cambia importes ni permisos.",
+  "parseCfdi": "Valida que Total sea un número monetario explícito, incluido cero; rechaza importes ausentes o inválidos sin inventar valores.",
+  "applyCfdi": "Conserva Total=0.00 como cero al guardar XML; valida importes antes de subir archivos. Conserva UUID, trabajador, fechas, semana y fórmula fiscal."
 }
