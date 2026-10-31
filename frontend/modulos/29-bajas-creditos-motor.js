@@ -119,9 +119,9 @@ function smAssist(extra){
   const sd=Math.round((f.sm+extra)*100)/100;
   $('f-sd').value=sd;
   $('f-sdi').value=sdiInicialSugerido(sd);
-  const nn=semanalNeto(sd,$('f-sdi').value);
+  let nn;try{nn=sueldoNetoPeriodo(sd,$('f-sdi').value,trabajadorNominaFormulario());}catch(e){$('h-sd').textContent=e.message;return;}
   if(!$('f-sal_semanal').value)$('f-sal_semanal').value=nn.neto.toFixed(2);
-  $('h-sd').innerHTML=`<b>SD = mínimo CONASAMI 2026 ($${f.sm}) + $${extra}</b> (DOF 09/12/2025) · <b>semanal NETO $${money(nn.neto)}</b> (bruto − ISR/subsidio − IMSS, igual que NOI).`;
+  $('h-sd').innerHTML=`<b>SD = mínimo CONASAMI 2026 ($${f.sm}) + $${extra}</b> (DOF 09/12/2025) · <b>${nn.periodo.toLowerCase()} NETO estimado $${money(nn.neto)}</b> (bruto − ISR/subsidio − IMSS, con su motor correspondiente).`;
 }
 
 /* --- BAJAS CON MOTIVO LEGAL Y DOCUMENTO SEGÚN MOTIVO --- */
@@ -431,89 +431,15 @@ function dsCalc(){
 }
 
 
-/* ---------- v14: MOTOR DE NÓMINA CON FALTAS (calibrado a NOI) ----------
-   REGLA 1 (IMSS): cuota obrera sobre días COTIZADOS (días−faltas), no sobre el periodo completo (LSS art. 31).
-   REGLA 2 (ISR): la falta y el día de descanso proporcional se restan del BRUTO → nueva base gravable;
-                  ISR y subsidio al empleo se calculan sobre esa base, NUNCA restando la falta al neto.
-   REGLA 3 (PREMIOS): con faltas > 0, los premios de puntualidad/asistencia se anulan ANTES de la base.
-   Subsidio al empleo 2026 (DOF 31/12/2025): 15.02% de la UMA mensual, tope de ingresos $11,492.66/mes;
-   solo acreditable contra el ISR (no se entrega en efectivo). Del periodo = mensual × días ÷ 30.4.
-
-   2026-08-28: los 7 días dejaron de estar clavados. El periodo sale de
-   perDe(w) — 7 para obra, 15 para la oficina quincenal — y con {dias:16}
-   se pide la quincena larga. Con periodo_pago SEMANAL los números son
-   los mismos de siempre, al centavo. */
+/* Entrada compatible: selecciona el motor por la periodicidad del trabajador.
+   No calcula impuestos, incidencias ni calendarios en este adaptador. */
 function nominaPeriodo(w,opts){
-  const o=opts||{}; const f=FISC(); const P=perDe(w,o.dias);
-  const faltas=Math.max(0,Math.min(P.dias,Math.round(Number(o.faltas)||0)));
-  const incapacidadIMSS=Math.max(0,Math.min(P.dias-faltas,Math.round(Number(o.incapacidadIMSS)||0)));
-  const sd=Number(w.sd)||0;
-  const sbc=Math.min(Number(w.sdi)||sd*1.0493, 25*f.uma);
-  // REGLA 3: premio anulado con cualquier falta
-  const premioCapturado=Number(o.premios)||0;
-  const premiosPag=faltas>0?0:premioCapturado;
-  // REGLA 2: base gravable reducida (falta + día de descanso proporcional).
-  // Semanal: factor 7/6 (6 trabajados + séptimo día). Quincenal de sueldo
-  // fijo: factor 1, el descuento es día por día.
-  // Una incapacidad certificada por el IMSS justifica días naturales completos:
-  // no se le añade el séptimo día proporcional de una falta injustificada.
-  const diasPag=Math.max(0,P.dias-faltas*P.fFalta-incapacidadIMSS);
-  const bruto=Math.round((sd*diasPag+premiosPag)*100)/100;
-  // REGLA 1 (criterio NOI, validado con cédula real de Alejandra Mercado S16):
-  // la cuota obrera se deduce proporcional a los DÍAS PAGADOS (7 − faltas×7/6),
-  // p. ej. 2 faltas → 4.6667 días → $39.09 con SDI 352.56 (NOI exacto).
-  // diasCot (días−faltas) se conserva para el SUA/afiliatorio.
-  const diasCot=P.dias-faltas-incapacidadIMSS;
-  const obrDia=Math.max(0,sbc-3*f.uma)*0.0040+sbc*(0.0025+0.00375+0.00625+0.01125);
-  const imssObr=Math.round(obrDia*diasPag*100)/100;
-  // ISR sobre la NUEVA base + subsidio al empleo
-  const isrBrutoRaw=isrPeriodo(bruto,P.dias,true);
-  const isrBruto=redondearCentavos(isrBrutoRaw);
-  const subPct=Number(f.subsidio_pct)||15.02, subTopeM=Number(f.subsidio_tope_mensual)||11492.66;
-  const topeSem=Math.round(subTopeM/30.4*P.dias*100)/100;
-  // v15: subsidio calibrado contra NOI (Semana 16, 18/07/2026) — NOI trunca la cuota
-  // DIARIA del subsidio a 2 decimales antes de multiplicar por 7 (no redondea el total
-  // semanal). Con esto, 38/52 recibos de la S16 quedan exactos al centavo vs NOI; los 14
-  // restantes (SDI $387.40/$387.41 - AYUDANTE ALBAÑIL) quedan a $0.01, pendiente de otra
-  // semana de datos para aislar ese residual. Ver CONCILIACION_NOI_SEMANA16.xlsx.
-  const subDia=Math.floor(subPct/100*f.uma*100)/100;
-  const subSem=Math.round(subDia*P.dias*100)/100; // = cuota diaria truncada × días del periodo
-  const subsidio=bruto<=topeSem?Math.min(subSem,isrBruto):0;
-  // NOI 11 conserva los decimales internos al acreditar subsidio. En los casos
-  // en que el ISR residual queda por debajo de $20 redondea ese residual; por
-  // encima de ese umbral lo corta a centavos. La distinción está verificada
-  // contra los recibos reales S16, S24 y S25: evita diferencias selectivas de
-  // $0.01 con una falta sin alterar los niveles salariales ya conciliados.
-  const isrNetoRaw=isrBrutoRaw-subsidio;
-  const isr=subsidio>0&&isrBrutoRaw>subsidio
-    ?(isrNetoRaw<20?redondearCentavos(isrNetoRaw):Math.floor(isrNetoRaw*100+1e-9)/100)
-    :redondearCentavos(isrBruto-subsidio);
-  const neto=redondearCentavos(bruto-isr-imssObr);
-  return {periodo:P.cve,dias:P.dias,etiqueta:P.etiqueta,
-          faltas,incapacidadIMSS,diasPag:Math.round(diasPag*10000)/10000,diasCot,sd,sbc,bruto,
-          premioCapturado,premiosPag,premioAnulado:faltas>0&&premioCapturado>0,
-          obrDia:Math.round(obrDia*10000)/10000,imssObr,isrBruto,subsidio,isr,neto};
+  return periodoPago(w)==='QUINCENAL'?nominaQuincenal(w,opts):nominaSemanal(w,opts);
 }
-/* Nombre viejo: lo usan el verificador NOI, el asistente y las 30 pruebas
-   del motor. Se conserva y ahora también respeta el periodo del trabajador. */
-function nominaSemanal(w,opts){return nominaPeriodo(w,opts);}
 /* Diferencia de NETO entre semana normal y semana con faltas — esto es lo que se descuenta
    en la proyección para cuadrar AL CENTAVO con el neto de NOI. */
-function descuentoFaltasNOI(w,faltas,premios,dias,incapacidadIMSS){
-  const N=nominaPeriodo(w,{faltas:0,premios:premios,dias});
-  const F=nominaPeriodo(w,{faltas:faltas,incapacidadIMSS,premios:premios,dias});
-  // v16: el descuento se calcula contra el sal_semanal REAL registrado (que puede incluir
-  // un complemento fuera de nómina, ej. Griselda Espinoza $155.45/semana por acuerdo del
-  // jefe), NO contra el normal de fórmula (N.neto). Cualquier complemento fuera de nómina
-  // se anula por completo en semanas con faltas — igual que el premio de puntualidad — porque
-  // NOI nunca lo ve: el neto que NOI paga en una semana con faltas es SIEMPRE el de fórmula
-  // pura (F.neto), validado al centavo contra la Semana 16 real. Con esto, sal_semanal-monto
-  // = F.neto = NOI, sin importar el complemento ni desfases de captura de unos centavos.
-  const salReal=Number(w.sal_semanal)||N.neto;
-  return {monto:Math.round((salReal-F.neto)*100)/100,normal:N,conFaltas:F,periodo:N.periodo,dias:N.dias,
-    dBruto:Math.round((N.bruto-F.bruto)*100)/100,
-    dIsr:Math.round((N.isr-F.isr)*100)/100,
-    dImss:Math.round((N.imssObr-F.imssObr)*100)/100};
+function descuentoFaltasNOI(w,faltas,premios,dias,incapacidadIMSS,contexto){
+  return periodoPago(w)==='QUINCENAL'?descuentoFaltasQuincenal(w,faltas,premios,dias,incapacidadIMSS,contexto):descuentoFaltasSemanal(w,faltas,premios,dias,incapacidadIMSS);
 }
 
 /* ---------- v11: EXPORT ALTAS PARA CONTADORA (NOI + SUA + TXT) ---------- */

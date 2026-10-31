@@ -268,7 +268,7 @@ function ctrlImporteIMSSPeriodo(c,sem,edicion=null){
   }
   if(!sin)return 0;
   if(!semanal&&sin===ctrlFechasIMSS(desde,hasta).length)return redondearCentavos(Number(w.sal_semanal)||0);
-  return descuentoFaltasNOI(w,0,0,undefined,sin).monto;
+  return descuentoFaltasNOI(w,0,0,undefined,sin,contextoIncidenciaNomina(w,'S'+sem,{desde,hasta})).monto;
 }
 function ctrlQuincenaIMSSAplicada(c,sem){
   const w=WORKERS.find(x=>x.id===c.trabajador_id);if(!w||periodoPago(w)!=='QUINCENAL')return false;

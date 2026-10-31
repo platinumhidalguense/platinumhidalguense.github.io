@@ -31,7 +31,7 @@ function buildSheet(rows,styles,widths,merges,rowHeights){
   return ws;
 }
 function dlPlain(wb,name){XLSX.writeFile(wb,name);}
-const MOTOR_NOMINA_VERSION='NOI-11.00.18/PLATINUM-2026-09-24.2';
+const MOTOR_NOMINA_VERSION='NOI-11.00.20/PLATINUM-MOTORES-2026-10-30.3';
 const _xmlEsc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function _dataUriBytes(uri){
   const m=String(uri||'').match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/i);

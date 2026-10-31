@@ -15,6 +15,7 @@ const b={Date,Intl,WORKERS:[w],DESC:live,DIFS:[],FINTRANS:[],OBRA:{id:'O',nombre
  difDe:()=>0,finTransDe:()=>null,fullName:x=>x.nombres,empresaDeObra:()=> 'PLATINUM',MOTOR_NOMINA_VERSION:'PRUEBA',
  redondearCentavos:x=>Math.round(x*100)/100,money:x=>Number(x).toFixed(2)};
 vm.createContext(b);
+vm.runInContext(require('./soporte_motores_nomina.cjs').source(),b);b.periodoPago=w=>w.periodo_pago||'SEMANAL';
 vm.runInContext(functions('frontend/modulos/08-retenciones-incidencias.js',['retencionesDePeriodo','descuentosDe']),b);
 vm.runInContext(functions('frontend/modulos/10-proyeccion-nomina.js',['proyRetenciones','proyModelo','proyFiniquito']),b);
 vm.runInContext(functions('frontend/modulos/39-rrhh-adaptadores.js',['rrhhReferenciasModelo']),b);

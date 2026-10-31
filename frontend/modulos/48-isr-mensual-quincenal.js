@@ -36,11 +36,8 @@ function isrQCalcular(j){
     isr_quincenal_raw:quincenalRaw,isr_quincenal:isr,delta_isr:r(isr-ordinario),saldo_favor:saldoFavor};
 }
 function nominaQuincenalAjustada(w,opts,fuente){
-  const base=nominaPeriodo(w,opts);
-  if(periodoPago(w)!=='QUINCENAL')return base;
-  const a=isrQCalcular(fuente);
-  if(a.saldo_favor>0)throw Error('El ISR previo excede al mensual; requiere revisión de saldo a favor.');
-  return {...base,isr:a.isr_quincenal,neto:redondearCentavos(base.neto+base.isr-a.isr_quincenal),ajuste_mensual:a};
+  if(periodoPago(w)!=='QUINCENAL')return nominaSemanal(w,opts);
+  return nominaQuincenal(w,{...opts,fuenteISR:fuente});
 }
 function isrQAplicarFila(f,s){
   if(f.fin||periodoPago(f.w)!=='QUINCENAL')return f;

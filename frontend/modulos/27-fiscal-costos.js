@@ -71,8 +71,10 @@ function retencionInfonavitDesdeAviso(d,w,dias,fecha){
    cuotas IMSS del proyecto (parte del motor fiscal, calibrada contra la EBA),
    NO parte del simulador: se deja disponible para cálculos futuros. */
 function cuotasSemana(w,prima,diasCot,diasPeriodo){
+  if(periodoPago(w)!=='SEMANAL')throw Error('Las cuotas semanales requieren un trabajador semanal.');
   const f=FISC(); const sbc=Math.min(Number(w.sdi)||Number(w.sd)||0, 25*f.uma);
-  const dp=Math.max(1,Number(diasPeriodo)||perDe(w).dias);
+  const dp=Math.max(1,Number(diasPeriodo)||7);
+  if(dp>7)throw Error('Las cuotas semanales no pueden cubrir más de siete días.');
   const d=(diasCot==null?dp:Math.max(0,diasCot)); const B=sbc*d; // REGLA IMSS: con ausentismo se cotizan dias−faltas (LSS art. 31)
   const enUMA=sbc/f.uma;
   let ceav=f.ceav[f.ceav.length-1][1];

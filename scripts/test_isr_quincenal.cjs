@@ -3,7 +3,8 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const functions=(file,names)=>{const s=fs.readFileSync(file,'utf8');return acorn.parse(s,{ecmaVersion:'latest'}).body.filter(n=>n.type==='FunctionDeclaration'&&names.includes(n.id.name)).map(n=>s.slice(n.start,n.end)).join('\n');};
 const fiscal=fs.readFileSync('frontend/modulos/27-fiscal-costos.js','utf8'),tarifa=fiscal.match(/const ISR_M=\[[\s\S]*?\];/)[0];
 const box={console,Date,Map,Set,Number,Math,Error,window:{},FISC:()=>({anio:2026,sm:315.04,uma:117.31}),rangoRetencion:()=>['2026-10-16','2026-10-31']};
-vm.createContext(box);
+box.CFGEMP={motores_nomina:{QUINCENAL:{por_obra:{OBRA:{codigo:'SINTETICO',dias_fiscales:15,divisor_isr:365/12,factor_falta:1,criterio_limite_inferior:'TARIFA_SAT'}}}}};
+vm.createContext(box);vm.runInContext(require('./soporte_motores_nomina.cjs').source(),box);
 vm.runInContext("const PERIODOS={SEMANAL:{cve:'SEMANAL',dias:7,lab:6,etiqueta:'semanal'},QUINCENAL:{cve:'QUINCENAL',dias:15,lab:15,etiqueta:'quincenal'}};"+tarifa+
  functions('frontend/modulos/08-retenciones-incidencias.js',['perDe','periodoPago'])+functions('frontend/modulos/27-fiscal-costos.js',['isrTarifa','factorISR','isrPeriodo','redondearCentavos'])+functions('frontend/modulos/29-bajas-creditos-motor.js',['nominaPeriodo'])+fs.readFileSync('frontend/modulos/48-isr-mensual-quincenal.js','utf8'),box);
 const input={desde:'2026-10-16',hasta:'2026-10-31',gravable_acumulado:10000,gravable_actual:10000,impuesto_local:0,isr_acumulado:1050,isr_ordinario:1000,dias_subsidio:30.4};
@@ -49,8 +50,9 @@ const bad=(f,re)=>{assert.throws(f,re);checks++;};
   const w={sd,sdi:sd*1.0493,periodo_pago:'SEMANAL'},opts={faltas,incapacidadIMSS,premios:123.45};
   eq(box.nominaQuincenalAjustada(w,opts,null),box.nominaPeriodo(w,opts));
  }
- const q={sd:600,sdi:630,periodo_pago:'QUINCENAL'},base=box.nominaPeriodo(q,{}),adjusted=box.nominaQuincenalAjustada(q,{},input);
- eq(adjusted.isr,1333.65);eq(adjusted.neto,box.redondearCentavos(base.neto+base.isr-1333.65));eq(adjusted.imssObr,base.imssObr);
+ const q={obra_id:'OBRA',sd:600,sdi:630,periodo_pago:'QUINCENAL'},base=box.nominaPeriodo(q,{}),coherente={...input,gravable_actual:base.bruto},ajuste=box.isrQCalcular(coherente),adjusted=box.nominaQuincenalAjustada(q,{},coherente);
+ eq(adjusted.isr,ajuste.isr_quincenal);eq(adjusted.neto,box.redondearCentavos(base.neto+base.isr-ajuste.isr_quincenal));eq(adjusted.imssObr,base.imssObr);
+ bad(()=>box.nominaQuincenalAjustada(q,{},input),/base quincenal/);
  const sourceRows=[['Tipo de Cálculo de ISR: Ajustado'],['Periodo de Pago: Del 16/Oct/26 al 31/Oct/26'],['Factor Mensual (Días Mes/ Días Nómina): 1.000000'],['Trabajador','Nombre','SD','Gravable Acumulado']];
  const record=Array(26).fill('');Object.assign(record,{0:1,1:'PERSONA FICTICIA PRUEBA',2:600,3:10000,4:10000,5:0,21:1050,22:1333.65236});sourceRows.push(record);
  box.XLSX={utils:{sheet_to_json:s=>s.rows}};

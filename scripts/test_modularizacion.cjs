@@ -17,9 +17,13 @@ if(fs.existsSync(before)){
  const original=[...fs.readFileSync(before,'utf8').matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].find(x=>x[2].includes('/* ================== CONFIGURACIÓN'))[2];
  const old=acorn.parse(original,{ecmaVersion:'latest'}),funcs=x=>new Map(x.body.filter(n=>n.type==='FunctionDeclaration').map(n=>[n.id.name,n]));
  const reviewed=JSON.parse(fs.readFileSync(path.join(root,'frontend/revision-auditada.json'),'utf8'));
- const protectedNames=['proyModelo','proyFiniquito','nominaPeriodo','retencionEvaluada','descuentosDe','calcPrestaciones','calcularPrestaciones','fonacotMontoPeriodo','infonavitRetencionPeriodo','descuentoFaltasNOI'];
+ const protectedNames=['proyFiniquito','retencionEvaluada','descuentosDe','calcPrestaciones','calcularPrestaciones','fonacotMontoPeriodo','infonavitRetencionPeriodo'];
  for(const name of protectedNames)assert(!reviewed[name],'No autorizar cambios de fórmula por esta lista');
  const beforeFuncs=funcs(old),afterFuncs=funcs(ast);let untouched=0;for(const[name,node]of beforeFuncs){assert(afterFuncs.has(name),'Función perdida: '+name);const next=afterFuncs.get(name);if(reviewed[name])assert(reviewed[name].length>30);else{assert.equal(source.slice(next.start,next.end),original.slice(node.start,node.end),'Función alterada sin revisión: '+name);untouched++;}}
- console.log('PASS '+beforeFuncs.size+' funciones conservadas; '+untouched+' idénticas y '+Object.keys(reviewed).length+' adaptadores revisados explícitamente. Motores intactos.');
+ const projection=n=>n.replace(',motor_nomina:motorNominaDe(w),motor_config:motorNominaConfiguracion(w)','').replace(',motores_esquema:1','');
+ const oldP=beforeFuncs.get('proyModelo'),newP=afterFuncs.get('proyModelo');assert.equal(projection(source.slice(newP.start,newP.end)),original.slice(oldP.start,oldP.end),'La separación sólo permite metadatos en la composición de proyección');
+ const router=afterFuncs.get('nominaPeriodo');assert(/return periodoPago\(w\)==='QUINCENAL'\?nominaQuincenal\(w,opts\):nominaSemanal\(w,opts\);/.test(source.slice(router.start,router.end)),'El adaptador de motor no debe contener fórmulas');
+ const incidencias=afterFuncs.get('descuentoFaltasNOI');assert(/return periodoPago\(w\)==='QUINCENAL'\?descuentoFaltasQuincenal\(w,faltas,premios,dias,incapacidadIMSS,contexto\):descuentoFaltasSemanal\(w,faltas,premios,dias,incapacidadIMSS\);/.test(source.slice(incidencias.start,incidencias.end)),'El adaptador de incidencias sólo debe seleccionar motor');
+ console.log('PASS '+beforeFuncs.size+' funciones conservadas; '+untouched+' idénticas y '+Object.keys(reviewed).length+' cambios revisados. Separación de motores autorizada; composición monetaria de proyección conservada.');
 }
 console.log('PASS '+m.modules.length+' módulos: concatenación, sintaxis, orden, ámbito global y huella de carga íntegra.');

@@ -1,27 +1,8 @@
-/* ---------- PERIODICIDAD DE PAGO (2026-08-28) ------------------------
-   Hasta aquí TODO el motor daba por hecho la semana: 7 días clavados en
-   el cálculo, en el ISR, en el subsidio y en la cuota del INFONAVIT. En
-   obra eso está bien —se paga semanal—, pero la OFICINA es quincenal y
-   con la regla semanal se le retenía la mitad de lo que le toca.
-
-   A partir de aquí el periodo es un dato, no una constante:
-
-     dias   días naturales que cubre el pago (7 semanal, 15 quincenal).
-     lab    días trabajados dentro de ese periodo. De ahí sale el factor
-            de la falta: en la semana de obra son 6 días trabajados + el
-            séptimo día de descanso pagado (LFT art. 69), así que faltar
-            un día cuesta 7/6 de día de sueldo. En la quincena de sueldo
-            fijo el descuento es día por día (factor 1), que es como lo
-            hace NOI para el personal de oficina.
-
-   La quincena de 16 días (la segunda de los meses de 31) se pide con
-   {dias:16}; el factor no cambia porque es una razón, no un conteo.
-
-   OJO: el camino semanal queda idéntico al centavo — dias=7 y 7/6 son
-   exactamente los números que ya estaban. El motor sigue calibrado
-   contra NOI para obra; lo de oficina es proporcional a esa misma
-   fórmula, y hay que validarlo contra un recibo quincenal real de NOI
-   antes de darlo por bueno al centavo. */
+/* Periodicidad y servicio común de retenciones. Los motores semanal y
+   quincenal poseen sus propias fórmulas fiscales y calendarios; INFONAVIT y
+   FONACOT comparten vigencias, ajustes confirmados y prorrateo natural.
+   Los días fiscales NOI se configuran por perfil, separados de los días
+   naturales de cada periodo. No se deriva una quincena del cálculo semanal. */
 const PERIODOS={
   SEMANAL  :{cve:'SEMANAL'  ,dias:7 ,lab:6 ,etiqueta:'semanal'  ,unidad:'SEMANA'  ,porAnio:52},
   QUINCENAL:{cve:'QUINCENAL',dias:15,lab:15,etiqueta:'quincenal',unidad:'QUINCENA',porAnio:24}
@@ -33,8 +14,8 @@ function periodoPago(w){
    (quincena de 16, semana partida por alta a media semana, etc.). */
 function perDe(w,dias){
   const p=PERIODOS[periodoPago(w)]||PERIODOS.SEMANAL;
-  const d=Math.max(1,Math.round(Number(dias)||p.dias));
-  return {...p,dias:d,fFalta:p.dias/p.lab};
+  const parametros=periodoPago(w)==='QUINCENAL'?nominaQuincenalParametros(dias):nominaSemanalParametros(dias);
+  return {...p,...parametros};
 }
 /* FONACOT no usa la fórmula bimestral ni el seguro de daños INFONAVIT.
    La cédula mensual manda; el prorrateo por calendario es una modalidad
@@ -43,20 +24,8 @@ function retFecha(iso){return new Date(String(iso).slice(0,10)+'T12:00:00Z');}
 function retISO(fecha){return fecha.toISOString().slice(0,10);}
 function retSumarDias(iso,dias){const f=retFecha(iso);f.setUTCDate(f.getUTCDate()+dias);return retISO(f);}
 function rangoRetencion(w,semStr){
-  const n=parseInt(String(semStr||'').replace(/\D/g,''))||isoWeek();
-  const [ini,fin]=semRange(n);
-  if(periodoPago(w)!=='QUINCENAL')return [ini,fin];
-  let referencia=fin;
-  // Desde este corte, una semana que contiene el día de pago quincenal
-  // corresponde a esa quincena, aunque el domingo pertenezca al mes siguiente.
-  // Los periodos históricos conservan el calendario con que fueron capturados.
-  if(ini>='2026-10-26')for(let d=ini;d<=fin;d=retSumarDias(d,1)){
-    const x=retFecha(d),ultimo=new Date(Date.UTC(x.getUTCFullYear(),x.getUTCMonth()+1,0)).getUTCDate();
-    if(x.getUTCDate()===15||x.getUTCDate()===ultimo){referencia=d;break;}
-  }
-  const f=retFecha(referencia),a=f.getUTCFullYear(),m=f.getUTCMonth(),dia=f.getUTCDate();
-  return dia<=15?[`${a}-${String(m+1).padStart(2,'0')}-01`,`${a}-${String(m+1).padStart(2,'0')}-15`]
-    :[`${a}-${String(m+1).padStart(2,'0')}-16`,retISO(new Date(Date.UTC(a,m+1,0,12)))];
+  const p=calendarioNominaDe(w,semStr);
+  return [p.desde,p.hasta];
 }
 function cuotaFonacotCalendario(mensual,desde,hasta){
   if(!(Number(mensual)>0)||!/^\d{4}-\d\d-\d\d$/.test(String(desde))||!/^\d{4}-\d\d-\d\d$/.test(String(hasta))||desde>hasta)return 0;
@@ -201,6 +170,9 @@ function retencionesDePeriodo(w,semStr,opts){
 function incAuditarCalculoGuardado(d,w,dias){
   if(d.recurrente||!['FALTA','INCIDENCIA'].includes(d.tipo))return null;
   const meta=d.ajustes_semana?._calculo_incidencia;
+  if(meta&&!['AUTOMATICO','INCREMENTAL_IMSS'].includes(meta.modo))return null;
+  const contexto=contextoIncidenciaNomina(w,d.semana,d.ajustes_semana?._periodo_nomina);
+  if(periodoPago(w)==='QUINCENAL')dias=contexto.dias;
   let faltas,incap,premios;
   if(meta?.modo==='INCREMENTAL_IMSS'){
     const base=DESC.find(x=>x.id===meta.descuento_base_id&&x.activo&&!x.recurrente&&x.tipo==='INCIDENCIA'
@@ -208,7 +180,7 @@ function incAuditarCalculoGuardado(d,w,dias){
     const f=meta.faltas,i=meta.incapacidad_imss,p=meta.premios;
     if(!Number.isInteger(f)||f<=0||!Number.isInteger(i)||i<=0||f+i>perDe(w,dias).dias||!Number.isFinite(p)||p<0)
       throw Error('La incidencia combinada con IMSS tiene días inválidos; revisa su desglose.');
-    const imss=descuentoFaltasNOI(w,0,p,dias,i),completo=descuentoFaltasNOI(w,f,p,dias,i);
+    const imss=descuentoFaltasNOI(w,0,p,dias,i,contexto),completo=descuentoFaltasNOI(w,f,p,dias,i,contexto);
     const monto=redondearCentavos(completo.monto-imss.monto);
     return {monto,desactualizado:!base||Math.round(Number(base.monto)*100)!==Math.round(imss.monto*100)
       ||Math.round(Number(d.monto)*100)!==Math.round(monto*100),resultado:completo,base_imss:imss};
@@ -223,7 +195,7 @@ function incAuditarCalculoGuardado(d,w,dias){
     faltas=Number(m[1]);incap=0;premios=0;
   }
   if(!Number.isInteger(faltas)||!Number.isInteger(incap)||faltas<0||incap<0||faltas+incap>perDe(w,dias).dias||!Number.isFinite(premios)||premios<0)return null;
-  const r=descuentoFaltasNOI(w,faltas,premios,dias,incap);
+  const r=descuentoFaltasNOI(w,faltas,premios,dias,incap,contexto);
   return {monto:r.monto,desactualizado:Math.round(Number(d.monto)*100)!==Math.round(r.monto*100),resultado:r};
 }
 function descuentosDe(w,semStr,opts){
@@ -457,16 +429,17 @@ function incCalc(i){
   const f=Number($('inc-f-'+i).value)||0;
   const incap=Number($('inc-i-'+i).value)||0;
   const premio=parseFloat(($('inc-p-'+i)||{}).value)||0;
-  const P=perDe(w);
+  const contexto=contextoIncidenciaNomina(w,'S'+($('inc-sem')?.value||window._INCSEM||isoWeek()));
+  const P=perDe(w,contexto.dias);
   if(!Number.isInteger(f)||!Number.isInteger(incap)||f<0||incap<0||f+incap>P.dias){
     $('inc-m-'+i).value='';$('inc-x-'+i).value='';
     toast(`Las ausencias de ${fullName(w)} deben sumar entre 0 y ${P.dias} días.`,'err');return;
   }
   if(f>0||incap>0){
-    const r=descuentoFaltasNOI(w,f,premio,undefined,incap);
+    let r;try{r=descuentoFaltasNOI(w,f,premio,undefined,incap,contexto);}catch(e){$('inc-m-'+i).value='';$('inc-x-'+i).value='';toast(e.message,'err');return;}
     $('inc-m-'+i).value=r.monto.toFixed(2);
     $('inc-x-'+i).value=[f?(f===1?'1 FALTA':f+' FALTAS'):'',incap?`${incap} DÍA(S) SIN SALARIO PATRONAL POR INCAPACIDAD IMSS`:'' ].filter(Boolean).join(' + ')
-      +` · NETO NOI −$${r.monto.toFixed(2)} (BRUTO −${r.dBruto.toFixed(2)}, ISR ${r.dIsr>=0?'−':'+'}${Math.abs(r.dIsr).toFixed(2)}, IMSS −${r.dImss.toFixed(2)}${r.conFaltas.premioAnulado?`, PREMIO ANULADO −${premio.toFixed(2)}`:''})`;
+      +` · NETO NOI −$${r.monto.toFixed(2)} (BRUTO −${r.dBruto.toFixed(2)}, ISR ${r.dIsr>=0?'−':'+'}${Math.abs(r.dIsr).toFixed(2)}, IMSS −${r.dImss.toFixed(2)}${r.conFaltas.premioAnulado?`, PREMIO ANULADO −${premio.toFixed(2)}`:''})${r.isr_mensual_separado?' · ISR mensual separado':''}`;
   }else if(premio>0){
     $('inc-m-'+i).value='';$('inc-x-'+i).value='';
   }else{
@@ -478,24 +451,24 @@ function incTextoBusqueda(v){return String(v??'').normalize('NFD').replace(/[\u0
 function incExistentes(){
   const sem='S'+(Number($('inc-sem').value)||window._INCSEM),q=incTextoBusqueda($('inc-ya-q')?.value);
   const mapa=new Map(WORKERS.filter(w=>w.obra_id===OBRA.id).map(w=>[w.id,w]));
-  const ya=DESC.filter(d=>!d.recurrente&&d.activo&&d.semana===sem&&(d.obra_id===OBRA.id||(!d.obra_id&&mapa.has(d.trabajador_id))))
+  const ya=DESC.filter(d=>!d.recurrente&&d.activo&&(d.semana===sem||(d.ajustes_semana?._periodo_nomina&&mapa.get(d.trabajador_id)?.periodo_pago==='QUINCENAL'&&descuentoCorrespondePeriodo(d,mapa.get(d.trabajador_id),sem)))&&(d.obra_id===OBRA.id||(!d.obra_id&&mapa.has(d.trabajador_id))))
     .map(d=>({d,w:mapa.get(d.trabajador_id)})).sort((a,b)=>compararNumeroTrabajador(a.w||{},b.w||{})||String(a.d.created_at||'').localeCompare(String(b.d.created_at||''))||String(a.d.id).localeCompare(String(b.d.id)));
   $('inc-total').textContent=`(${ya.length})`;
   const visibles=ya.filter(({d,w})=>!q||incTextoBusqueda(`${w?.no_trab??''} ${w?fullName(w):d.trabajador_id} ${w?.contratista||''} ${d.motivo||''} ${d.tipo||''}`).includes(q));
   $('inc-exist').innerHTML=visibles.map(({d,w})=>`<article class="inc-aplicada" data-inc-id="${esc(d.id)}">
-    <b>#${esc(w?.no_trab??'—')}</b><div><b>${w?esc(fullName(w)):'Trabajador no disponible en la lista'}</b><div class="fhint">${esc(w?.contratista||'Sin contratista disponible')} · ${esc(d.tipo)} · ${esc(sem)}</div></div>
+    <b>#${esc(w?.no_trab??'—')}</b><div><b>${w?esc(fullName(w)):'Trabajador no disponible en la lista'}</b><div class="fhint">${esc(w?.contratista||'Sin contratista disponible')} · ${esc(d.tipo)} · ${d.ajustes_semana?._periodo_nomina?esc(d.ajustes_semana._periodo_nomina.desde+' a '+d.ajustes_semana._periodo_nomina.hasta):esc(sem)}</div></div>
     <div class="inc-importe"><b>$${money(d.monto)}</b> ${puedeEditarTrabajador()?`<button class="btn danger" onclick="incQuitar('${esc(d.id)}')">Quitar</button>`:''}</div>
     <div class="inc-detalle">${esc(d.motivo||d.tipo)}${!w?` · ID: ${esc(d.trabajador_id)}`:''}</div></article>`).join('')||`<div class="empty">${ya.length?'Ninguna incidencia aplicada coincide con la búsqueda.':'No hay faltas ni incidencias activas aplicadas en '+esc(sem)+'.'}</div>`;
 }
 async function incQuitar(id){
   if(!puedeEditarTrabajador()){toast('Tu usuario sólo puede consultar.','err');return;}
   const sem='S'+(Number($('inc-sem')?.value)||window._INCSEM),obraId=OBRA.id;
-  const d=DESC.find(x=>x.id===id&&x.activo&&!x.recurrente&&x.semana===sem&&x.obra_id===obraId);if(!d)return;
+  const d=DESC.find(x=>x.id===id&&x.activo&&!x.recurrente&&x.obra_id===obraId&&(x.semana===sem||(x.ajustes_semana?._periodo_nomina&&WORKERS.find(w=>w.id===x.trabajador_id)?.periodo_pago==='QUINCENAL'&&descuentoCorrespondePeriodo(x,WORKERS.find(w=>w.id===x.trabajador_id),sem))));if(!d)return;
   if(window._INCQUITANDO)return;
   if(!confirm('¿Desactivar esta incidencia de '+sem+'? Dejará de aplicarse; se conserva en el historial.'))return;
   window._INCQUITANDO=true;markWrite();
   try{
-    const {data,error}=await sb.from('descuentos').update({activo:false}).eq('id',id).eq('obra_id',obraId).eq('semana',sem).eq('recurrente',false).eq('activo',true).select('id');
+    const {data,error}=await sb.from('descuentos').update({activo:false}).eq('id',id).eq('obra_id',obraId).eq('semana',d.semana).eq('recurrente',false).eq('activo',true).select('id');
     if(error)throw error;if(data?.length!==1)throw new Error('No se confirmó la desactivación. Actualiza y verifica tus permisos.');
     d.activo=false;
     if(OBRA?.id===obraId){renderTable();if($('inc-exist'))incExistentes();}
@@ -510,22 +483,25 @@ async function saveIncidencias(){
   window._INC.forEach((w,i)=>{
     const m=parseFloat($('inc-m-'+i).value);
     const f=Number($('inc-f-'+i).value)||0,incap=Number($('inc-i-'+i).value)||0;
-    if(!Number.isInteger(f)||!Number.isInteger(incap)||f<0||incap<0||f+incap>perDe(w).dias){invalid=`Revisa los días de ${fullName(w)}.`;return;}
+    let contexto;try{contexto=contextoIncidenciaNomina(w,sem);}catch(e){invalid=e.message;return;}
+    if(!Number.isInteger(f)||!Number.isInteger(incap)||f<0||incap<0||f+incap>contexto.dias){invalid=`Revisa los días de ${fullName(w)}.`;return;}
     if(m>0){
+      if(periodoPago(w)==='QUINCENAL'&&f>0&&DESC.some(d=>d.trabajador_id===w.id&&d.activo&&!d.recurrente&&d.tipo==='FALTA'&&descuentoCorrespondePeriodo(d,w,sem))){invalid=`${fullName(w)} ya tiene faltas capturadas en esta quincena. Revisa o desactiva la incidencia anterior antes de guardar otra.`;return;}
+      let automatico=false;try{automatico=(f>0||incap>0)&&redondearCentavos(m)===descuentoFaltasNOI(w,f,Number($('inc-p-'+i)?.value)||0,undefined,incap,contexto).monto;}catch(e){invalid=e.message;return;}
       const raw=($('inc-x-'+i).value.trim()||'INCIDENCIA').toUpperCase();
       const mot=f>0&&!/(\d+(?:[.,]\d+)?)\s*FALTA/i.test(raw)?`${f} FALTAS · ${raw}`:raw;
       // El catálogo SQL de descuentos conserva FALTA/INCIDENCIA. La clase IMSS
       // queda explícita en el motivo y no se cuenta como falta para aguinaldo.
       inserts.push({trabajador_id:w.id,obra_id:w.obra_id,tipo:f>0?'FALTA':incap>0?'INCIDENCIA':raw.includes('FALTA')?'FALTA':'INCIDENCIA',
         motivo:mot,monto:m,recurrente:false,semana:sem,creado_por:USER.email,
-        ajustes_semana:{_calculo_incidencia:{version:1,modo:(f>0||incap>0)&&redondearCentavos(m)===descuentoFaltasNOI(w,f,Number($('inc-p-'+i)?.value)||0,undefined,incap).monto?'AUTOMATICO':'MANUAL',
-          faltas:f,incapacidad_imss:incap,premios:Number($('inc-p-'+i)?.value)||0,sd:Number(w.sd),sdi:Number(w.sdi),sueldo_registrado:Number(w.sal_semanal),dias:perDe(w).dias}},
+        ajustes_semana:{...(periodoPago(w)==='QUINCENAL'?{_periodo_nomina:{desde:contexto.desde,hasta:contexto.hasta}}:{}),_calculo_incidencia:{version:1,modo:automatico?'AUTOMATICO':'MANUAL',
+          faltas:f,incapacidad_imss:incap,premios:Number($('inc-p-'+i)?.value)||0,sd:Number(w.sd),sdi:Number(w.sdi),sueldo_registrado:Number(w.sal_semanal),dias:contexto.dias,motor_nomina:contexto.motor}},
         periodicidad:periodoPago(w)});   // deja constancia de con qué periodo se calculó
     }
   });
   if(invalid){toast(invalid,'err');return;}
   if(!inserts.length){toast('No capturaste ningún descuento (todas las filas en 0).','err');return;}
-  if(!confirm(`¿Guardar ${inserts.length} descuento(s) de la semana ${sem}? Se aplicarán en la proyección de esa semana.`))return;
+  if(!confirm(`¿Guardar ${inserts.length} descuento(s) de ${sem}? Se aplicarán a la semana o quincena registrada de cada trabajador.`))return;
   markWrite();
   const {error}=await sb.from('descuentos').insert(inserts);
   if(error){toast('Error: '+error.message,'err');return;}

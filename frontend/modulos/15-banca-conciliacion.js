@@ -604,7 +604,7 @@ function conciliaSemanaDatos(sem){
 }
 /* Neto que le tocaría esa semana (solo informativo; no toca el motor) */
 function nominaEsperada(w){
-  try{const n=nominaSemanal(w);return n&&n.neto!=null?n.neto:null;}catch(e){return null;}
+  try{const n=nominaPeriodo(w);return n&&n.neto!=null?n.neto:null;}catch(e){return null;}
 }
 async function ctrlSincronizarChequesCierre(sem){
   // Abrir una revisión ya no escribe ni regenera cheques. NOI los prepara atómicamente.

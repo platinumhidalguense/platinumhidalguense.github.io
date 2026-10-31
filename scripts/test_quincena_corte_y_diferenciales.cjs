@@ -1,7 +1,7 @@
 // Pruebas sintéticas: calendario compartido y unidad de previsión del periodo.
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),acorn=require('acorn');
 const fn=(p,names)=>{const s=fs.readFileSync(p,'utf8');return acorn.parse(s,{ecmaVersion:'latest'}).body.filter(n=>n.type==='FunctionDeclaration'&&names.includes(n.id.name)).map(n=>s.slice(n.start,n.end)).join('\n');};
-const box={esVip:()=>true,sueldoInternoDe:()=>({sueldo_imss:10000,sueldo_real:12000}),isoWeek:()=>1};vm.createContext(box);
+const box={esVip:()=>true,sueldoInternoDe:()=>({sueldo_imss:10000,sueldo_real:12000}),isoWeek:()=>1};vm.createContext(box);vm.runInContext(require('./soporte_motores_nomina.cjs').source(),box);
 vm.runInContext(fn('frontend/modulos/08-retenciones-incidencias.js',['periodoPago','retFecha','retISO','retSumarDias','rangoRetencion'])+fn('frontend/modulos/13-control-salarial-diferenciales.js',['difSugerido']),box);
 const q={id:'FICTICIO',periodo_pago:'QUINCENAL'},s={...q,periodo_pago:'SEMANAL'};
 for(const [ini,fin,desde,hasta]of[

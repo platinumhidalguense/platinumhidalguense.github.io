@@ -33,6 +33,8 @@ const box={console,Date,Number,Math,Error,Set,Map,Uint8Array,window:{},DESC:ds,D
  fetchAllRows:async()=>({data:[audit],error:null}),sb:{from:()=>({select(){return this;},in(){return this;},eq(){return this;},order(){return this;}})},
  asSinServicioSemana:()=>new Set(),asVigenteSemana:()=>true};
 vm.createContext(box);
+vm.runInContext(require('./soporte_motores_nomina.cjs').source(),box);
+box.periodoPago=w=>w.periodo_pago||'SEMANAL';
 vm.runInContext(['descuentoCorrespondePeriodo','adaptarRetencionPeriodo','retencionAplicadaPeriodo','retencionesDePeriodo'].map(n=>fn('function '+n+'(')).join('\n')+'\n'+fn('function proyFiniquitosSemana(')+'\n'+fn('function descuentosDe(')+'\n'+block('function proySelector(','function buildProyWS(')+'\n'+fn('async function exportProyeccion(')+'\n'+fn('async function exportProyContratista('),box);
 const model=box.proyModelo(workers.slice(0,2),[workers[2]],'S28',[audit]);
 assert.equal(model.costo,4600);assert.equal(model.neto,3950);

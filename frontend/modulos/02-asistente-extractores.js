@@ -177,12 +177,12 @@ const IA_CALCULOS={
         rechazados_sin_reponer:f.filter(x=>x.estado==='RECHAZADO').map(x=>fullName(x.w)),
         sin_ningun_pago:f.filter(x=>x.estado==='SIN PAGO').map(x=>fullName(x.w))};}},
   nomina_de_trabajador:{
-    desc:'Cálculo semanal exacto de UN trabajador (bruto, IMSS, ISR, subsidio, neto), con el motor calibrado contra NOI. Parámetros: nombre (texto), faltas (número, opcional).',
+    desc:'Estimación ordinaria del periodo de UN trabajador (bruto, IMSS, ISR, subsidio, neto), con su motor semanal o quincenal. No sustituye la conciliación ni el ajuste mensual. Parámetros: nombre (texto), faltas (número, opcional).',
     fn:(a)=>{const q=String(a&&a.nombre||'').toUpperCase();
       const w=(WORKERS||[]).find(x=>fullName(x).toUpperCase().includes(q));
       if(!w)return {error:'No encontré a "'+q+'" en la obra abierta.'};
-      const n=nominaSemanal(w,{faltas:Number(a&&a.faltas)||0});
-      return {trabajador:fullName(w),no_trab:w.no_trab,puesto:w.puesto,sd:w.sd,sdi:w.sdi,
+      const n=nominaPeriodo(w,{faltas:Number(a&&a.faltas)||0});
+      return {trabajador:fullName(w),no_trab:w.no_trab,puesto:w.puesto,sd:w.sd,sdi:w.sdi,periodo:n.periodo,motor:motorNominaDe(w),calculo:'ORDINARIO',
         faltas:n.faltas,bruto:_n2(n.bruto),imss_obrero:_n2(n.imssObr),isr:_n2(n.isr),
         subsidio:_n2(n.subsidio),neto:_n2(n.neto)};}},
   vacaciones_de_todos:{

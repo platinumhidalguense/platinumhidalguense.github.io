@@ -230,14 +230,14 @@ function proyModelo(act,fins,sem,audits=[]){
     const incidencias=suma(items.filter(x=>x.clase==='INCIDENCIA')),creditos=suma(items.filter(x=>x.clase==='CREDITO')),
       otras=suma(items.filter(x=>x.clase==='OTRA')),prevision=redondearCentavos(difDe(w.id,sem));
     const tieneCuenta=String(w.cuenta||'').toUpperCase()!=='CREAR'&&String(w.cuenta||'').replace(/\D/g,'').length>=6||String(w.clabe||'').replace(/\D/g,'').length>=10;
-    return {w,fin:false,sueldo,incidencias,creditos,otras,prevision,
+    return {w,fin:false,sueldo,incidencias,creditos,otras,prevision,motor_nomina:motorNominaDe(w),motor_config:motorNominaConfiguracion(w),
       costo:redondearCentavos(Math.max(0,sueldo-incidencias)),
       neto:redondearCentavos(Math.max(0,sueldo+prevision-incidencias-creditos-otras)),items,
       pago:!tieneCuenta?'POR DEFINIR':(w.forma_pago||'TRANSFERENCIA')==='TRANSFERENCIA'?'TRANSFERENCIA':'CHEQUE',sinCuenta:!tieneCuenta};
   });
   const bajas=fins.map(w=>({...proyFiniquito(w,audits),pago:finTransDe(w,sem)?'TRANSFERENCIA':'CHEQUE'}));
   const filas=[...normales,...bajas];
-  return {filas,items:filas.flatMap(x=>x.items),act,fins,sem,
+  return {filas,items:filas.flatMap(x=>x.items),act,fins,sem,motores_esquema:1,
     costo:redondearCentavos(filas.reduce((s,x)=>s+x.costo,0)),neto:redondearCentavos(filas.reduce((s,x)=>s+x.neto,0))};
 }
 /* Dispersión compacta: el motor sigue siendo la única fuente de los importes.

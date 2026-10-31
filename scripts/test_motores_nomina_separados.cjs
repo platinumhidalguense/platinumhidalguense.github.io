@@ -1,0 +1,31 @@
+// Escenarios sintéticos y huella financiera tomada antes de la separación.
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),acorn=require('acorn'),crypto=require('node:crypto');
+const code=[];for(const p of JSON.parse(fs.readFileSync('frontend/modulos.json')).modules){const s=fs.readFileSync(p,'utf8');for(const n of acorn.parse(s,{ecmaVersion:'latest'}).body)if(n.type==='FunctionDeclaration'||n.type==='VariableDeclaration'&&n.declarations.some(d=>['PERIODOS','ISR_M','F_SEM','SEMANA1','normSem'].includes(d.id.name)))code.push(s.slice(n.start,n.end));}
+const fiscal={anio:2026,sm:315.04,uma:117.31,umi:100.81,subsidio_pct:15.02,subsidio_tope_mensual:11492.66};
+const perfil={codigo:'FICTICIO_NOI',dias_fiscales:15.21,divisor_isr:365/12,factor_falta:7/6,criterio_limite_inferior:'NOI_SUPERIOR_ANTERIOR'};
+const box={CFGEMP:{fiscal,motores_nomina:{QUINCENAL:{por_obra:{FICTICIA:perfil}}}},window:{}};vm.createContext(box);vm.runInContext(code.join('\n'),box);
+const rows=[];for(const sd of [0,315.04,329,345.04,362,500,1000,3500])for(const k of [1,1.049315068,1.1])for(let dias=1;dias<=7;dias++)for(let faltas=0;faltas<=7;faltas++)for(const incapacidadIMSS of [0,1,7])for(const premios of [0,123.45])rows.push(box.nominaPeriodo({periodo_pago:'SEMANAL',sd,sdi:sd*k},{dias,faltas,incapacidadIMSS,premios}));
+assert.equal(rows.length,8064);assert.equal(crypto.createHash('sha256').update(JSON.stringify(rows)).digest('hex'),'8ce4b954e0758a6d4541e6b2fab9793dfc7a27f5665ac35c9ab305bc1fed0758','Cambió la salida financiera semanal validada en 2026-10-30.2');
+const incidencias=[];for(const sd of [0,315.04,329,345.04,362,500,1000,3500])for(const k of [1,1.049315068,1.1])for(let dias=1;dias<=7;dias++)for(let faltas=0;faltas<=7;faltas++)for(const incap of [0,1,7])for(const premios of [0,123.45])incidencias.push(box.descuentoFaltasNOI({periodo_pago:'SEMANAL',sd,sdi:sd*k,sal_semanal:6000},faltas,premios,dias,incap));
+assert.equal(crypto.createHash('sha256').update(JSON.stringify(incidencias)).digest('hex'),'87a8924b75950072d725187ece73e22c998b00e25ad37ac6ae198360cc9ccb43','Cambió el descuento semanal previo a la separación');
+const w={id:'FICTICIO',obra_id:'FICTICIA',no_trab:1,sd:316,sdi:333.76,periodo_pago:'QUINCENAL'};
+assert.equal(box.motorNominaDe(w),'QUINCENAL_V1');assert.equal(box.motorNominaDe({...w,periodo_pago:'SEMANAL'}),'SEMANAL_V1');
+assert.throws(()=>box.nominaSemanal(w),/sólo admite/);assert.throws(()=>box.nominaQuincenal({...w,periodo_pago:'SEMANAL'}),/sólo admite/);
+assert.throws(()=>box.nominaSemanal({...w,periodo_pago:'SEMANAL'},{dias:15}),/siete/);
+assert.throws(()=>box.nominaQuincenal({...w,obra_id:'SIN_CONFIG'}),/Falta configurar/);
+assert.throws(()=>box.nominaQuincenal({...w,sdi:0}),/documentados/);
+const n=box.nominaPeriodo(w);assert.equal(n.bruto,4806.36);assert.equal(n.imssObr,120.57);assert.equal(n.isr,75.57);assert.equal(n.neto,4610.22);assert.equal(n.diasFiscales,15.21);
+const fuente={trabajador_id:w.id,sd:316,desde:'2026-10-16',hasta:'2026-10-31',gravable_acumulado:4806.36,gravable_actual:4437.69,impuesto_local:0,isr_acumulado:75.57,isr_ordinario:75.57,dias_subsidio:30.4,criterio_limite_inferior:'NOI_SUPERIOR_ANTERIOR'};
+const falta=box.nominaQuincenal(w,{dias:16,faltas:1,fuenteISR:fuente,desde:fuente.desde,hasta:fuente.hasta});assert.equal(falta.bruto,4437.69);assert.equal(falta.imssObr,111.32);assert.equal(falta.isr,35.55);assert.equal(falta.neto,4290.82);
+const incidenciaQ2=box.descuentoFaltasNOI(w,1,0,undefined,0,{desde:fuente.desde,hasta:fuente.hasta,dias:16});assert.equal(incidenciaQ2.monto,359.42);assert.equal(incidenciaQ2.dIsr,0);assert.equal(incidenciaQ2.isr_mensual_separado,true);
+assert.equal(box.descuentoFaltasNOI(w,1,0,undefined,0,{desde:'2026-10-01',hasta:'2026-10-15',dias:15}).monto,319.30);
+assert.throws(()=>box.nominaQuincenal(w,{fuenteISR:{...fuente,trabajador_id:'OTRO'}}),/no corresponde/);
+assert.throws(()=>box.nominaQuincenal(w,{dias:16,faltas:1,fuenteISR:fuente,desde:'2026-11-16'}),/otra quincena/);
+const incap=box.nominaQuincenal(w,{dias:16,incapacidadIMSS:16});assert.equal(incap.neto,0);assert.equal(incap.isr,0);assert.equal(incap.imssObr,0);
+assert.equal(box.nominaQuincenal(w,{desde:'2026-10-16'}).requiere_ajuste_mensual,true);
+const semanal={...w,periodo_pago:'SEMANAL'},semAntes=JSON.stringify(box.nominaPeriodo(semanal));box.CFGEMP.motores_nomina.QUINCENAL.por_obra.FICTICIA={};assert.equal(JSON.stringify(box.nominaPeriodo(semanal)),semAntes);box.CFGEMP.motores_nomina.QUINCENAL.por_obra.FICTICIA=perfil;
+box.semRange=()=>['2026-10-26','2026-11-01'];assert.deepEqual([...box.rangoRetencion(w,'S31')],['2026-10-16','2026-10-31']);assert.deepEqual([...box.rangoRetencion(semanal,'S31')],['2026-10-26','2026-11-01']);
+const credito={tipo:'FONACOT',fonacot_prorrateo:'DIAS_CALENDARIO',cuota_mensual:1501.92};assert.equal(box.montoDescuento(credito,box.perDe(semanal),'S31',semanal),340.76);assert.equal(box.montoDescuento(credito,box.perDe(w),'S31',w),775.18);
+const semFile=fs.readFileSync('frontend/modulos/52-motor-nomina-semanal.js','utf8');assert(!/nominaQuincenal\(|isrQCalcular\(|perDe\(/.test(semFile));
+const qFile=fs.readFileSync('frontend/modulos/53-motor-nomina-quincenal.js','utf8');assert(!/nominaSemanal\(|F_SEM|Math\.floor\(isrNetoRaw/.test(qFile));
+console.log('PASS dos motores independientes: 8,064 nóminas y 8,064 descuentos semanales idénticos; quincena NOI, falta sin doble ISR, maternidad, ajuste mensual, asignación y créditos compartidos.');

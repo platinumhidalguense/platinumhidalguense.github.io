@@ -3,9 +3,9 @@ const names=['PERIODOS','periodoPago','perDe','retFecha','retISO','retSumarDias'
 let src='';for(const f of ['05-alta-edicion','08-retenciones-incidencias','27-fiscal-costos']){const s=fs.readFileSync('frontend/modulos/'+f+'.js','utf8');for(const n of acorn.parse(s,{ecmaVersion:'latest'}).body)
  if(n.type==='FunctionDeclaration'&&names.includes(n.id.name)||n.type==='VariableDeclaration'&&n.declarations.some(d=>names.includes(d.id.name)))src+=s.slice(n.start,n.end)+'\n';}
 const el={'f-puesto':{value:'OFICIAL'},'f-sd':{value:''},'f-sdi':{value:''},'f-sal_semanal':{value:''},'h-puesto':{},'worker-form-body':{dataset:{}}};
-let start='2026-10-26',end='2026-11-01';const b={Date,$:k=>el[k],CFGEMP:{tabulador:{OFICIAL:362}},WORKERS:[],semanalNeto:()=>({neto:2400.26,bruto:2534,isr:69.81,imss:63.93}),money:String,esc:String,
+let start='2026-10-26',end='2026-11-01';const b={Date,$:k=>el[k],CFGEMP:{tabulador:{OFICIAL:362}},WORKERS:[],trabajadorNominaFormulario:()=>({periodo_pago:'SEMANAL'}),sueldoNetoPeriodo:()=>({periodo:'SEMANAL',neto:2400.26,bruto:2534,isr:69.81,imss:63.93}),money:String,esc:String,
  redondearCentavos:n=>Math.round((n+Number.EPSILON)*100)/100,semRange:()=>[start,end],FISC:()=>({seg:15,umi:100.81}),today:()=>start};
-vm.createContext(b);vm.runInContext(src,b);assert.equal(b.sdiInicialSugerido(362),'379.8521');assert.equal(b.sdiInicialSugerido(329),'345.2247');
+vm.createContext(b);vm.runInContext(require('./soporte_motores_nomina.cjs').source(),b);vm.runInContext(src,b);assert.equal(b.sdiInicialSugerido(362),'379.8521');assert.equal(b.sdiInicialSugerido(329),'345.2247');
 b.tabAssist();assert.equal(el['f-sdi'].value,'379.8521');
 el['worker-form-body'].dataset.workerId='w';el['f-sdi'].value='400.408123';b.WORKERS=[{id:'w',sd:362}];b.tabAssist();assert.equal(el['f-sdi'].value,'400.408123');
 const w={periodo_pago:'SEMANAL'},credit={tipo:'FONACOT',fonacot_prorrateo:'DIAS_CALENDARIO',cuota_mensual:1501.92};

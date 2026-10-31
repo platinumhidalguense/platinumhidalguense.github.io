@@ -11,13 +11,15 @@ const llamadas=[];const box={window:{_CTRLIMSS:[c]},WORKERS:[w],DESC:[],periodoP
  redondearCentavos:v=>Math.round(v*100)/100,descuentoFaltasNOI:(...args)=>{llamadas.push(args);return{monto:args[4]*200};},
  perDe:w=>({dias:w.periodo_pago==='QUINCENAL'?15:7,cve:w.periodo_pago}),descuentoVigenteSemana:()=>true,montoDescuento:d=>d.monto,montoDobleDescuento:d=>d.monto*2,retencionDiasExtra:()=>0};
 vm.createContext(box);
+vm.runInContext(require('./soporte_motores_nomina.cjs').source(),box);
+vm.runInContext(funciones('frontend/modulos/08-retenciones-incidencias.js',['retFecha','retISO','retSumarDias','rangoRetencion']),box);
 vm.runInContext(funciones('frontend/modulos/36-imss-sin-servicio-st7.js',['ctrlFechasIMSS','ctrlImporteIMSSPeriodo','ctrlQuincenaIMSSAplicada'])+'\n'+funciones('frontend/modulos/08-retenciones-incidencias.js',['retencionEvaluada','descuentoCorrespondePeriodo','adaptarRetencionPeriodo','retencionAplicadaPeriodo','retencionesDePeriodo','descuentosDe']),box);
 assert.equal(box.ctrlImporteIMSSPeriodo(c,28),7000);assert.equal(llamadas.length,0);
 assert.equal(box.ctrlImporteIMSSPeriodo(c,30),7000);assert.equal(llamadas.length,0);
-assert.equal(box.ctrlImporteIMSSPeriodo(c,31),200);assert.equal(llamadas.at(-1)[4],1);
-assert.equal(box.ctrlImporteIMSSPeriodo(c,32),200);assert.equal(box.ctrlImporteIMSSPeriodo(c,34),0);
+assert.equal(box.ctrlImporteIMSSPeriodo(c,31),7000);assert.equal(llamadas.length,0);
+assert.equal(box.ctrlImporteIMSSPeriodo(c,32),200);assert.equal(llamadas.at(-1)[4],1);assert.equal(box.ctrlImporteIMSSPeriodo(c,34),0);
 const d={id:'periodo',trabajador_id:w.id,activo:true,recurrente:false,semana:'S31',tipo:'INCIDENCIA',monto:200,ajustes_semana:{_periodo_nomina:{desde:'2026-11-01',hasta:'2026-11-15'}}};
-box.DESC=[d];const originales=box.DESC;for(const s of ['S31','S32','S33'])assert.equal(box.retencionesDePeriodo(w,s).total,200);assert.equal(box.retencionesDePeriodo(w,'S30').total,0);assert.equal(box.retencionesDePeriodo(w,'S34').total,0);assert.strictEqual(box.DESC,originales);assert.equal(d.semana,'S31');
+box.DESC=[d];const originales=box.DESC;for(const s of ['S32','S33'])assert.equal(box.retencionesDePeriodo(w,s).total,200);assert.equal(box.retencionesDePeriodo(w,'S31').total,0);assert.equal(box.retencionesDePeriodo(w,'S30').total,0);assert.equal(box.retencionesDePeriodo(w,'S34').total,0);assert.strictEqual(box.DESC,originales);assert.equal(d.semana,'S31');
 const credito={...d,id:'credito',recurrente:true,tipo:'FONACOT',monto:1000,ajustes_semana:{_periodos:[{desde:'2026-10-01',hasta:'2026-10-15',importe_base:900}]}};
 assert.equal(box.retencionAplicadaPeriodo(credito,w,'S28',box.perDe(w)).monto,900);assert.equal(box.retencionAplicadaPeriodo(credito,w,'S30',box.perDe(w)).monto,1000);assert.equal(credito.ajustes_semana.S28,undefined);
 const copia=JSON.parse(JSON.stringify(c));copia.control_casos_imss_semanas=copia.control_casos_imss_semanas.filter(s=>s.semana!==30);box.window._CTRLIMSS=[copia];assert.throws(()=>box.ctrlImporteIMSSPeriodo(copia,30),/Completa el calendario/);

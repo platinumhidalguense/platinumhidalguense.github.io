@@ -53,7 +53,7 @@ function openForm(id){
         ${w?fld('fecha_reingreso','Fecha de reingreso',w.fecha_reingreso||'',{type:'date',hint:'Solo si volvió a entrar tras una baja. La antigüedad se cuenta desde aquí; déjala vacía para quitarla.'}):''}
         ${(w&&w.estatus!=='BAJA'&&w.fecha_baja)?fld('fecha_baja','Fecha de baja anterior',w.fecha_baja||'',{type:'date',hint:'De una baja previa (fue reactivado). Déjala vacía para eliminarla.'}):''}
         ${fld('semana_ingreso','Semana ingreso',w?w.semana_ingreso:'NOMINA '+isoWeek())}
-        <div><label>Periodo de pago</label><select id="f-periodo_pago">${['SEMANAL','QUINCENAL'].map(p=>`<option ${((w&&w.periodo_pago)||'SEMANAL')===p?'selected':''}>${p}</option>`).join('')}</select></div>
+        <div><label>Periodo de pago</label><select id="f-periodo_pago" onchange="nominaFormularioPeriodo()">${['SEMANAL','QUINCENAL'].map(p=>`<option ${((w&&w.periodo_pago)||'SEMANAL')===p?'selected':''}>${p}</option>`).join('')}</select></div>
         ${w&&w.estatus==='BAJA'?`
         <div class="c4" style="grid-column:span 4;background:var(--red-bg);border-radius:8px;padding:10px 12px">
           <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:12px">
@@ -275,9 +275,9 @@ function tabAssist(){
   const actual=Number($('f-sdi').value),sdAnterior=Number(WORKERS.find(w=>w.id===versionOriginal)?.sd);
   // Una sugerencia del tabulador no sustituye el SDI documentado al editar.
   if(!versionOriginal||!actual||Number(sd)!==sdAnterior)$('f-sdi').value=sdiInicialSugerido(sd);
-  const nn=semanalNeto(sd,$('f-sdi').value);
+  let nn;try{nn=sueldoNetoPeriodo(sd,$('f-sdi').value,trabajadorNominaFormulario());}catch(e){$('h-puesto').textContent=e.message;return;}
   if(!$('f-sal_semanal').value)$('f-sal_semanal').value=nn.neto.toFixed(2);
-  $('h-puesto').innerHTML=`<b>Tabulador aplicado:</b> SD $${sd} · SDI $${esc($('f-sdi').value)} · <b>semanal NETO $${money(nn.neto)}</b> = bruto $${money(nn.bruto)} − ISR $${money(nn.isr)}${nn.sub?` (ya con subsidio $${money(nn.sub)})`:''} − IMSS $${money(nn.imss)}. El SDI nuevo es una estimación de primer año (15 días de aguinaldo, 12 de vacaciones y prima 25%); valida antigüedad, prestaciones y valor de NOI.`;
+  $('h-puesto').innerHTML=`<b>Tabulador aplicado:</b> SD $${sd} · SDI $${esc($('f-sdi').value)} · <b>${nn.periodo.toLowerCase()} NETO estimado $${money(nn.neto)}</b> = bruto $${money(nn.bruto)} − ISR $${money(nn.isr)}${nn.sub?` (ya con subsidio $${money(nn.sub)})`:''} − IMSS $${money(nn.imss)}. El SDI nuevo es una estimación de primer año (15 días de aguinaldo, 12 de vacaciones y prima 25%); valida antigüedad, prestaciones y valor de NOI.`;
 }
 function cuentaModo(){
   const crear=$('f-cuenta-modo').value==='CREAR';
