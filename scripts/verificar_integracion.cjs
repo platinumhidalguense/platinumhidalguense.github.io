@@ -15,6 +15,7 @@ suites.push('test_pagos_xml_ui');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_pagos_consulta_ruta_autenticada.sql')))suites.push('test_pagos_ruta_autenticada_pg');
 if(chequesPrivate)suites.push('test_cheques_estado_pg');
 else console.log('ALCANCE PÚBLICO CHEQUES: las 12 comprobaciones PostgreSQL del estado físico requieren la migración privada; no se cuentan como ejecutadas.');
+if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cheques_entrega_fisica_sin_reexpedicion.sql')))suites.push('test_entrega_cheque_sin_reexpedir_pg');
 suites.push('test_cheques_estado_ui','test_rendimiento_centros','test_revision_pagos_seleccion_ui','test_visor_pagos_ui','test_recibos_ia_ui','test_actualizacion_continua_ui','test_actividad_ui');
 const rendimientoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_rendimiento_lectura_centros.sql'));
 if(rendimientoPrivate)suites.push('test_rendimiento_rls_pg');
