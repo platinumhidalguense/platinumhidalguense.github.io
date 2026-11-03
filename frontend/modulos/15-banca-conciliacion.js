@@ -558,14 +558,17 @@ function ctrlEsperadosPagoSemana(sem){
       const w=WORKERS.find(z=>z.id===x.trabajador_id)||WORKERS.find(z=>Number(z.no_trab)===Number(x.numero));if(!w)return null;
       const cn=(CTRLNOI||[]).find(z=>z.cierre_id===c.id&&z.trabajador_id===w.id&&z.tipo_calculo===(x.tipo||'NOMINA'));
       const finTrans=(x.tipo==='FINIQUITO')?finTransDe(w,n):null;
-      return {w,tipo:x.tipo||'NOMINA',metodo:finTrans?'TRANSFERENCIA':((cn&&cn.metodo_pago)||x.metodo_pago||metodoPagoPredeterminado(w,x.tipo)),monto:(cn&&cn.monto_noi!=null)?Number(cn.monto_noi):Number(x.monto),cierre:c,finTrans};
+      // El global de nómina cubre el neto registrado. La previsión es un
+      // concepto separado, igual que en la conciliación NOI del cierre.
+      const monto=(cn&&cn.monto_noi!=null)?Number(cn.monto_noi):redondearCentavos(Number(x.monto)-(x.tipo==='FINIQUITO'?0:Number(x.prevision_social||0)));
+      return {w,tipo:x.tipo||'NOMINA',metodo:finTrans?'TRANSFERENCIA':((cn&&cn.metodo_pago)||x.metodo_pago||metodoPagoPredeterminado(w,x.tipo)),monto,cierre:c,finTrans};
     }).filter(Boolean);
   }
   const [d1,d2]=_semRango(n),sinServicio=asSinServicioSemana(d1);
   const normales=WORKERS.filter(w=>String(w.periodo_pago||'SEMANAL')!=='QUINCENAL'
     &&asVigenteSemana(w,d1,d2)&&!sinServicio.has(w.id)
     &&(w.estatus==='ACTIVO'||(w.estatus==='BAJA'&&w.fecha_baja>d2)))
-    .map(w=>({w,tipo:'NOMINA',metodo:metodoPagoPredeterminado(w,'NOMINA'),monto:nominaEsperada(w),cierre:null}));
+    .map(w=>({w,tipo:'NOMINA',metodo:metodoPagoPredeterminado(w,'NOMINA'),monto:nominaEsperada(w,sem),cierre:null}));
   const fin=WORKERS.filter(w=>w.estatus==='BAJA'&&w.fecha_baja&&w.fecha_baja>=d1&&w.fecha_baja<=d2&&Number(w.monto_finiquito)>0&&!sinServicio.has(w.id))
     .map(w=>{const finTrans=finTransDe(w,n);return {w,tipo:'FINIQUITO',metodo:finTrans?'TRANSFERENCIA':'CHEQUE',monto:Number(w.monto_finiquito),cierre:null,finTrans};});
   return normales.concat(fin);
@@ -584,7 +587,7 @@ function conciliaSemanaDatos(sem){
     const entregado=chq.filter(c=>c.estatus==='ENTREGADO'),expedido=chq.filter(c=>c.estatus==='EXPEDIDO'),pendiente=chq.filter(c=>c.estatus==='PENDIENTE');
     let estado='OK', motivo='';
     if(e.tipo!=='FINIQUITO'&&exito.length&&(expedido.length||entregado.length)){estado='MÉTODO INCORRECTO';motivo='Hay transferencia y cheque expedido/entregado. Revisar posible pago doble.';}
-    else if(e.tipo!=='FINIQUITO'&&exito.length&&e.monto!=null&&Math.round(exito.reduce((s,p)=>s+Number(p.importe||0),0)*100)!==Math.round(Number(e.monto)*100)){estado='MÉTODO INCORRECTO';motivo='Transferencia registrada con diferencia o pago parcial; conciliar saldo, no crear cheque completo.';}
+    else if(e.tipo!=='FINIQUITO'&&exito.length&&e.monto!=null&&Math.round(exito.reduce((s,p)=>s+Number(p.importe||0),0)*100)!==Math.round(Number(e.monto)*100)){estado='DIFERENCIA DE IMPORTE';motivo='Transferencia registrada con diferencia o pago parcial; conciliar saldo, no crear cheque completo.';}
     else if(e.tipo!=='FINIQUITO'&&exito.length){estado='OK';motivo='transferencia registrada; un pendiente no expedido no es otro pago';}
     else if(e.metodo==='CHEQUE'&&entregado.length){estado='CHEQUE ENTREGADO';motivo='cheque entregado'+(entregado[0].num_cheque?' #'+entregado[0].num_cheque:'');}
     else if(e.metodo==='CHEQUE'&&expedido.length){estado='CHEQUE EXPEDIDO';motivo='cheque expedido'+(expedido[0].num_cheque?' #'+expedido[0].num_cheque:'')+' · cubierto, pendiente de entrega física';}
@@ -599,12 +602,19 @@ function conciliaSemanaDatos(sem){
     }
     else if(rech.length){ estado='RECHAZADO'; motivo='la transferencia rebotó y NO se ha repuesto'; }
     else { estado='SIN PAGO'; motivo='no aparece ni en el pago global ni en pagos individuales ni en cheques'; }
-    return {w,estado,motivo,exito,rech,chq,esperado:e.monto!=null?e.monto:nominaEsperada(w),tipo:e.tipo,metodo:e.metodo};
+    return {w,estado,motivo,exito,rech,chq,esperado:e.monto!=null?e.monto:nominaEsperada(w,sem),tipo:e.tipo,metodo:e.metodo};
   });
 }
-/* Neto que le tocaría esa semana (solo informativo; no toca el motor) */
-function nominaEsperada(w){
-  try{const n=nominaPeriodo(w);return n&&n.neto!=null?n.neto:null;}catch(e){return null;}
+/* Misma base registrada y servicio de retenciones que la proyección.
+   No recalcular impuestos ni usar la semana actual al consultar el histórico.
+   Un error de fuente debe detener la revisión, nunca certificar el pago. */
+function nominaEsperada(w,sem){
+  const n=Number(normSem(sem)),sueldo=Number(w.sal_semanal);
+  if(!Number.isInteger(n)||n<1||w.sal_semanal==null||String(w.sal_semanal).trim()===''||!Number.isFinite(sueldo)||sueldo<0)
+    throw Error(`No se pudo verificar el sueldo registrado de #${w.no_trab??'—'} para ${sem}.`);
+  const retenciones=Number(retencionesDePeriodo(w,'S'+n).total);
+  if(!Number.isFinite(retenciones)||retenciones<0)throw Error(`Retenciones inválidas de #${w.no_trab??'—'} para S${n}.`);
+  return redondearCentavos(Math.max(0,sueldo-retenciones));
 }
 async function ctrlSincronizarChequesCierre(sem){
   // Abrir una revisión ya no escribe ni regenera cheques. NOI los prepara atómicamente.
@@ -614,23 +624,25 @@ async function conciliarSemana(sem){
   const ns=normSem(sem); if(!ns){toast('Indica la semana.','err');return;}
   const S='S'+ns;
   const creados=await ctrlSincronizarChequesCierre(S);if(creados){await loadObraData(OBRA.id);toast(`${creados} cheque(s) pendiente(s) generado(s) desde el cierre.`,'ok');}
-  const filas=conciliaSemanaDatos(S);
+  let filas;
+  try{filas=conciliaSemanaDatos(S);}catch(e){window._CONC=null;toast('No se pudo verificar la revisión: '+e.message,'err');return;}
   const sinPago=filas.filter(f=>f.estado==='SIN PAGO');
   const rech   =filas.filter(f=>f.estado==='RECHAZADO');
   const chqEnt =filas.filter(f=>f.estado==='CHEQUE ENTREGADO');
   const chqExp =filas.filter(f=>f.estado==='CHEQUE EXPEDIDO');
   const chqPend=filas.filter(f=>f.estado==='CHEQUE PENDIENTE');
   const metodo =filas.filter(f=>f.estado==='MÉTODO INCORRECTO');
+  const importe=filas.filter(f=>f.estado==='DIFERENCIA DE IMPORTE');
   const porConciliar=filas.filter(f=>f.estado==='TRANSFERENCIA POR CONCILIAR');
   const ok     =filas.filter(f=>f.estado==='OK');
-  const acciones=[...sinPago,...rech,...chqPend,...metodo,...porConciliar];window._CONC={S,filas,acciones};
+  const acciones=[...sinPago,...rech,...chqPend,...metodo,...importe,...porConciliar];window._CONC={S,filas,acciones};
   const urgente=acciones.length;
   modal(`
     <div class="m-head"><h2>${urgente?'🚨':'✅'} Revisión de la semana ${esc(S)} · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       ${urgente?`<div style="background:var(--red-bg);border:1px solid var(--red);border-radius:10px;padding:12px 14px;margin-bottom:12px">
           <b style="color:var(--red);font-size:14px">🚨 ALERTA: ${urgente} caso(s) requieren revisión</b>
-          <div style="font-size:12.5px;color:var(--txt);margin-top:4px;line-height:1.6">Aquí solo aparecen quienes no tienen pago, tienen una transferencia rechazada, un cheque todavía sin expedir o una discrepancia de método. <b>Los cheques EXPEDIDOS ya cuentan como cubiertos</b> y pasan al control de entrega física.</div>
+          <div style="font-size:12.5px;color:var(--txt);margin-top:4px;line-height:1.6">Aquí solo aparecen quienes no tienen pago, tienen una transferencia rechazada, un cheque todavía sin expedir o una discrepancia de importe o método. <b>Los cheques EXPEDIDOS ya cuentan como cubiertos</b> y pasan al control de entrega física.</div>
         </div>`
         :`<div style="background:var(--green-bg);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:13px"><b style="color:var(--green)">✅ Todos cubiertos.</b> Los ${filas.length} trabajadores activos de la semana ${esc(S)} tienen pago o cheque registrado.</div>`}
       <div class="stats">
@@ -661,11 +673,11 @@ function concFila(f,i){
   return `<div class="hist-item" style="border-color:var(--red);background:var(--red-bg)">
     <div class="hist-top">
       <span class="who">#${w.no_trab??'—'} ${esc(fullName(w))}</span>
-      <span style="font-size:12px;color:var(--mut)">${esc(w.contratista||'')} · le tocaba ${esp}</span>
+      <span style="font-size:12px;color:var(--mut)">${esc(w.contratista||'')} · neto registrado esperado ${esp}</span>
       <span class="badge ${f.estado==='RECHAZADO'?'PENDIENTE':'BAJA'}" style="margin-left:auto">${f.estado}</span>
     </div>
     <div style="font-size:12.5px;color:var(--txt);margin-bottom:8px">${esc(f.motivo)}</div>
-    ${f.estado==='CHEQUE PENDIENTE'?`<div><button class="btn dark" onclick="closeModal();openChequeForm('${f.chq[0].id}')">🧾 Capturar número, consecutivo y estatus</button></div>`:f.estado==='MÉTODO INCORRECTO'?`<div><button class="btn" onclick="closeModal();openControlPagos()">🔁 Revisar medios de pago</button></div>`:`<div style="font-size:11.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">¿Qué pasó con este pago?</div>
+    ${f.estado==='CHEQUE PENDIENTE'?`<div><button class="btn dark" onclick="closeModal();openChequeForm('${f.chq[0].id}')">🧾 Capturar número, consecutivo y estatus</button></div>`:['MÉTODO INCORRECTO','DIFERENCIA DE IMPORTE'].includes(f.estado)?`<div><button class="btn" onclick="closeModal();openControlPagos()">🔁 Revisar medios de pago</button></div>`:`<div style="font-size:11.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">¿Qué pasó con este pago?</div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       <button class="btn" onclick="concMotivo(${i},'REINTENTO')">🔄 Se rechazó y se reintentó</button>
       <button class="btn" onclick="concMotivo(${i},'OTRO_BANCO')">🏦 Se pagó en otro banco</button>
