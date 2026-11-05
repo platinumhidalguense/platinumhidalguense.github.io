@@ -15,6 +15,7 @@ const EMPRESAS=Object.freeze({
 let sb=null, USER=null, OBRAS=[], OBRA=null, EMPRESA_ACTIVA='PLATINUM', WORKERS=[], CHEQUES=[], DESC=[], DOCSX=[], VAC=[], ACTAS=[], NOM=[], PAGOS=[], PRIMAS=[], CUADS=[], CIERRES=[], CTRLNOI=[], ALTAS_CORTAS=[], FINTRANS=[], VIEW='trab';
 let PUEDE_EDITAR_TRABAJADORES=false; // solo presentación; la autorización real sigue en RLS
 let PUEDE_ELIMINAR_CHEQUES=false; // permiso puntual; no convierte al usuario en administrador
+let SOLO_CONTRATOS=false;
 /* Script 59: diferenciales de proyección, bloques de cheques y control interno
    salarial. SUELDOSINT solo trae filas si el usuario es VIP — lo decide la RLS
    de la base, no la app. */
@@ -68,14 +69,18 @@ function esAdmin(){return !!(USER&&USER.email&&USER.email.toLowerCase()===adminE
    que de verdad protege los datos es la RLS. */
 function esVip(){return ES_VIP||esAdmin();}
 async function cargaPermisos(){
+  SOLO_CONTRATOS=USER?.role==='contratos_lectura';
+  ES_VIP=false;
   PUEDE_EDITAR_TRABAJADORES=false;
   PUEDE_ELIMINAR_CHEQUES=false;
   try{
-    const {data}=await sb.from('app_usuarios').select('full_access,activo,rol,puede_escribir').eq('user_id',USER.id).limit(1);
+    const {data}=await sb.from('app_usuarios').select('full_access,activo,rol,puede_escribir,solo_contratos').eq('user_id',USER.id).limit(1);
     const u=(data||[])[0];
-    ES_VIP=!!(u&&u.full_access&&u.activo!==false);
-    PUEDE_EDITAR_TRABAJADORES=!!(u&&u.activo!==false&&u.puede_escribir);
+    SOLO_CONTRATOS=SOLO_CONTRATOS||!!(u&&u.activo!==false&&u.solo_contratos);
+    ES_VIP=!!(u&&u.full_access&&u.activo!==false&&!SOLO_CONTRATOS);
+    PUEDE_EDITAR_TRABAJADORES=!!(u&&u.activo!==false&&u.puede_escribir&&!SOLO_CONTRATOS);
   }catch(e){ ES_VIP=false;PUEDE_EDITAR_TRABAJADORES=false; }   // sin script 51 corrido: solo el administrador
+  if(SOLO_CONTRATOS)return;
   try{
     const {data,error}=await sb.rpc('control_puede_eliminar_cheques');
     PUEDE_ELIMINAR_CHEQUES=!error&&data===true;

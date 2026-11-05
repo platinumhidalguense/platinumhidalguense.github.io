@@ -1,4 +1,7 @@
 {
+  "cargaPermisos": "Detecta el perfil contractual y su rol Auth dedicado antes de consultar permisos financieros; mantiene los permisos anteriores de usuarios normales. El servidor restringe campos y operaciones; pruebas reales de sesión y RLS aislada.",
+  "enterApp": "Dirige únicamente el rol contractual a su portal y evita cargar padrones completos, nóminas, configuración y tiempo real general; conserva el arranque normal para los demás perfiles.",
+  "generarContrato": "Reutiliza el contrato oficial en un modo puro que devuelve HTML sin guardar configuración ni datos del trabajador. Conserva el camino de edición autorizado; consulta legal usa RPC y rol exclusivos. Pruebas de contrato individual/lote, escape HTML y cero escrituras.",
   "parseReciboText": "Reutiliza el lector fiscal compartido y su clasificación por conceptos; aguinaldo o prima aislados no se convierten en finiquito. Conserva detección de semana y deja visible una lectura o concepto incompletos. Pruebas de clasificación y recibos sintéticos.",
   "difSugerido": "Conserva la unidad semanal o quincenal del sueldo; elimina el prorrateo indebido por siete días. Pruebas sintéticas de ambos periodos.",
   "dfPinta": "Identifica sueldo del periodo y origen de la sugerencia sin presentar la quincena como importe semanal.",

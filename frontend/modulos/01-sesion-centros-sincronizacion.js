@@ -35,6 +35,7 @@ async function enterApp(){
   $('scr-app').classList.remove('hide');
   $('user-chip').innerHTML=`<b>${esc(String(USER.email||'').split('@')[0])}</b>${esc(USER.email)}`;
   await cargaPermisos();          // define si es VIP (control interno salarial)
+  if(SOLO_CONTRATOS){await window.PLATINUM_CONTRATOS_CONSULTA.abrir();return;}
   pintarLogo();renderCrumbs();initSidebar();iaMostrarFab();
   const {data,error}=await sb.from('obras').select('*').order('orden');
   if(error){toast('Error al cargar obras: '+error.message,'err');return;}
@@ -451,7 +452,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-11-05.1';
+const APP_VERSION='2026-11-05.2';
 window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){

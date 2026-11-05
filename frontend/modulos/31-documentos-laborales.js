@@ -222,27 +222,31 @@ function ctEmpChange(){
   const e=CFGEMP['empresa_'+$('ct-emp').value]||{razon:'',rfc:'',representante:'',domicilio:''};
   $('ct-razon').value=e.razon||'';$('ct-rfc').value=e.rfc||'';$('ct-rep').value=e.representante||'';$('ct-dom').value=e.domicilio||'';
 }
-async function generarContrato(id){
-  const w=WORKERS.find(x=>x.id===id);
+async function generarContrato(id,opciones={}){
+  const soloLectura=opciones.soloLectura===true||SOLO_CONTRATOS||!puedeEditarTrabajador();
+  const valor=k=>String(opciones.datos?opciones.datos[k]??'':$('ct-'+k)?.value??'');
+  const w=opciones.trabajador||WORKERS.find(x=>x.id===id),obraContrato=opciones.obra||OBRA;
   if(!w){toast('No se encontró al trabajador (recarga la página).','err');return;}
   // FUSIONA con la config guardada (empresa_JIRE / empresa_PLATINUM) para NO perder
   // los datos legales (instrumento notarial, notario, folio mercantil, carácter del
   // representante, etc.) que solo viven en la config y no están en el formulario.
-  const clave='empresa_'+$('ct-emp').value;
-  const cfgEmp=CFGEMP[clave]||{};
+  const clave='empresa_'+valor('emp');
+  const cfgEmp=opciones.empresa||CFGEMP[clave]||{};
   const emp=Object.assign({},cfgEmp,{
-    razon:$('ct-razon').value.trim().toUpperCase(),rfc:$('ct-rfc').value.trim().toUpperCase(),
-    representante:$('ct-rep').value.trim().toUpperCase(),domicilio:$('ct-dom').value.trim().toUpperCase()});
-  const tipo=$('ct-tipo').value, fecha=$('ct-fecha').value||today(), fin=$('ct-fin').value;
+    razon:valor('razon').trim().toUpperCase(),rfc:valor('rfc').trim().toUpperCase(),
+    representante:valor('rep').trim().toUpperCase(),domicilio:valor('dom').trim().toUpperCase()});
+  const tipo=valor('tipo'), fecha=valor('fecha')||today(), fin=valor('fin');
+  if(!soloLectura){
   CFGEMP[clave]=emp;
   try{await sb.from('config').upsert({clave,valor:emp,actualizado_por:USER.email});}catch(e){}
   // actualizar tipo de contrato del trabajador
   markWrite();
   await sb.from('trabajadores').update({tipo_contrato:tipo,fecha_fin_contrato:fin||null}).eq('id',id);
+  }
   const F=v=>v&&String(v).trim()?esc(String(v).trim()):'<span style="background:#fff3b0">____________</span>';
   const fmtL=d=>{if(!d)return '____';const x=new Date(d+'T12:00');return `${x.getDate()} de ${MES[x.getMonth()].toLowerCase()} de ${x.getFullYear()}`;};
   const tipoTit = tipo==='PERIODO A PRUEBA' ? 'TIEMPO INDETERMINADO (PERIODO A PRUEBA)' : tipo;
-  const empKey=$('ct-emp')?$('ct-emp').value:'PLATINUM';
+  const empKey=valor('emp')||'PLATINUM';
   const edad=(function(){if(!w.fecha_nacimiento)return null;const b=new Date(w.fecha_nacimiento+'T12:00'),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))a--;return a>=0?a:null;})();
   const pago=w.periodo_pago==='QUINCENAL'?'quincenal':(w.periodo_pago==='MENSUAL'?'mensual':'semanal');
   const BL=v=>(v!=null&&String(v).trim())?esc(String(v).trim()):'<span class="bl">________________</span>';
@@ -253,7 +257,7 @@ async function generarContrato(id){
     notaria:emp.notaria_num,ciudad:emp.notaria_ciudad,rppc:emp.rppc,folio:emp.folio_mercantil,inscr:emp.inscripcion_fecha};
   let tercera;
   if(tipo==='TIEMPO DETERMINADO') tercera=`Este contrato se celebra por <b>tiempo determinado</b>, con vigencia del <b>${fmtL(fecha)}</b> al <b>${fmtL(fin)}</b>, conforme al art&iacute;culo 37 de la Ley Federal del Trabajo, por as&iacute; exigirlo la naturaleza del trabajo a desarrollar.`;
-  else if(tipo==='OBRA DETERMINADA') tercera=`Este contrato se celebra por <b>obra determinada</b>, conforme al art&iacute;culo 36 de la Ley Federal del Trabajo; su duraci&oacute;n ser&aacute; la que exija la ejecuci&oacute;n de los trabajos de la obra denominada <b>${esc(OBRA.nombre)}</b>${OBRA.ubicacion?', ubicada en '+esc(OBRA.ubicacion):''}, extingui&eacute;ndose la relaci&oacute;n de trabajo al concluir la obra o la etapa de la misma para la que fue contratado "EL TRABAJADOR".`;
+  else if(tipo==='OBRA DETERMINADA') tercera=`Este contrato se celebra por <b>obra determinada</b>, conforme al art&iacute;culo 36 de la Ley Federal del Trabajo; su duraci&oacute;n ser&aacute; la que exija la ejecuci&oacute;n de los trabajos de la obra denominada <b>${esc(obraContrato.nombre)}</b>${obraContrato.ubicacion?', ubicada en '+esc(obraContrato.ubicacion):''}, extingui&eacute;ndose la relaci&oacute;n de trabajo al concluir la obra o la etapa de la misma para la que fue contratado "EL TRABAJADOR".`;
   else if(tipo==='PERIODO A PRUEBA') tercera='La relaci&oacute;n de trabajo se pacta por <b>tiempo indeterminado</b> y se sujeta a un <b>periodo a prueba de treinta d&iacute;as</b>, conforme al art&iacute;culo 39-A de la Ley Federal del Trabajo, con el fin de verificar que "EL TRABAJADOR" cumple con los requisitos y conocimientos necesarios para desarrollar el trabajo. De no acreditarlos, a juicio de "EL PATR&Oacute;N" y tomando en cuenta la opini&oacute;n de la Comisi&oacute;n Mixta de Productividad, Capacitaci&oacute;n y Adiestramiento, se dar&aacute; por terminada la relaci&oacute;n de trabajo sin responsabilidad para "EL PATR&Oacute;N".';
   else tercera='Este contrato se celebra por <b>tiempo indeterminado</b>, conforme a lo se&ntilde;alado en el art&iacute;culo 35 de la Ley Federal del Trabajo.';
   const headerHTML = empKey==='JIRE'
@@ -322,11 +326,12 @@ async function generarContrato(id){
   </div>
   <p class="peq">Documento generado por la Base de Trabajadores PLATINUM el ${new Date().toLocaleDateString('es-MX')}. Machote JIRE_DA_RH-08; sujeto a revisi&oacute;n por abogado laboral.</p>
   <script>window.onload=()=>window.print()<\/script></body></html>`;
+  if(opciones.devolverHTML)return html;
   const win=window.open('','_blank');
   if(!win){toast('Tu navegador bloqueó la ventana. Permite ventanas emergentes para este archivo.','err');return;}
   win.document.write(html);win.document.close();
   closeModal();toast('Contrato generado: usa "Guardar como PDF" en el diálogo de impresión.','ok');
-  await loadObraData(OBRA.id);
+  if(!soloLectura)await loadObraData(OBRA.id);
 }
 
 /* ---------- CARTA DE RENUNCIA Y RECIBO DE FINIQUITO ---------- */

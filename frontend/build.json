@@ -1,16 +1,16 @@
 {
-  "version": "2026-11-05.1",
-  "entry": "assets/platinum-app.ecfe4408afb459b9.js",
-  "sha256": "ecfe4408afb459b9ab7aa61915e9388c9a9505c385850d8e8404e02da9d916ea",
-  "integrity": "sha384-j45ZcKbztGp6cyDQpMexvbnDxGVziNNDzXXtBE5/uaXMdFPrWsScRTIuDNwwM6Gf",
+  "version": "2026-11-05.2",
+  "entry": "assets/platinum-app.638be4763c678c9e.js",
+  "sha256": "638be4763c678c9e233d3e29c8db965d9d97ee6f87b0e11b1a99bea58ba8f43d",
+  "integrity": "sha384-Vzvz9y9kYfetu3VeW92uhzQWaWOeFtDhgVmjxCeDoCYTkHNE5PDVxgw78pFUpHkf",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
-      "sha256": "99ad8efbd8f2041d621863d7239a083af74d533bac9557a3808ce823c33c2919"
+      "sha256": "50939a3766673c22547fb8fa7e421d512279786a6e5cac5144b56e71ba366930"
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "805ab46e09b360dcf0b6252968e748ddebce12b01574c612a16aef63b06912bf"
+      "sha256": "08788043621e64556af1938abbc313a26adcc68998b5f105b088582a47ddfe5e"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -130,7 +130,7 @@
     },
     {
       "path": "frontend/modulos/31-documentos-laborales.js",
-      "sha256": "2b0bfe41dc9a2e5dfd20168d6f17afc5f93a48fa684249d0dbc4448d2677f8c8"
+      "sha256": "6a70b061249a04af8c139738846abd291c2fe9dbf3d901f9687fee7359de3f73"
     },
     {
       "path": "frontend/modulos/32-legajos.js",
@@ -223,6 +223,10 @@
     {
       "path": "frontend/modulos/54-asignacion-motores-nomina.js",
       "sha256": "bffad57e0c678312941358e7a8061d202aad7ec42d527c7eb85a375a0b76a150"
+    },
+    {
+      "path": "frontend/modulos/55-contratos-consulta.js",
+      "sha256": "06c0bc3375e984fbb43b35b3877cdb09511d78612199514395315fc4de7b1348"
     }
   ]
 }
