@@ -12,6 +12,8 @@ if(pagosPrivate)suites.push('test_pagos_sabado_pg','test_pagos_sabado_retiros_pg
 else console.log('ALCANCE PÚBLICO PAGOS: las 50 comprobaciones PostgreSQL de revisión de sábado requieren las migraciones privadas; no se cuentan como ejecutadas.');
 suites.push('test_pagos_sabado_ui');
 suites.push('test_pagos_xml_ui');
+suites.push('test_clasificacion_documental','test_reposicion_cheque_ui');
+if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_lectura_documental_lotes_cortos.sql')))suites.push('test_reposicion_lectura_documental_pg');
 suites.push('test_revision_pagos_base_registrada');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_pagos_consulta_ruta_autenticada.sql')))suites.push('test_pagos_ruta_autenticada_pg');
 if(chequesPrivate)suites.push('test_cheques_estado_pg');

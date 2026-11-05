@@ -13,7 +13,7 @@
    if(cache){if(!cache.has(key))cache.set(key,reintentar(()=>leerReciboArchivado(doc,bytes)));info=await cache.get(key);}
    else info=await reintentar(()=>leerReciboArchivado(doc,bytes));
    comprobar(contexto);if(!Number.isFinite(info.neto)||!info.datos||info.errores?.length)throw Error(info.errores?.join('; ')||'No se extrajo un recibo válido.');
-   etapa='CONCEPTO';const fuentes=[...new Set((tipos||[]).filter(x=>['NOMINA','FINIQUITO'].includes(x)))],tipo=info.tipo||(fuentes.length===1?fuentes[0]:null);
+   etapa='CONCEPTO';const fuentes=[...new Set((tipos||[]).filter(x=>['NOMINA','FINIQUITO'].includes(x)))],tipo=info.datos.concepto?.estado==='MIXTO'?null:info.tipo||(fuentes.length===1?fuentes[0]:null);
    if(tipo&&fuentes.length&&!fuentes.includes(tipo))throw Error('El concepto del PDF contradice las fuentes de esa semana. Revisa nómina/finiquito.');
    if(!tipo&&(!info.datos.cfdi_uuid||!info.datos.evidencia_timbrado))throw Error('Faltan concepto y evidencia de timbrado; revisa el PDF o su XML.');
    etapa='GUARDADO';const payload={documento_id:doc.id,hash:doc.hash,neto:info.neto,tipo,datos:info.datos,solo_archivo:!tipo};if(cierre)payload.cierre_id=cierre;

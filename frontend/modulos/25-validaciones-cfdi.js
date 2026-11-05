@@ -138,6 +138,7 @@ async function parseCfdi(inp){
   for(const file of inp.files){
     try{
       const txt=await file.text();
+      const fiscal=window.PLATINUM_RESPALDO_RECIBO.extraerXML(txt,DOMParser);
       const doc=new DOMParser().parseFromString(txt,'application/xml');
       if(doc.getElementsByTagName('parsererror').length)throw new Error('XML mal formado');
       const nodo=n=>Array.from(doc.getElementsByTagName('*')).find(x=>String(x.localName||x.nodeName).split(':').pop()===n);
@@ -154,10 +155,15 @@ async function parseCfdi(inp){
       const fechaPago=(nom?(nom.getAttribute('FechaPago')||''):'').slice(0,10);
       const periodoInicio=(nom?(nom.getAttribute('FechaInicialPago')||''):'').slice(0,10);
       const periodoFin=(nom?(nom.getAttribute('FechaFinalPago')||''):'').slice(0,10);
+      const percepciones=Array.from(doc.getElementsByTagName('*')).filter(e=>e.localName==='Percepcion').map(e=>({sat:e.getAttribute('TipoPercepcion'),concepto:e.getAttribute('Concepto'),gravado:e.getAttribute('ImporteGravado'),exento:e.getAttribute('ImporteExento')}));
+      const concepto=fiscal.concepto;
       const baseSem=periodoFin||fechaPago||fecha;
       const semSugerida=baseSem?'S'+isoWeekDe(OBRA,new Date(baseSem+'T12:00')):'';
-      const w=(allW||[]).find(x=>limpio(x.rfc)&&limpio(x.rfc)===rfc)||(curp?(allW||[]).find(x=>limpio(x.curp)===curp):null);
-      CFDIIMP.push({name:file.name,txt,rfc,curp,nombre,uuid,fecha,total,fechaPago,periodoInicio,periodoFin,semSugerida,w,sel:!!(w&&uuid)});
+      const candidatos=(allW||[]).filter(x=>limpio(x.rfc)&&limpio(x.rfc)===rfc||curp&&limpio(x.curp)===curp);
+      if(candidatos.length>1)throw Error('La identidad coincide con varios trabajadores del centro; revisa el expediente');
+      const w=candidatos[0]||null;
+      if(w&&(rfc&&limpio(w.rfc)&&rfc!==limpio(w.rfc)||curp&&limpio(w.curp)&&curp!==limpio(w.curp)))throw Error('RFC y CURP contradictorios con la ficha; revisa el expediente');
+      CFDIIMP.push({name:file.name,txt,rfc,curp,nombre,uuid,fecha,total,fechaPago,periodoInicio,periodoFin,semSugerida,concepto,w,sel:!!(w&&uuid)});
     }catch(e){CFDIIMP.push({name:file.name,error:String(e).slice(0,60),sel:false});}
   }
   // v31: duplicados — por folio fiscal (UUID) dentro del lote y contra lo ya archivado
@@ -209,6 +215,7 @@ async function applyCfdi(){
     const fila={trabajador_id:x.w.id,obra_id:x.w.obra_id,categoria:'CFDI_NOMINA',
       subtipo:'CFDI TIMBRADO',semana:sem,fecha_doc:x.fechaPago||x.fecha||null,archivo:path,nombre_archivo:`${x.uuid}.xml ($${x.total})`,subido_por:USER.email,
       cfdi_uuid:x.uuid,cfdi_total:totales.get(x),cfdi_fecha_pago:x.fechaPago||null,periodo_inicio:x.periodoInicio||null,periodo_fin:x.periodoFin||null,mime_type:'application/xml',
+      nomina_tipo:x.concepto?.tipo||null,nomina_lector:'CFDI_XML_CONCEPTOS_v1',
       hash:await sha256Hex(new TextEncoder().encode(x.txt))};
     let {error:e2}=await sb.from('documentos').insert(fila);
     if(e2&&/hash/i.test(e2.message||'')){delete fila.hash;({error:e2}=await sb.from('documentos').insert(fila));}

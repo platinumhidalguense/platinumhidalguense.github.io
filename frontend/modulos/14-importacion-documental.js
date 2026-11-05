@@ -20,8 +20,9 @@ function detectaSemanaRecibo(txt){
    vs FINIQUITO si trae AGUINALDO/PRIMA VACACIONAL) y la semana. */
 function parseReciboText(txt){
   const t=String(txt||'');
-  let neto=null; const m=t.match(/Neto pagado:\s*([\d,]+\.\d{2})/i); if(m)neto=parseFloat(m[1].replace(/,/g,''));
-  const tipo=(/AGUINALDO/i.test(t)||/PRIMA\s+VACACIONAL/i.test(t))?'FINIQUITO':'SUELDO';
+  const lectura=window.PLATINUM_RESPALDO_RECIBO?.parsear(t);
+  const neto=lectura?.errores?.length?null:lectura?.neto??null;
+  const tipo=lectura?.tipo==='NOMINA'?'SUELDO':lectura?.tipo||null;
   return {neto,tipo,sem:detectaSemanaRecibo(t)};
 }
 async function pdfBytesToText(bytes){

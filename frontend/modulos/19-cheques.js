@@ -70,41 +70,54 @@ function openChequesDesdeRecibos(){
     </div>`,'lg');
 }
 async function crAnalizar(){
+  const obraConsulta=OBRA?.id,clasificados=new Map();
   const sem=($('cr-sem').value||'').trim(); const ns=normSem(sem);
   if(!ns){toast('Escribe la semana (ej. S17).','err');return;}
   const recs=(DOCSX||[]).filter(d=>esRecibo(d)&&normSem(d.semana)===ns);
   if(!recs.length){$('cr-out').innerHTML='<div class="empty">No hay recibos de nómina archivados en la semana S'+ns+' en esta obra. Impórtalos en 📥 Importar → Acuses IMSS y recibos (categoría RECIBO DE NÓMINA).</div>';$('cr-btn').classList.add('hide');return;}
   $('cr-out').innerHTML=skeletonRows(Math.min(9,Math.max(3,recs.length)),'1.5fr .8fr 1fr 1fr 1fr','Descargando y leyendo '+recs.length+' recibo(s) de nómina...');
+  try{for(let offset=0;offset<recs.length;offset+=100){
+    const r=await sb.rpc('control_flujo_operar',{p_accion:'DOCUMENTOS_FISCALES',p_datos:{obra_id:obraConsulta,ids:recs.slice(offset,offset+100).map(d=>d.id)}});
+    if(OBRA?.id!==obraConsulta||!$('cr-out'))return;
+    if(r.error||r.data?.obra_id!==obraConsulta||!Array.isArray(r.data?.filas))throw Error(r.error?.message||'No se confirmó el catálogo fiscal');
+    r.data.filas.forEach(d=>clasificados.set(d.id,d));
+  }}catch(e){if(OBRA?.id===obraConsulta&&$('cr-out')){$('cr-out').textContent='No se pudo consultar la lectura fiscal: '+e.message;$('cr-btn').classList.add('hide');}return;}
   const rows=[];
   for(const d of recs){
-    let info=_RECCACHE[d.archivo];
+    if(OBRA?.id!==obraConsulta||!$('cr-out'))return;
+    const fiscal=clasificados.get(d.id),key=[d.id,fiscal?.archivo,fiscal?.hash].join('|');
+    let info=fiscal?.trabajador_id===d.trabajador_id&&fiscal.confiable?{neto:Number(fiscal.neto),tipo:fiscal.tipo}:_RECCACHE[key];
     if(!info){
-      try{const {data:blob,error}=await sb.storage.from('expedientes').download(d.archivo);
-        if(error||!blob)throw 0;
-        info=window.PLATINUM_RESPALDO_RECIBO.parsear(await pdfBytesToText(new Uint8Array(await blob.arrayBuffer())));
+      try{if(!fiscal||fiscal.trabajador_id!==d.trabajador_id)throw Error('Documento no disponible o reasignado');
+        info=await leerReciboArchivado({...d,archivo:fiscal.archivo,hash:fiscal.hash});
       }catch(e){info={neto:null,tipo:'?',err:true};}
-      _RECCACHE[d.archivo]=info;
+      _RECCACHE[key]=info;
     }
     const w=WORKERS.find(x=>x.id===d.trabajador_id)||null;
-    if(d.nomina_tipo){if(info.tipo&&info.tipo!==d.nomina_tipo)info={...info,err:true};else info={...info,tipo:d.nomina_tipo};}
+    if(info.errores?.length)info={...info,err:true};
+    // La lectura del contenido y el respaldo fiscal mandan sobre una etiqueta
+    // antigua que pudo asignarse por defecto al importar el documento.
     const tp=info.tipo==='FINIQUITO'?'FINIQUITO':'CHEQUE';
     const chk=(CHEQUES||[]).find(c=>!c.eliminado&&c.estatus!=='CANCELADO'&&c.trabajador_id===d.trabajador_id&&normSem(c.semana)===ns&&String(c.tipo_pago||'').toUpperCase()===tp);
     let estado='OK';
     if(info.err||info.neto==null)estado='ILEGIBLE';
+    else if(!['NOMINA','FINIQUITO'].includes(info.tipo))estado='REVISION_CONCEPTO';
     else if(tp==='FINIQUITO'&&w&&finTransDe(w,sem))estado='TRANSFERENCIA_FIN';
     else if(!chk)estado=tp==='FINIQUITO'?'FALTA':'REVISION_PAGO';
     else if(Math.round((Number(chk.importe)||0)*100)!==Math.round(info.neto*100))estado='NOCOINCIDE';
     if(info.tipo==='FINIQUITO'&&w&&['FALTA','OK','NOCOINCIDE'].includes(estado)){
       const respaldo=await chqResolverNeto({obra_id:OBRA.id,trabajador_id:w.id,semana:'S'+ns,tipo_pago:'FINIQUITO'});
+      if(OBRA?.id!==obraConsulta||!$('cr-out'))return;
       if(respaldo.error){estado='ILEGIBLE';info={...info,err:true};}
       else{info={...info,neto:respaldo.neto};if(chk)estado=Math.round(Number(chk.importe)*100)===Math.round(info.neto*100)?'OK':'NOCOINCIDE';}
     }
     rows.push({d,w,info,tp,chk,estado});
   }
+  if(OBRA?.id!==obraConsulta||!$('cr-out'))return;
   window._CR={rows,ns,sem:'S'+ns};
   const c=e=>rows.filter(x=>x.estado===e).length;
-  const badge={OK:'imp-COINCIDE',FALTA:'imp-CONFLICTO',NOCOINCIDE:'imp-SINREGISTRO',ILEGIBLE:'imp-SINREGISTRO',REVISION_PAGO:'imp-ASIGNAR',TRANSFERENCIA_FIN:'imp-ASIGNAR'};
-  const lbl={OK:'✔ coincide',FALTA:'＋ falta cheque de finiquito',NOCOINCIDE:'⚠ no coincide',ILEGIBLE:'⚠ ilegible',REVISION_PAGO:'Revisar pago, no exige cheque',TRANSFERENCIA_FIN:'Excepción de transferencia'};
+  const badge={OK:'imp-COINCIDE',FALTA:'imp-CONFLICTO',NOCOINCIDE:'imp-SINREGISTRO',ILEGIBLE:'imp-SINREGISTRO',REVISION_CONCEPTO:'imp-SINREGISTRO',REVISION_PAGO:'imp-ASIGNAR',TRANSFERENCIA_FIN:'imp-ASIGNAR'};
+  const lbl={OK:'✔ coincide',FALTA:'＋ falta cheque de finiquito',NOCOINCIDE:'⚠ no coincide',ILEGIBLE:'⚠ ilegible',REVISION_CONCEPTO:'Revisar concepto mixto o no identificado',REVISION_PAGO:'Revisar pago, no exige cheque',TRANSFERENCIA_FIN:'Excepción de transferencia'};
   $('cr-out').innerHTML=`
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
       <span class="imp-tag imp-COINCIDE">${c('OK')} coinciden</span>
@@ -116,7 +129,7 @@ async function crAnalizar(){
     <div class="imp-row head" style="grid-template-columns:1.5fr .8fr 1fr 1fr 1fr"><span>Trabajador</span><span>Tipo</span><span>Neto recibo</span><span>Cheque</span><span>Estado</span></div>
     ${rows.map(x=>`<div class="imp-row" style="grid-template-columns:1.5fr .8fr 1fr 1fr 1fr">
       <span><b>${esc(x.w?fullName(x.w):(x.d.nombre_archivo||'—'))}</b><br><span style="color:var(--mut);font-size:11px">#${(x.w&&x.w.no_trab)??'—'}</span></span>
-      <span style="font-size:11.5px">${x.info.tipo==='FINIQUITO'?'<b style="color:var(--accent)">FINIQUITO</b>':'sueldo'}</span>
+      <span style="font-size:11.5px">${x.info.tipo==='FINIQUITO'?'<b style="color:var(--accent)">FINIQUITO</b>':x.info.tipo==='NOMINA'?'sueldo':'Por clasificar'}</span>
       <span>${x.info.neto!=null?'$'+money(x.info.neto):'<span style="color:var(--amber)">?</span>'}</span>
       <span>${x.chk?'$'+money(x.chk.importe):'—'}</span>
       <span class="imp-tag ${badge[x.estado]}">${lbl[x.estado]}</span>
@@ -134,9 +147,10 @@ async function crCrearFaltantes(){
   for(const x of falt){
     const respaldo=await chqResolverNeto({obra_id:x.w.obra_id,trabajador_id:x.w.id,semana:st.sem,tipo_pago:'FINIQUITO'});
     if(respaldo.error||respaldo.neto!==x.info.neto){err++;continue;}
+    if(respaldo.reposicion&&!confirm(`¿Reponer el cheque cancelado ${respaldo.reposicion.numero}, consecutivo ${respaldo.reposicion.consecutivo}, de ${fullName(x.w)} por $${money(respaldo.neto)}? Confirma que el banco lo rechazó y no se cobró. El original seguirá CANCELADO.`)){err++;continue;}
     const {error}=await sb.from('cheques').insert({obra_id:x.w.obra_id,trabajador_id:x.w.id,no_trab:x.w.no_trab,contratista:x.w.contratista,
       nombre:fullName(x.w),puesto:x.w.puesto,curp:x.w.curp,semana:st.sem,periodo:periodoCorto(W),importe:x.info.neto,
-      tipo_pago:x.tp,estatus:'PENDIENTE',observaciones:'GENERADO DESDE RECIBO DE NÓMINA ('+x.info.tipo+')',creado_por:USER.email});
+      tipo_pago:x.tp,estatus:'PENDIENTE',...(respaldo.reposicion?{reemplaza_cheque_id:respaldo.reposicion.cheque_id}:{}),observaciones:'GENERADO DESDE RECIBO DE NÓMINA ('+x.info.tipo+')',creado_por:USER.email});
     error?err++:ok++;
   }
   closeModal();
@@ -158,8 +172,9 @@ function chqMostrarRespaldo(r,existente=false){
   const aviso=$('c-neto-fuente');if(!aviso)return;
   aviso.textContent=`Importe verificado: $${money(r.neto)} · ${r.origen} · ${r.desde} al ${r.hasta}.`;
   if(r.advertencias?.length){const nota=document.createElement('div');nota.textContent=r.advertencias.join(' ');aviso.appendChild(nota);}
+  if(r.reposicion){const nota=document.createElement('div');nota.textContent='Reposición disponible del cheque cancelado '+r.reposicion.numero+' · consecutivo '+r.reposicion.consecutivo+'. Al guardar se pedirá confirmar la reposición; el cancelado conservará su historial.';aviso.appendChild(nota);}
   if(existente){const texto=document.createElement('div');texto.textContent='Cheque existente: puedes capturar su número y consecutivo sin autorizar o reabrir el cierre. La vinculación al cierre se revisa por separado.';aviso.appendChild(texto);}
-  if(!existente&&r.expedicion&&!r.expedicion.requisitos_cierre_cumplidos){
+  if(!existente&&!r.reposicion&&r.expedicion&&!r.expedicion.requisitos_cierre_cumplidos){
     const texto=document.createElement('div');texto.textContent='Expedición pendiente: '+r.expedicion.pendiente;aviso.appendChild(texto);
     if(r.expedicion.cierre_id){const b=document.createElement('button');b.type='button';b.className='btn';b.textContent='Revisar cierre S'+r.semana;
       b.onclick=()=>{if(confirm('Se abrirá el cierre sin guardar esta captura. Los números que acabas de escribir no se han registrado. ¿Continuar?'))window.PLATINUM_FLOWS.abrirCierre(r.expedicion.cierre_id);};aviso.appendChild(b);}
@@ -275,6 +290,7 @@ async function saveCheque(id){
   if(g('c-num')&&estatus==='PENDIENTE')estatus='EXPEDIDO';
   const w=WORKERS.find(x=>fullName(x).toUpperCase()===g('c-nombre').toUpperCase());
   const previo=id?CHEQUES.find(x=>x.id===id):null;
+  let reemplaza=previo?.reemplaza_cheque_id||null;
   let neto=Number(g('c-importe'));
   if(!previo||previo.estatus==='PENDIENTE'){
     const captura={obra_id:OBRA.id,trabajador_id:w?.id,semana:g('c-semana'),tipo_pago:$('c-tipo').value,nombre:g('c-nombre')};
@@ -286,8 +302,13 @@ async function saveCheque(id){
     }
     const existente=chqCapturaExistente(previo,w,captura.semana,captura.tipo_pago,respaldo.neto);
     chqMostrarRespaldo(respaldo,existente);
-    if(existente&&['EXPEDIDO','ENTREGADO'].includes(estatus)&&(!g('c-num')||!g('c-consec'))){toast('Captura el número de cheque y su consecutivo antes de expedir.','err');return;}
-    if(!existente&&['EXPEDIDO','ENTREGADO'].includes(estatus)&&respaldo.expedicion&&!respaldo.expedicion.requisitos_cierre_cumplidos){toast('Importe verificado. '+respaldo.expedicion.pendiente,'err');return;}
+    if(!reemplaza&&respaldo.reposicion){
+      const q=respaldo.reposicion;
+      if(!confirm('¿Reponer el cheque físico cancelado '+q.numero+' (consecutivo '+q.consecutivo+') por $'+money(respaldo.neto)+'?\n\nConfirma que fue devuelto/rechazado y no fue cobrado. Se conservará el cancelado y se vinculará esta reposición.'))return;
+      reemplaza=q.cheque_id;
+    }
+    if((existente||reemplaza)&&['EXPEDIDO','ENTREGADO'].includes(estatus)&&(!g('c-num')||!g('c-consec'))){toast('Captura el número de cheque y su consecutivo antes de expedir.','err');return;}
+    if(!existente&&!reemplaza&&['EXPEDIDO','ENTREGADO'].includes(estatus)&&respaldo.expedicion&&!respaldo.expedicion.requisitos_cierre_cumplidos){toast('Importe verificado. '+respaldo.expedicion.pendiente,'err');return;}
     neto=respaldo.neto;
     if($('f-c-importe'))$('f-c-importe').value=neto.toFixed(2);
   }
@@ -298,6 +319,7 @@ async function saveCheque(id){
     contratista:g('c-contratista').toUpperCase(), puesto:g('c-puesto').toUpperCase(),
     curp:g('c-curp').toUpperCase(), semana:g('c-semana').toUpperCase(), periodo:g('c-periodo').toUpperCase(),
     importe:neto, tipo_pago:$('c-tipo').value,
+    reemplaza_cheque_id:reemplaza,
     num_cheque:g('c-num'), consecutivo:g('c-consec'), estatus, observaciones:g('c-obs').toUpperCase()
   };
   const dupNum=rec.num_cheque&&CHEQUES.find(x=>x.num_cheque===rec.num_cheque&&x.id!==id&&x.estatus!=='CANCELADO');

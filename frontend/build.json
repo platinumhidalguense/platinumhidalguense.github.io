@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-03.1",
-  "entry": "assets/platinum-app.cc24fbac6c66760c.js",
-  "sha256": "cc24fbac6c66760c04d79f3fd6bf76d86482a6c54990fbcafe64fcb862cb4890",
-  "integrity": "sha384-OB+qgRDvN+rUDmwqrfTHfJ1h/NjjVqcoePGdp+PRzi0oAkCQnZyxu8r1acEqwcBN",
+  "version": "2026-11-04.1",
+  "entry": "assets/platinum-app.ed00e0c81a9fa3be.js",
+  "sha256": "ed00e0c81a9fa3be3cebde9f54b49ee876d5251c02422742e96e3929f888fe0e",
+  "integrity": "sha384-cArFsXbMxRpdZtBEgVCuIvLHHF1Uw3oaPPC5eF1ihqgX5pztCTsQpptjQRQSfTfO",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "1d3dc5912cfcbf2dfd1c645407ffc8c615aa2ed8381001c90ad3cac3a8d1867e"
+      "sha256": "a3477833639487f37b5ed295d624346b9ef0ba9fe10b92c5b6860bce82dee821"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -62,7 +62,7 @@
     },
     {
       "path": "frontend/modulos/14-importacion-documental.js",
-      "sha256": "b84c9e2683ec6303f85106384ed590a1813f31bdebc8074000e78d94f43ecd10"
+      "sha256": "145baa202f15bacbc360023aae31958e9434f8d33ebab1d571d7bd6e64a461f5"
     },
     {
       "path": "frontend/modulos/15-banca-conciliacion.js",
@@ -82,7 +82,7 @@
     },
     {
       "path": "frontend/modulos/19-cheques.js",
-      "sha256": "8f1848d8f5d4021dbcbc426550c7de6b9d2513f0dc93d67aa94bcd4e84d60bcb"
+      "sha256": "0b4b8eaebbeeed79953bf0fbd98d4aa0786f6ab827b550f9dec266344df36598"
     },
     {
       "path": "frontend/modulos/20-movimientos-semanales.js",
@@ -106,7 +106,7 @@
     },
     {
       "path": "frontend/modulos/25-validaciones-cfdi.js",
-      "sha256": "9e6f6fbd945c731899fbd79700079c8af3d774795f601482d6e9d87e16dd6099"
+      "sha256": "c78593a511367369918c088b198ead66e3acab9df64284e132e085e8d5b5e452"
     },
     {
       "path": "frontend/modulos/26-prestaciones-anuales.js",
@@ -182,7 +182,7 @@
     },
     {
       "path": "frontend/modulos/44-respaldo-recibos.js",
-      "sha256": "67b703ef53f5cac1436a1b3a5c4ba36541b42dd814cfddc08a5a4f56950bc9b5"
+      "sha256": "a6a971e18a41b9f557482bc6adb6a3bca08469bc90e8dcdf49f531897234f04e"
     },
     {
       "path": "frontend/modulos/45-exportacion-altas-noi.js",
@@ -210,7 +210,7 @@
     },
     {
       "path": "frontend/modulos/51-recibos-verificacion.js",
-      "sha256": "5e0df31022a69c6fa5e3a73bd75984437bcffd31b941808bbf4d9bcbfe9315a9"
+      "sha256": "453ea4bb1f6b8f3b97f37c373e8dd49b3d605564be23e87c28b5aef76a0488e5"
     },
     {
       "path": "frontend/modulos/52-motor-nomina-semanal.js",
