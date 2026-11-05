@@ -37,4 +37,6 @@ for(const patch of [{activo:false},{monto:500},{semana:'S32'},{obra_id:'otra'},{
 }
 b.DESC=[imss,{...falta,monto:800}];assert.equal(b.incAuditarCalculoGuardado(b.DESC[1],wi).desactualizado,true);
 assert.throws(()=>b.incAuditarCalculoGuardado({...falta,ajustes_semana:{_calculo_incidencia:{modo:'INCREMENTAL_IMSS',faltas:7,incapacidad_imss:2,premios:0}}},wi),/días inválidos/);
+assert.equal(b.nominaPeriodo(wi,{incapacidadIMSS:7}).neto,0,'Siete días de incapacidad dejan neto patronal cero');
+assert.equal(b.descuentoFaltasNOI(wi,0,0,undefined,7).monto,2400.26,'Los certificados consecutivos se calculan juntos, no sumando descuentos parciales');
 console.log('PASS incidencias: vigencia, centavos y faltas incrementales con incapacidad; referencia, ámbito, días y suma auditados sin duplicar ni mutar fuentes.');

@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-04.1",
-  "entry": "assets/platinum-app.ed00e0c81a9fa3be.js",
-  "sha256": "ed00e0c81a9fa3be3cebde9f54b49ee876d5251c02422742e96e3929f888fe0e",
-  "integrity": "sha384-cArFsXbMxRpdZtBEgVCuIvLHHF1Uw3oaPPC5eF1ihqgX5pztCTsQpptjQRQSfTfO",
+  "version": "2026-11-05.1",
+  "entry": "assets/platinum-app.ecfe4408afb459b9.js",
+  "sha256": "ecfe4408afb459b9ab7aa61915e9388c9a9505c385850d8e8404e02da9d916ea",
+  "integrity": "sha384-j45ZcKbztGp6cyDQpMexvbnDxGVziNNDzXXtBE5/uaXMdFPrWsScRTIuDNwwM6Gf",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "a3477833639487f37b5ed295d624346b9ef0ba9fe10b92c5b6860bce82dee821"
+      "sha256": "805ab46e09b360dcf0b6252968e748ddebce12b01574c612a16aef63b06912bf"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -150,7 +150,7 @@
     },
     {
       "path": "frontend/modulos/36-imss-sin-servicio-st7.js",
-      "sha256": "45db52072119d19bec828d2ccea21ae8eb7bb7a5d2884e7d8e1837d9e6a02217"
+      "sha256": "594de52cb65012013143d988b0ed3f458c7ea7ed66d89cb01d306d56d4fd5545"
     },
     {
       "path": "frontend/modulos/37-avisos-infonavit.js",
