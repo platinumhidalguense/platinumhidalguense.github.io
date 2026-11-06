@@ -21,7 +21,7 @@ function chqOrdenConsec(v){
   else{CSORT={k:'consecutivo',asc:v==='asc'};}
   renderCheques();
 }
-function chqFiltered(){if(!$('chq-q'))return window.PLATINUM_CONCILIADOR_SEMANAL?.estado().data?.cheques||[];
+function chqFiltered(){if(!$('chq-q'))return $('gq-tbody')?window.PLATINUM_GESTION_CHEQUES.filas():window.PLATINUM_CONCILIADOR_SEMANAL?.estado().data?.cheques||[];
   const q=$('chq-q').value.trim().toUpperCase(), fe=$('chq-f-estatus').value, ft=$('chq-f-tipo').value;
   let rows=CHEQUES.filter(c=>{
     if(c.eliminado)return false;
@@ -192,7 +192,7 @@ async function chqTraerRecibo(){
   chqMostrarRespaldo(r,chqCapturaExistente(previo,w,rec.semana,rec.tipo_pago,r.neto));
   toast(`Importe $${money(r.neto)} verificado contra ${r.origen}.`,'ok');
 }
-function renderCheques(){if(!$('chq-tbody'))return window.PLATINUM_CONCILIADOR_SEMANAL?.refrescar();
+function renderCheques(){if(!$('chq-tbody'))return $('gq-tbody')?window.PLATINUM_GESTION_CHEQUES.refrescar():window.PLATINUM_CONCILIADOR_SEMANAL?.refrescar();
   if(!window._FOLIOCHK){window._FOLIOCHK=1;chequeFolioAviso();}
   const rows=chqFiltered();
   if(!rows.length){$('chq-tbody').innerHTML='<tr><td colspan="10"><div class="empty"><div class="big">🧾</div>Sin cheques que coincidan.<br>Usa <b>＋ Nuevo cheque</b> o registra una baja con finiquito.</div></td></tr>';return;}
@@ -229,6 +229,7 @@ function openChequeForm(id){
         ${fld('c-importe','Importe verificado ($)',c?(c.importe??''):'',{type:'number',extra:'step="0.01" readonly'})}
         <div style="display:flex;align-items:end"><button type="button" class="btn" style="width:100%;padding:8px;font-size:12px" onclick="chqTraerRecibo()" title="Verifica NOI o recibo de la misma semana y tipo">🧾 Verificar neto</button></div>
         <div class="c3" id="c-neto-fuente" style="font-size:12px;color:var(--amber)">El importe se verificará automáticamente antes de guardar.</div>
+        ${c&&puedeEditarTrabajador()?`<div class="c3"><button type="button" class="btn" onclick="PLATINUM_GESTION_CHEQUES.editar('${c.id}')">✎ Corregir sólo folios (sin cambiar nómina)</button></div>`:''}
         ${c&&puedeEliminarCheque()&&c.estatus==='PENDIENTE'&&!c.num_cheque&&!c.consecutivo?`<div class="c3"><button type="button" class="btn" onclick="openCorregirImporteCheque('${c.id}')">✎ Corregir importe manualmente</button></div>`:''}
         <div><label>Tipo de pago</label><select id="c-tipo" onchange="chqTraerRecibo()">${['CHEQUE','FINIQUITO'].map(t=>`<option ${(c&&c.tipo_pago)===t?'selected':''}>${t}</option>`).join('')}</select></div>
         ${fld('c-num','Número de cheque',c?c.num_cheque:'',{hint:'Al capturarlo, el estatus pasa a EXPEDIDO automáticamente.'})}
@@ -285,6 +286,13 @@ async function saveCheque(id){
   const contextoInicial={obra:OBRA?.id,form:$('c-save')};
   const g=i=>{const el=$('f-'+i)||$(i);return el?el.value.trim():'';};
   if(!g('c-nombre')){toast('Indica el nombre del trabajador o beneficiario.','err');return;}
+  const fisico=id?CHEQUES.find(x=>x.id===id):null;
+  if(fisico&&(fisico.num_cheque||fisico.consecutivo||fisico.estatus!=='PENDIENTE')
+    &&(g('c-num')!==String(fisico.num_cheque||'')||g('c-consec')!==String(fisico.consecutivo||''))
+    &&$('c-estatus').value===fisico.estatus&&$('c-tipo').value===fisico.tipo_pago&&Number(g('c-importe'))===Number(fisico.importe)
+    &&[['c-nombre','nombre'],['c-no_trab','no_trab'],['c-contratista','contratista'],['c-puesto','puesto'],['c-curp','curp'],['c-semana','semana'],['c-periodo','periodo'],['c-obs','observaciones']].every(([input,key])=>g(input)===String(fisico[key]??''))){
+    try{await window.PLATINUM_GESTION_CHEQUES.guardarFolios(id,g('c-num'),g('c-consec'));if(OBRA?.id===contextoInicial.obra&&$('c-save')===contextoInicial.form){closeModal();toast('Folios corregidos. Importe y nómina intactos.','ok');window.PLATINUM_GESTION_CHEQUES.refrescar();}}catch(e){toast(e.message,'err');}return;
+  }
   let estatus=$('c-estatus').value;
   if(estatus==='CANCELADO'&&(!g('c-num')||!g('c-consec'))){toast('Sólo se cancela un cheque físico con número y consecutivo. Si nunca se llenó, elimina la captura.','err');return;}
   if(g('c-num')&&estatus==='PENDIENTE')estatus='EXPEDIDO';

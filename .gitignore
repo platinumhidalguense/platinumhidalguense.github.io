@@ -25,3 +25,5 @@ supabase/migrations/*_conciliador_general_persistente.sql
 supabase/functions/gemini-extract/
 supabase/functions/_shared/
 supabase/migrations/*_conciliador_contexto_semanal.sql
+
+supabase/migrations/*_conciliador_tabs_folios_fisicos.sql

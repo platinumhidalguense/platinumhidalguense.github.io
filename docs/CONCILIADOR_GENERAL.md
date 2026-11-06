@@ -70,3 +70,13 @@ Los rechazos y pendientes de transferencia se resaltan cuando no existe cobertur
 No se agregan suscripciones ni temporizadores. Las señales financieras existentes pueden refrescar la misma semana conservando su contenido mientras llega la respuesta. Si hay una captura en curso, se avisa del cambio para evitar sustituirla. Al salir del centro o cambiar de empresa se aborta e invalida la consulta pendiente.
 
 Pruebas adicionales: `test_conciliacion_semanal_servicio`, `test_conciliador_semanal_ui`, `test_conciliacion_semanal_pg`. Cubren una sola lectura agregada, cambios rápidos, respuestas obsoletas, desmontaje, alcance, semanas sin cierre, histórico sin escrituras, alertas y herramientas conservadas.
+# Pestañas y corrección de folios físicos
+
+El Conciliador contiene dos pestañas accesibles con teclado: **Flujo de Conciliación** conserva el expediente semanal y sus reglas; **Gestión de Cheques** presenta la tabla completa del centro, con filtros independientes por estatus, contratista, semana y búsqueda, y orden numérico o de importe. La selección de semana del flujo no oculta los cheques de las demás semanas. El sidebar sigue teniendo una sola entrada.
+
+`63-gestion-cheques.js` reutiliza la colección verificada del centro, el exportador clásico y `chqResolverNeto`; no implementa fórmulas ni lectores alternativos. El lector tradicional y la revisión Gemini existentes permanecen accesibles con botones. La comprobación distingue CFDI XML/PDF válido, diferencia al centavo y una referencia disponible sólo en NOI. Verificar no cambia automáticamente el importe ni acredita entrega/cobro. Los marcadores se invalidan si cambian el cheque o el contexto.
+
+La excepción histórica solicitada permite a RRHH con escritura y alcance corregir **sólo** `num_cheque` y `consecutivo`. `control_corregir_folios_cheque` recibe identificador, ambos folios y versión esperada; no acepta importe, persona, periodo, concepto o estatus. El servidor verifica acceso, concurrencia y colisiones; registra antes/después. El predicado compara la fila completa exceptuando los folios y metadatos de actualización. Las guardas de aplicaciones y nómina conservan su comportamiento para los demás cambios. Corregir un folio no expide, entrega, cancela ni aplica otro pago.
+
+Pruebas: `test_gestion_cheques_tabs_ui.cjs` y `test_cheques_folios_cerrados_pg.cjs`. La prueba SQL usa el paquete privado local. No se publican SQL operativo, expedientes ni comprobantes reales. Las pruebas DOM son sintéticas, sin navegador ni aceptación visual.
+

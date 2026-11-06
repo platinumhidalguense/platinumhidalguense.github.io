@@ -96,6 +96,9 @@ else console.log('ALCANCE PÚBLICO CONCILIADOR: SQL y Edge privados; las pruebas
 suites.push('test_conciliacion_semanal_servicio','test_conciliador_semanal_ui');
 if(fs.existsSync('supabase/migrations/20261106215742_conciliador_contexto_semanal.sql'))suites.push('test_conciliacion_semanal_pg');
 else console.log('ALCANCE PÚBLICO CONTEXTO SEMANAL: la prueba PostgreSQL requiere el paquete privado; servicio y DOM sí se ejecutan.');
+suites.push('test_gestion_cheques_tabs_ui');
+if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_conciliador_tabs_folios_fisicos.sql')))suites.push('test_cheques_folios_cerrados_pg');
+else console.log('ALCANCE PÚBLICO FOLIOS: la prueba PostgreSQL requiere la migración privada; tabla y servicio sí se prueban.');
 for(const file of suites){
  const r=spawnSync(process.execPath,['scripts/'+file+'.cjs'],{encoding:'utf8',maxBuffer:4e6});
  process.stdout.write(r.stdout||'');process.stderr.write(r.stderr||'');if(r.status!==0)process.exit(r.status||1);
