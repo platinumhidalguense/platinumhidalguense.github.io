@@ -76,5 +76,5 @@ window.PLATINUM_VISOR_PAGOS.configure({
  $,root:()=>$('visor-pagos'),esc,money,toast,
  importar:sem=>{openImportPago();if($('pg-sem'))$('pg-sem').value='S'+sem;},
  revisar:sem=>window.PLATINUM_PAGOS_SABADO?.abrir(sem),
- pdf:async path=>{const r=await sb.storage.from('expedientes').createSignedUrl(path,60);if(r.error||!r.data?.signedUrl)throw Error('No se pudo abrir el archivo privado.');window.open(r.data.signedUrl,'_blank','noopener,noreferrer');}
+ pdf:async path=>{if(window.PLATINUM_CONCILIADOR)return window.PLATINUM_CONCILIADOR.archivoBancario(path);const r=await sb.storage.from('expedientes').createSignedUrl(path,60);if(r.error||!r.data?.signedUrl)throw Error('No se pudo abrir el archivo privado.');window.open(r.data.signedUrl,'_blank','noopener,noreferrer');}
 });

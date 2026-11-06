@@ -1,6 +1,6 @@
 // Contratos sintéticos: no abre navegador ni conecta a la base real.
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
-const box={Date,Intl,confirm:()=>true};box.window=box;vm.createContext(box);
+let rendered;const box={PLATINUM_CONCILIADOR:{mostrarCierre:d=>{rendered=d;}},Date,Intl,confirm:()=>true};box.window=box;vm.createContext(box);
 vm.runInContext(fs.readFileSync('frontend/modulos/44-respaldo-recibos.js','utf8'),box);
 const parse=box.PLATINUM_RESPALDO_RECIBO.parsear;
 const texto='EMP900101AA1 PRUP900101AA1 Periodo del: 21/sep./2026 al 27/sep./2026 Neto pagado: 517.42 Total percepciones: 664.44 Total otros pagos: 0.00 Total deducciones sin ISR: 141.80 ISR retenido: 5.22 Folio fiscal: 10000000-0000-4000-8000-000000000099 Sello Digital del SAT: '+'AbCd1234+/'.repeat(10);
@@ -26,10 +26,10 @@ box.PLATINUM_FLOWS.configure({context:()=>ctx,esc:String,money:String,$:()=>null
  assert(calls.find(x=>x.p_accion==='RECIBO').p_datos.cierre_id==='c');n++;
  assert(calls.some(x=>x.p_accion==='TRANSICION'));n++;
  seen=new Set();calls=[];mode='error';await box.PLATINUM_FLOWS.transicion('c','TIMBRADO');
- assert(!calls.some(x=>x.p_accion==='TRANSICION'));assert(view.includes('Folio ilegible en PDF ficticio'));assert(view.includes('PERSONA FICTICIA'));n+=3;
+ assert(!calls.some(x=>x.p_accion==='TRANSICION'));assert(JSON.stringify(rendered._recibos_errores).includes('Folio ilegible en PDF ficticio'));assert(JSON.stringify(rendered._recibos_errores).includes('PERSONA FICTICIA'));n+=3;
  calls=[];mode='ok';cierre.snapshot.items.push({...cierre.snapshot.items[0],tipo:'FINIQUITO'});await box.PLATINUM_FLOWS.transicion('c','TIMBRADO');
- assert(!calls.some(x=>x.p_accion==='TRANSICION'));assert(view.includes('ambiguo'));n+=2;
+ assert(!calls.some(x=>x.p_accion==='TRANSICION'));assert(JSON.stringify(rendered._recibos_errores).includes('ambiguo'));n+=2;
  cierre.snapshot.items.pop();ctx.workers=[{id:'w0',rfc:'OTRO900101AA1'}];calls=[];seen=new Set();await box.PLATINUM_FLOWS.transicion('c','TIMBRADO');
- assert(!calls.some(x=>x.p_accion==='TRANSICION'));assert(view.includes('RFC del receptor'));n+=2;
+ assert(!calls.some(x=>x.p_accion==='TRANSICION'));assert(JSON.stringify(rendered._recibos_errores).includes('RFC del receptor'));n+=2;
  console.log('PASS '+n+' controles de lector NOI y timbrado: ISR separado, otros pagos, fechas, contradicciones, clasificación por cierre, concurrencia y errores por trabajador.');
 })().catch(e=>{console.error(e.stack);process.exitCode=1;});

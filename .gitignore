@@ -17,3 +17,10 @@ docs/auditoria-funciones.json
 supabase/migrations/20261017043734_integracion_seguridad_heredada_y_revision_historica.sql
 supabase/migrations/20261017154252_rrhh_orquestacion_corte_y_procesos.sql
 supabase/migrations/20261017154308_rrhh_trazabilidad_y_expediente.sql
+
+# Instrucciones de memoria local privada; no publicar rutas y contexto operativo.
+/AGENTS.md
+# Conciliador General: SQL operativo y adaptadores servidor privados.
+supabase/migrations/*_conciliador_general_persistente.sql
+supabase/functions/gemini-extract/
+supabase/functions/_shared/

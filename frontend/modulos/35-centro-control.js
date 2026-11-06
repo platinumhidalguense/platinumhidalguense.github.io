@@ -74,9 +74,8 @@ async function openControlEmpresarial(){
         ${[
           ['⚙','Operación RRHH','Corte semanal, explicación de importes, expediente 360 y procesos conectados','PLATINUM_RRHH.abrir()'],
           ['🧭','Pendientes y aprobaciones','Control por empresa/obra y consolidado exclusivo del administrador','PLATINUM_FLOWS.bandeja(false)'],
-          ['🔐','Cierre de nómina','Versión autorizada, conciliación, comprobantes, saldos y entrega','openCtrlCierres()'],
+          ['⚖️','Conciliador General','Fotografía y NOI, pagos BBVA, timbrados, previsión y cheques en cuatro pasos','openCtrlCierres()'],
           ['💳','Revisión de pagos del sábado','Pagos pendientes, transferencias y cheques sólo con confirmación desde las 12:00 CDMX','PLATINUM_PAGOS_SABADO.abrir()'],
-          ['⚖️','Conciliación NOI','Compara netos por trabajador y detecta diferencias al centavo','openCtrlConciliacionSelector()'],
           ['🧮','Papeles de prestaciones','Cálculos semanales, ISR preciso, propuesta D001 e histórico de consulta','openPapelesFiniquito()'],
           ['🧾','ISR mensual quincenal','Acumulados, ajuste de la segunda quincena y compensación del diferencial','openISRQuincenal()'],
           ['📒','Concentrado por contratista','Percepciones, ISR, IMSS, neto y evidencia de pago por semana','openCtrlConcentradoContratistas()'],
@@ -106,36 +105,13 @@ async function ctrlSha(valor){
   const b=valor instanceof ArrayBuffer?new Uint8Array(valor):new TextEncoder().encode(typeof valor==='string'?valor:JSON.stringify(valor));
   const h=await crypto.subtle.digest('SHA-256',b);return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('');
 }
-async function openCtrlCierres(){
-  ctrlAuditar('CIERRE_NOMINA','ABRIR');
-  modal(ctrlNav('🔐 Cierre de nómina')+`<div class="m-body"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn dark" onclick="openCtrlNuevoCierre()">＋ Nuevo cierre</button><button class="btn" onclick="openCtrlConciliacionSelector()">⚖️ Conciliación NOI</button><button class="btn" onclick="PLATINUM_RECIBOS_VERIFICACION.abrir()">Verificar recibos · todas las semanas</button><button class="btn" onclick="ctrlExportCierres()">⬇ Excel</button>${esAdmin()?'<button class="btn" onclick="openCtrlCierresEliminados()">🗄 Historial eliminados</button>':''}</div><div id="ctrl-cierres"></div></div>`,'lg');
-  const {data,error}=await ctrlLeer(CTRL_TABLAS.cierres);if(error){$('ctrl-cierres').innerHTML=esc(ctrlFaltaScript(error));return;}
-  window._CTRLCIERRES=(data||[]).sort((a,b)=>b.semana-a.semana||String(b.created_at).localeCompare(String(a.created_at)));
-  $('ctrl-cierres').innerHTML=ctrlTabla(['Semana','Periodo','Estado','Trabajadores','Neto','Autorización / pago','Acciones'],window._CTRLCIERRES.map(c=>{
-    const next=['BORRADOR','REVISADO'].includes(c.estado)?['AUTORIZADO','Autorizar']:c.estado==='AUTORIZADO'?['TIMBRADO','Marcar timbrado']:c.estado==='TIMBRADO'?['PAGADO','Marcar pagado']:null;
-    return `<tr><td><b>S${c.semana}</b></td><td>${esc(c.periodo)}</td><td>${ctrlEstado(c.estado)}</td><td>${c.total_trabajadores}</td><td><b>$${money(c.total_neto)}</b></td>
-      <td style="font-size:10px">${esc(c.autorizado_por_email||'Sin autorizar')}<br>${esc(c.pagado_por_email||'Sin marcar pagado')}</td>
-      <td style="white-space:nowrap"><button class="btn" style="padding:4px 7px" onclick="ctrlOpenConciliacion('${c.id}')">Conciliar</button>
-      <button class="btn" style="padding:4px 7px" onclick="ctrlRevisarPagosSemana(${c.semana})">Pagos</button>
-      <button class="btn" style="padding:4px 7px" onclick="PLATINUM_FLOWS.abrirCierre('${c.id}')">Flujo integrado</button>
-      ${puedeEditarTrabajador()&&(esVip()||esAdmin())&&['AUTORIZADO','TIMBRADO','PAGADO'].includes(c.estado)?`<button class="btn" style="padding:4px 7px" onclick="PLATINUM_FLOWS.revisarComprobantes('${c.id}')">Vincular comprobantes masivamente</button>`:''}
-      ${next&&puedeEditarTrabajador()&&(!['AUTORIZADO','PAGADO'].includes(next[0])||esVip()||esAdmin())?`<button class="btn dark" style="padding:4px 7px" onclick="ctrlCambiarCierre('${c.id}','${next[0]}')">${next[1]}</button>`:''}
-      ${esAdmin()?`<button class="btn danger" style="padding:4px 7px" onclick="ctrlEliminarCierre('${c.id}')">Eliminar cierre</button>`:''}</td></tr>`; }),'Aún no hay cierres de nómina.');
-}
+async function openCtrlCierres(){if(!window.PLATINUM_CONCILIADOR){toast("Actualiza la plataforma para abrir el Conciliador General.","err");return;}return window.PLATINUM_CONCILIADOR.abrir();}
 async function ctrlRevisarPagosSemana(sem){
   const c=(CIERRES||[]).find(x=>Number(x.semana)===Number(sem)&&x.estado!=='CANCELADO');
   if(c&&window.PLATINUM_FLOWS)return window.PLATINUM_FLOWS.abrirCierre(c.id);
   return conciliarSemana('S'+sem);
 }
-function openCtrlNuevoCierre(){
-  const sem=semObra();
-  modal(ctrlNav('＋ Nuevo cierre de nómina','openCtrlCierres')+`<div class="m-body">
-    <div class="grid" style="grid-template-columns:1fr 1fr"><div><label>Semana</label><input id="cc-sem" type="number" min="1" max="53" value="${sem}"></div>
-    <div><label>Periodo</label><select id="cc-per"><option>SEMANAL</option><option>QUINCENAL</option><option>TODOS</option></select></div></div>
-    <div style="margin-top:10px"><label>Observaciones</label><textarea id="cc-obs" rows="3" placeholder="Notas del cierre..."></textarea></div>
-    <p class="fhint" style="margin-top:10px">Se guardará una fotografía inmutable de salarios, previsión social, retenciones y finiquitos calculados por el motor actual.</p></div>
-    <div class="m-foot"><button class="btn" onclick="openCtrlCierres()">Cancelar</button><button class="btn dark" id="cc-save" onclick="ctrlCrearCierre()">Crear fotografía</button></div>`,'md');
-}
+function openCtrlNuevoCierre(){if(!window.PLATINUM_CONCILIADOR){toast("Actualiza la plataforma para abrir el Conciliador General.","err");return;}return window.PLATINUM_CONCILIADOR.nueva();}
 async function ctrlCrearCierre(){
   if(!window.PLATINUM_FLOWS){toast('No cargó el flujo integrado. Recarga antes de crear un cierre.','err');return;}
   return window.PLATINUM_FLOWS.crearCierre();
@@ -167,13 +143,7 @@ async function ctrlCambiarCierre(id,estado){
   if(!window.PLATINUM_FLOWS){toast('No cargó el flujo integrado. Recarga antes de aprobar.','err');return;}
   return window.PLATINUM_FLOWS.transicion(id,estado);
 }
-async function openCtrlConciliacionSelector(){
-  ctrlAuditar('CONCILIACION_NOI','ABRIR_SELECTOR');
-  const {data,error}=await ctrlLeer(CTRL_TABLAS.cierres);if(error){toast(ctrlFaltaScript(error),'err');return;}
-  const cs=(data||[]).filter(c=>c.estado!=='CANCELADO').sort((a,b)=>b.semana-a.semana);
-  modal(ctrlNav('⚖️ Conciliación NOI')+`<div class="m-body"><p style="color:var(--mut)">Selecciona un cierre. La comparación usa su fotografía, no cifras que pudieran cambiar después.</p>
-    ${ctrlTabla(['Semana','Periodo','Estado','Neto','Acción'],cs.map(c=>`<tr><td>S${c.semana}</td><td>${c.periodo}</td><td>${ctrlEstado(c.estado)}</td><td>$${money(c.total_neto)}</td><td><button class="btn dark" onclick="ctrlOpenConciliacion('${c.id}')">Abrir conciliación</button></td></tr>`),'Primero crea un cierre de nómina.')}</div>`,'lg');
-}
+async function openCtrlConciliacionSelector(){if(!window.PLATINUM_CONCILIADOR){toast("Actualiza la plataforma para abrir el Conciliador General.","err");return;}return window.PLATINUM_CONCILIADOR.abrir(1);}
 function ctrlNormHdr(v){return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');}
 function ctrlNumero(v){
   if(typeof v==='number')return v;let s=String(v??'').trim().replace(/\s/g,'').replace(/\$/g,'');
@@ -272,24 +242,7 @@ async function ctrlLayoutNOIConIA(hojas){
   if(!Number.isInteger(layout.fila)||layout.fila<0||layout.fila>=h.matriz.length||!Number.isInteger(layout.no)||layout.no<0||!Number.isInteger(layout.neto)||layout.neto<0)throw new Error('Gemini no devolvió coordenadas válidas.');
   return {hoja:h,layout};
 }
-async function ctrlOpenConciliacion(id){
-  if(puedeEditarTrabajador()&&(esVip()||esAdmin())){
-    const {data:ajuste,error:eAjuste}=await sb.rpc('control_flujo_operar',{p_accion:'APLICAR_CENTAVOS_APROBADOS',p_datos:{cierre_id:id}});
-    if(eAjuste){toast('No se abrió la conciliación: '+eAjuste.message,'err');return;}
-    if(ajuste?.aplicado)toast('Corrección histórica aprobada aplicada y auditada; salarios y pagos intactos.','ok');
-  }
-  const {data:c,error}=await sb.from(CTRL_TABLAS.cierres).select('*').eq('id',id).eq('obra_id',OBRA.id).single();
-  if(error){toast(ctrlFaltaScript(error),'err');return;}window._CTRL_CIERRE=c;window._CTRLNOI=null;
-  const {data:filas,error:eFilas}=await fetchAllRows(()=>sb.from(CTRL_TABLAS.noi).select('*').eq('obra_id',OBRA.id).eq('cierre_id',id));
-  if(eFilas||!Array.isArray(filas)){toast('No se pudo verificar la conciliación; no se mostrará como vacía.','err');return;}
-  modal(ctrlNav(`⚖️ NOI vs PLATINUM · S${c.semana}`,'openCtrlCierres')+`<div class="m-body">
-    <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap"><div style="flex:1"><label>Reporte final exportado de NOI (.xlsx, .xls o .csv)</label><input id="noi-file" type="file" accept=".xlsx,.xls,.csv" onchange="ctrlLeerArchivoNOI(this)"></div>
-    <button class="btn" onclick="ctrlExportConciliacion()">⬇ Excel</button><button class="btn" onclick="PLATINUM_FLOWS.abrirCierre('${id}')">Versión, recibos y saldos</button></div>
-    <div class="fhint" style="margin-top:6px">Detecta encabezados como Número/Clave del trabajador y Neto/Total neto. NOI sigue siendo la referencia final de timbrado; el sistema exige diferencia $0.00 para autorizar.</div>
-    ${['BORRADOR','REVISADO'].includes(c.estado)?'<div class="fhint" style="margin-top:6px">Si cambiaste incidencias o reglas de retención, abre «Versión, recibos y saldos» y usa «Preparar fotografía actual» antes de conciliar. Volver a importar NOI compara contra la fotografía guardada: no recalcula el borrador ni requiere eliminar el cierre.</div>':''}
-    <div id="noi-preview" style="margin-top:12px">${ctrlRenderConciliacion(filas||[])}</div></div>`,'lg');
-  ctrlAuditar('CONCILIACION_NOI','ABRIR',{semana:c.semana},'CIERRE',id);
-}
+async function ctrlOpenConciliacion(id){if(!window.PLATINUM_CONCILIADOR){toast("Actualiza la plataforma para abrir el Conciliador General.","err");return;}return window.PLATINUM_CONCILIADOR.abrirCierre(id,1);}
 function ctrlRenderConciliacion(rows,editable=false){
   if(!rows.length)return '<div class="empty"><div class="big">⚖️</div>Aún no se importa el reporte final de NOI.</div>';
   const dif=rows.filter(x=>x.estatus!=='COINCIDE');
@@ -381,10 +334,7 @@ async function ctrlLeerArchivoNOI(inp){
     }else toast('No se pudo leer NOI: '+e.message,'err');
   }
 }
-async function ctrlGuardarNOI(){
-  if(!window.PLATINUM_FLOWS){toast('No cargó el flujo integrado. No se reemplazó NOI.','err');return;}
-  return window.PLATINUM_FLOWS.importarNOI(window._CTRLNOI,window._CTRL_CIERRE);
-}
+async function ctrlGuardarNOI(){if(!window.PLATINUM_CONCILIADOR){toast("Actualiza la plataforma para abrir el Conciliador General.","err");return;}return window.PLATINUM_CONCILIADOR.guardarNOI();}
 async function ctrlExportConciliacion(){
   const c=window._CTRL_CIERRE;if(!c)return;const {data,error}=await fetchAllRows(()=>sb.from(CTRL_TABLAS.noi).select('*').eq('obra_id',OBRA.id).eq('cierre_id',c.id));
   if(error||!(data||[]).length){toast('No hay conciliación guardada.','err');return;}

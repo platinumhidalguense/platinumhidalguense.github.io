@@ -46,50 +46,11 @@
    if(p.aprobar_cierre){const ajuste=await call('APLICAR_CENTAVOS_APROBADOS',{cierre_id:id});if(ajuste.aplicado)cfg.toast(`Corrección histórica autorizada aplicada: ${ajuste.casos} incidencia(s). Salarios y pagos preservados.`,'ok');}
    const d=await call('DETALLE',{cierre_id:id});
    if(context().obra?.id!==initial||d.cierre.obra_id!==initial)throw Error('El centro cambió durante la carga. Abre nuevamente el cierre.');
-   permissions=p;state={id,obraId:initial,data:d,dirty:false};renderCierre();
+   permissions=p;state={id,obraId:initial,data:d,dirty:false};await renderCierre();
   }catch(e){cfg.toast(e.message,'err');}
  }
  function saldosVigentes(d){return(d.saldos||[]).filter(x=>x.vigente&&x.cierre_id===d.cierre.id&&(!d.flujo?.version_id||x.version_id===d.flujo.version_id));}
- function renderCierre(){
-  const st=state,d=st.data,c=d.cierre,f=d.flujo,diag=d.diagnostico,rows=d.saldos||[];
-  const actuales=saldosVigentes(d),saldo=round(actuales.reduce((n,x)=>n+Number(x.saldo),0)),pago=round(actuales.reduce((n,x)=>n+Number(x.pago_registrado),0)),entrega=round(actuales.reduce((n,x)=>n+Number(x.entrega_pendiente),0));
-  const closed=['AUTORIZADO','TIMBRADO','PAGADO'].includes(c.estado),write=permissions.escritura;
-  const actions=[`<button class="btn" onclick="PLATINUM_FLOWS.abrirCierre('${c.id}')">↻ Actualizar</button>`,
-   `<button class="btn" onclick="PLATINUM_RECIBOS_VERIFICACION.abrir(${c.semana})">Verificación de recibos por semana</button>`,
-   `<button class="btn" onclick="PLATINUM_FLOWS.historicos(false)">Revisión de cierres</button>`,
-   `<button class="btn" onclick="ctrlOpenConciliacion('${c.id}')">Importar / revisar NOI</button>`];
-  if(root.PLATINUM_PAGOS_SABADO)actions.push(`<button class="btn" onclick="PLATINUM_PAGOS_SABADO.abrir(${c.semana})">Revisión de pagos · sábado 12:00</button>`);
-  if(typeof window!=='undefined'&&window.PLATINUM_RRHH)actions.push(`<button class="btn" onclick="PLATINUM_RRHH.abrir('corte',null,${c.semana})">Corte semanal guiado</button><button class="btn" onclick="PLATINUM_RRHH.abrir('importe',null,${c.semana},'${c.id}')">Explicar importes</button>`);
-  if(write&&!closed)actions.push(`<button class="btn dark" onclick="PLATINUM_FLOWS.preparar('${c.id}')">${esLegadoSinPreparar(d)?'Preparar histórico conciliado':'Preparar fotografía actual'}</button>`);
-  if(write&&(d.recibos_sin_leer||[]).length)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.leerRecibos('${c.id}')">Leer ${d.recibos_sin_leer.length} recibo(s) archivado(s)</button>`);
-  if(write&&root.PLATINUM_RECIBOS_IA)actions.push(`<button class="btn" onclick="PLATINUM_RECIBOS_IA.abrir(${c.semana})">Leer PDF con Gemini</button>`);
-  if(permissions.aprobar_cierre&&['BORRADOR','REVISADO'].includes(c.estado))actions.push(`<button class="btn dark" onclick="PLATINUM_FLOWS.transicion('${c.id}','AUTORIZADO')">Autorizar versión</button>`);
-  if(write&&closed)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.solicitar('${c.id}','REAPERTURA')">Solicitar reapertura</button>`);
-  if(permissions.admin&&closed&&!f?.version_id)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.adoptar('${c.id}')">Revisar y adoptar legado</button>`);
-  if(write&&c.estado==='AUTORIZADO')actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.transicion('${c.id}','TIMBRADO')">Verificar y marcar timbrado</button>`);
-  if(permissions.aprobar_cierre&&c.estado==='TIMBRADO')actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.transicion('${c.id}','PAGADO')">Verificar y marcar pagado</button>`);
-  if(write&&closed&&f?.version_id)actions.push(`<button class="btn dark" onclick="PLATINUM_FLOWS.revisarComprobantes('${c.id}')">Vincular comprobantes masivamente</button>`);
-  if(rows.length)actions.push(`<button class="btn" onclick="PLATINUM_FLOWS.exportar('${c.id}')">⬇ Excel de saldos</button>`);
-  const issues=(diag.filas||[]).filter(x=>x.estado!=='COINCIDE');
-  const sourceFlags=(!f?'Sin preparar':f.sucio?'Fuentes modificadas · volver a preparar':closed?'Versión autorizada fija':'Fotografía preparada');
-  cfg.modal(head(`Nómina integrada · S${c.semana}`,'openCtrlCierres()')+`<div class="m-body">
-   <p class="fhint">${esc(context().empresaNombre)} · ${esc(context().obra.nombre)} · ${esc(c.periodo)} · <b>${esc(c.estado)}</b></p>
-   <div id="flow-change" role="status" class="fhint" style="color:var(--amber)">${esc(sourceFlags)}</div>
-   <div class="stats"><div class="stat b"><div class="n">$${money(c.total_neto)}</div><div class="l">Versión del cierre</div></div><div class="stat g"><div class="n">$${money(pago)}</div><div class="l">Pago registrado</div></div><div class="stat a"><div class="n">$${money(saldo)}</div><div class="l">Saldo por aplicar</div></div><div class="stat a"><div class="n">$${money(entrega)}</div><div class="l">Cheque: entrega pendiente</div></div></div>
-   <div style="display:flex;gap:7px;flex-wrap:wrap;margin:12px 0">${actions.join('')}</div>
-   <p id="flow-progress" class="fhint" role="status"></p>
-   ${st.receiptErrors?.length?`<details open><summary><b>PDF por revisar: ${st.receiptErrors.length}</b></summary>${table(['Trabajador','Causa'],st.receiptErrors.map(x=>`<tr><td>${esc(x.nombre)}</td><td>${esc(x.causa)}</td></tr>`))}</details>`:''}
-   ${d.timbrado?`<details><summary><b>Respaldo del timbrado: ${d.timbrado.pendientes} pendiente(s) · XML o PDF fiscal verificado</b></summary><p class="fhint">Se cotejan folio, emisor, trabajador, periodo e importe. XML y PDF del mismo folio no se suman dos veces. Comprobación documental interna; no es consulta de vigencia ante SAT.</p>${table(['Trabajador (UUID)','XML','PDF','Estado'],(d.timbrado.filas||[]).map(x=>`<tr><td>${esc((diag.filas||[]).find(z=>z.trabajador_id===x.tid)?.nombre||x.tid)}</td><td>${x.xml}</td><td>${x.pdf}</td><td>${esc(x.estado)}</td></tr>`))}</details>`:''}
-   <details ${issues.length?'open':''}><summary><b>Conciliación motor / NOI / recibos: ${issues.length} pendiente(s)${diag.fuera_snapshot?' · '+diag.fuera_snapshot+' fila(s) NOI fuera de fotografía':''}</b></summary>
-   ${table(['No.','Trabajador','Concepto','Motor fiscal','NOI','PDF / XML','Estado'],(diag.filas||[]).map(x=>`<tr><td>${esc(x.numero)}</td><td>${esc(x.nombre)}</td><td>${esc(x.tipo)}</td><td>$${money(x.motor)}</td><td>${x.noi==null?(x.neto_respaldo==null?'Sin respaldo':'PDF $'+money(x.neto_respaldo)):'$'+money(x.noi)}</td><td>${x.pdf} / ${x.xml}</td><td>${esc(x.estado)}</td></tr>`))}</details>
-   <div class="sect">Obligaciones y comprobantes</div><p class="fhint">Una transferencia importada no se suma dos veces. Un cheque expedido es pago registrado aunque aún falte entregarlo. Los comprobantes históricos necesitan revisión administrativa; no se modifican solos.</p>
-   <label>Buscar trabajador</label><input id="flow-search" placeholder="Número, nombre o contratista" oninput="PLATINUM_FLOWS.filtrar(this.value)">
-   <div id="flow-saldos">${renderSaldos(rows)}</div>
-   <details><summary><b>Versiones y solicitudes</b></summary>
-   ${table(['Versión','Estado al sellar','Fecha','Huella'],(d.versiones||[]).map(v=>`<tr><td>${v.version}</td><td>${esc(v.estado_origen)}</td><td>${esc(new Date(v.created_at).toLocaleString('es-MX'))}</td><td><code>${esc(v.snapshot_sha256.slice(0,16))}…</code></td></tr>`))}
-   ${renderSolicitudes(d.solicitudes||[])}</details>
-   </div>`,'lg');
- }
+ function renderCierre(){if(!root.PLATINUM_CONCILIADOR)throw Error('No cargó el Conciliador General; actualiza la plataforma.');return root.PLATINUM_CONCILIADOR.mostrarCierre({...state.data,_recibos_errores:state.receiptErrors||[]},permissions);}
  function renderSaldos(rows){return table(['No. / trabajador','Concepto / método','Autorizado','Registrado','Saldo','Entrega','Acciones'],rows.map(o=>`<tr><td><b>#${esc(o.numero)} ${esc(o.nombre)}</b><br><small>${esc(o.contratista)}</small></td><td>${esc(o.tipo)}<br><small>${esc(o.metodo)}${o.vigente?'':' · versión archivada'}</small></td><td>$${money(o.importe)}</td><td>$${money(o.pago_registrado)}</td><td>$${money(o.saldo)}<br><small>${esc(o.estado_pago)}</small></td><td>${Number(o.entrega_pendiente)>0?'Pendiente $'+money(o.entrega_pendiente):'—'}</td><td>${permissions.escritura&&o.vigente&&o.cierre_id===state.id&&Number(o.saldo)>0?`<button class="btn" onclick="PLATINUM_FLOWS.comprobantes('${o.id}')">Vincular comprobante</button>`:''}${o.tipo==='FINIQUITO'&&permissions.transferencia?` <button class="btn" onclick="PLATINUM_FLOWS.transferencia('${o.trabajador_id}',${o.semana})">Transferencia autorizada</button>`:''}${permissions.admin?` <button class="btn" onclick="PLATINUM_FLOWS.aplicaciones('${o.id}')">Aplicaciones</button>`:''}</td></tr>`));}
  function filtrar(q){if(!state)return;const n=String(q||'').toLocaleUpperCase('es-MX');el('flow-saldos').innerHTML=renderSaldos(state.data.saldos.filter(o=>`${o.numero} ${o.nombre} ${o.contratista}`.toLocaleUpperCase('es-MX').includes(n)));}
  function avisarCambio(){if(state&&el('flow-change')){state.dirty=true;el('flow-change').textContent='Hay cambios compartidos. Actualiza esta vista antes de aprobar; tu captura no se ha borrado.';}}
@@ -122,7 +83,7 @@
  async function importarNOI(st,c){return operation(async()=>{
   if(!st?.rows||!c?.id)throw Error('Vuelve a leer el archivo NOI.');
   const r=await call('IMPORTAR_NOI',{cierre_id:c.id,filas:st.rows,archivo:st.file.name,sha256:st.hash,revision:c.snapshot_sha256});
-  cfg.toast(r.sin_cambios?`NOI verificado: ${r.filas} filas idénticas a la versión autorizada. No se modificó el cierre.`:`NOI guardado completo: ${r.filas} filas. Revisa la conciliación antes de autorizar.`,'ok');await cfg.reload();await cfg.openNoi(c.id);
+  cfg.toast(r.sin_cambios?`NOI verificado: ${r.filas} filas idénticas a la versión autorizada. No se modificó el cierre.`:`NOI guardado completo: ${r.filas} filas. Revisa la conciliación antes de autorizar.`,'ok');await cfg.reload();if(!root.PLATINUM_CONCILIADOR)await cfg.openNoi(c.id);return r;
  });}
  async function transicion(id,estado){return operation(async()=>{
   await loadPermissions();if(!permissions.escritura)throw Error('Tu cuenta es de consulta.');
@@ -378,6 +339,6 @@
    neto:round(filas.reduce((n,x)=>n+Number(x.neto),0)),costo:round(filas.reduce((n,x)=>n+Number(x.costo),0)),versiones:notas};
  }
  function manual(){cfg.modal(head('Guía breve · flujo integrado')+`<div class="m-body" style="line-height:1.65"><p><b>1. Preparar.</b> Registra movimientos, incidencias, créditos e incapacidades. El motor existente genera la fotografía del borrador. Una incidencia automática desactualizada debe revisarse antes de exportar.</p><p><b>2. Conciliar.</b> Usa NOI o el recibo individual verificable; si existen ambos deben coincidir. Las diferencias bloquean autorización y expedición.</p><p><b>3. Autorizar.</b> Cualquier VIP con edición autoriza directamente, con confirmación. No hay etapa de revisión. Queda una versión fija; un cambio posterior exige reapertura.</p><p><b>4. Timbrado.</b> XML o PDF fiscal verificado de cada persona. Se validan folio, identidad, empresa, periodo e importe. Ambas representaciones del mismo folio no duplican el total. No se simula consulta de vigencia ante SAT.</p><p><b>5. Pagar y comprobar.</b> Otra persona VIP distinta de quien autorizó marca pagado, sólo al resolver los saldos. Los históricos requieren revisión administrativa. Una aplicación no dispersa dinero en el banco. Los cheques expedidos cuentan como pago registrado y su entrega se controla aparte.</p><p><b>6. Historia y excepciones.</b> Reabrir conserva versiones y comprobantes. Las regularizaciones se aprueban expresamente. Una excepción individual de efectivo no autoriza otras ni crea una transferencia ficticia.</p><p class="fhint">Todo se limita a tus empresas, centros y permisos. No se envían correos ni se realizan trámites ante autoridades desde este módulo.</p></div>`,'lg');}
- root.PLATINUM_FLOWS=Object.freeze({configure,crearCierre,abrirCierre,filtrar,preparar,enviarPropuesta,importarNOI,transicion,leerRecibos,solicitar,enviarSolicitud,revisarSolicitud,decidir,aplicarSolicitud,adoptar,comprobantes,buscarComprobantes,aplicarComprobante,aplicaciones,retirar,transferencia,confirmarTransferencia,bandeja,abrirCentro,historicos,abrirHistorico,exportar,resolverNeto,obtenerVersiones,filtrarAbiertos,versionarModelo,pagosUnicos,avisarCambio,manual,call,revisarComprobantes,confirmarVinculos,
+ root.PLATINUM_FLOWS=Object.freeze({tablaSolicitudes:()=>renderSolicitudes(state?.data?.solicitudes||[]),tablaSaldos:()=>renderSaldos(state?.data?.saldos||[]),configure,crearCierre,abrirCierre,filtrar,preparar,enviarPropuesta,importarNOI,transicion,leerRecibos,solicitar,enviarSolicitud,revisarSolicitud,decidir,aplicarSolicitud,adoptar,comprobantes,buscarComprobantes,aplicarComprobante,aplicaciones,retirar,transferencia,confirmarTransferencia,bandeja,abrirCentro,historicos,abrirHistorico,exportar,resolverNeto,obtenerVersiones,filtrarAbiertos,versionarModelo,pagosUnicos,avisarCambio,manual,call,revisarComprobantes,confirmarVinculos,
   _test:Object.freeze({canon,same,round})});
 })(typeof window==='undefined'?globalThis:window);

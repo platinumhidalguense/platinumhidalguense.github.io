@@ -163,23 +163,7 @@ function chequeMismaSemana(w,ns){
   return (CHEQUES||[]).filter(c=>!c.eliminado&&c.trabajador_id===w.id&&normSem(c.semana)===ns&&String(c.estatus||'').toUpperCase()!=='CANCELADO'&&(c.importe!=null&&c.importe!==''));
 }
 let PAGOIMP=null;
-function openImportPago(){
-  modal(`
-    <div class="m-head"><h2>💸 Importar pagos por transferencia · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
-    <div class="m-body">
-      <p style="color:var(--mut);font-size:12.5px;margin-bottom:12px">Sube el <b>pago global</b> ("Resumen general de Nómina en Tiempo Real") <b>o</b> comprobantes <b>individuales</b> (dispersión BBVA o pago interbancario a otro banco, ej. cuando el banco rechaza y se paga aparte). Puedes soltar <b>varios PDF a la vez</b>. La app empareja cada pago con el trabajador (nombre + últimos 4 de la cuenta) y lo cruza con los cheques de esa semana para avisar posibles pagos <b>duplicados</b>. Empareja con los trabajadores de la <b>obra actual</b>.</p>
-      <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;align-items:end">
-        <div><label>Semana de la nómina pagada</label><input id="pg-sem" placeholder="S18" oninput="if(PAGOIMP)pgRender()"></div>
-        <div><input type="file" id="pg-file" accept=".pdf" multiple onchange="pgParse(this)"></div>
-      </div>
-      <div id="pg-head" style="margin-top:10px"></div>
-      <div id="pg-out" style="margin-top:10px;max-height:400px;overflow:auto"></div>
-    </div>
-    <div class="m-foot">
-      <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn dark hide" id="pg-btn" onclick="applyPagoImport()">💾 Registrar pagos seleccionados</button>
-    </div>`,'lg');
-}
+function openImportPago(){if(!window.PLATINUM_CONCILIADOR){toast("Actualiza la plataforma para abrir el Conciliador General.","err");return;}return window.PLATINUM_CONCILIADOR.abrir(2);}
 /* ============================================================
    v36.2 · COMPROBANTES SIN CAPA DE TEXTO (impresos desde el navegador)
    Muchos comprobantes del banco llegan como PDF de IMAGEN: al imprimirlos

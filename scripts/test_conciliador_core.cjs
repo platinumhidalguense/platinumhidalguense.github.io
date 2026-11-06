@@ -1,0 +1,27 @@
+const assert=require('node:assert/strict'),c=require('../frontend/modulos/58-conciliador-core.js');
+for(const [s,n]of [['1,234.56',123456],['1 234.56',123456],['$ 0.01 MXN',1],[100.01,10001]])assert.equal(c.centavos(s),n);
+for(const s of ['1,23.45','1.234,56','100.001',NaN,-1,Infinity])assert.throws(()=>c.centavos(s));
+const people=[{id:'a',nombres:'JUAN CARLOS',primer_apellido:'PEREZ',cuenta:'001234567890'},{id:'b',nombres:'ANA',primer_apellido:'LOPEZ',cuenta:'9876543210'}];
+assert.equal(c.asociar({titular:'PEREZ JUAN CARLOS',mask:'7890'},people).trabajador_id,'a');
+assert.equal(c.asociar({titular:'PEREZ JUAN CARLOS',mask:'7890'},[...people,people[0]]).estado,'COINCIDE');
+assert.equal(c.asociar({titular:'PEREZ JUAN CARLOS',mask:'3210'},people).estado,'IDENTIDAD_CONTRADICTORIA');
+assert.equal(c.asociar({titular:'DESCONOCIDO',mask:'7890'},people).estado,'REVISAR_NOMBRE');
+assert.equal(c.asociar({titular:'PEREZ JUAN CARLOS',mask:'7890'},[...people,{...people[0],id:'c'}]).estado,'AMBIGUO');
+assert.equal(c.asociar({titular:'LOPEZ NAA',mask:'3210'},people).estado,'REVISAR_NOMBRE','No aceptar anagramas como identidad fiscal');
+const global='Resumen general Número de registros: 2 Importe total: 3,000.01 06/11/2026 *7890 PEREZ JUAN CARLOS EXITOSO 2,000.00 MXP 06/11/2026 *3210 ANA LOPEZ RECHAZADO 1,000.01 MXP';
+let p=c.leerTradicional(global);assert(p.validacion.ok,JSON.stringify(p));assert.equal(p.records.length,2);assert.equal(p.records[1].estado,'RECHAZADO');
+assert(!c.leerTradicional(global.replace('registros: 2','registros: 3')).validacion.ok);
+assert(!c.leerTradicional(global.replace('3,000.01','3,000.02')).validacion.ok);
+assert.equal(c.leerTradicional('Resumen general Importe total: 9,999.00').records.length,0,'Un global incompleto nunca es un pago individual');
+const individual='Comisión: 20.00 IVA: 3.20 Importe de la transferencia: 1,234.56 MXN Nombre del beneficiario: ANA LOPEZ Cuenta destino: 9876543210 Fecha de operación: 06/11/2026 Operación exitosa Rechazadas: 0';
+p=c.leerTradicional(individual);assert(p.validacion.ok,JSON.stringify(p));assert.equal(p.records[0].importe,1234.56);assert.equal(p.records[0].estado,'EXITOSO');assert.equal(p.records[0].mask,'3210');
+assert(!c.leerTradicional(individual+' Importe: 1,000.00').validacion.ok);
+const ia={tipo_documento:'INDIVIDUAL',registros:[{titular:'ANA LOPEZ',importe:1234.56,cuenta:'9876543210',fecha:'2026-11-06',estado:'EXITOSO',evidencia_importe:'1,234.56'}]};
+assert(c.validarIA(ia,individual).validacion.ok);assert(!c.validarIA({...ia,registros:[{...ia.registros[0],evidencia_importe:'9,999.00'}]},individual).validacion.ok);
+assert.equal(c.conciliarPrevision({fiscal:1000,prevision:200,pagado:1200}).estado,'COINCIDE');
+assert.equal(c.conciliarPrevision({fiscal:1000,prevision:0,pagado:1000.01}).estado,'EXCEDENTE');
+assert.equal(c.conciliarPrevision({fiscal:1000,prevision:200,pagado:1000}).estado,'PAGO_PARCIAL');
+assert.equal(c.conciliarPrevision({fiscal:null,prevision:200,pagado:1200}).estado,'FUENTE_INCOMPLETA');
+console.log('PASS core: centavos, nombres/cuentas inequívocos, duplicados de identidad, global/individual, rechazo, comisiones excluidas, anomalías IA y previsión exacta.');
+
+(async()=>{let calls=0;const iaRead=async()=>{calls++;return{...ia,ok:true};};assert.equal((await c.leerDual(individual,{},iaRead)).lector,'TRADICIONAL');assert.equal(calls,0);assert.equal((await c.leerDual('PDF sin texto',{},iaRead)).lector,'GEMINI_PROPUESTA');assert.equal(calls,1);assert((await c.leerDual('',{},iaRead)).validacion.ok);await assert.rejects(c.leerDual('',{},async()=>({ok:false,error:'Gemini 503 temporal'})),/503/);console.log('PASS lector dual: tradicional primero, fallback sólo por anomalía, propuesta pendiente y 503 sin importe inventado.');})().catch(e=>{console.error(e.stack);process.exitCode=1;});

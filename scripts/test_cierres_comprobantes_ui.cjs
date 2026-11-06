@@ -14,7 +14,7 @@ const ctx={obra:{id:'O',nombre:'OBRA FICTICIA'},workers:[],empresaNombre:'PLATIN
  if(a.p_accion==='TRANSICION'){closed=true;return{data:{ok:true}};}
  return{data:{ok:true}};
 }}};
-const box={Date,Intl,confirm:()=>confirm,prompt:()=>'',crypto:require('crypto').webcrypto};vm.createContext(box);vm.runInContext(fs.readFileSync('platinum-workflows.js','utf8'),box);
+const box={PLATINUM_CONCILIADOR:{mostrarCierre:()=>{}},Date,Intl,confirm:()=>confirm,prompt:()=>'',crypto:require('crypto').webcrypto};vm.createContext(box);vm.runInContext(fs.readFileSync('platinum-workflows.js','utf8'),box);
 const f=box.PLATINUM_FLOWS;f.configure({context:()=>ctx,$:id=>elements[id],esc:x=>String(x??''),money:x=>Number(x??0).toFixed(2),table:(h,r)=>h.join('|')+r.join(''),modal:x=>view=x,toast:x=>messages.push(x),reload:async()=>{}});
 (async()=>{
  // Acceso masivo directo desde listado, sin haber abierto antes la vista integrada.

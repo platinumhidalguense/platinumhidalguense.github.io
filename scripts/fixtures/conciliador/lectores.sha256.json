@@ -1,0 +1,9 @@
+{
+  "parsePdfs": "f1c78b2fdc2d9fb4458ce31b0ac6da1500925dbca4d857ec67aca43483c6f4d0",
+  "parsePagoGlobal": "9b74f4cfb514839b829652dfd0835b362bb4955f1cd2f6adecdf2cc282712858",
+  "parsePagoIndividual": "df240555431acfd3eac3bc17e5e04291b8c8d0101e500ee2cc1aed5a7655cac2",
+  "parseCfdi": "ad7d23413c2adcf6a48a838af215737378dbc0e30a43d3f859274899d02f05bf",
+  "ctrlDetectarLayoutNOI": "ba4224b2e1552f506f00f1a72fc64aa58a3024c6360f8a16fd819332812149a6",
+  "ctrlExtraerFilasNOI": "2e7e2c57463c5660dc226eef636e826f9c118684fe83f0c7a92233de2576dfed",
+  "ctrlCruzarIdentidadNOI": "f381621579404bae92b4e6d3bd822821483dc513513d4e451d4acf426032929c"
+}

@@ -858,9 +858,9 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <button class="sb-item" onclick="openAvisosInfonavit()"><span class="ic">🏠</span>Avisos INFONAVIT · por RP</button>
         <button class="sb-item" onclick="sbGo(openImportExp)"><span class="ic">🏦</span>Respuesta del banco (.exp)</button>
         <button class="sb-item" onclick="sbGo(openImport)"><span class="ic">🏛</span>Cuentas del banco (Excel)</button>
-        <button class="sb-item" onclick="sbGo(openImportPago)"><span class="ic">💸</span>Pagos BBVA (transferencias)</button>
+        <button class="sb-item" onclick="sbGo(openCtrlCierres)"><span class="ic">⚖️</span>Conciliador General</button>
         <button class="sb-item" onclick="sbGo(openPdfImport)"><span class="ic">📎</span>Acuses IMSS y recibos (PDF)</button>
-        <button class="sb-item" onclick="sbGo(openCfdiImport)"><span class="ic">🧾</span>CFDI timbrados (XML)</button>
+
       </details>
 
       <details class="sb-grp" open>
@@ -1128,7 +1128,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <select id="pg-v-tipo" onchange="renderPagosView()">
           <option value="">Tipo: todos</option><option value="GLOBAL">Pago global (dispersión)</option><option value="INDIVIDUAL">Pago individual</option>
         </select>
-        <button class="btn gold" onclick="openImportPago()">💸 Importar pagos BBVA</button>
+        <button class="btn gold" onclick="openImportPago()">⚖️ Conciliador · pagos</button>
         <button class="btn dark" onclick="openRevisarSemana()">🔎 Revisar semana (¿a quién falta pagarle?)</button>
         <button class="btn dark" onclick="openControlPagos()">🔁 Control de pagos (cheque + transferencia)</button>
         <button class="btn dark" onclick="exportPagos()">⬇ Exportar Excel</button>
@@ -1208,11 +1208,11 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 </div>
 
 <script src="platinum-sync.js?v=20261027.1"></script>
-<script src="platinum-workflows.js?v=20261029.4"></script>
+<script src="platinum-workflows.js?v=20261106.2"></script>
 <script src="platinum-rrhh.js?v=20261023.2"></script>
 <script src="platinum-pagos-sabado.js?v=20261023.2"></script>
 <aside id="act-live-panel" class="act-live-panel" data-actividad-panel hidden aria-label="Actividad en vivo, sólo administrador"><div class="act-live-head"><h2>Actividad de usuarios</h2><button type="button" class="btn" onclick="PLATINUM_ACTIVIDAD.abrir()" aria-label="Actualizar actividad">↻</button><button type="button" class="btn" onclick="PLATINUM_ACTIVIDAD.cerrar()" aria-label="Cerrar actividad">×</button></div><div id="act-live-body" class="act-live-body"></div></aside>
-<script src="assets/platinum-app.9054f8d0920a6f38.js" integrity="sha384-HO2HO6hZ/OR0ALCiejGTcvJ1jkXiSPIxSrT5JjTiAOQewLkxdmyi5pEmouHzH2fk" crossorigin="anonymous"></script>
+<script src="assets/platinum-app.0196b3100891af03.js" integrity="sha384-UKIJK8T6erxxDfVXc0zOko+Q6JXvMBJFqhi6PAHN27wzio5f+N5KX5ZHRENvdtnz" crossorigin="anonymous"></script>
 <script src="concentrado-contratistas.js"></script>
 </body>
 </html>

@@ -33,12 +33,13 @@ async function pdfBytesToText(bytes){
 let PDFIMP=[];
 function openPdfImport(){
   modal(`
-    <div class="m-head"><h2>📎 Importar PDFs · acuses IMSS y recibos</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-head"><h2>📎 Importar acuses IMSS</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
+      <p><button class="btn" onclick="PLATINUM_CONCILIADOR.abrir(3)">Recibos de nómina · Conciliador General</button></p>
       <p style="color:var(--mut);margin-bottom:14px">Sube uno o varios PDFs (individuales o combinados). La app <b>lee cada página</b>, encuentra el NSS o CURP y lo liga al trabajador. Los PDFs combinados se separan solos por trabajador. Nada se guarda hasta que confirmes.</p>
       <p style="background:var(--blue-bg);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--txt);margin-bottom:14px">🆕 <b>Constancias IMSS con varios movimientos:</b> si el acuse del IDSE trae hasta <b>10 altas / reingresos / bajas / modificaciones</b> (aunque la tabla siga en la 2ª página), se leen <b>todos</b> los renglones y cada uno se liga a su trabajador por NSS. El tipo de movimiento y la fecha se toman del propio acuse, renglón por renglón.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
-        <div><label>Categoría</label><select id="pdf-cat" onchange="pdfCatChange()"><option value="ACUSE_IMSS">ACUSE IMSS</option><option value="RECIBO_NOMINA">RECIBO DE NÓMINA</option></select></div>
+        <div><label>Categoría</label><select id="pdf-cat" onchange="pdfCatChange()"><option value="ACUSE_IMSS">ACUSE IMSS</option></select></div>
         <div><label>Tipo de movimiento</label><select id="pdf-sub"><option>ALTA</option><option>BAJA</option><option>MODIFICACION SALARIAL</option></select><div class="fhint">"MODIFICACION SALARIAL" = acuse IMSS de modificación de salario (mov. 08). Al archivarlo, deja el movimiento IMSS en "MODIFICACIÓN CON ACUSE".</div></div>
         <div><label>Semana (opcional)</label><input id="pdf-sem" placeholder="S15"></div>
         <div><label>Fecha del documento</label><input id="pdf-fecha" type="date" value="${today()}"></div>
@@ -310,6 +311,7 @@ async function applyPdfImport(){
     if(!mismaCaptura()){toast('Cambió el centro o la sesión después de subir el archivo. Revisa los documentos antes de reintentar.','err');return;}
     const fila={trabajador_id:x.ownerId,obra_id:w?w.obra_id:OBRA.id,categoria:cat,
       subtipo:cat==='ACUSE_IMSS'?subX:'RECIBO',semana:(cat==='RECIBO_NOMINA'?(sem||x.sem||''):sem),fecha_doc:fdX,archivo:path,nombre_archivo:nombreX.slice(0,120),subido_por:USER.email,hash:x.hash||'',mime_type:'application/pdf'};
+    if(x._conciliacion_archivo_id)fila.conciliacion_archivo_id=x._conciliacion_archivo_id;
     const guardar=()=>{const q=sb.from('documentos').insert(fila);return cat==='RECIBO_NOMINA'?q.select('id,archivo,hash,trabajador_id,obra_id,semana').single():q;};
     let {error:e2,data:documentoGuardado}=await guardar();
     if(e2&&/hash/i.test(e2.message||'')){delete fila.hash;({error:e2,data:documentoGuardado}=await guardar());} // compatibilidad con archivos antiguos sin huella

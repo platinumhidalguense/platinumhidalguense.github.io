@@ -111,22 +111,7 @@ function cfdiTotalImportado(valor){
   if(!/^\d+(?:\.\d{1,6})?$/.test(texto)||!Number.isFinite(n)||n<0)throw Error('El XML no contiene un total monetario válido.');
   return n;
 }
-function openCfdiImport(){
-  modal(`
-    <div class="m-head"><h2>🧾 Importar CFDI de nómina timbrados (XML)</h2><button class="x" onclick="closeModal()">×</button></div>
-    <div class="m-body">
-      <p style="color:var(--mut);margin-bottom:12px">Sube los XML timbrados que salen de Aspel NOI / tu PAC. La app lee RFC, CURP, UUID, total y periodo de pago, los cruza solo con los trabajadores de este centro y propone la semana correcta. Nada se guarda sin tu confirmación.</p>
-      <div class="grid" style="grid-template-columns:180px 1fr;align-items:end;margin-bottom:10px">
-        <div><label>Forzar semana (opcional)</label><input id="cf-sem" placeholder="automática"></div>
-        <div><input type="file" id="cf-files" accept=".xml" multiple onchange="parseCfdi(this)"></div>
-      </div>
-      <div id="cf-prev" style="max-height:380px;overflow:auto"></div>
-    </div>
-    <div class="m-foot">
-      <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn dark hide" id="cf-btn" onclick="applyCfdi()">💾 Archivar seleccionados</button>
-    </div>`,'lg');
-}
+function openCfdiImport(){if(!window.PLATINUM_CONCILIADOR){toast("Actualiza la plataforma para abrir el Conciliador General.","err");return;}return window.PLATINUM_CONCILIADOR.abrir(3);}
 async function parseCfdi(inp){
   CFDIIMP=[];
   $('cf-prev').innerHTML=skeletonRows(6,'26px 1.6fr 1.2fr 1fr','Leyendo los CFDI timbrados...');
@@ -217,6 +202,7 @@ async function applyCfdi(){
       cfdi_uuid:x.uuid,cfdi_total:totales.get(x),cfdi_fecha_pago:x.fechaPago||null,periodo_inicio:x.periodoInicio||null,periodo_fin:x.periodoFin||null,mime_type:'application/xml',
       nomina_tipo:x.concepto?.tipo||null,nomina_lector:'CFDI_XML_CONCEPTOS_v1',
       hash:await sha256Hex(new TextEncoder().encode(x.txt))};
+    if(x._conciliacion_archivo_id)fila.conciliacion_archivo_id=x._conciliacion_archivo_id;
     let {error:e2}=await sb.from('documentos').insert(fila);
     if(e2&&/hash/i.test(e2.message||'')){delete fila.hash;({error:e2}=await sb.from('documentos').insert(fila));}
     if(e2){fail++;continue;}

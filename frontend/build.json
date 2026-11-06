@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-06.1",
-  "entry": "assets/platinum-app.9054f8d0920a6f38.js",
-  "sha256": "9054f8d0920a6f380f12b135fe993e5d33ce1e64e999b731b1ff32986699076c",
-  "integrity": "sha384-HO2HO6hZ/OR0ALCiejGTcvJ1jkXiSPIxSrT5JjTiAOQewLkxdmyi5pEmouHzH2fk",
+  "version": "2026-11-06.2",
+  "entry": "assets/platinum-app.0196b3100891af03.js",
+  "sha256": "0196b3100891af03f47b473778d1d8a3ca83765ba8ead05362a96ece632a5343",
+  "integrity": "sha384-UKIJK8T6erxxDfVXc0zOko+Q6JXvMBJFqhi6PAHN27wzio5f+N5KX5ZHRENvdtnz",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "b978d5f9a9cf89219b8b6b095b6cd328375e0e2aa6c51f9b0bb680d68234f850"
+      "sha256": "9ff10f23df2e8e3ec8e1a084d265706d8da07f322bb1d434fdc8708d5fa052b3"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -62,11 +62,11 @@
     },
     {
       "path": "frontend/modulos/14-importacion-documental.js",
-      "sha256": "145baa202f15bacbc360023aae31958e9434f8d33ebab1d571d7bd6e64a461f5"
+      "sha256": "bda15d2b2d3f8166f2c9f08eef9dbee52475941471e47f12a89f368469dcfc99"
     },
     {
       "path": "frontend/modulos/15-banca-conciliacion.js",
-      "sha256": "320b97746d27a1ab9dc85af9def2393ce712a2c8a6b364cccf41de72636596f0"
+      "sha256": "4e2a687f0727749eef490425d8338098e01b4b3ef3daf28a473b95b3aa6231c5"
     },
     {
       "path": "frontend/modulos/16-control-pagos-folios.js",
@@ -106,7 +106,7 @@
     },
     {
       "path": "frontend/modulos/25-validaciones-cfdi.js",
-      "sha256": "c78593a511367369918c088b198ead66e3acab9df64284e132e085e8d5b5e452"
+      "sha256": "97671095c05f3bef6bf23fbd041d59c0877fa579ea344472f1555b3e9f0fa718"
     },
     {
       "path": "frontend/modulos/26-prestaciones-anuales.js",
@@ -146,7 +146,7 @@
     },
     {
       "path": "frontend/modulos/35-centro-control.js",
-      "sha256": "ea44fe7fdb7e7a4bb61d21e0efdb8e8694349336dcfca97bb6c7bc4bcb12a0d9"
+      "sha256": "541963950aaedf8ee8f5cfe397c3bb6cbfb1038dfa253b22cf01f4005641f0f0"
     },
     {
       "path": "frontend/modulos/36-imss-sin-servicio-st7.js",
@@ -170,7 +170,7 @@
     },
     {
       "path": "frontend/modulos/41-visor-semanal-pagos.js",
-      "sha256": "b28eb0a0128d6552c7fd71218897efe8b6095cee3803e57a5b0459c42245ba7c"
+      "sha256": "132772484d5878f0b0ea09ce411a0c9da20fdf4a8b6961ac44f9a79bc9710e7e"
     },
     {
       "path": "frontend/modulos/42-recibos-lectura-ia.js",
@@ -235,6 +235,18 @@
     {
       "path": "frontend/modulos/57-calendario-trabajador.js",
       "sha256": "5e91dbdf68023525c8add2845323a90bae29b3ef74e94a751aa0b4039190b6ab"
+    },
+    {
+      "path": "frontend/modulos/58-conciliador-core.js",
+      "sha256": "03cda7ce5fb1604d7f6b7e425b2affa3dc921ff2519204d8b777617fbe231b70"
+    },
+    {
+      "path": "frontend/modulos/59-conciliador-persistencia.js",
+      "sha256": "407994508390033314cfd84a88ca0f3bc221e3547f5d9cc4c88af5c9b1230c36"
+    },
+    {
+      "path": "frontend/modulos/60-conciliador-general-stepper.js",
+      "sha256": "8aea85da615aa32cd45cf971d93f4d67e6d4455250cc2788192f1c3c0e004718"
     }
   ]
 }
