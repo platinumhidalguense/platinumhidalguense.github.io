@@ -42,19 +42,8 @@ function cpRender(){
     <div class="imp-row head" style="grid-template-columns:1.6fr .5fr 1.3fr 1.3fr 1fr"><span>Trabajador</span><span>Sem</span><span>Cheque</span><span>Transferencia</span><span>Estado</span></div>
     ${body||'<div class="empty">Sin registros para ese filtro.</div>'}`;
 }
-function openControlPagos(){
-  modal(`
-    <div class="m-head"><h2>🔁 Control de pagos · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
-    <div class="m-body">
-      <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Une cheques y transferencias por trabajador y semana. Un finiquito por transferencia requiere autorización del administrador; si el pago todavía no está importado de BBVA se mostrará como <b>reportado, pendiente de conciliar</b>.</p>
-      <div id="cp-out"></div>
-    </div>
-    <div class="m-foot">
-      <button class="btn" onclick="closeModal()">Cerrar</button>
-      <button class="btn dark" onclick="exportControlPagos()">⬇ Exportar Excel</button>
-    </div>`,'lg');
-  cpBuild();
-}
+function openControlPagos(){return window.PLATINUM_CONCILIADOR_SEMANAL?.abrir();}
+
 async function openFiniquitoTransferenciaAdmin(trabajadorId=''){
   try{
     if(!window.PLATINUM_FLOWS)throw Error('Recarga la plataforma para usar el flujo integrado.');
@@ -334,17 +323,8 @@ function concRender(){
     ${body||'<div class="empty">Sin movimientos de dinero para ese filtro.</div>'}
     <p style="font-size:11px;color:var(--mut);margin-top:8px">El <b>recibo PDF</b> y el <b>CFDI XML</b> se controlan por separado. Un PDF existente ya no aparece como “sin comprobante”; si falta el XML se muestra como seguimiento informativo. Los cheques PENDIENTES no cuentan como pagados hasta quedar EXPEDIDOS o ENTREGADOS.</p>`;
 }
-function openConciliacion(){
-  const sem=concSemanaDefault();
-  modal(`<div class="m-head"><h2>🔎 Conciliación total · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
-    <div class="m-body">
-      <p style="color:var(--mut);font-size:12.5px;margin-bottom:8px">Cruza la foto inmutable del <b>cierre/NOI</b> contra transferencias, cheques realmente expedidos, recibos PDF y CFDI XML de la misma semana.</p>
-      <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:10px"><div><label>Semana</label><input id="conc-sem" style="width:90px" value="S${sem}"></div><button class="btn dark" id="conc-refresh" onclick="concBuild()">↻ Conciliar</button><label style="font-size:12px;margin-left:auto"><input type="checkbox" id="conc-dif" style="width:auto" onchange="concRender()"> solo diferencias</label></div>
-      <div id="conc-out"></div>
-    </div>
-    <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button><button class="btn dark" onclick="exportConciliacion()">⬇ Exportar Excel</button></div>`,'xl');
-  concBuild();
-}
+function openConciliacion(){return window.PLATINUM_CONCILIADOR_SEMANAL?.abrir();}
+
 function exportConciliacion(){
   const rows=window._CONCVIEW||window._CONC||[]; if(!rows.length){toast('No hay movimientos para exportar.','err');return;}
   const aoa=[],styles=[];

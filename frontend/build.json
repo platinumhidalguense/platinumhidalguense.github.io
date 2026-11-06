@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-06.2",
-  "entry": "assets/platinum-app.0196b3100891af03.js",
-  "sha256": "0196b3100891af03f47b473778d1d8a3ca83765ba8ead05362a96ece632a5343",
-  "integrity": "sha384-UKIJK8T6erxxDfVXc0zOko+Q6JXvMBJFqhi6PAHN27wzio5f+N5KX5ZHRENvdtnz",
+  "version": "2026-11-06.3",
+  "entry": "assets/platinum-app.8221ee74e6586934.js",
+  "sha256": "8221ee74e6586934d4d0b0eec99bb86e4dc0be11b793e13ccf0f84ce6837f814",
+  "integrity": "sha384-WqovocOcOyGeBonkQCQ1LEE44U6NtaJcmkuysN4bk/JIocdutBTir5LFBhpXa6Mw",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "9ff10f23df2e8e3ec8e1a084d265706d8da07f322bb1d434fdc8708d5fa052b3"
+      "sha256": "48b749d6dd61d9c827db0dca7cd2676e1c80b3c0907af90bdc2891de11306d05"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -70,7 +70,7 @@
     },
     {
       "path": "frontend/modulos/16-control-pagos-folios.js",
-      "sha256": "b7d686ce961fec463a2a92b1d875f4f27212709d86ae545cd8eb41f188d1e67d"
+      "sha256": "d0ca0ff005c9b2d07d144bd43cfe8558fa410c9fed3d7172f18a4047a4d2fd78"
     },
     {
       "path": "frontend/modulos/17-recepcion-papeles.js",
@@ -82,7 +82,7 @@
     },
     {
       "path": "frontend/modulos/19-cheques.js",
-      "sha256": "0b4b8eaebbeeed79953bf0fbd98d4aa0786f6ab827b550f9dec266344df36598"
+      "sha256": "48d5c4f2a7f01e12a7d030f3eb5fc7c5940e47f05cb02971e5e0edd022d4463e"
     },
     {
       "path": "frontend/modulos/20-movimientos-semanales.js",
@@ -166,7 +166,7 @@
     },
     {
       "path": "frontend/modulos/40-pagos-sabado-adaptadores.js",
-      "sha256": "bbdc93ce11e17287127b941c8a0b5c5e2a0acdad6e4a5865808abbd6bd1c17c0"
+      "sha256": "7ab68a2de2050c35ef791fd556c31a3890f1b5cecc25c51c2a50aa4d3b0a6534"
     },
     {
       "path": "frontend/modulos/41-visor-semanal-pagos.js",
@@ -242,11 +242,19 @@
     },
     {
       "path": "frontend/modulos/59-conciliador-persistencia.js",
-      "sha256": "407994508390033314cfd84a88ca0f3bc221e3547f5d9cc4c88af5c9b1230c36"
+      "sha256": "1071790f7a2ca2a7e1e693b10a024466fa9f946295493409cbe5ad7495300b76"
     },
     {
       "path": "frontend/modulos/60-conciliador-general-stepper.js",
-      "sha256": "8aea85da615aa32cd45cf971d93f4d67e6d4455250cc2788192f1c3c0e004718"
+      "sha256": "fdd24d38cfbb03afce1f73009b3e7a234617f2e19ffe78ae57842f3fe60429bb"
+    },
+    {
+      "path": "frontend/modulos/61-conciliacion-semanal.js",
+      "sha256": "f114b0b9d1747cfb21b807f660b5d3b0247ea48dd48ffedd375d2cffe95d81f8"
+    },
+    {
+      "path": "frontend/modulos/62-conciliador-semanal-interfaz.js",
+      "sha256": "0ab35f49a65cf4a5c80ac6c0d1747d2b2e3771af7e07681c0cbb5c6c97f53ea1"
     }
   ]
 }

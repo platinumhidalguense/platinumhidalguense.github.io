@@ -31,6 +31,6 @@ api.configure({context:()=>ctx,root:()=>root,$:id=>nodes.get(id),esc:x=>String(x
  malformed=true;await api.recargar();ok(root.innerHTML.includes('Falta el índice'),'Rechaza respuesta incompleta');malformed=false;await api.recargar();
  pending={action:'PERSONAS',sem:1};const changing=api.recargar();while(!pending.resolve)await new Promise(r=>setImmediate(r));const done=pending.resolve;pending=null;ctx.obra={id:'b',nombre:'OTRO CENTRO'};await api.mostrar();const html=root.innerHTML;done();await changing;ok(root.innerHTML===html&&calls.at(-1).args.p_datos.obra_id==='b','Centros no mezclan respuestas');
  ok(calls.every(x=>x.name==='control_visor_pagos'&&['INDICE','PERSONAS','COMPROBANTES'].includes(x.args.p_accion)),'Ningún botón del visor escribe datos financieros');
- const template=fs.readFileSync('frontend/index.template.html','utf8');ok(template.includes('id="visor-pagos"')&&template.includes('Listado completo anterior, herramientas y exportaciones Excel'),'Conserva accesos y exportaciones previas');
+ const template=fs.readFileSync('frontend/index.template.html','utf8');ok(!template.includes('id="visor-pagos"')&&template.includes('id="conciliador-root"'),'Entrada redundante retirada; consulta y exportación en Conciliador');
  console.log('PASS '+tests+' contratos VM del visor: semanas, alertas, lotes/personas, filtros/páginas, acceso privado, permisos, conexión con importación/conciliación y descartes por centro/semana/error.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

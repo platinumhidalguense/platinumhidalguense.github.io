@@ -67,7 +67,7 @@
   "applyPagoImport": "Tras guardar evidencia real abre la propuesta de conciliación de finiquitos exactos; exige permiso y confirmación antes de retirar la captura. Parser e importes intactos.",
   "repintarInstantaneaObra": "Ante error conserva datos verificados y repinta sólo la herramienta visible; no dibuja pagos y cheques ocultos.",
   "selectObra": "Solicita pintar trabajadores al cambiar de centro, no la herramienta oculta de la obra anterior; carga completa conservada.",
-  "setView": "Dibuja cada herramienta al abrirla, con la misma instantánea completa y sin cambiar permisos o cálculos.",
+  "setView": "Conciliador semanal único: router y menús sin vistas paralelas; consulta agregada por semana y herramientas originales preservadas. Histórico sólo lectura, exportación del contexto y compatibilidad sin DOM anterior. Pruebas DOM/servicio/RLS aisladas.",
   "computeAlertas": "Índice IMSS por lectura, evita repetir el recorrido documental por persona; reglas y resultados conservados.",
   "cargarAcusesTrabajadores": "Hasta cuatro lotes simultáneos, paginación completa y orden estable; no admite errores como listas vacías.",
   "pagosIndexados": "Índice por identidad para evitar buscar todo el padrón por cada pago; no altera importes ni estados.",
@@ -77,8 +77,8 @@
   "crAnalizar": "Consulta lecturas fiscales canónicas por lotes y alcance; reutiliza UUID, neto y concepto comprobados. No hereda etiquetas antiguas, distingue conceptos ambiguos y protege cambios de obra durante la lectura. Pruebas VM y PostgreSQL sintéticas.",
   "crCrearFaltantes": "Sólo prepara finiquitos positivos sin pago ni cheque vigente. Una reposición requiere confirmación individual y vínculo al cheque físico cancelado; conserva el original y exige nuevos folios al expedir. Pruebas VM y PostgreSQL.",
   "pagoCancelarCheque": "Sin folios se elimina la captura; sólo un cheque físico completo puede cancelarse. Importes y comprobantes intactos.",
-  "renderChqStats": "Excluye explícitamente la papelera de todos los conteos de cheques.",
-  "chqFiltered": "Excluye explícitamente capturas eliminadas de lista y exportaciones.",
+  "renderChqStats": "Conciliador semanal único: router y menús sin vistas paralelas; consulta agregada por semana y herramientas originales preservadas. Histórico sólo lectura, exportación del contexto y compatibilidad sin DOM anterior. Pruebas DOM/servicio/RLS aisladas.",
+  "chqFiltered": "Conciliador semanal único: router y menús sin vistas paralelas; consulta agregada por semana y herramientas originales preservadas. Histórico sólo lectura, exportación del contexto y compatibilidad sin DOM anterior. Pruebas DOM/servicio/RLS aisladas.",
   "saveCheque": "Separa captura física y reposición confirmada de un cheque físico cancelado del cierre histórico. La reposición queda vinculada al anterior, exige neto fiscal de persona/periodo/concepto y nuevos folios, y conserva el cancelado. Las nuevas obligaciones conservan autorización; PostgreSQL impide pagos y reposiciones duplicados. Pruebas VM y PostgreSQL aisladas.",
   "eliminarChequeErroneo": "Permite el retiro auditado de cheques numerados con error físico mediante un diálogo separado y declaración explícita de no entrega/cobro. Conserva folios y permisos existentes; los entregados se bloquean y las capturas sin folios mantienen la ruta anterior.",
   "doEliminarCheque": "Usa una RPC específica para el cheque físico erróneo, verifica motivo, declaración, centro y folios vistos antes de escribir. Exige respuesta confirmada, conserva el formulario ante errores y mantiene la eliminación anterior para capturas sin numeración. No elimina comprobantes ni modifica importes.",
@@ -150,5 +150,11 @@
   "openImportPago": "Conciliador General: entrada única por periodo, cuatro etapas persistidas. Conserva servicios financieros y lectores originales; procedencia opcional de archivos y alcance privado. Pruebas DOM/contratos y PostgreSQL aislado.",
   "openCfdiImport": "Conciliador General: entrada única por periodo, cuatro etapas persistidas. Conserva servicios financieros y lectores originales; procedencia opcional de archivos y alcance privado. Pruebas DOM/contratos y PostgreSQL aislado.",
   "openPdfImport": "Conciliador General: entrada única por periodo, cuatro etapas persistidas. Conserva servicios financieros y lectores originales; procedencia opcional de archivos y alcance privado. Pruebas DOM/contratos y PostgreSQL aislado.",
-  "vpVerPdf": "Conciliador General: entrada única por periodo, cuatro etapas persistidas. Conserva servicios financieros y lectores originales; procedencia opcional de archivos y alcance privado. Pruebas DOM/contratos y PostgreSQL aislado."
+  "vpVerPdf": "Conciliador General: entrada única por periodo, cuatro etapas persistidas. Conserva servicios financieros y lectores originales; procedencia opcional de archivos y alcance privado. Pruebas DOM/contratos y PostgreSQL aislado.",
+  "pintarVistaObra": "Conciliador semanal único: router y menús sin vistas paralelas; consulta agregada por semana y herramientas originales preservadas. Histórico sólo lectura, exportación del contexto y compatibilidad sin DOM anterior. Pruebas DOM/servicio/RLS aisladas.",
+  "openControlPagos": "Conciliador semanal único: router y menús sin vistas paralelas; consulta agregada por semana y herramientas originales preservadas. Histórico sólo lectura, exportación del contexto y compatibilidad sin DOM anterior. Pruebas DOM/servicio/RLS aisladas.",
+  "openConciliacion": "Conciliador semanal único: router y menús sin vistas paralelas; consulta agregada por semana y herramientas originales preservadas. Histórico sólo lectura, exportación del contexto y compatibilidad sin DOM anterior. Pruebas DOM/servicio/RLS aisladas.",
+  "renderCheques": "Conciliador semanal único: router y menús sin vistas paralelas; consulta agregada por semana y herramientas originales preservadas. Histórico sólo lectura, exportación del contexto y compatibilidad sin DOM anterior. Pruebas DOM/servicio/RLS aisladas.",
+  "exportCheques": "Conciliador semanal único: router y menús sin vistas paralelas; consulta agregada por semana y herramientas originales preservadas. Histórico sólo lectura, exportación del contexto y compatibilidad sin DOM anterior. Pruebas DOM/servicio/RLS aisladas.",
+  "showNavStep": "Descarta y aborta la consulta semanal al cambiar empresa/centro para no retener datos financieros de otro contexto. Conserva navegación, selección y padrón; pruebas de cambio de contexto y router."
 }

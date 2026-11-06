@@ -5,5 +5,5 @@ if(window.PLATINUM_PAGOS_SABADO)window.PLATINUM_PAGOS_SABADO.configure({
  reload:async id=>{if(OBRA?.id===id)await loadObraData(id);},
  openCierre:id=>window.PLATINUM_FLOWS?.abrirCierre(id),
  onChange:()=>{if($('pg-out')&&PAGOIMP)pgRender();},
- banner:d=>{const e=$('pago-sabado-aviso');if(!e)return;e.hidden=!d||!d.habilitado;if(!e.hidden)e.innerHTML=`<span>💳 S${Number(d.semana)} · revisión de pagos disponible. Un pendiente no crea cheque sin confirmar.</span> <button class="btn" onclick="PLATINUM_PAGOS_SABADO.abrir(${Number(d.semana)})">Revisar pagos</button>`;}
+ banner:d=>{const e=$('pago-sabado-aviso');if(!e)return;e.hidden=!d||!d.habilitado;if(!e.hidden)e.innerHTML=`<span>💳 S${Number(d.semana)} · revisión de pagos disponible. Un pendiente no crea cheque sin confirmar.</span> <button class="btn" onclick="PLATINUM_CONCILIADOR_SEMANAL.abrir(null,${Number(d.semana)})">Revisar pagos</button>`;}
 });

@@ -24,3 +24,4 @@ supabase/migrations/20261017154308_rrhh_trazabilidad_y_expediente.sql
 supabase/migrations/*_conciliador_general_persistente.sql
 supabase/functions/gemini-extract/
 supabase/functions/_shared/
+supabase/migrations/*_conciliador_contexto_semanal.sql

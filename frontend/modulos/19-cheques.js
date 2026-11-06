@@ -1,5 +1,5 @@
 /* ---------- MÓDULO DE CHEQUES ---------- */
-function renderChqStats(){
+function renderChqStats(){if(!$('chq-stats'))return;
   const activos=CHEQUES.filter(c=>!c.eliminado);
   const p=activos.filter(c=>c.estatus==='PENDIENTE'), e=activos.filter(c=>c.estatus==='EXPEDIDO'),
         g=activos.filter(c=>c.estatus==='ENTREGADO'), x=activos.filter(c=>c.estatus==='CANCELADO');
@@ -21,7 +21,7 @@ function chqOrdenConsec(v){
   else{CSORT={k:'consecutivo',asc:v==='asc'};}
   renderCheques();
 }
-function chqFiltered(){
+function chqFiltered(){if(!$('chq-q'))return window.PLATINUM_CONCILIADOR_SEMANAL?.estado().data?.cheques||[];
   const q=$('chq-q').value.trim().toUpperCase(), fe=$('chq-f-estatus').value, ft=$('chq-f-tipo').value;
   let rows=CHEQUES.filter(c=>{
     if(c.eliminado)return false;
@@ -192,7 +192,7 @@ async function chqTraerRecibo(){
   chqMostrarRespaldo(r,chqCapturaExistente(previo,w,rec.semana,rec.tipo_pago,r.neto));
   toast(`Importe $${money(r.neto)} verificado contra ${r.origen}.`,'ok');
 }
-function renderCheques(){
+function renderCheques(){if(!$('chq-tbody'))return window.PLATINUM_CONCILIADOR_SEMANAL?.refrescar();
   if(!window._FOLIOCHK){window._FOLIOCHK=1;chequeFolioAviso();}
   const rows=chqFiltered();
   if(!rows.length){$('chq-tbody').innerHTML='<tr><td colspan="10"><div class="empty"><div class="big">🧾</div>Sin cheques que coincidan.<br>Usa <b>＋ Nuevo cheque</b> o registra una baja con finiquito.</div></td></tr>';return;}
@@ -417,8 +417,8 @@ async function doEliminarCheque(id){
     else if($('cp-out'))cpBuild();
   }catch(error){toast('El cheque sí se eliminó, pero no se pudo actualizar el listado. Recarga la página.','err');}
 }
-function exportCheques(){
-  const rows_=chqFiltered();
+function exportCheques(filas=null){
+  const rows_=Array.isArray(filas)?filas:chqFiltered();
   if(!rows_.length){toast('No hay cheques con los filtros actuales.','err');return;}
   const rows=[],styles=[];
   rows.push([`CONTROL DE CHEQUES — ${OBRA.nombre} — ${new Date().toLocaleDateString('es-MX')}`]); styles.push(ST.title);

@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "version": "2026-11-06.2",
+  "version": "2026-11-06.3",
   "modules": [
     "frontend/modulos/00-configuracion-utilidades.js",
     "frontend/modulos/01-sesion-centros-sincronizacion.js",
@@ -62,7 +62,9 @@
     "frontend/modulos/57-calendario-trabajador.js",
     "frontend/modulos/58-conciliador-core.js",
     "frontend/modulos/59-conciliador-persistencia.js",
-    "frontend/modulos/60-conciliador-general-stepper.js"
+    "frontend/modulos/60-conciliador-general-stepper.js",
+    "frontend/modulos/61-conciliacion-semanal.js",
+    "frontend/modulos/62-conciliador-semanal-interfaz.js"
   ],
   "originalSha256": "9c8d55e50d79a8c1d4dda73f83ff26f8b1c9f200e3f6e8c6b96624b12857af04"
 }

@@ -52,3 +52,21 @@ Pruebas públicas: `test_conciliador_core`, `test_conciliador_persistencia`, `te
 Pruebas del paquete privado: `test_conciliador_general_pg`, `test_conciliador_cheques_pg`, `test_conciliador_banco_edge`. Cubren RLS, archivos, concurrencia, idempotencia, lotes parciales, duplicados, PDF/XML, previsión separada y conservación histórica. El CI público informa la omisión cuando no dispone de esas fuentes privadas.
 
 La aceptación visual corresponde al usuario. Una tasa medida en archivos de prueba no garantiza lectura o asociación universal; identidades ambiguas y documentos incompletos se detienen para revisión.
+
+## Contexto semanal y navegación única
+
+El menú lateral contiene un único **Conciliador General**. Las rutas anteriores de Cheques, Pagos y Auditoría se redirigen a esa superficie; se retiraron sus secciones HTML paralelas. Control de pagos y Conciliación total también delegan al maestro. Los formularios y exportadores especializados se conservan como herramientas.
+
+- `61-conciliacion-semanal.js`: `useConciliacionSemanal`, una RPC por selección de semana/cierre, cancelación de solicitudes anteriores y comprobación de obra, usuario, semana e ID de cierre. La transición a otra semana borra datos, búsqueda y selecciones anteriores.
+- `62-conciliador-semanal-interfaz.js`: selector de semana y periodicidad, resumen, alertas, registros por trabajador/comprobante/cheque, Stepper y menú **Herramientas de Pago**.
+- `control_conciliacion_semanal`: consulta estable del paquete SQL privado. Reutiliza las fuentes históricas existentes para unir fotografía, obligaciones, finiquitos, transferencias, cheques y archivos. No crea estado ni aplica correcciones al abrir un histórico.
+
+La semana actual permite las acciones autorizadas. El contexto histórico o futuro es de consulta: no ofrece importaciones, autorizaciones, creación de cheques ni formularios de modificación. Permite consultar evidencia y exportar. Los permisos generales de la cuenta y las protecciones financieras existentes siguen vigentes; este cambio no reescribe motores ni pagos.
+
+Folios, reuniones de entrega, bloques y otras herramientas de modificación se abren desde el menú en el contexto actual, con sus permisos originales. Chequeras de 50, legajos y exportaciones permanecen accesibles para consulta y documentación. Un cheque EXPEDIDO conserva su distinción de entrega física; un CANCELADO no se transforma ni cuenta como pendiente.
+
+Los rechazos y pendientes de transferencia se resaltan cuando no existe cobertura inequívoca de su obligación. Los cheques PENDIENTES se muestran sin atribuirles expedición, cobro ni entrega. Las semanas sin base no se certifican como pagadas.
+
+No se agregan suscripciones ni temporizadores. Las señales financieras existentes pueden refrescar la misma semana conservando su contenido mientras llega la respuesta. Si hay una captura en curso, se avisa del cambio para evitar sustituirla. Al salir del centro o cambiar de empresa se aborta e invalida la consulta pendiente.
+
+Pruebas adicionales: `test_conciliacion_semanal_servicio`, `test_conciliador_semanal_ui`, `test_conciliacion_semanal_pg`. Cubren una sola lectura agregada, cambios rápidos, respuestas obsoletas, desmontaje, alcance, semanas sin cierre, histórico sin escrituras, alertas y herramientas conservadas.

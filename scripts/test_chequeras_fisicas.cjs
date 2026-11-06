@@ -93,7 +93,7 @@ async function seed(){
  ok(box.cqArchivoBase({...p,bloques:Array.from({length:100},(_,i)=>i*50+1)}).length<180,'Nombre seguro al seleccionar muchos bloques');
  equal(queries.filter(q=>q.table==='cheques').every(q=>q.tests.length===1),true,'Lecturas por centro');
  const l=fs.readFileSync('frontend/modulos/32-legajos.js','utf8'),b=fs.readFileSync('frontend/modulos/12-bloques-entregas.js','utf8'),html=fs.readFileSync('frontend/index.template.html','utf8');
- ok(l.includes('openChequerasFisicas')&&b.includes('openChequerasFisicas')&&html.includes('sbGo(openChequerasFisicas)'),'Accesos desde legajos, bloques, menú y cheques');
+ ok(l.includes('openChequerasFisicas')&&b.includes('openChequerasFisicas')&&fs.readFileSync('frontend/modulos/62-conciliador-semanal-interfaz.js','utf8').includes('openChequerasFisicas()'),'Accesos conservados desde legajos, bloques y Herramientas de Pago');
  ok(!/\.rpc\(|\.update\(|\.insert\(/.test(source)&&!source.replace(/e\.seleccion\.delete\(n\)/g,'').includes('.delete('),'No mutaciones de pagos, trabajadores o cheques');
  console.log('PASS chequeras físicas: '+count+' comprobaciones de bloques, botones, fechas, PDF/Excel/ZIP reales, identidad, permisos de lectura, errores y concurrencia; sin navegador.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

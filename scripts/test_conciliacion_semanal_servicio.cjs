@@ -1,0 +1,9 @@
+const assert=require('node:assert/strict'),{useConciliacionSemanal}=require('../frontend/modulos/61-conciliacion-semanal.js');
+let ctx={obra_id:'o',usuario_id:'u',visible:true},requests=[],states=[];
+const service=useConciliacionSemanal({context:()=>ctx,onChange:s=>states.push(s),rpc:(name,args)=>{let resolve;const p=new Promise(r=>resolve=r),r={name,args,resolve};requests.push(r);return{abortSignal:signal=>{r.signal=signal;return p;}};}});
+const result=(sem,obra='o')=>({data:{obra_id:obra,semana:sem,detalle:null,cheques:[{id:'q'+sem}],transferencias:[{id:'p'+sem}]}});
+(async()=>{const first=service.cargar(31),second=service.cargar(32);assert.equal(requests.length,2);assert(requests[0].signal.aborted);assert.equal(service.estado().data,null,'No retener registros anteriores durante carga');requests[1].resolve(result(32));await second;requests[0].resolve(result(31));assert.equal(await first,null);assert.equal(service.estado().data.semana,32);assert.equal(service.estado().data.cheques[0].id,'q32');
+ const third=service.cargar(30);assert.equal(service.estado().data,null);ctx={obra_id:'otra',usuario_id:'u',visible:true};requests[2].resolve(result(30));assert.equal(await third,null);
+ service.invalidar();assert(requests[2].signal.aborted);assert.equal(service.estado().data,null);ctx={obra_id:'otra',usuario_id:'otro',visible:true};const next=service.cargar(1);requests[3].resolve(result(1,'o'));await assert.rejects(next,/otro contexto/);assert.equal(service.estado().data,null);
+ assert(requests.every(r=>r.name==='control_conciliacion_semanal'));assert(states.filter(s=>s.loading).every(s=>s.data===null));console.log('PASS contexto semanal: una RPC por selección, abortar anterior, limpiar datos, ignorar respuesta tardía, cambio de obra/usuario, aislamiento y cero suscripciones.');
+})().catch(e=>{console.error(e.stack);process.exitCode=1;});

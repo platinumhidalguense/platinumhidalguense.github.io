@@ -11,9 +11,9 @@ vm.createContext(c);
 for(const n of ['fechaAcuseISO','indiceAcusesIMSS','estadoAcuseIMSS','altaImssPendiente','acuseAltaPendiente','computeAlertas','pintarVistaObra','pagosIndexados','pagosFiltered','renderPagosView','cargarAcusesTrabajadores'])vm.runInContext(fn(n),c);
 const plain=s=>JSON.parse(JSON.stringify(s));
 (async()=>{
- const draws=[];for(const name of ['renderTable','renderChqStats','renderCheques','renderPagosView','renderVacViews','renderActasView','renderNomView','renderAnualView'])c[name]=()=>draws.push(name);
+ const draws=[];c.window={};c.window.PLATINUM_CONCILIADOR_SEMANAL={montar:()=>draws.push('conciliador')};for(const name of ['renderTable','renderChqStats','renderCheques','renderPagosView','renderVacViews','renderActasView','renderNomView','renderAnualView'])c[name]=()=>draws.push(name);
  c.VIEW='trab';c.pintarVistaObra();assert.deepEqual(draws,['renderTable'],'No construir tablas ocultas');
- for(const [view,names]of Object.entries({chq:['renderChqStats','renderCheques'],pagos:['renderPagosView'],vac:['renderVacViews'],actas:['renderActasView'],nom:['renderNomView'],anual:['renderAnualView']})){
+ for(const [view,names]of Object.entries({conciliador:['conciliador'],vac:['renderVacViews'],actas:['renderActasView'],nom:['renderNomView'],anual:['renderAnualView']})){
   draws.length=0;c.VIEW=view;c.pintarVistaObra();assert.deepEqual(draws,names);
  }
  draws.length=0;c.VIEW='pagos';c.pintarVistaObra('trab');assert.deepEqual(draws,['renderTable'],'Cambiar centro abre trabajadores, no la vista previa');

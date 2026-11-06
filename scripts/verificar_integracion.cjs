@@ -93,6 +93,9 @@ else console.log('ALCANCE PÚBLICO CALENDARIO: motor y DOM sintéticos; las prue
 suites.push('test_conciliador_core','test_conciliador_persistencia','test_conciliador_general_ui','test_conciliador_compatibilidad');
 if(fs.existsSync('supabase/migrations/20261106195853_conciliador_general_persistente.sql'))suites.push('test_conciliador_general_pg','test_conciliador_cheques_pg','test_conciliador_banco_edge');
 else console.log('ALCANCE PÚBLICO CONCILIADOR: SQL y Edge privados; las pruebas de servidor se ejecutan con el paquete local.');
+suites.push('test_conciliacion_semanal_servicio','test_conciliador_semanal_ui');
+if(fs.existsSync('supabase/migrations/20261106215742_conciliador_contexto_semanal.sql'))suites.push('test_conciliacion_semanal_pg');
+else console.log('ALCANCE PÚBLICO CONTEXTO SEMANAL: la prueba PostgreSQL requiere el paquete privado; servicio y DOM sí se ejecutan.');
 for(const file of suites){
  const r=spawnSync(process.execPath,['scripts/'+file+'.cjs'],{encoding:'utf8',maxBuffer:4e6});
  process.stdout.write(r.stdout||'');process.stderr.write(r.stderr||'');if(r.status!==0)process.exit(r.status||1);

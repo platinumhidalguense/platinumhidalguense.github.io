@@ -115,6 +115,7 @@ function showNavStep(step){
   if(NAV_BUSY)return;
   if(!['empresa','obra','trabajadores'].includes(step))return;
   if(step==='trabajadores'&&!OBRA)return;
+  if(step!=='trabajadores')window.PLATINUM_CONCILIADOR_SEMANAL?.salir();
   NAV_STEP=step;
   $('scr-app').setAttribute('data-nav',step);
   const fab=$('ia-fab');if(fab)fab.classList.toggle('nav-hidden',step!=='trabajadores');
@@ -319,8 +320,7 @@ let OBRA_CARGA_SECUENCIA=0,OBRA_DATOS_ID=null,OBRA_LECTURA_VERIFICADA=null;
 function pintarVistaObra(vista){
   switch(vista||(typeof VIEW==='undefined'?'trab':VIEW)){
     case 'trab':renderTable();break;
-    case 'chq':renderChqStats();renderCheques();break;
-    case 'pagos':if(typeof window!=='undefined'&&window.PLATINUM_VISOR_PAGOS&&$('visor-pagos')){window.PLATINUM_VISOR_PAGOS.mostrar();if($('pagos-legado')?.open)renderPagosView();}else renderPagosView();break;
+    case 'conciliador':window.PLATINUM_CONCILIADOR_SEMANAL?.montar();break;
     case 'vac':renderVacViews();break;
     case 'actas':renderActasView();break;
     case 'nom':renderNomView();break;
@@ -452,7 +452,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-11-06.2';
+const APP_VERSION='2026-11-06.3';
 window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
@@ -488,16 +488,16 @@ async function chequearVersionEnVivo(){
    ============================================================ */
 const VISTAS={
   trab :{ic:'👷',txt:'Trabajadores'},
-  chq  :{ic:'🧾',txt:'Cheques'},
-  pagos:{ic:'💸',txt:'Visor semanal de pagos'},
+  conciliador:{ic:'⚖️',txt:'Conciliador General'},
   vac  :{ic:'🌴',txt:'Vacaciones y permisos'},
   actas:{ic:'📋',txt:'Actas'},
   nom  :{ic:'🧠',txt:'NOM-035'},
   anual:{ic:'🪙',txt:'PTU / Aguinaldo'},
-  audit:{ic:'🔎',txt:'Auditoría de pagos'},
   papeles:{ic:'📂',txt:'Control de papeles'}
 };
 function setView(v){
+  if(['chq','pagos','audit'].includes(v))v='conciliador';
+  if(v!=='conciliador')window.PLATINUM_CONCILIADOR_SEMANAL?.salir();
   if(!OBRA||NAV_STEP!=='trabajadores'&&empresaDeObra(OBRA)!==EMPRESA_ACTIVA){showNavStep('obra');return;}
   NAV_STEP='trabajadores';$('scr-app').setAttribute('data-nav',NAV_STEP);
   if($('ia-fab'))$('ia-fab').classList.remove('nav-hidden');
@@ -509,7 +509,6 @@ function setView(v){
     if(d)d.classList.toggle('hide',v!==k);
   });
   pintarVistaObra(v);
-  if(v==='audit')auCargar();
   if(v==='papeles')cpCargar();
   renderCrumbs();
   toggleSidebar(false);
