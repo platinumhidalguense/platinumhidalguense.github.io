@@ -5,6 +5,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),crypto=require('cryp
  await db.exec("create or replace function public.control_puede_ver_salud() returns boolean language sql stable as $$select public.app_es_vip()$$");
  if(fs.existsSync('work/calendario_trabajador_20261106/guardas_vivas.sql')){await db.exec(fs.readFileSync('work/calendario_trabajador_20261106/guardas_vivas.sql','utf8'));await db.exec('create trigger b_imss_periodo_fuente before insert or update or delete on descuentos for each row execute function platinum_internal.imss_guardar_periodo_fuente()');}
  await db.exec(fs.readFileSync('supabase/migrations/20261106155915_calendario_trabajador_captura_unificada.sql','utf8'));
+ await db.exec(fs.readFileSync('supabase/migrations/20261106174903_calendario_contrato_campos_y_montos_validos.sql','utf8'));
  await owner(db,"update obras set fecha_inicio='2026-03-30' where id=$1",[ids.obra]);
  await db.exec("create or replace function platinum_internal.calendario_hoy() returns date language sql stable as $$select date '2026-11-06'$$");
  const call=async(who,a,j)=>{await actor(db,who);return(await db.query('select public.control_calendario_trabajador($1,$2) r',[a,JSON.stringify({trabajador_id:ids.w,...j})])).rows[0].r;};
@@ -12,6 +13,8 @@ const fs=require('fs'),assert=require('node:assert/strict'),crypto=require('cryp
  assert.equal(Number((await owner(db,"select count(*) n from catalogo_incidencias where clase='INCAPACIDAD'")).rows[0].n),11);
  await assert.rejects(call('consulta','PRESTAMO',{fecha:'2026-11-03',monto:100,autorizacion:'PRUEBA',confirmar:true}),/consultar/);
  await assert.rejects(call('jire','LISTAR',{desde:'2026-11-01',hasta:'2026-11-30'}),/permiso/);
+ await assert.rejects(call('admin','PRESTAMO',{fecha:'2026-11-03',monto:'NaN',autorizacion:'PRUEBA',confirmar:true,clave_idempotencia:crypto.randomUUID()}),/Saldo inicial/);
+ await assert.rejects(call('admin','PREVISUALIZAR',{fecha:'2026-11-03',clase:'PERCEPCION',naturaleza_importe:'NETO_DIRECTO',percepcion_id:'BONO',prestamo_id:crypto.randomUUID(),monto:100}),/campos no corresponden/);
  let j={fecha:'2026-11-04',clase:'PERCEPCION',naturaleza_importe:'BRUTO_GRAVABLE',monto:100,percepcion_id:'BONO',clave_idempotencia:crypto.randomUUID()};
  await assert.rejects(call('admin','PREVISUALIZAR',j),/gravamen dinámico/);
  j.naturaleza_importe='NETO_DIRECTO';let q=await call('admin','PREVISUALIZAR',j);assert.equal(q.destino.semana,32);
@@ -65,6 +68,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),crypto=require('cryp
   await db2.exec(fs.readFileSync('supabase/migrations/20261030231058_motores_nomina_calendarios_separados.sql','utf8'));
   await db2.exec("create or replace function public.control_puede_ver_salud() returns boolean language sql stable as $$select public.app_es_vip()$$");
   await db2.exec(fs.readFileSync('supabase/migrations/20261106155915_calendario_trabajador_captura_unificada.sql','utf8'));
+  await db2.exec(fs.readFileSync('supabase/migrations/20261106174903_calendario_contrato_campos_y_montos_validos.sql','utf8'));
   await owner(db2,"update obras set fecha_inicio='2026-03-30' where id=$1",[ids.obra]);await owner(db2,"update trabajadores set rfc='PRUP900101AA1' where id=$1",[ids.w]);
   await actual.actor(db2,'conta');const j={trabajador_id:ids.w,fecha:'2026-11-04',clase:'PERCEPCION',naturaleza_importe:'NETO_DIRECTO',percepcion_id:'BONO',monto:100,clave_idempotencia:crypto.randomUUID()};
   const q=(await db2.query("select public.control_calendario_trabajador('PREVISUALIZAR',$1) r",[JSON.stringify(j)])).rows[0].r;
