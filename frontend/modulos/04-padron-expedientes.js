@@ -305,6 +305,7 @@ function openDetail(id){
     <div class="m-body">
       ${w.estatus==='PENDIENTE'?`<div style="background:var(--amber-bg);border:1px solid #ecd9a0;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px"><b style="color:var(--amber)">⏳ PENDIENTE</b> — ${(function(){if(w.pendiente_manual)return 'Pausado manualmente — <b>'+esc(w.motivo_pendiente||'SIN MOTIVO')+'</b>. No sale en proyección ni requisición y NO se reactiva solo: usa "Marcar ACTIVO" cuando se resuelva.';const f=datosFaltantes(w);return f.length?'Falta capturar: <b>'+f.join(', ')+'</b>. Al completarlo pasará a ACTIVO solo, o usa el botón "Marcar ACTIVO".':'Ya tiene todos los datos: usa el botón "Marcar ACTIVO".';})()}</div>`:''}
       <div id="worker-overview" data-activity-worker="${w.id}">${fichaResumenHTML(w)}</div>
+      <section id="cal-contenido" data-worker-id="${w.id}" aria-label="Calendario de incidencias"></section>
       <details class="worker-more"><summary>Mostrar más · Expediente completo<small>Datos personales y bancarios · IMSS · créditos y descuentos · incidencias · documentos · recibos · historial</small></summary><div id="worker-more-content" class="worker-more-content">
       <div class="sect">Obra y puesto</div>
       ${kv('Obra',esc(OBRA.nombre))}${kv('Contratista',esc(w.contratista))}${kv('No. trabajador',w.no_trab)}${kv('Puesto',esc(w.puesto))}${kv('Funciones',esc(w.funciones))}${kv('Turno',esc(w.turno))}${kv('Semana de ingreso',esc(w.semana_ingreso))}${kv('Fecha alta',fmtD(w.fecha_alta))}${w.fecha_reingreso?kv('Fecha de reingreso',fmtD(w.fecha_reingreso)+' (la antigüedad cuenta desde aquí)'):''}${kv('Tipo de contrato',esc(w.tipo_contrato||'OBRA DETERMINADA')+(w.fecha_fin_contrato?' · vence '+fmtD(w.fecha_fin_contrato):''))}${(w.estatus==='BAJA'||w.fecha_baja)?kv('Fecha baja'+(w.estatus!=='BAJA'?' anterior':''),fmtD(w.fecha_baja))+(w.estatus==='BAJA'?kv('Monto finiquito',w.monto_finiquito!=null?'$'+money(w.monto_finiquito):''):''):''}
@@ -386,6 +387,7 @@ function openDetail(id){
       </div></details>
     </div>`,'worker-ficha');
   agruparExpedienteFicha();
+  window.PLATINUM_CALENDARIO?.montar(id);
   /* Consulta dirigida de SUS documentos, filtrando en el servidor. Si trae
      algo que la carga masiva no tenía, se vuelve a pintar solo esa sección.
      Se comprueba que la ficha siga abierta y sea la misma persona: si el

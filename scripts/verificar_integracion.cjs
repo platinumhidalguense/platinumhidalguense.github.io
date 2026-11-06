@@ -87,6 +87,9 @@ if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_timbrado_xml_o_pdf
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_optimizar_autorizacion_cierre_masivo.sql')))suites.push('test_autorizacion_masiva_pg');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cierres_historicos_y_lectura_cfdi.sql')))suites.push('test_cierres_documentales_pg');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cierres_legado_preparacion_y_vip.sql')))suites.push('test_cierres_legado_vip_pg');
+suites.push('test_calendario_motor','test_calendario_trabajador_ui');
+if(fs.existsSync('supabase/migrations/20261106155915_calendario_trabajador_captura_unificada.sql'))suites.push('test_calendario_trabajador_pg');
+else console.log('ALCANCE PÚBLICO CALENDARIO: motor y DOM sintéticos; las pruebas PostgreSQL requieren la migración SQL privada.');
 for(const file of suites){
  const r=spawnSync(process.execPath,['scripts/'+file+'.cjs'],{encoding:'utf8',maxBuffer:4e6});
  process.stdout.write(r.stdout||'');process.stderr.write(r.stderr||'');if(r.status!==0)process.exit(r.status||1);

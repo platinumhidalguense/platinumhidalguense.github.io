@@ -348,42 +348,8 @@ async function toggleDescuento(id,estado){
 
 /* ---------- INCIDENCIAS DE LA SEMANA ---------- */
 function openIncidencias(){
-  if(!OBRA){toast('Selecciona un centro de trabajo.','err');return;}
-  window._INCSEM=semObra();window._INCTAB='aplicadas';
-  modal(`
-    <div class="m-head"><h2>📉 Incidencias de la semana · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
-    <div class="m-body">
-      <style>.inc-modulo [hidden]{display:none!important}.inc-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 18px}.inc-tabs [aria-selected="true"]{background:var(--navy);border-color:var(--navy);color:#fff}.inc-aplicada{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:8px 14px;padding:14px;border:1px solid var(--border);border-radius:9px;margin:8px 0;background:var(--card)}.inc-aplicada .inc-detalle{grid-column:2/-1;color:var(--mut);font-size:12px;line-height:1.6;overflow-wrap:anywhere}.inc-aplicada b{overflow-wrap:anywhere}.inc-lista{max-height:420px;overflow:auto}.inc-captura-scroll{overflow-x:auto}.inc-captura-scroll .imp-row{min-width:850px}@media(max-width:600px){.inc-aplicada{grid-template-columns:42px minmax(0,1fr)}.inc-aplicada .inc-importe{grid-column:2}.inc-tabs .btn{flex:1}}</style>
-      <div class="inc-modulo">
-      <div class="grid" style="grid-template-columns:160px 1fr;align-items:end;margin-bottom:12px">
-        <div><label for="inc-sem">No. de semana</label><input id="inc-sem" type="number" min="1" step="1" value="${semObra()}" onchange="incCambioSemana()"></div>
-        <div class="fhint">${esc(OBRA.nombre)} · Las dos secciones corresponden a la semana seleccionada.</div>
-      </div>
-      <div class="inc-tabs" role="tablist" aria-label="Incidencias de la semana">
-        <button class="btn" role="tab" id="inc-tab-aplicadas" aria-controls="inc-panel-aplicadas" onclick="incMostrar('aplicadas')">Aplicadas <span id="inc-total"></span></button>
-        <button class="btn" role="tab" id="inc-tab-captura" aria-controls="inc-panel-captura" onclick="incMostrar('captura')">Capturar incidencias</button>
-      </div>
-      <section id="inc-panel-aplicadas" role="tabpanel" aria-labelledby="inc-tab-aplicadas">
-        <h3 style="margin-bottom:8px">Faltas e incidencias ya aplicadas</h3>
-        <p class="fhint" style="margin-bottom:12px">Ordenadas por número de trabajador. Aquí sólo aparecen descuentos activos de esta semana; los créditos recurrentes se consultan en retenciones.</p>
-        <label for="inc-ya-q">Buscar en aplicadas</label><input id="inc-ya-q" placeholder="Número, nombre, contratista o motivo…" oninput="incExistentes()">
-        <div id="inc-exist" class="inc-lista" aria-live="polite"></div>
-      </section>
-      <section id="inc-panel-captura" role="tabpanel" aria-labelledby="inc-tab-captura" hidden>
-      <h3 style="margin-bottom:8px">Aplicar nuevas incidencias</h3>
-      <label for="inc-q">Buscar para capturar</label><input id="inc-q" placeholder="Escribe nombre, no. o contratista…" oninput="incFiltra()" style="margin-bottom:12px">
-      <p style="color:var(--mut);font-size:12px;margin-bottom:8px">Distingue <b>faltas injustificadas</b> de <b>días de incapacidad que no paga la empresa</b>. Una falta semanal afecta el descanso proporcional; esos días de incapacidad no. Si un certificado cubre 7 días y la empresa paga 3, captura <b>4</b> en la columna IMSS; registra aparte los 7 días, fechas y folio del certificado en Incidentes e incapacidades. Si hay premios u otros conceptos especiales, contrasta el resultado con NOI.</p>
-      <div class="inc-captura-scroll">
-      <div class="imp-row head" style="grid-template-columns:2fr .5fr .55fr .65fr .6fr .8fr 1.5fr"><span>Trabajador</span><span>SD</span><span>Faltas</span><span>Días IMSS sin sueldo</span><span>Premio $</span><span>Descuento $</span><span>Motivo</span></div>
-      <div id="inc-nores" style="display:none;color:var(--mut);padding:14px;text-align:center;font-size:12.5px">Ningún trabajador coincide con la búsqueda.</div>
-      <div id="inc-rows" style="max-height:380px;overflow:auto"></div>
-      </div></section></div>
-    </div>
-    <div class="m-foot">
-      <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn dark" id="inc-save" onclick="saveIncidencias()" ${puedeEditarTrabajador()?'':'disabled'}>💾 Guardar incidencias</button>
-    </div>`,'lg');
-  incExistentes();incRenderRows();incMostrar('aplicadas');
+  if(!window.PLATINUM_CALENDARIO){toast("Actualiza la plataforma para abrir el calendario unificado.","err");return;}
+  return window.PLATINUM_CALENDARIO.elegir();
 }
 function incMostrar(tab){
   tab=tab==='captura'?'captura':'aplicadas';window._INCTAB=tab;
@@ -476,37 +442,8 @@ async function incQuitar(id){
   }catch(e){toast('No se quitó: '+e.message,'err');}finally{window._INCQUITANDO=false;}
 }
 async function saveIncidencias(){
-  if(!puedeEditarTrabajador()){toast('Tu usuario sólo puede consultar.','err');return;}
-  if($('inc-save')?.disabled)return;
-  const sem='S'+($('inc-sem').value||isoWeek());
-  const inserts=[];let invalid='';
-  window._INC.forEach((w,i)=>{
-    const m=parseFloat($('inc-m-'+i).value);
-    const f=Number($('inc-f-'+i).value)||0,incap=Number($('inc-i-'+i).value)||0;
-    let contexto;try{contexto=contextoIncidenciaNomina(w,sem);}catch(e){invalid=e.message;return;}
-    if(!Number.isInteger(f)||!Number.isInteger(incap)||f<0||incap<0||f+incap>contexto.dias){invalid=`Revisa los días de ${fullName(w)}.`;return;}
-    if(m>0){
-      if(periodoPago(w)==='QUINCENAL'&&f>0&&DESC.some(d=>d.trabajador_id===w.id&&d.activo&&!d.recurrente&&d.tipo==='FALTA'&&descuentoCorrespondePeriodo(d,w,sem))){invalid=`${fullName(w)} ya tiene faltas capturadas en esta quincena. Revisa o desactiva la incidencia anterior antes de guardar otra.`;return;}
-      let automatico=false;try{automatico=(f>0||incap>0)&&redondearCentavos(m)===descuentoFaltasNOI(w,f,Number($('inc-p-'+i)?.value)||0,undefined,incap,contexto).monto;}catch(e){invalid=e.message;return;}
-      const raw=($('inc-x-'+i).value.trim()||'INCIDENCIA').toUpperCase();
-      const mot=f>0&&!/(\d+(?:[.,]\d+)?)\s*FALTA/i.test(raw)?`${f} FALTAS · ${raw}`:raw;
-      // El catálogo SQL de descuentos conserva FALTA/INCIDENCIA. La clase IMSS
-      // queda explícita en el motivo y no se cuenta como falta para aguinaldo.
-      inserts.push({trabajador_id:w.id,obra_id:w.obra_id,tipo:f>0?'FALTA':incap>0?'INCIDENCIA':raw.includes('FALTA')?'FALTA':'INCIDENCIA',
-        motivo:mot,monto:m,recurrente:false,semana:sem,creado_por:USER.email,
-        ajustes_semana:{...(periodoPago(w)==='QUINCENAL'?{_periodo_nomina:{desde:contexto.desde,hasta:contexto.hasta}}:{}),_calculo_incidencia:{version:1,modo:automatico?'AUTOMATICO':'MANUAL',
-          faltas:f,incapacidad_imss:incap,premios:Number($('inc-p-'+i)?.value)||0,sd:Number(w.sd),sdi:Number(w.sdi),sueldo_registrado:Number(w.sal_semanal),dias:contexto.dias,motor_nomina:contexto.motor}},
-        periodicidad:periodoPago(w)});   // deja constancia de con qué periodo se calculó
-    }
-  });
-  if(invalid){toast(invalid,'err');return;}
-  if(!inserts.length){toast('No capturaste ningún descuento (todas las filas en 0).','err');return;}
-  if(!confirm(`¿Guardar ${inserts.length} descuento(s) de ${sem}? Se aplicarán a la semana o quincena registrada de cada trabajador.`))return;
-  markWrite();
-  const {error}=await sb.from('descuentos').insert(inserts);
-  if(error){toast('Error: '+error.message,'err');return;}
-  closeModal();toast(`${inserts.length} incidencia(s) guardadas para ${sem}.`,'ok');
-  await loadObraData(OBRA.id);
+  if(!window.PLATINUM_CALENDARIO){toast("Actualiza la plataforma para abrir el calendario unificado.","err");return;}
+  return window.PLATINUM_CALENDARIO.elegir();
 }
 
 /* ---------- v29: CALENDARIO DE RETENCIONES (petición de contabilidad) ----------

@@ -35,7 +35,7 @@
   "proyLeerFiniquitos": "Lee entradas.fecha_calculo como fecha efectiva de baja en auditorías antiguas que usaban la fecha de captura en periodo; conserva el periodo original como dato auxiliar. No modifica personas, retenciones, importes ni la bitácora.",
   "asVigenteSemana": "Compara fechas ISO lexicográficamente, sin convertirlas a NaN mediante Math.max; conserva alta, baja y reingreso, y no modifica datos ni cálculos monetarios.",
   "retencionesDePeriodo": "Valida incidencias automáticas guardadas contra el motor vigente antes de proyectar; bloquea residuos desactualizados con aviso, sin recalcular importes manuales ni modificar DESC o fotografías autorizadas.",
-  "saveIncidencias": "Guarda calendario, motor y días naturales de la incidencia quincenal; impide una segunda falta activa para la misma quincena y conserva permisos existentes.",
+  "saveIncidencias": "Compatibilidad de entrada: delega al calendario compartido; las escrituras nuevas pasan por RPC transaccional con permisos, vista previa, firma de fuente e idempotencia. Sin inserciones directas desde este formulario anterior.",
   "ctrlRenderConciliacion": "Distingue sin servicio confirmado y finiquitos netos cero de un pago pendiente; conserva claves NOI/fotografía, diferencias reales e importes.",
   "pyCandidatos": "Recupera finiquitos de ciclos anteriores desde la bitácora, sin sustituir la baja vigente; bloquea ciclos duplicados y conserva exclusión de casos sin servicio y filtros existentes.",
   "pyDatosFrescos": "Lee los ciclos históricos de bajas junto con sus cálculos auditados, por obra y UUID; falla de forma segura ante lecturas incompletas y nunca cambia fichas o importes autorizados.",
@@ -96,7 +96,7 @@
   "ctrlLeerArchivoNOI": "Cruza por identidad y consulta resoluciones históricas por obra, trabajador, periodo y SHA. Conserva RFC original, ceros respaldados y excepciones individuales; muestra el cotejo sin sustituir fuentes ni aceptar caracteres equivalentes de forma general. La base valida de nuevo cada resolución. No modifica fichas, pagos o importes.",
   "ctrlCruzarIdentidadNOI": "Sólo permite una discrepancia RFC documentada por el servidor cuando UUID, CURP, NSS, nombre y RFC vigente coinciden con la resolución acotada. Conserva identificadores originales y bloquea contradicciones ajenas, duplicados y nombres ambiguos.",
   "openAutorrellenar": "Lectura paginada por razón social e invalidación de selección anterior.",
-  "openDetail": "Conserva ficha y herramientas; muestra SDI completo en datos salariales e IMSS, con escape HTML. Accesos, UUID de contexto y privacidad del visor administrador conservados.",
+  "openDetail": "Monta el calendario unificado después del resumen del trabajador, antes del expediente ampliado. Consulta acotada por persona/mes, sin modificar los datos de la ficha ni sus documentos. Pruebas DOM, RPC y controles de contexto.",
   "openControlEmpresarial": "Añadir un único acceso a los cuatro engranes de operación RRHH, sin retirar controles.",
   "startRealtime": "Propaga fuentes agrupadas de invalidación sin usar filas del evento como datos; conserva presencia efímera aislada, permisos y notificaciones de módulos, sin sobrescribir capturas abiertas.",
   "openForm": "Captura la versión y obra originales en el formulario para impedir sobrescrituras de reingresos y finiquitos por una ficha desactualizada; conserva captura, pasos y validaciones.",
@@ -142,5 +142,6 @@
   "auCargar": "Consulta de auditoría vinculada al centro y a la solicitud vigente; no reutiliza resultados de otra obra con la misma semana y descarta respuestas tardías.",
   "auCargarGlobal": "Consulta histórica de auditoría con alcance del centro y control de concurrencia; no cambia importes ni permisos.",
   "parseCfdi": "Valida que Total sea un número monetario explícito, incluido cero; rechaza importes ausentes o inválidos sin inventar valores.",
-  "applyCfdi": "Conserva Total=0.00 como cero al guardar XML; valida importes antes de subir archivos. Conserva UUID, trabajador, fechas, semana y fórmula fiscal."
+  "applyCfdi": "Conserva Total=0.00 como cero al guardar XML; valida importes antes de subir archivos. Conserva UUID, trabajador, fechas, semana y fórmula fiscal.",
+  "openIncidencias": "Entrada heredada delega al selector de fichas y al único calendario. No conserva un segundo formulario de captura; servicios fiscales y reportes históricos permanecen íntegros."
 }

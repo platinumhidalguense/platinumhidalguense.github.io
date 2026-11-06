@@ -1,10 +1,10 @@
-# Integración modular · 2026-10-20.4
+# Integración modular · 2026-11-06.1
 
 Documentación pública del código. No contiene cierres reales, importes operativos, expedientes ni credenciales. El informe operativo se entrega al propietario por separado y no debe publicarse en Pages.
 
 ## Estructura
 
-- `frontend/modulos/`: 43 módulos de origen, conservando orden y ámbito clásico.
+- `frontend/modulos/`: 58 módulos de origen, conservando orden y ámbito clásico.
 - `frontend/modulos.json`: orden de construcción.
 - `frontend/build.json`: nombre por contenido, SHA-256 e integridad SHA-384 del archivo publicado.
 - `platinum-sync.js`: invalidación y coordinación de lecturas.
@@ -13,7 +13,7 @@ Documentación pública del código. No contiene cierres reales, importes operat
 - `concentrado-contratistas.js`: concentrados.
 - `supabase/migrations/`: cambios versionados del backend.
 
-Se conservan el stack y xlsx-js-style. La modularización no cambia las fórmulas de cálculo. Las huellas de 850 funciones originales permiten verificar que los cambios se limitan a 51 adaptadores declarados en `frontend/revision-auditada.json`; los motores no se admiten como excepciones.
+Se conservan el stack y xlsx-js-style. La modularización no cambia las fórmulas de cálculo. Las huellas de 850 funciones originales se cotejan con el registro de cambios revisados en `frontend/revision-auditada.json`; los motores no se admiten como excepciones. El calendario y sus controles se documentan en `CALENDARIO_TRABAJADOR.md`.
 
 ## Construcción y comprobaciones
 
@@ -28,7 +28,7 @@ Editar los módulos, no el archivo generado. Publicar juntos el HTML y el archiv
 
 La comprobación estructural de fichas utiliza Python y lxml, no un navegador. En otro equipo se puede indicar el ejecutable con `PLATINUM_TEST_PYTHON`; GitHub prepara Python 3.12 y lxml 6.0.2 de forma aislada.
 
-Las 22 suites del paquete público incluyen 68 comprobaciones PostgreSQL y contratos de paginación, alcance de empresa, respuestas tardías, permisos, aprobación, idempotencia, saldos, versiones y botones nuevos. Usan datos ficticios; no conectan a la base operativa ni abren navegador. El paquete privado añade 27 comprobaciones de seguridad, 66 de los cuatro bloques RRHH, 50 de pagos de sábado, 12 de estados físicos de cheques, 30 de rendimiento RLS, 28 de conciliación de transferencias, 49 del visor y 32 de lectura IA: 35 suites y 362 comprobaciones PostgreSQL en conjunto. El visor añade 29 contratos VM; los recibos IA, 21 de interfaz y 22 de Edge Function. No se cuentan como ejecutadas las que requieren archivos privados ausentes.
+Las 23 suites del paquete público incluyen 68 comprobaciones PostgreSQL y contratos de paginación, alcance de empresa, respuestas tardías, permisos, aprobación, idempotencia, saldos, versiones y botones nuevos. Usan datos ficticios; no conectan a la base operativa ni abren navegador. El paquete privado añade 27 comprobaciones de seguridad, 66 de los cuatro bloques RRHH, 50 de pagos de sábado, 12 de estados físicos de cheques, 30 de rendimiento RLS, 28 de conciliación de transferencias, 49 del visor y 32 de lectura IA: 36 suites y 362 comprobaciones PostgreSQL en conjunto. El visor añade 29 contratos VM; los recibos IA, 21 de interfaz y 22 de Edge Function. La actualización continua añade 24 regresiones VM de conservación de tabla y agrupación. No se cuentan como ejecutadas las que requieren archivos privados ausentes.
 
 `scripts/auditar_funciones.cjs` reproduce trazas y callbacks; el informe detallado se conserva como artefacto privado. Análisis estático no significa ejecución universal ni garantía de ausencia de errores. La migración de endurecimiento ya aplicada también se entrega en privado, no dentro del sitio público.
 
@@ -79,3 +79,11 @@ El módulo 42 ofrece lectura por semana, a petición de un usuario con permiso d
 La propuesta se conserva separadamente con huella, modelo, datos, usuario y motivos de rechazo. PostgreSQL comprueba identidad, un solo recibo, periodo archivado y coherencia de importes. Sólo una confirmación explícita completa un `nomina_neto` todavía nulo; el original permanece intacto. Cambios concurrentes, importes existentes o lecturas ambiguas bloquean la operación. El metadato pasa a todas las consultas existentes por los disparadores y la sincronización documental, sin cambiar pagos ni versiones autorizadas. Las propuestas no se confunden con comprobantes bancarios.
 
 Referencias: [documentos PDF en Gemini](https://ai.google.dev/gemini-api/docs/document-processing), [salida estructurada](https://ai.google.dev/gemini-api/docs/structured-output). Las pruebas aisladas no acreditan exactitud OCR de todos los recibos reales: se exige cotejar el original antes de confirmar.
+
+## Actualización continua sin retirar la tabla
+
+Los esqueletos sólo se muestran al cargar inicialmente o al cambiar de centro. Las recargas del mismo centro mantienen el DOM verificado mientras llegan las 17 fuentes completas y los acuses dirigidos. Un fallo no borra ni reconstruye esas filas. Sólo se vuelve a pintar el padrón si cambian trabajadores, acuses o casos de servicio; pagos y recibos nuevos siguen llegando a las fuentes y alertas sin reconstruir trabajadores. Se conservan filtros, búsqueda y desplazamiento. Una captura abierta durante la lectura difiere el intercambio.
+
+Las señales automáticas se agrupan en una ventana fija y se deja un intervalo mínimo de diez segundos desde el fin de una consulta. No se inicia otra consulta simultánea ni se pierde la última señal de una ráfaga sostenida. Actualizar manualmente no espera ese intervalo; foco, reconexión y cambios reales permanecen activos. La presencia en línea sólo cambia su indicador, no recarga el centro. Se conserva toda la paginación, permisos y validaciones financieras; no se aplicó una migración de base de datos para esta corrección.
+
+Las 24 regresiones adicionales usan consultas retenidas y reloj simulado: tabla visible durante espera, respuesta idéntica, pago/recibo nuevos, cambios y anulaciones de acuses, activación programada, error de red, captura abierta, aislamiento por centro, desplazamiento, mutación local confirmada y 600 señales en un minuto. Son pruebas de comportamiento en VM, no una medición de latencia real en el equipo del usuario ni aceptación visual de navegador.

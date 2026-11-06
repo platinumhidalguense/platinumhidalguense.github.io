@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-05.2",
-  "entry": "assets/platinum-app.638be4763c678c9e.js",
-  "sha256": "638be4763c678c9e233d3e29c8db965d9d97ee6f87b0e11b1a99bea58ba8f43d",
-  "integrity": "sha384-Vzvz9y9kYfetu3VeW92uhzQWaWOeFtDhgVmjxCeDoCYTkHNE5PDVxgw78pFUpHkf",
+  "version": "2026-11-06.1",
+  "entry": "assets/platinum-app.9054f8d0920a6f38.js",
+  "sha256": "9054f8d0920a6f380f12b135fe993e5d33ce1e64e999b731b1ff32986699076c",
+  "integrity": "sha384-HO2HO6hZ/OR0ALCiejGTcvJ1jkXiSPIxSrT5JjTiAOQewLkxdmyi5pEmouHzH2fk",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "08788043621e64556af1938abbc313a26adcc68998b5f105b088582a47ddfe5e"
+      "sha256": "b978d5f9a9cf89219b8b6b095b6cd328375e0e2aa6c51f9b0bb680d68234f850"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -22,7 +22,7 @@
     },
     {
       "path": "frontend/modulos/04-padron-expedientes.js",
-      "sha256": "f545a3741f59081857544b87bb74585b949d46f84e79dfb67bb0758e90a93afb"
+      "sha256": "28a2576a42506e1c2c85f2a34e71c803bb47c21170bc795bddff4852c48f6d66"
     },
     {
       "path": "frontend/modulos/05-alta-edicion.js",
@@ -38,7 +38,7 @@
     },
     {
       "path": "frontend/modulos/08-retenciones-incidencias.js",
-      "sha256": "6968d57c1c18dbb5006d927acc1b30feb4dab4c6c54a83a5cfc8ae4422bc225d"
+      "sha256": "cc9869bf173b23990dcd522a56e566133415c3a421feb79ebaf44bb7750189b8"
     },
     {
       "path": "frontend/modulos/09-documentacion-reportes.js",
@@ -227,6 +227,14 @@
     {
       "path": "frontend/modulos/55-contratos-consulta.js",
       "sha256": "06c0bc3375e984fbb43b35b3877cdb09511d78612199514395315fc4de7b1348"
+    },
+    {
+      "path": "frontend/modulos/56-calendario-core.js",
+      "sha256": "a9b49c54386ff97f5563857d9ebdc7a4f307e03bc7c6ab0d9689cd79e8e3e1c7"
+    },
+    {
+      "path": "frontend/modulos/57-calendario-trabajador.js",
+      "sha256": "5e91dbdf68023525c8add2845323a90bae29b3ef74e94a751aa0b4039190b6ab"
     }
   ]
 }
