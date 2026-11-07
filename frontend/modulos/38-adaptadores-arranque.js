@@ -1,8 +1,9 @@
 /* Adaptador de coordinación: conserva intacto proyModelo y sus fórmulas. */
 async function proySnapshotIntegrado(sem,periodo){
   const obra=OBRA;if(!obra)throw Error('Selecciona un centro.');
-  const source=await window.PLATINUM_FLOWS.call('FUENTE',{obra_id:obra.id,semana:sem});
-  if(!await pyDatosFrescos()||OBRA?.id!==obra.id)throw Error('No se pudo preparar con datos actuales.');
+  const entradas=typeof leerEntradasNominaRapidas==='function'?await leerEntradasNominaRapidas(obra.id,sem):null;
+  const source=entradas||await window.PLATINUM_FLOWS.call('FUENTE',{obra_id:obra.id,semana:sem});
+  if(!await pyDatosFrescos(entradas)||OBRA?.id!==obra.id)throw Error('No se pudo preparar con datos actuales.');
   const [desde,hasta]=semRange(sem);
   const entradasHistoricas={workers:WORKERS,desc:DESC};
   const historico=periodo==='SEMANAL'&&hasta<today()?await proyLeerContextoHistorico(WORKERS,DESC,obra.id,hasta):null;

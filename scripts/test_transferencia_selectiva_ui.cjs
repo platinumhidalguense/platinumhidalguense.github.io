@@ -51,7 +51,7 @@ const partial=sources=>({segundoPlano:true,fuentes:sources});
  const tick=async()=>{const jobs=[...timers.values()];timers.clear();await Promise.all(jobs.map(f=>f()));};
  q.request(false,'pagos');q.request(false,'cheques');await tick();eq(calls.at(-1),{sources:['pagos','cheques']});
  q.request(false,'pagos');q.request(true);await tick();eq(calls.at(-1),{sources:null},'Manual exige completa');
- allowed=false;q.request(false,'trabajadores');await tick();allowed=true;q.resume();await tick();eq(calls.at(-1),{sources:null},'Modal preserva cambios y reanuda con verificación completa');
+ allowed=false;q.request(false,'trabajadores');await tick();allowed=true;q.resume();await tick();eq(calls.at(-1),{sources:['trabajadores']},'Al cerrar la captura se reanuda sólo la fuente que quedó pendiente');
  answer=false;q.request(false,'pagos');await tick();answer=true;q.request(false,'cheques');await tick();eq(calls.at(-1),{sources:null},'Fallo no pierde invalidaciones');
  answer='pending';q.request(false,'pagos');await tick();eq(q.inspect().deferred,true);answer=true;q.resume();await tick();eq(calls.at(-1),{sources:null});
  release=()=>{};q.request(false,'pagos');const running=tick();await Promise.resolve();q.request(false,'documentos');release();release=null;await running;await tick();eq(calls.at(-1),{sources:['documentos']},'Cambio durante consulta no se pierde');

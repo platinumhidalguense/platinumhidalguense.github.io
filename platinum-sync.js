@@ -1,6 +1,6 @@
 /* PLATINUM OS · sincronización de lectura. Sin reglas de nómina ni escrituras.
-   Los eventos son avisos de invalidación; el dato autorizado se vuelve a leer
-   con la sesión del usuario y la RLS. No se usan importes del evento como pago. */
+   Las filas de Realtime respetan RLS. Las lecturas se reservan para reconexión,
+   actualización manual y vistas que dependen de un resultado del servidor. */
 (function(root){
   'use strict';
   const SOURCES=Object.freeze([
@@ -51,7 +51,7 @@
       }
     }
     return Object.freeze({request,
-      resume(){if(deferred||dirty)request();},
+      resume(){if(deferred||dirty)request(false,pendingSources.values().next().value);},
       stop(){stopped=true;dirty=false;full=false;pendingSources.clear();if(timer!==null)cancel(timer);timer=null;},
       inspect:()=>({running,dirty,deferred,stopped})
     });
@@ -70,11 +70,14 @@
     const queue=createQueue({
       canRefresh:options.canRefresh,refresh:options.refresh,
       onState:s=>{dataState=s;state();},onDeferred:options.onDeferred,
-      setTimer:options.setTimer,clearTimer:options.clearTimer,delay:options.delay??1200,minInterval:options.minInterval??10000,now:options.now
+      setTimer:options.setTimer,clearTimer:options.clearTimer,delay:options.delay??(options.apply?80:1200),minInterval:options.minInterval??0,now:options.now
     });
     const channel=options.client.channel('platinum-rt',{config:{presence:{key:options.userId}}});
-    for(const table of SOURCES)channel.on('postgres_changes',{event:'*',schema:'public',table},payload=>{
-      if(active&&relevant({...payload,table},options.getObraId()))queue.request(false,table);
+    for(const table of options.apply?[...SOURCES,'incidencias_empleados']:SOURCES)channel.on('postgres_changes',{event:'*',schema:'public',table},payload=>{
+      if(!active)return;
+      const event={...payload,table};
+      if(options.apply?.(event))return;
+      if(relevant(event,options.getObraId()))queue.request(false,table);
     });
     channel.on('presence',{event:'sync'},()=>{
       if(!active)return;
@@ -85,7 +88,8 @@
         transport='connected';state();
         // No publicar correos ni nombres en el canal compartido de presencia.
         try{await channel.track({online:true});}catch(e){}
-        if(subscribed)queue.request();
+        if(subscribed)options.onReconnect?.();
+        if(subscribed||options.apply&&options.getObraId())queue.request();
         subscribed=true;
       }else if(['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status)){
         transport='offline';state();
@@ -96,18 +100,18 @@
       if(!active||!options.getObraId()||options.document?.visibilityState==='hidden'||now-lastFocus<30000)return;
       lastFocus=now;queue.request();
     };
-    options.window?.addEventListener('focus',focus);
-    options.document?.addEventListener('visibilitychange',focus);
+    // La aplicación con deltas no relee por foco ni visibilidad. El socket
+    // conserva el flujo y SUBSCRIBED tras reconexión recupera cambios perdidos.
+    if(!options.apply){options.window?.addEventListener('focus',focus);options.document?.addEventListener('visibilitychange',focus);}
     state();
     return Object.freeze({channel,request:queue.request,resume:queue.resume,
       stop(){
         if(!active)return;active=false;queue.stop();
-        options.window?.removeEventListener('focus',focus);
-        options.document?.removeEventListener('visibilitychange',focus);
+        if(!options.apply){options.window?.removeEventListener('focus',focus);options.document?.removeEventListener('visibilitychange',focus);}
         const leaving=options.client.removeChannel(channel);
         if(leaving?.catch)leaving.catch(()=>{});
       }
     });
   }
-  root.PLATINUM_SYNC=Object.freeze({version:'2026-10-27.1',sources:SOURCES,createQueue,relevant,connect});
+  root.PLATINUM_SYNC=Object.freeze({version:'2026-11-07.1',sources:SOURCES,createQueue,relevant,connect});
 })(typeof window==='undefined'?globalThis:window);

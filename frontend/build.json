@@ -1,16 +1,16 @@
 {
-  "version": "2026-11-06.4",
-  "entry": "assets/platinum-app.39d5612ff6253a95.js",
-  "sha256": "39d5612ff6253a95833e2ff52aad92ddd34a9943f207e7751855cce283c90ca0",
-  "integrity": "sha384-chzf0xWcqnkkdEXl3wxfn/r8xZjQOU8F2N2ooSHuA+AwTDx7+ZvnWiNP6ddGEyIf",
+  "version": "2026-11-07.1",
+  "entry": "assets/platinum-app.e187e24c93facc04.js",
+  "sha256": "e187e24c93facc048b457dbf0983d9f42484b2fc3cbed1117810ae1123c210cc",
+  "integrity": "sha384-vCQEHeYAU6Ik6fWKjrsicjPDi0ENlJXszjK/I8pqW2j93Q5G6t/tQHFwLRHECM/t",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
-      "sha256": "50939a3766673c22547fb8fa7e421d512279786a6e5cac5144b56e71ba366930"
+      "sha256": "e55e55ba86562d430390b3bb9a66c14ecf548148e8cdcda6bc9602551fbd55c7"
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "f1ba026a941a518938853987f01c027ba4e0097d9fb8690cd03abbc1f72cf856"
+      "sha256": "71b0a04b8aea50b483ee205963552e595baf665d798f5f8ff3ea9b58824c7af5"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -18,15 +18,15 @@
     },
     {
       "path": "frontend/modulos/03-navegacion-presentacion.js",
-      "sha256": "5e59f5d7e44fec292fee9bcf6535fa8d062ca195609fcca8b539c8c95b67a851"
+      "sha256": "f0a987440410ba0603bcf62a201f1142e083c3e36ca86e6ccedb07f3784c0cac"
     },
     {
       "path": "frontend/modulos/04-padron-expedientes.js",
-      "sha256": "28a2576a42506e1c2c85f2a34e71c803bb47c21170bc795bddff4852c48f6d66"
+      "sha256": "5bfdae8dd80a453ed1774fbdd6f0a8bbf3b9ac297b6c693a67405a634c74b22a"
     },
     {
       "path": "frontend/modulos/05-alta-edicion.js",
-      "sha256": "bde80deb7f57a6a29d66d039ea4785db6c591e46e2f68c20757dc7c5f6b2272f"
+      "sha256": "c38cf604ade4b7827f8ef849bdc63a732cad098eeb4ec8b29848486376859098"
     },
     {
       "path": "frontend/modulos/06-movimientos-historial.js",
@@ -46,7 +46,7 @@
     },
     {
       "path": "frontend/modulos/10-proyeccion-nomina.js",
-      "sha256": "0fa7b39722a05022142cd0ad62eb01abb46cec76f55e97a0d86a7971ce9071c0"
+      "sha256": "e00d66e15a5b8206cc32d057114bfda97058fbe3424ba67a23eb9d8a5b073ac7"
     },
     {
       "path": "frontend/modulos/11-expedientes-excel.js",
@@ -82,7 +82,7 @@
     },
     {
       "path": "frontend/modulos/19-cheques.js",
-      "sha256": "43f5d542adda66946361720fa6220be61915774afa23852d2d16b1a32415cf6e"
+      "sha256": "a7371a29ea9330b99fbefe55b169d4e2285c0e11846f8d535ba56d4b63029f3c"
     },
     {
       "path": "frontend/modulos/20-movimientos-semanales.js",
@@ -122,7 +122,7 @@
     },
     {
       "path": "frontend/modulos/29-bajas-creditos-motor.js",
-      "sha256": "62b4e2b337649cd90fe6f495501e56e8af925c7a369dc0982bd7200066d6e441"
+      "sha256": "5cfb06ee88bbeb7c987dba3de62775351478e7cabe38de8616ac6e439081f796"
     },
     {
       "path": "frontend/modulos/30-contratistas-alertas.js",
@@ -158,7 +158,7 @@
     },
     {
       "path": "frontend/modulos/38-adaptadores-arranque.js",
-      "sha256": "b03a6b1084ae971d692c3e16b1131aeeb15db2fe6efb4165a7a7cea45e13b2cb"
+      "sha256": "06c618bbcdd75de36855c9d78780c3682464dd064051a165a610774144d20350"
     },
     {
       "path": "frontend/modulos/39-rrhh-adaptadores.js",
@@ -234,7 +234,7 @@
     },
     {
       "path": "frontend/modulos/57-calendario-trabajador.js",
-      "sha256": "5e91dbdf68023525c8add2845323a90bae29b3ef74e94a751aa0b4039190b6ab"
+      "sha256": "298d72e2f647ddc9c2e7db6e27f9db2088594b890fdafef994dd5b9e3220f2d9"
     },
     {
       "path": "frontend/modulos/58-conciliador-core.js",
@@ -254,11 +254,15 @@
     },
     {
       "path": "frontend/modulos/62-conciliador-semanal-interfaz.js",
-      "sha256": "c145bc4eb4f23bde6000a5fd17ae53cbd081abd9af936137bfc06f78ce8446e4"
+      "sha256": "61884aea40b85eb021bfef74656704d3098ea5c655ab9299396ac68766dadb69"
     },
     {
       "path": "frontend/modulos/63-gestion-cheques.js",
-      "sha256": "aa2d946e128067212b1f8d905a7c127bd15184a8a3b3eddbb9e8b7fe5b4e0d58"
+      "sha256": "ab3ae207b334db88f17285e6f761956f80ace967444070f8d22cd025f3b767a7"
+    },
+    {
+      "path": "frontend/modulos/64-datos-centro-en-vivo.js",
+      "sha256": "d44f47806db11676c1e20fc40763da517c744ef76b0e8c1be4f4b8dfbcbd7f26"
     }
   ]
 }

@@ -3,7 +3,7 @@
 (function(){
  'use strict';
  let tab='flujo';
- let siguiente=null,local={tipo:'PERSONAS',q:'',persona:null},ultimo=null,firma=null;
+ let siguiente=null,local={tipo:'PERSONAS',q:'',persona:null},ultimo=null,firma=null,derivados=0,leidos=0,turno=false;
  const $s=id=>$('cs-'+id),context=()=>({obra_id:OBRA?.id,usuario_id:USER?.id,visible:VIEW==='conciliador'});
  const service=window.PLATINUM_CONCILIACION_SEMANAL.useConciliacionSemanal({context,rpc:(...a)=>sb.rpc(...a),onChange:pintar});
  const boton=(text,accion,extra='',disabled=false)=>`<button class="btn" data-cs="${accion}" ${extra} ${disabled?'disabled':''}>${text}</button>`;
@@ -11,7 +11,7 @@
  function actual(){const d=service.estado().data;if(!d||d.obra_id!==OBRA?.id||VIEW!=='conciliador')throw Error('Recupera la semana antes de continuar');return d;}
  function seguro(fn){return(...a)=>Promise.resolve().then(()=>fn(...a)).catch(e=>toast(e.message,'err'));}
  function firmaDatos(sem){const xs=[typeof CHEQUES==='undefined'?[]:CHEQUES,typeof PAGOS==='undefined'?[]:PAGOS,typeof CIERRES==='undefined'?[]:CIERRES,typeof CTRLNOI==='undefined'?[]:CTRLNOI,typeof DOCSX==='undefined'?[]:DOCSX];return JSON.stringify(xs.map(rows=>rows.filter(x=>Number(String(x.semana||'').replace(/\D/g,''))===sem).map(x=>[x.id,x.updated_at,x.estatus,x.estado,x.importe,x.monto_noi,x.nomina_neto,x.hash,x.snapshot_sha256])));}
- function montar(){if(VIEW!=='conciliador')return;if(tab==='cheques'&&service.estado().contexto?.obra_id===OBRA?.id&&service.estado().contexto?.usuario_id===USER?.id){window.PLATINUM_GESTION_CHEQUES?.refrescar();return;}const s=service.estado();if(s.contexto&&(s.contexto.obra_id!==OBRA?.id||s.contexto.usuario_id!==USER?.id))salir();if(service.estado().data?.obra_id!==OBRA?.id&&!service.estado().loading){const p=siguiente||{};siguiente=null;return cargar(p.semana??null,p.cierre??null,p.paso);}const d=service.estado().data;if(d&&firma!==null&&firma!==firmaDatos(d.semana)&&!service.estado().loading){if(window.PLATINUM_CONCILIADOR.estaCapturando()){const e=$s('actualizando');if(e)e.textContent='Hay cambios disponibles. Termina la captura y actualiza.';}else return cargar(d.semana,d.detalle?.cierre.id||null,null,true);}pintar(service.estado());}
+ function montar(){if(VIEW!=='conciliador')return;if(tab==='cheques'&&service.estado().contexto?.obra_id===OBRA?.id&&service.estado().contexto?.usuario_id===USER?.id){window.PLATINUM_GESTION_CHEQUES?.refrescar();return;}const s=service.estado();if(s.contexto&&(s.contexto.obra_id!==OBRA?.id||s.contexto.usuario_id!==USER?.id))salir();if(service.estado().data?.obra_id!==OBRA?.id&&!service.estado().loading){const p=siguiente||{};siguiente=null;return cargar(p.semana??null,p.cierre??null,p.paso);}const d=service.estado().data;if(d&&firma!==null&&(firma!==firmaDatos(d.semana)||derivados!==leidos)&&!service.estado().loading){if(window.PLATINUM_CONCILIADOR.estaCapturando()){const e=$s('actualizando');if(e)e.textContent='Hay cambios disponibles. Termina la captura y actualiza.';}else return cargar(d.semana,d.detalle?.cierre.id||null,null,true);}pintar(service.estado());}
  async function abrir(paso=null,semana=null,cierre=null){
   if(!OBRA)return;tab='flujo';closeModal();siguiente={paso,semana,cierre};
   if(VIEW!=='conciliador'){setView('conciliador');return;}
@@ -19,7 +19,7 @@
  }
  async function cargar(semana,cierre=null,paso=null,conservar=false){
   window.PLATINUM_CONCILIADOR.desmontar();ultimo=null;local={tipo:'PERSONAS',q:'',persona:null};
-  const d=await service.cargar(semana,cierre,{conservar});if(!d)return;firma=firmaDatos(d.semana);
+  const version=derivados,d=await service.cargar(semana,cierre,{conservar});if(!d)return;leidos=version;firma=firmaDatos(d.semana);if(derivados!==leidos)programarDerivados();
   window._CTRLCIERRES=d.cierres;
   if(d.detalle){PLATINUM_FLOWS.cargarContexto(d.detalle,d.permisos);await window.PLATINUM_CONCILIADOR.mostrarCierre(d.detalle,d.permisos,{expediente:d.expediente,host:'cs-stepper',paso,contexto:d});}
  }
@@ -75,6 +75,8 @@
   if(a==='cheque'){const c=d.cheques.find(c=>c.id===b.dataset.id);if(!c)return;const idx=CHEQUES.findIndex(q=>q.id===c.id);if(idx<0)CHEQUES.push(c);else CHEQUES[idx]=c;return openChequeForm(c.id);}
  }
  function seleccionarTab(t){if(!['flujo','cheques'].includes(t))return;tab=t;for(const k of ['flujo','cheques']){const b=$s('tab-'+k);b.setAttribute('aria-selected',String(k===t));b.tabIndex=k===t?0:-1;}$s('flujo').hidden=t!=='flujo';$s('gestion').hidden=t!=='cheques';if(t==='cheques')window.PLATINUM_GESTION_CHEQUES.montar('cs-cheques');else return montar();}
- function salir(){tab='flujo';window.PLATINUM_GESTION_CHEQUES?.salir();service.invalidar();window.PLATINUM_CONCILIADOR.desmontar();ultimo=null;firma=null;}
- window.PLATINUM_CONCILIADOR_SEMANAL=Object.freeze({montar:seguro(montar),abrir:seguro(abrir),cierre:seguro((id,paso)=>abrir(paso,null,id)),salir,refrescar:seguro(()=>{const d=actual();return cargar(d.semana,d.detalle?.cierre.id||null);}),estado:()=>service.estado()});
+ function programarDerivados(){if(turno||VIEW!=='conciliador'||tab!=='flujo')return;turno=true;const centro=OBRA?.id,user=USER?.id;(window.requestAnimationFrame||((f)=>Promise.resolve().then(f)))(()=>{turno=false;if(OBRA?.id===centro&&USER?.id===user&&VIEW==='conciliador'&&tab==='flujo')seguro(montar)();});}
+ function invalidarDerivados(){if(VIEW!=='conciliador')return;derivados++;programarDerivados();}
+ function salir(){derivados=0;leidos=0;tab='flujo';window.PLATINUM_GESTION_CHEQUES?.salir();service.invalidar();window.PLATINUM_CONCILIADOR.desmontar();ultimo=null;firma=null;}
+ window.PLATINUM_CONCILIADOR_SEMANAL=Object.freeze({invalidarDerivados,montar:seguro(montar),abrir:seguro(abrir),cierre:seguro((id,paso)=>abrir(paso,null,id)),salir,refrescar:seguro(()=>{const d=actual();return cargar(d.semana,d.detalle?.cierre.id||null);}),estado:()=>service.estado()});
 })();

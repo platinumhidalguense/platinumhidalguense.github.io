@@ -6,7 +6,7 @@ for(const [k,value] of Object.entries({'c-nombre':'PERSONA PRUEBA','c-estatus':'
 let messages=[],opened=null,confirmed=false,writes=0,saved=null;
 const r={neto:2000,origen:'NOI S1',desde:'2026-01-05',hasta:'2026-01-11',semana:1,advertencias:['PDF pendiente de lectura.'],expedicion:{cierre_id:'c',estado_cierre:'REVISADO',requisitos_cierre_cumplidos:false,pendiente:'Cierre S1 en REVISADO. Solicita autorización.'}};
 const existing={id:'q',estatus:'PENDIENTE',obra_id:'o',trabajador_id:'w',semana:'S1',tipo_pago:'FINIQUITO',importe:2000};
-const box={window:{PLATINUM_FLOWS:{abrirCierre:id=>{opened=id;}}},OBRA:{id:'o'},WORKERS:[{id:'w'}],CHEQUES:[existing],normSem:x=>String(x).replace(/\D/g,''),Number,
+const box={window:{PLATINUM_FLOWS:{abrirCierre:id=>{opened=id;}}},USER:{id:'u',email:'prueba@example.test'},OBRA:{id:'o'},WORKERS:[{id:'w'}],CHEQUES:[existing],normSem:x=>String(x).replace(/\D/g,''),Number,
  $:id=>elements[id]||null,money:x=>Number(x).toFixed(2),fullName:()=> 'PERSONA PRUEBA',document:{createElement:()=>({})},confirm:()=>confirmed,toast:m=>messages.push(m),chqResolverNeto:async()=>r,markWrite:()=>{writes++;},chequeDuplicado:()=>null,closeModal(){},loadObraData:async()=>{},console,
  sb:{from:()=>({update:rec=>({eq:async()=>{saved=rec;return{error:null};}})})}};
 vm.createContext(box);vm.runInContext(code,box);

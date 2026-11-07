@@ -29,7 +29,7 @@ async function doLogin(){
   if(error){$('login-err').textContent='Correo o contraseña incorrectos.';$('login-err').classList.remove('hide');return;}
   USER=data.user;$('scr-login').classList.add('hide');await enterApp();
 }
-async function doLogout(){await sb.auth.signOut();location.reload();}
+async function doLogout(){await sb.auth.signOut();window._PLATINUM_RT?.stop();window.PLATINUM_DATOS?.reiniciar();location.reload();}
 
 async function enterApp(){
   $('scr-app').classList.remove('hide');
@@ -45,7 +45,6 @@ async function enterApp(){
   renderObraBar();
   await loadConfig();
   chequearVersion();
-  setInterval(chequearVersionEnVivo,10*60*1000);
   await cargarContratistas();
   if($('btn-papelera'))$('btn-papelera').classList.toggle('hide',!esAdmin());
   if($('btn-edit-centro'))$('btn-edit-centro').classList.toggle('hide',!esAdmin());
@@ -60,7 +59,9 @@ function startRealtime(){
   if(!window.PLATINUM_SYNC){$('rt-status').textContent='Actualización manual';return;}
   window._PLATINUM_RT=window.PLATINUM_SYNC.connect({client:sb,userId:USER.id,window,document,
     getObraId:()=>OBRA?.id,
-    canRefresh:()=>!NAV_BUSY&&!$('modals').innerHTML,
+    apply:e=>window.PLATINUM_DATOS?.aplicar(e),
+    onReconnect:()=>chequearVersionEnVivo(),
+    canRefresh:()=>!NAV_BUSY&&!OBRA_APERTURA_HERRAMIENTAS&&!$('modals').innerHTML,
     refresh:cambio=>softRefresh(false,cambio),
     onDeferred:()=>{window._pendingRT=true;window.PLATINUM_FLOWS?.avisarCambio();window.PLATINUM_RRHH?.avisarCambio();window.PLATINUM_PAGOS_SABADO?.avisarCambio();},
     onStatus:({transport,dataState,online})=>{
@@ -83,16 +84,19 @@ function rtQueue(){
 async function softRefresh(notify=true,cambio=null){
   const actualId=OBRA?.id,step=NAV_STEP;
   try{
-    const {data:ob,error}=await sb.from('obras').select('*').order('orden');
+    const fuentes=cambio?.sources;
+    const lista=!Array.isArray(fuentes)||fuentes.includes('obras')||typeof loadPadronRapido!=='function';
+    const {data:ob,error}=lista?await sb.from('obras').select('*').order('orden'):{data:OBRAS,error:null};
     if(error||!Array.isArray(ob))throw error||Error('Respuesta incompleta de centros');
     if(NAV_BUSY||OBRA?.id!==actualId||NAV_STEP!==step)return false;
     if(actualId&&!ob.some(o=>o.id===actualId))throw Error('El centro seleccionado ya no está disponible para esta sesión');
     OBRAS=ob;
     if(actualId)OBRA=OBRAS.find(o=>o.id===actualId);
-    if(OBRA&&NAV_STEP==='trabajadores'){
+    if(OBRA&&NAV_STEP==='trabajadores'&&(!fuentes||fuentes.some(x=>x!=='obras'))){
       EMPRESA_ACTIVA=empresaDeObra(OBRA);
-      const lectura={segundoPlano:true,fuentes:cambio?.sources};
-      if(!await loadObraData(actualId,lectura))return lectura.diferida?'pending':false;
+      const lectura={segundoPlano:true,fuentes:fuentes?.filter(x=>x!=='obras')};
+      const carga=typeof OBRA_CARGA_COMPLETA!=='undefined'&&!OBRA_CARGA_COMPLETA?loadPadronRapido:loadObraData;
+      if(!await carga(actualId,lectura))return lectura.diferida?'pending':false;
     }
     renderObraBar();
     if(notify)toast('🔄 Información compartida actualizada.');
@@ -104,7 +108,8 @@ async function softRefresh(notify=true,cambio=null){
 }
 function actualizarDatosCompartidos(){
   if(NAV_BUSY){toast('Espera a que termine de abrir el centro.');return;}
-  if($('modals').innerHTML){window._pendingRT=true;toast('Cierra la ventana actual para actualizar sin perder tu captura.');return;}
+  if($('modals').innerHTML){window._pendingRT=true;window._pendingRTManual=true;toast('Cierra la ventana actual para actualizar sin perder tu captura.');return;}
+  chequearVersionEnVivo();
   if(window._PLATINUM_RT)window._PLATINUM_RT.request(true);
   else softRefresh(true);
 }
@@ -158,14 +163,15 @@ function renderObraBar(){
       <small>Registro patronal: ${esc(o.registro_patronal||'Sin capturar')}${o.tipo!=='OFICINA'?' · SIROC: '+esc(o.registro_siroc||'Sin capturar'):''}</small>
     </button>`).join('');
   renderCentroMeta();
-  refreshCounts();
+  if(NAV_STEP==='obra'&&!NAV_BUSY)refreshCounts();
   renderCrumbs();
 }
 async function refreshCounts(){
+  if(NAV_STEP!=='obra'||NAV_BUSY)return;
   const obras=obrasEmpresa(),ids=obras.map(o=>o.id);if(!ids.length)return;
-  const {data}=await fetchAllRows(()=>sb.from('trabajadores').select('obra_id,estatus').in('obra_id',ids).eq('eliminado',false));
-  if(!data)return;
-  obras.forEach(o=>{const el=$('cnt-'+o.id);if(el)el.textContent=data.filter(w=>w.obra_id===o.id&&w.estatus==='ACTIVO').length;});
+  const empresa=EMPRESA_ACTIVA,uid=USER?.id,{data,error}=await sb.rpc('control_conteo_centros_rapido',{p_obras:ids});
+  if(error||!data||USER?.id!==uid||NAV_STEP!=='obra'||EMPRESA_ACTIVA!==empresa)return;
+  obras.forEach(o=>{const el=$('cnt-'+o.id);if(el)el.textContent=data[o.id]??0;});
 }
 /* v.3: editar / eliminar obra — SOLO administrador. Editar incluye el TIPO de
    centro de trabajo (OBRA u OFICINA); las OFICINAS no usan SIROC. Eliminar pasa
@@ -296,12 +302,13 @@ async function selectObra(id){
   renderObraBar();
   $('nav-loading').classList.remove('hide');
   try{
-    const loaded=await loadObraData(id,{vista:'trab'});
+    const loaded=await loadPadronRapido(id);
     if(loaded===false){OBRA=anterior;EMPRESA_ACTIVA=empresaAnterior;repintarInstantaneaObra();return;}
     if(!anterior||anterior.id!==id)resetWorkerFilters();
     try{localStorage.setItem('platinum_empresa_activa',EMPRESA_ACTIVA);localStorage.setItem('platinum_obra_'+EMPRESA_ACTIVA,id);}catch(e){}
     NAV_BUSY=false;
     setView('trab');
+    activarPadronProgramado(id).catch(e=>{if(OBRA?.id===id)toast(e.message,'err');});
   }catch(e){OBRA=anterior;EMPRESA_ACTIVA=empresaAnterior;repintarInstantaneaObra();toast('No se pudo abrir el centro: '+e.message,'err');}
   finally{NAV_BUSY=false;$('nav-loading').classList.add('hide');renderObraBar();if(typeof window!=='undefined'&&window._PLATINUM_RT)window._PLATINUM_RT.resume();}
 }
@@ -315,6 +322,58 @@ async function selectEmpresa(codigo){
   showNavStep('obra');
 }
 let OBRA_CARGA_SECUENCIA=0,OBRA_DATOS_ID=null,OBRA_LECTURA_VERIFICADA=null;
+let OBRA_CARGA_COMPLETA=false,OBRA_APERTURA_HERRAMIENTAS=null;
+function actualizarFiltrosPadron(){
+  for(const [id,clave,etiqueta] of [['flt-contratista','contratista','Contratista: todos'],['f-semana','semana_ingreso','Ingreso: todas'],['flt-puesto','puesto','Puesto: todos']]){
+    const sel=$(id);if(!sel)continue;const previo=sel.value;
+    const opciones=[...new Set(WORKERS.map(w=>w[clave]).filter(Boolean))].sort(clave==='semana_ingreso'?(a,b)=>(parseInt(String(a).replace(/\D/g,''))||0)-(parseInt(String(b).replace(/\D/g,''))||0):undefined);
+    const html='<option value="">'+etiqueta+'</option>'+opciones.map(x=>'<option '+(x===previo?'selected':'')+'>'+esc(x)+'</option>').join('');
+    if(sel._opcionesPadron!==opciones.join('\u0000')){sel.innerHTML=html;sel._opcionesPadron=opciones.join('\u0000');if(opciones.includes(previo))sel.value=previo;}
+  }
+}
+async function loadPadronRapido(id){
+  const secuencia=++OBRA_CARGA_SECUENCIA,uid=USER?.id,replica=window.PLATINUM_DATOS,t=replica?.iniciar();
+  const vigente=()=>OBRA?.id===id&&USER?.id===uid&&secuencia===OBRA_CARGA_SECUENCIA;
+  try{
+    const {data:d,error}=await sb.rpc('control_padron_centro_rapido',{p_obra:id});
+    if(!vigente())return false;
+    if(error||d?.obra_id!==id||[d?.trabajadores,d?.acuses,d?.casos].some(x=>!Array.isArray(x)))throw Error(error?.message||'Respuesta incompleta del padrón');
+    const conservar=OBRA_DATOS_ID===id&&OBRA_CARGA_COMPLETA;
+    if(conservar)return true; // una herramienta completó la lectura entretanto
+    const publicar=(rows,tabla)=>replica?.publicar(t,rows,tabla,true)??rows;
+    WORKERS=publicar(d.trabajadores,'trabajadores');
+    DOCSX=publicar(d.acuses,'documentos');ALTAS_CORTAS=publicar(d.casos,'control_altas_bajas_cortas');
+    if(OBRA_DATOS_ID!==id){
+      CHEQUES=[];DESC=[];VAC=[];ACTAS=[];NOM=[];PAGOS=[];PRIMAS=[];CUADS=[];DIFS=[];BLOQUES=[];SUELDOSINT=[];CIERRES=[];CTRLNOI=[];FINTRANS=[];
+      OBRA_LECTURA_VERIFICADA=null;
+      for(const id of ['alert-badge','sb-alert-badge']){const badge=$(id);if(badge)badge.style.display='none';}
+    }
+    OBRA_DATOS_ID=id;OBRA_CARGA_COMPLETA=false;actualizarFiltrosPadron();
+    if(!NAV_BUSY&&VIEW==='trab')replica?.mostrar('trabajadores');
+    return true;
+  }catch(e){return vigente()?falloLecturaObra(id,'No se pudo verificar el padrón: '+e.message):false;}
+  finally{replica?.cerrar(t);}
+}
+async function activarPadronProgramado(id){
+  if(OBRA?.id!==id||!puedeEditarTrabajador()||!WORKERS.some(w=>w.estatus==='PENDIENTE'&&w.fecha_alta&&w.fecha_alta<=today()))return;
+  const uid=USER?.id,r=await fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false).eq('estatus','PENDIENTE').lte('fecha_alta',today()));
+  if(OBRA?.id!==id||USER?.id!==uid)return;
+  if(r.error)throw Error('No se pudieron comprobar las altas programadas: '+r.error.message);
+  await activarProgramados(r.data);
+}
+function conCentroCompleto(accion){
+  if(!OBRA)return;
+  if(OBRA_DATOS_ID===OBRA.id&&OBRA_CARGA_COMPLETA)return accion();
+  const id=OBRA.id,uid=USER?.id;
+  if(OBRA_APERTURA_HERRAMIENTAS?.id===id&&OBRA_APERTURA_HERRAMIENTAS?.uid===uid)return;
+  const token={id,uid};OBRA_APERTURA_HERRAMIENTAS=token;
+  const label=$('rt-status');if(label)label.textContent='Cargando herramienta…';
+  return loadObraData(id,{vista:'trab'}).then(ok=>{
+    if(ok&&OBRA?.id===id&&USER?.id===uid&&NAV_STEP==='trabajadores')return accion();
+  }).catch(e=>toast(e.message,'err')).finally(()=>{
+    if(OBRA_APERTURA_HERRAMIENTAS===token){OBRA_APERTURA_HERRAMIENTAS=null;if(label?.textContent==='Cargando herramienta…')label.textContent='';window._PLATINUM_RT?.resume();}
+  });
+}
 /* Todos los datos siguen completos y sincronizados. Sólo se construye el DOM
    de la herramienta visible; las demás se pintan al abrirlas. */
 function pintarVistaObra(vista){
@@ -348,6 +407,8 @@ async function loadObraData(id,opciones={}){
   const sesion=sesionActual();
   const vigente=()=>secuencia===OBRA_CARGA_SECUENCIA&&OBRA&&OBRA.id===id&&sesion===sesionActual();
   if(!vigente())return false;
+  const replica=typeof window!=='undefined'?window.PLATINUM_DATOS:null,t=replica?.iniciar();
+  try{
   const conservarVista=OBRA_DATOS_ID===id;
   const tablas=['trabajadores','cheques','descuentos','documentos','vacaciones','actas','nom035','pagos','prima_pagos','cuadrillas','diferenciales','bloques_cheques','sueldos_internos','control_cierres_nomina','control_conciliacion_noi','control_altas_bajas_cortas','control_finiquitos_transferencia'];
   const cache=OBRA_LECTURA_VERIFICADA;
@@ -355,9 +416,9 @@ async function loadObraData(id,opciones={}){
   // completa. Manual, reconexión, cambio de centro y eventos no específicos
   // siempre releen todo. No se guarda personal en localStorage/IndexedDB.
   const edad=cache?Date.now()-cache.completa:Infinity;
-  const parcial=opciones.segundoPlano&&conservarVista&&cache?.obra===id&&cache.sesion===sesion&&edad>=0&&edad<60000&&Array.isArray(opciones.fuentes)&&opciones.fuentes.length>0&&opciones.fuentes.every(t=>tablas.includes(t));
+  const parcial=opciones.segundoPlano&&conservarVista&&cache?.obra===id&&cache.sesion===sesion&&(replica?OBRA_CARGA_COMPLETA:edad>=0&&edad<60000)&&Array.isArray(opciones.fuentes)&&opciones.fuentes.length>0&&opciones.fuentes.every(t=>tablas.includes(t));
   const fuentes=parcial?new Set(opciones.fuentes):null;
-  const leer=(tabla,consulta)=>fuentes&&!fuentes.has(tabla)?Promise.resolve({data:JSON.parse(JSON.stringify(cache.datos[tabla]))}):consulta();
+  const leer=(tabla,consulta)=>fuentes&&!fuentes.has(tabla)?Promise.resolve({data:replica?.cache(tabla)??JSON.parse(JSON.stringify(cache.datos[tabla]))}):consulta();
   const inicioLectura=Date.now();
   OBRA_LECTURA_VERIFICADA=null;
   // Sólo al entrar por primera vez o cambiar de centro: nunca borrar la lista
@@ -393,17 +454,20 @@ async function loadObraData(id,opciones={}){
   const etiquetas=['trabajadores','cheques','incidencias y retenciones','documentos','vacaciones','actas','NOM-035','pagos','primas','cuadrillas','diferenciales','bloques de cheques','control interno autorizado','cierres de nómina','conciliación NOI','altas y bajas sin servicio','finiquitos por transferencia'];
   const fallo=lecturas.findIndex(r=>r?.error||!Array.isArray(r?.data));
   if(fallo>=0){OBRA_LECTURA_VERIFICADA=null;return falloLecturaObra(id,`No se pudieron verificar ${etiquetas[fallo]}: ${lecturas[fallo]?.error?.message||'respuesta incompleta'}. No se sustituyeron los datos por listas vacías.`);}
-  const [{data:tw},{data:ch},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn},{data:ab},{data:ft}]=lecturas;
+  let [{data:tw},{data:ch},{data:ds},{data:dx},{data:vc},{data:ac},{data:nm},{data:pg},{data:pr},{data:cd},{data:df},{data:bq},{data:si},{data:cc},{data:cn},{data:ab},{data:ft}]=lecturas;
   // El expediente pertenece al trabajador, incluso si el acuse se archivó
   // antes de un cambio de centro. Consulta dirigida y paginada; respeta RLS.
   let acuses;
-  try{acuses=parcial&&!fuentes.has('trabajadores')&&!fuentes.has('documentos')?{data:JSON.parse(JSON.stringify(cache.acuses))}:await cargarAcusesTrabajadores(tw);}catch(e){return vigente()?falloLecturaObra(id,'No se pudieron verificar los acuses IMSS: '+e.message):false;}
+  try{acuses=parcial&&!fuentes.has('trabajadores')&&!fuentes.has('documentos')?{data:replica?DOCSX.filter(d=>d.categoria==='ACUSE_IMSS'):JSON.parse(JSON.stringify(cache.acuses))}:await cargarAcusesTrabajadores(tw);}catch(e){return vigente()?falloLecturaObra(id,'No se pudieron verificar los acuses IMSS: '+e.message):false;}
   if(!vigente())return false;
   if(acuses?.error||!Array.isArray(acuses?.data))return falloLecturaObra(id,'No se pudieron verificar los acuses IMSS: '+(acuses?.error?.message||'respuesta incompleta'));
   if(opciones.segundoPlano&&typeof window!=='undefined'&&$('modals')?.innerHTML){window._pendingRT=true;opciones.diferida=true;return false;}
   const padronAnterior=conservarVista?JSON.stringify([WORKERS,DOCSX.filter(d=>String(d.categoria||'').trim().toUpperCase()==='ACUSE_IMSS'),ALTAS_CORTAS]):null;
-  WORKERS=tw;CHEQUES=ch.filter(c=>!c.eliminado);DESC=ds;DOCSX=dx.filter(d=>String(d.categoria||'').trim().toUpperCase()!=='ACUSE_IMSS').concat(acuses.data);VAC=vc;ACTAS=ac;NOM=nm;PAGOS=pg;PRIMAS=pr.filter(p=>p.activo!==false);CUADS=cd;DIFS=df;BLOQUES=bq;SUELDOSINT=si;CIERRES=cc;CTRLNOI=cn;ALTAS_CORTAS=ab;FINTRANS=ft;
+  const aplicar=(rows,tabla)=>replica?.publicar(t,rows,tabla)??rows;
+  WORKERS=aplicar(tw,'trabajadores');CHEQUES=aplicar(ch.filter(c=>!c.eliminado),'cheques');DESC=aplicar(ds,'descuentos');DOCSX=aplicar(dx.filter(d=>String(d.categoria||'').trim().toUpperCase()!=='ACUSE_IMSS').concat(acuses.data),'documentos');
+  VAC=aplicar(vc,'vacaciones');ACTAS=aplicar(ac,'actas');NOM=aplicar(nm,'nom035');PAGOS=aplicar(pg,'pagos');PRIMAS=aplicar(pr.filter(p=>p.activo!==false),'prima_pagos');CUADS=aplicar(cd,'cuadrillas');DIFS=aplicar(df,'diferenciales');BLOQUES=aplicar(bq,'bloques_cheques');SUELDOSINT=si;CIERRES=cc;CTRLNOI=aplicar(cn,'control_conciliacion_noi');ALTAS_CORTAS=aplicar(ab,'control_altas_bajas_cortas');FINTRANS=aplicar(ft,'control_finiquitos_transferencia');
   OBRA_DATOS_ID=id;
+  OBRA_CARGA_COMPLETA=true;replica?.cerrar(t);
   await activarProgramados();
   if(!vigente())return false;
   const padronCambio=!conservarVista||!opciones.segundoPlano||padronAnterior!==JSON.stringify([WORKERS,acuses.data,ALTAS_CORTAS]);
@@ -435,9 +499,10 @@ async function loadObraData(id,opciones={}){
   // Copia privada: editar un formulario o activar un alta programada no puede
   // mutar una lectura reutilizable. Sólo se publica después de verificar todo.
   OBRA_LECTURA_VERIFICADA={obra:id,sesion,completa:parcial?cache.completa:inicioLectura,
-    datos:JSON.parse(JSON.stringify(Object.fromEntries(tablas.map((t,i)=>[t,i===0?WORKERS:lecturas[i].data])))),
-    acuses:JSON.parse(JSON.stringify(acuses.data))};
+    datos:replica?null:JSON.parse(JSON.stringify(Object.fromEntries(tablas.map((t,i)=>[t,i===0?WORKERS:lecturas[i].data])))),
+    acuses:replica?null:JSON.parse(JSON.stringify(acuses.data))};
   return true;
+  }finally{replica?.cerrar(t);}
 }
 let CFGEMP={};
 async function loadConfig(){
@@ -452,7 +517,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-11-06.4';
+const APP_VERSION='2026-11-07.1';
 window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
@@ -499,6 +564,7 @@ function setView(v){
   if(['chq','pagos','audit'].includes(v))v='conciliador';
   if(v!=='conciliador')window.PLATINUM_CONCILIADOR_SEMANAL?.salir();
   if(!OBRA||NAV_STEP!=='trabajadores'&&empresaDeObra(OBRA)!==EMPRESA_ACTIVA){showNavStep('obra');return;}
+  if(v!=='trab'&&OBRA_DATOS_ID===OBRA.id&&!OBRA_CARGA_COMPLETA)return conCentroCompleto(()=>setView(v));
   NAV_STEP='trabajadores';$('scr-app').setAttribute('data-nav',NAV_STEP);
   if($('ia-fab'))$('ia-fab').classList.remove('nav-hidden');
   if(!VISTAS[v])v='trab';

@@ -52,7 +52,7 @@ function clock(){let n=0;const tasks=new Map();return {setTimer:f=>{tasks.set(++
  }
  {
   const element={innerHTML:''},messages=[];const a={id:'a',empresa_codigo:'JIRE'};
-  const ctx={console,OBRA:a,OBRAS:[a],NAV_STEP:'trabajadores',NAV_BUSY:false,EMPRESA_ACTIVA:'JIRE',window:{},
+  const ctx={console,OBRA:a,OBRAS:[a],NAV_STEP:'trabajadores',NAV_BUSY:false,EMPRESA_ACTIVA:'JIRE',window:{},chequearVersionEnVivo:()=>{},
    $:()=>element,renderObraBar(){},empresaDeObra:o=>o.empresa_codigo,toast:m=>messages.push(m),loadObraData:async()=>true,
    sb:{from:()=>({select(){return this;},order:async()=>({data:[a],error:null})})}};
   vm.createContext(ctx);vm.runInContext(fn('async function softRefresh(')+'\n'+fn('function actualizarDatosCompartidos('),ctx);

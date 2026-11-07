@@ -195,7 +195,7 @@ function closeModal(force=false){
   $('modals').innerHTML='';
   document.body.classList.remove('modal-abierto');
   if(window._scrollY!=null){const y=window._scrollY;window._scrollY=null;document.body.style.top='';window.scrollTo(0,y);}
-  if(window._pendingRT){window._pendingRT=false;if(window._PLATINUM_RT)window._PLATINUM_RT.request();else softRefresh(false);}
+  if(window._pendingRT){const manual=window._pendingRTManual;window._pendingRT=false;window._pendingRTManual=false;if(window._PLATINUM_RT){if(manual)window._PLATINUM_RT.request(true);else window._PLATINUM_RT.resume();}else softRefresh(false);}
 }
 function modal(html,w=''){
   // captura el scroll SOLO al abrir el primer modal (no en modales encadenados,

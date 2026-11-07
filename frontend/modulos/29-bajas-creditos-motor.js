@@ -169,6 +169,7 @@ async function doBaja(id){
   const f=$('b-fecha').value; if(!f){toast('Indica la fecha de baja.','err');return;}
   const cat=$('b-motivo-cat').value;
   const w=WORKERS.find(x=>x.id===id);
+  if(!w||w.obra_id!==OBRA?.id)return;
   const corta=altaBajaMismaSemana(w,f);
   if(!confirm(corta
     ?`¿Confirmas la BAJA por ${cat}?\n\nAlta y baja en la misma semana: se abrirá automáticamente un caso PENDIENTE en el Centro de control. Solo después de verificar que no hubo trabajo efectivo se podrá marcar «sin servicio confirmado».`
@@ -182,25 +183,33 @@ async function doBaja(id){
   const conCheque=$('b-cheque').checked&&fin>0;
   const obs=((w.observaciones?w.observaciones+' | ':'')+'BAJA: '+cat+(det?' — '+det:''));
   markWrite();
-  const {error}=await sb.from('trabajadores').update({estatus:'BAJA',fecha_baja:f,monto_finiquito:fin,motivo_baja:cat,observaciones:obs}).eq('id',id);
-  if(error){toast('Error: '+error.message,'err');return;}
+  const datos=window.PLATINUM_DATOS,upd={estatus:'BAJA',fecha_baja:f,monto_finiquito:fin,motivo_baja:cat,observaciones:obs},form=$('b-fecha'),uid=USER?.id;
+  const guardar=()=>{let q=sb.from('trabajadores').update(upd).eq('id',id).eq('obra_id',w.obra_id);if(w.updated_at)q=q.eq('updated_at',w.updated_at);return q.select('*').single();};
+  try{
+    if(datos)await datos.optimista('trabajadores',w,upd,guardar);
+    else{const r=await guardar();if(r.error)throw Error(r.error.message);}
+  }catch(error){toast('Error: '+error.message,'err');return;}
+  let pendienteCheque=false;
   if(conCheque){
     const semBaja=isoWeek(new Date(f+'T12:00'));
-    await sb.from('cheques').insert({obra_id:w.obra_id,trabajador_id:w.id,no_trab:w.no_trab,contratista:w.contratista,
+    const r=await sb.from('cheques').insert({obra_id:w.obra_id,trabajador_id:w.id,no_trab:w.no_trab,contratista:w.contratista,
       nombre:fullName(w),puesto:w.puesto,curp:w.curp,semana:'S'+semBaja,
-      periodo:periodoCorto(semBaja),importe:fin,tipo_pago:'FINIQUITO',estatus:'PENDIENTE',observaciones:cat,creado_por:USER.email});
+      periodo:periodoCorto(semBaja),importe:fin,tipo_pago:'FINIQUITO',estatus:'PENDIENTE',observaciones:cat,creado_por:USER.email}).select('*').single();
+    if(r.error||!r.data){pendienteCheque=true;toast('Baja guardada; el cheque no se confirmó: '+(r.error?.message||'respuesta incompleta'),'err');}
+    else if(USER?.id===uid)datos?.aplicar({table:'cheques',eventType:'INSERT',new:r.data});
   }
   const previo=globalThis._PR_AUDIT&&globalThis._PR_AUDIT.trabajador_id===id?globalThis._PR_AUDIT:null;
   const modelo=previo?previo.monto_modelo:null,aplicado=fin==null?0:redondearCentavos(fin);
   await registrarBitacoraNomina([previo?{...previo,tipo_calculo:'FINIQUITO_APLICADO',periodo:f,monto_aplicado:aplicado,
-    ajuste_noi:modelo==null?null:redondearCentavos(aplicado-modelo),resultado:{...previo.resultado,monto_aplicado:aplicado,motivo_baja:cat,cheque_pendiente:conCheque}}
+    ajuste_noi:modelo==null?null:redondearCentavos(aplicado-modelo),resultado:{...previo.resultado,monto_aplicado:aplicado,motivo_baja:cat,cheque_pendiente:conCheque&&!pendienteCheque}}
     :{obra_id:w.obra_id,empresa_codigo:empresaDeTrabajador(w),trabajador_id:w.id,trabajador_numero:w.no_trab,trabajador_nombre:fullName(w),
-      tipo_calculo:'FINIQUITO_APLICADO',periodo:f,entradas:{origen:'captura_directa',motivo_baja:cat},resultado:{monto_aplicado:aplicado,cheque_pendiente:conCheque},
+      tipo_calculo:'FINIQUITO_APLICADO',periodo:f,entradas:{origen:'captura_directa',motivo_baja:cat},resultado:{monto_aplicado:aplicado,cheque_pendiente:conCheque&&!pendienteCheque},
       monto_modelo:null,monto_aplicado:aplicado,ajuste_noi:null}],{silencioso:false});
   globalThis._PR_AUDIT=null;
+  if(OBRA?.id!==w.obra_id||USER?.id!==uid||$('b-fecha')!==form)return;
   closeModal();toast('Baja por '+cat+' registrada. Generando documento...','ok');
-  await loadObraData(OBRA.id);refreshCounts();
-  setTimeout(()=>generarBajaDoc(id),400);
+  if(!datos)await loadObraData(w.obra_id);
+  if(OBRA?.id===w.obra_id&&USER?.id===uid)generarBajaDoc(id);
 }
 function generarBajaDoc(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;

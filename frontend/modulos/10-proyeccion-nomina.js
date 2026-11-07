@@ -58,11 +58,19 @@ function pyCandidatos(d1,d2,periodo){
    Antes de mostrarla o exportarla se leen de nuevo sus tres fuentes: de lo
    contrario una incidencia corregida por otra sesión puede quedar obsoleta en
    WORKERS/DESC/DIFS aunque la base ya tenga el valor correcto. */
-async function pyDatosFrescos(){
+async function leerEntradasNominaRapidas(id,semana=null){
+  const uid=USER?.id,{data,error}=await sb.rpc('control_entradas_nomina_rapidas',{p_obra:id,p_semana:semana});
+  if(error||data?.obra_id!==id||USER?.id!==uid||OBRA?.id!==id||semana!=null&&!data.fuente||
+    ['trabajadores','descuentos','diferenciales','casos','transferencias'].some(k=>!Array.isArray(data[k])))throw Error(error?.message||'No se confirmaron las fuentes de nómina del centro');
+  return data;
+}
+async function pyDatosFrescos(entradas=null){
   globalThis._PY_FRESCOS=false;
   const id=OBRA&&OBRA.id;
   if(!id)return false;
-  const [{data:tw,error:e1},{data:ds,error:e2},{data:df,error:e3},{data:ab,error:e4},{data:ft,error:e5}]=await Promise.all([
+  const bases=[WORKERS,DESC,DIFS,ALTAS_CORTAS,FINTRANS];
+  const [{data:tw,error:e1},{data:ds,error:e2},{data:df,error:e3},{data:ab,error:e4},{data:ft,error:e5}]=entradas?
+    ['trabajadores','descuentos','diferenciales','casos','transferencias'].map(k=>({data:entradas[k]})):await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false)),
     fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id)),
     fetchAllRows(()=>sb.from('diferenciales').select('*').eq('obra_id',id).eq('activo',true)),
@@ -91,6 +99,9 @@ async function pyDatosFrescos(){
     if($('py-prev'))$('py-prev').innerHTML='<div class="fhint" style="color:var(--red)">No se pudieron consultar los finiquitos históricos. Vuelve a abrir la proyección.</div>';
     for(const bid of ['py-btn','py-ambas'])if($(bid))$(bid).disabled=true;
     toast(e.message,'err');return false;
+  }
+  if([WORKERS,DESC,DIFS,ALTAS_CORTAS,FINTRANS].some((a,i)=>a!==bases[i])){
+    toast('Cambió una fuente mientras se preparaba la nómina. Vuelve a consultar.','err');return false;
   }
   WORKERS=tw||[];DESC=ds||[];DIFS=df||[];ALTAS_CORTAS=ab||[];FINTRANS=ft||[];
   globalThis._PY_FRESCOS=true;

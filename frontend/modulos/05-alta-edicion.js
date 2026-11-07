@@ -619,18 +619,18 @@ function datosFaltantes(w){
    completo) en cuanto llega su fecha — sin que nadie tenga que entrar a darles clic.
    No toca a quien esté PENDIENTE por documentación incompleta ni a quien se puso en
    PENDIENTE a mano (pendiente_manual). Se llama cada vez que se carga la obra. */
-async function activarProgramados(){
+async function activarProgramados(personal=WORKERS){
   if(!puedeEditarTrabajador())return;
   const hoy=today();
-  const listos=WORKERS.filter(w=>w.estatus==='PENDIENTE'&&!w.pendiente_manual&&w.fecha_alta&&w.fecha_alta<=hoy&&datosFaltantes(w).length===0);
+  const listos=personal.filter(w=>w.estatus==='PENDIENTE'&&!w.pendiente_manual&&w.fecha_alta&&w.fecha_alta<=hoy&&datosFaltantes(w).length===0);
   if(!listos.length)return;
   const resultados=await Promise.all(listos.map(async w=>{
     try{
       const {data,error}=await sb.from('trabajadores').update({estatus:'ACTIVO'})
         .eq('id',w.id).eq('obra_id',w.obra_id).eq('estatus','PENDIENTE')
-        .or('pendiente_manual.is.null,pendiente_manual.eq.false').eq('fecha_alta',w.fecha_alta).eq('eliminado',false).select('id,estatus');
+        .or('pendiente_manual.is.null,pendiente_manual.eq.false').eq('fecha_alta',w.fecha_alta).eq('eliminado',false).select('*');
       if(error||!Array.isArray(data)||data.length!==1||data[0].id!==w.id||data[0].estatus!=='ACTIVO')return false;
-      w.estatus='ACTIVO';return true;
+      if(typeof window!=='undefined'&&window.PLATINUM_DATOS)window.PLATINUM_DATOS.aplicar({table:'trabajadores',eventType:'UPDATE',new:data[0]});else w.estatus='ACTIVO';return true;
     }catch(e){return false;}
   }));
   if(resultados.some(ok=>!ok))toast('No se confirmó la activación de algunas altas programadas; su estado no se cambió en pantalla. Actualiza y revisa sus fichas.','err');

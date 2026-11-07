@@ -344,9 +344,17 @@ async function saveCheque(id){
   }
   $('c-save').innerHTML='<span class="spin"></span> Guardando...';
   markWrite();
-  let error;
-  if(id){({error}=await sb.from('cheques').update(rec).eq('id',id));}
-  else{rec.creado_por=USER.email;({error}=await sb.from('cheques').insert(rec));}
+  let error;const datos=window.PLATINUM_DATOS,uid=USER?.id;
+  if(id&&datos&&previo){
+    try{await datos.optimista('cheques',previo,{estatus},()=>{let q=sb.from('cheques').update(rec).eq('id',id).eq('obra_id',rec.obra_id);if(previo.updated_at)q=q.eq('updated_at',previo.updated_at);return q.select('*').single();});}
+    catch(e){error=e;}
+  }else if(id){({error}=await sb.from('cheques').update(rec).eq('id',id));}
+  else{
+    rec.creado_por=USER.email;
+    if(datos){const r=await sb.from('cheques').insert(rec).select('*').single();error=r.error||(!r.data?Error('No se confirmó el cheque'):null);if(!error&&uid===USER?.id)datos.aplicar({table:'cheques',eventType:'INSERT',new:r.data});}
+    else ({error}=await sb.from('cheques').insert(rec));
+  }
+  if(OBRA?.id!==contextoInicial.obra||$('c-save')!==contextoInicial.form||USER?.id!==uid)return;
   if(error){
     $('c-save').textContent='💾 Guardar';
     // el candado de la base habla en español: se muestra tal cual
@@ -356,7 +364,7 @@ async function saveCheque(id){
     return;
   }
   closeModal();toast('Cheque guardado.','ok');
-  await loadObraData(OBRA.id);
+  if(!datos)await loadObraData(OBRA.id);
 }
 /* Eliminar cheque = mover a la papelera (eliminado=true). Admin o permiso puntual.
    No borra físicamente (la base lo prohíbe con un trigger): deja de aparecer

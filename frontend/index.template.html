@@ -605,6 +605,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 .worker-filters{flex:0 0 auto;border:1px solid var(--border);border-radius:10px;background:var(--card)}.worker-filters>summary{cursor:pointer;padding:9px 12px;font-size:12px;font-weight:700}.worker-filters>summary span{color:var(--mut);font-weight:500;margin-left:12px}.worker-filters .stats{padding:12px;margin:0;gap:8px}.worker-filters .toolbar{padding:0 12px 12px;margin:0;gap:8px}.worker-filters .stat{padding:10px}
 .worker-search{display:flex;align-items:center;gap:14px;flex:0 0 auto}.worker-search label{font-size:17px;font-weight:800;color:var(--txt);margin:0}.worker-search input{width:min(100%,520px);flex:1;min-width:0}.worker-hint{margin-left:auto;color:var(--mut);font-size:11px}
 .worker-list{flex:1;min-height:140px;max-height:none;height:auto;overflow:auto;overscroll-behavior:contain}
+.lista-pagina:not([hidden]){display:flex;gap:10px;align-items:center;justify-content:center;padding:6px 0}.lista-pagina span{color:var(--mut);font-size:12px}
 .app-shell[data-nav="trabajadores"] .shell{height:100dvh}.app-shell[data-nav="trabajadores"] .appbar,.app-shell[data-nav="trabajadores"] .empresa-nav{flex:0 0 auto}.app-shell[data-nav="trabajadores"] .wrap{overflow:auto}#view-trab{height:100%}#view-trab .worker-list{max-height:none}
 .worker-actions{width:100%}.worker-actions>summary{font-size:12px;font-weight:700;cursor:pointer;padding:5px}.worker-actions>div{display:flex;flex-wrap:wrap;gap:8px;padding-top:12px}
 .modal.worker-form{width:1100px;max-width:calc(100vw - 24px);max-height:92dvh;display:flex;flex-direction:column;overflow:hidden}
@@ -961,6 +962,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
           <tbody id="tbody"><tr class="loading-row"><td colspan="6">Selecciona un centro de trabajo.</td></tr></tbody>
         </table>
       </div>
+      <div id="worker-pagina" class="lista-pagina" aria-label="Páginas de trabajadores" hidden></div>
     </div>
 
     <section id="view-conciliador" class="hide"><div id="conciliador-root"></div></section>
@@ -1075,7 +1077,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 <div class="toast-box" id="toasts"></div>
 
 <!-- ===== ASISTENTE (v37) ===== -->
-<button class="ia-fab hide" id="ia-fab" onclick="iaAbrir()" title="Asistente PLATINUM" aria-label="Abrir el asistente">
+<button class="ia-fab hide" id="ia-fab" onclick="sbGo(iaAbrir)" title="Asistente PLATINUM" aria-label="Abrir el asistente">
   💬<span class="punto"></span>
 </button>
 <div class="ia-panel" id="ia-panel" role="dialog" aria-label="Asistente PLATINUM" aria-modal="false">
@@ -1093,8 +1095,8 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
   <div class="ia-aviso">Responde con los datos que TÚ tienes permitido ver. Verifica cifras contra el recibo o NOI.</div>
 </div>
 
-<script src="platinum-sync.js?v=20261027.1"></script>
-<script src="platinum-workflows.js?v=20261106.4"></script>
+<script src="platinum-sync.js?v=20261107.1"></script>
+<script src="platinum-workflows.js?v=20261107.1"></script>
 <script src="platinum-rrhh.js?v=20261023.2"></script>
 <script src="platinum-pagos-sabado.js?v=20261023.2"></script>
 <aside id="act-live-panel" class="act-live-panel" data-actividad-panel hidden aria-label="Actividad en vivo, sólo administrador"><div class="act-live-head"><h2>Actividad de usuarios</h2><button type="button" class="btn" onclick="PLATINUM_ACTIVIDAD.abrir()" aria-label="Actualizar actividad">↻</button><button type="button" class="btn" onclick="PLATINUM_ACTIVIDAD.cerrar()" aria-label="Cerrar actividad">×</button></div><div id="act-live-body" class="act-live-body"></div></aside>

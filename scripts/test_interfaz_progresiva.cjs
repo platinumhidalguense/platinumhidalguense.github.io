@@ -14,13 +14,13 @@ Object.assign(c,{SOLO_CONTRATOS:false,puedeEditarTrabajador:()=>false,repintarIn
 ['sidebarVisible','toggleSidebar','initSidebar','showNavStep','resetWorkerFilters','selectEmpresa','selectObra','setView','renderCrumbs','fechaAcuseISO','indiceAcusesIMSS','estadoAcuseIMSS','altaImssPendiente','altaImssPresentada','marcadorAcuseIMSS','marcadoresIMSS','baseFiltered','renderTable','fichaResumenHTML','agruparExpedienteFicha','openDetail','enterApp'].forEach(n=>vm.runInContext(fn(n),c));
 async function main(){
   c.sb={from:()=>({select:()=>({order:async()=>({data:c.OBRAS})})})};Object.assign(c,{cargaPermisos:async()=>{},iaMostrarFab(){},loadConfig:async()=>{},chequearVersion(){},chequearVersionEnVivo(){},setInterval(){},cargarContratistas:async()=>{},startRealtime(){}});
-  let loads=0;c.loadObraData=async()=>{loads++;return true;};
+  let loads=0;c.loadPadronRapido=async()=>{loads++;return true;};c.activarPadronProgramado=async()=>{};c.OBRA_DATOS_ID=null;c.OBRA_CARGA_COMPLETA=true;
   await c.enterApp();assert.equal(c.NAV_STEP,'empresa');assert.equal(loads,0,'No abre una obra automáticamente');assert.equal($('scr-app').attrs['data-nav'],'empresa');
   await c.selectEmpresa('JIRE');assert.equal(c.NAV_STEP,'obra');assert.equal(loads,0);assert.equal(c.EMPRESA_ACTIVA,'JIRE');
   await c.selectObra('j');assert.equal(c.NAV_STEP,'trabajadores');assert.equal(c.OBRA.id,'j');assert.equal(loads,1);assert.equal(c.VIEW,'trab');assert(!c.sidebarVisible());
   c.toggleSidebar(true);assert(c.sidebarVisible());assert.equal($('burger').attrs['aria-expanded'],'true');c.setView('chq');assert(!c.sidebarVisible());c.showNavStep('empresa');assert.equal(c.NAV_STEP,'empresa');
-  await c.selectEmpresa('PLATINUM');c.loadObraData=async()=>false;await c.selectObra('p');assert.equal(c.NAV_STEP,'obra');assert.equal(c.OBRA.id,'j','Carga fallida no expone datos de otra obra');assert.equal(c.NAV_BUSY,false);
-  let release;c.loadObraData=()=>new Promise(r=>release=r);const pending=c.selectObra('p');await c.selectObra('j');assert.equal(c.OBRA.id,'p','Bloquea selecciones concurrentes');release(true);await pending;
+  await c.selectEmpresa('PLATINUM');c.loadPadronRapido=async()=>false;await c.selectObra('p');assert.equal(c.NAV_STEP,'obra');assert.equal(c.OBRA.id,'j','Carga fallida no expone datos de otra obra');assert.equal(c.NAV_BUSY,false);
+  let release;c.loadPadronRapido=()=>new Promise(r=>release=r);const pending=c.selectObra('p');await c.selectObra('j');assert.equal(c.OBRA.id,'p','Bloquea selecciones concurrentes');release(true);await pending;
   const w={id:'w',no_trab:10,primer_apellido:'PRUEBA',nombres:'UNO',estatus:'ACTIVO',fecha_alta:'2026-09-01',contratista:'MG',puesto:'ALBAÑIL',sd:350,sdi:370,sal_semanal:2400,cuenta:'SECRET_ACCOUNT',telefono:'SECRET_PHONE',docs:{}};
   c.DOCSX=[];assert.match(c.marcadoresIMSS(w),/Alta pendiente/);assert.doesNotMatch(c.marcadoresIMSS(w),/Baja/);
   c.DOCSX=[{trabajador_id:'other',categoria:'ACUSE_IMSS',subtipo:'ALTA',fecha_doc:'2026-09-01'}];assert.match(c.marcadoresIMSS(w),/Alta pendiente/);

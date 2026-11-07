@@ -34,15 +34,15 @@ const box = {
   buildSheet: rows => { box.exportedRows = rows; return {}; },
   $: id => elements[id], pyPreview: () => { refreshed++;
     elements['py-btn'].disabled = false; }, toast: () => {},
-  sb: { from: table => ({ table, select() { return this; }, eq() { return this; } }) },
+  sb: { from: table => ({ table, select() { return this; }, eq() { return this; }, order() { return this; } }) },
   fetchAllRows: async query => {
     const { table } = query();
     return { data: table === 'trabajadores' ? [worker] :
       table === 'descuentos' ? [updated] : [], error: null };
   }
 };
-vm.createContext(box);
-vm.runInContext([...['descuentoCorrespondePeriodo','adaptarRetencionPeriodo','retencionesDePeriodo'].map(n=>fn('function '+n+'(')),fn('function descuentosDe('),fn('async function proyLeerFiniquitos('),fn('async function proyCargarHistoricos('), fn('async function pyDatosFrescos('),
+box.ALTAS_CORTAS=[];box.FINTRANS=[];vm.createContext(box);
+vm.runInContext([...['descuentoCorrespondePeriodo','adaptarRetencionPeriodo','retencionesDePeriodo'].map(n=>fn('function '+n+'(')),fn('function descuentosDe('),fn('async function proyLeerFiniquitos('),fn('async function proyCargarHistoricos('),fn('async function proyLeerBajasHistoricas('), fn('async function pyDatosFrescos('),
   fn('function buildProyWS(')].join('\n'), box);
 (async () => {
   const before = +(worker.sal_semanal - box.descuentosDe(worker, 'S26').total).toFixed(2);

@@ -38,7 +38,7 @@
   const sem=Number(el('cc-sem')?.value),periodo=el('cc-per')?.value,obs=el('cc-obs')?.value||'';
   if(!(sem>=1&&sem<=53))throw Error('Semana inválida.');
   const data=await cfg.capture(sem,periodo);const r=await call('CREAR',{...data,observaciones:obs});
-  cfg.toast('Borrador preparado. Concilia NOI o recibos y autoriza con acceso VIP. Otra persona deberá marcar pagado.','ok');await cfg.reload();await abrirCierre(r.cierre_id);
+  cfg.toast('Borrador preparado. Concilia NOI o recibos y autoriza con acceso VIP. Otra persona deberá marcar pagado.','ok');if(!root.PLATINUM_CONCILIADOR_SEMANAL)await cfg.reload();await abrirCierre(r.cierre_id);
  });}
  async function abrirCierre(id){
   if(root.PLATINUM_CONCILIADOR_SEMANAL)return root.PLATINUM_CONCILIADOR_SEMANAL.cierre(id);
@@ -59,7 +59,7 @@
   ensureState(id);if(!permissions.escritura)throw Error('Acceso de consulta.');
   const d=await call('DETALLE',{cierre_id:id});
   if(esLegadoSinPreparar(d)){
-   if(await prepararLegado(d)){cfg.toast('Fotografía histórica conciliada preparada; importes preservados.','ok');await cfg.reload();await abrirCierre(id);}return;
+   if(await prepararLegado(d)){cfg.toast('Fotografía histórica conciliada preparada; importes preservados.','ok');if(!root.PLATINUM_CONCILIADOR_SEMANAL)await cfg.reload();await abrirCierre(id);}return;
   }
   const captured=await cfg.capture(d.cierre.semana,d.cierre.periodo);
   const historical=captured.snapshot.hasta<today();
@@ -67,7 +67,7 @@
   if(historical&&!same(captured.snapshot,d.cierre.snapshot)&&!d.flujo?.reapertura_id&&!reg){
    state.proposal=captured;mostrarComparacion(d.cierre.snapshot,captured.snapshot,id);return;
   }
-  await call('PREPARAR',{cierre_id:id,...captured,solicitud_id:reg?.id||null});cfg.toast('Fotografía actualizada. Revisa otra vez las diferencias NOI.','ok');await cfg.reload();await abrirCierre(id);
+  await call('PREPARAR',{cierre_id:id,...captured,solicitud_id:reg?.id||null});cfg.toast('Fotografía actualizada. Revisa otra vez las diferencias NOI.','ok');if(!root.PLATINUM_CONCILIADOR_SEMANAL)await cfg.reload();await abrirCierre(id);
  });}
  function esLegadoSinPreparar(d){return !d.flujo&&!d.cierre.snapshot?.modelo&&['BORRADOR','REVISADO'].includes(d.cierre.estado);}
  async function prepararLegado(d){
@@ -84,7 +84,7 @@
  async function importarNOI(st,c){return operation(async()=>{
   if(!st?.rows||!c?.id)throw Error('Vuelve a leer el archivo NOI.');
   const r=await call('IMPORTAR_NOI',{cierre_id:c.id,filas:st.rows,archivo:st.file.name,sha256:st.hash,revision:c.snapshot_sha256});
-  cfg.toast(r.sin_cambios?`NOI verificado: ${r.filas} filas idénticas a la versión autorizada. No se modificó el cierre.`:`NOI guardado completo: ${r.filas} filas. Revisa la conciliación antes de autorizar.`,'ok');await cfg.reload();if(!root.PLATINUM_CONCILIADOR)await cfg.openNoi(c.id);return r;
+  cfg.toast(r.sin_cambios?`NOI verificado: ${r.filas} filas idénticas a la versión autorizada. No se modificó el cierre.`:`NOI guardado completo: ${r.filas} filas. Revisa la conciliación antes de autorizar.`,'ok');if(!root.PLATINUM_CONCILIADOR_SEMANAL)await cfg.reload();if(!root.PLATINUM_CONCILIADOR)await cfg.openNoi(c.id);return r;
  });}
  async function transicion(id,estado){return operation(async()=>{
   await loadPermissions();if(!permissions.escritura)throw Error('Tu cuenta es de consulta.');
@@ -103,7 +103,7 @@
   }
   if(!root.confirm(`¿Cambiar S${current.cierre.semana} a ${estado}?\n\n${estado==='AUTORIZADO'?'Se fijará esta fotografía y sus obligaciones. Las diferencias bloquean la autorización.':'La base verificará los requisitos de esta etapa.'}`))return;
   if(estado==='AUTORIZADO'&&root.prompt('Escribe AUTORIZAR S'+current.cierre.semana)!=='AUTORIZAR S'+current.cierre.semana)return;
-  await call('TRANSICION',{cierre_id:id,estado});cfg.toast('Etapa confirmada: '+estado,'ok');await cfg.reload();await abrirCierre(id);
+  await call('TRANSICION',{cierre_id:id,estado});cfg.toast('Etapa confirmada: '+estado,'ok');if(!root.PLATINUM_CONCILIADOR_SEMANAL)await cfg.reload();await abrirCierre(id);
  });}
  async function procesarRecibos(d,fiscal=false){
   if(root.PLATINUM_RECIBOS_VERIFICACION)return root.PLATINUM_RECIBOS_VERIFICACION.procesarCierre(d,fiscal);

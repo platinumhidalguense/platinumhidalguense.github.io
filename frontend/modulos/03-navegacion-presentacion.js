@@ -33,7 +33,7 @@ function cerrarCajonMovil(){if(esPantallaChica())toggleSidebar(false);}
 function sbGo(fn){
   if(NAV_STEP!=='trabajadores'||!OBRA){showNavStep('obra');return;}
   toggleSidebar(false);
-  try{fn();}catch(e){toast('No se pudo abrir: '+e.message,'err');}
+  try{return conCentroCompleto(fn);}catch(e){toast('No se pudo abrir: '+e.message,'err');}
 }
 /* Esc cierra primero el cajón; si no está abierto, cierra el modal de encima */
 document.addEventListener('keydown',e=>{

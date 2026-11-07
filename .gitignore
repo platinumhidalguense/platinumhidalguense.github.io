@@ -27,3 +27,6 @@ supabase/functions/_shared/
 supabase/migrations/*_conciliador_contexto_semanal.sql
 
 supabase/migrations/*_conciliador_tabs_folios_fisicos.sql
+
+supabase/migrations/*_padron_realtime_fuentes_rapidas.sql
+supabase/maintenance/20261107_indices_lectura_concurrentes.sql
