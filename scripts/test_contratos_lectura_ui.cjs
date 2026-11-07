@@ -23,6 +23,7 @@ const settle=()=>new Promise(r=>setImmediate(r));
  const jire={...e,instrumento:'333',representante:'FIRMANTE ORIGINAL DE JIRE',repCargo:'ADMINISTRADORA DE PRUEBA',contrato:{}};
  const hj=await box.generarContrato(w.id,{soloLectura:true,devolverHTML:true,trabajador:w,obra:box.OBRA,empresa:jire,datos:{emp:'JIRE',tipo:w.tipo_contrato,fecha:w.fecha_alta,razon:e.razon,rfc:e.rfc,rep:jire.representante,dom:e.domicilio}});
  assert(hj.includes('333'));assert(hj.includes(jire.representante));assert(hj.includes(jire.repCargo));assert(hj.includes('personalidad que acredita en t&eacute;rminos del Instrumento'));assert(!hj.includes(firma.representante));assert(!hj.includes(firma.folio_mercantil));
+ for(const contrato of [h,hj])assert(!contrato.includes('Machote JIRE_DA_RH-08'));
  // El portal recibe los datos dentro de la respuesta de INICIO, sin la configuración general.
  const rpc=box.sb.rpc;
  box.sb.rpc=async(...args)=>{const r=await rpc(...args);if(args[1].p_accion==='INICIO')r.data.empresas.PLATINUM={...e,contrato:firma};return r;};
@@ -30,6 +31,7 @@ const settle=()=>new Promise(r=>setImmediate(r));
  await window.PLATINUM_CONTRATOS_CONSULTA.abrir();assert(document.getElementById('scr-app').classList.contains('hide'));assert(document.getElementById('legal-tabla').textContent.includes('PERSONA'));assert(!document.getElementById('legal-portal').textContent.includes('Sueldos'));
  document.querySelector('[data-accion="imprimir"]').click();await settle();assert(impresiones.some(h=>h.includes('PRIMERA')&&h.includes(firma.representante)));assert.equal(escrituras,0);
  document.querySelector('[data-export="lote-imprimir"]').click();await settle();await settle();assert(impresiones.some(h=>h.includes('contrato-lote')&&h.includes(firma.folio_mercantil)));
+ assert(impresiones.every(h=>!h.includes('Machote JIRE_DA_RH-08')));
  document.querySelector('[data-accion="formato"]').click();await settle();assert.equal(descargas.length,1);
  const sesion=fs.readFileSync('frontend/modulos/01-sesion-centros-sincronizacion.js','utf8'),entrada=acorn.parse(sesion,{ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='enterApp');
  const chip=document.createElement('div');chip.id='user-chip';document.body.appendChild(chip);box.cargaPermisos=async()=>{};vm.runInContext(sesion.slice(entrada.start,entrada.end),box);await box.enterApp();assert(document.getElementById('scr-app').classList.contains('hide'),'El perfil legal no inicializa el resto de la aplicación');

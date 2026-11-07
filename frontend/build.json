@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-07.2",
-  "entry": "assets/platinum-app.58ebc4f307f5c338.js",
-  "sha256": "58ebc4f307f5c338930de398cbf835d659a23017969832905c61e14381ee8f5b",
-  "integrity": "sha384-Q5ZpZJgjnJ386ZEEfvNg6bU7vGbfsm7t/iI368IqEaw3NoCEZEBY5CBpo8AL52k6",
+  "version": "2026-11-07.3",
+  "entry": "assets/platinum-app.5f34d1e07e7b854e.js",
+  "sha256": "5f34d1e07e7b854e961c236dab98bfd7ec6d983799b55ee47cb8e0e2b1d08817",
+  "integrity": "sha384-sN8DysOZ+xngiAJV5EO1irR0U9LJqMId8ax0qLfe7CpXcZXQEcnuxFqk+/XRJsyj",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "943d2dafe4a0b547a3d8e47276ef7321e77d83674693bc7589e7ecf4922c885e"
+      "sha256": "56a06134369f05f9197e76bc70538f30f5eabba7f7febc78ebd0c40006109fc3"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -130,7 +130,7 @@
     },
     {
       "path": "frontend/modulos/31-documentos-laborales.js",
-      "sha256": "e81cbb39d6549873a5bbe040796badc2de4c2d18b859bd9ef7c9482e15182b15"
+      "sha256": "85b026691c9ea4b13c576f4f6bf5ee89bc917ec0bdc732840ed3b5a45c1db43f"
     },
     {
       "path": "frontend/modulos/32-legajos.js",

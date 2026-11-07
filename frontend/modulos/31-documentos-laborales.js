@@ -288,7 +288,6 @@ async function generarContrato(id,opciones={}){
   .fecha{margin-top:18px}
   .firmas{display:flex;justify-content:space-between;gap:40px;margin-top:52px;text-align:center}
   .firmas div{flex:1;font-size:10.5pt}
-  .peq{font-size:8.5pt;color:#555;margin-top:26px;text-align:left}
   @media print{body{margin:0 auto}}
   </style></head><body>
   ${headerHTML}
@@ -334,7 +333,6 @@ async function generarContrato(id,opciones={}){
     <div><b>"EL PATR&Oacute;N"</b><br><br><br>________________________________<br>C. ${BL(L.rep)}${contrato.representante&&L.cargo?'<br>'+esc(L.cargo):''}<br>En representaci&oacute;n legal de ${BL(emp.razon)}.</div>
     <div><b>"EL TRABAJADOR"</b><br><br><br>________________________________<br>C. ${esc(fullName(w))}</div>
   </div>
-  <p class="peq">Documento generado por la Base de Trabajadores PLATINUM el ${new Date().toLocaleDateString('es-MX')}. Machote JIRE_DA_RH-08; sujeto a revisi&oacute;n por abogado laboral.</p>
   <script>window.onload=()=>window.print()<\/script></body></html>`;
   if(opciones.devolverHTML)return html;
   const win=window.open('','_blank');
