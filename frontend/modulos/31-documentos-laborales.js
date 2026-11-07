@@ -194,24 +194,28 @@ function constanciaLaboralHTML(reg){
 }
 
 /* ---------- CONTRATO INDIVIDUAL DE TRABAJO (LFT) ---------- */
+function datosEmpresaContrato(codigo, base=CFGEMP['empresa_'+codigo]||{}){
+  const contrato=base.contrato||CFGEMP['contrato_empresa_'+codigo]||{};
+  return {base,contrato,empresa:{...base,...contrato}};
+}
 function openContrato(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
   const empDefault=empresaDeTrabajador(w);
-  const e=CFGEMP['empresa_'+empDefault]||{razon:'',rfc:'',representante:'',domicilio:''};
+  const {empresa:e,contrato}=datosEmpresaContrato(empDefault);
   modal(`
     <div class="m-head"><h2>📄 Contrato individual · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <div class="grid" style="grid-template-columns:1fr 1fr">
         <div><label>Empresa (patrón)</label><select id="ct-emp" onchange="ctEmpChange()"><option value="PLATINUM" ${empDefault==='PLATINUM'?'selected':''}>PLATINUM</option><option value="JIRE" ${empDefault==='JIRE'?'selected':''}>JIRE</option></select></div>
         <div><label>Tipo de contrato</label><select id="ct-tipo">${['TIEMPO INDETERMINADO','TIEMPO DETERMINADO','OBRA DETERMINADA','PERIODO A PRUEBA'].map(t=>`<option ${(w.tipo_contrato||'TIEMPO INDETERMINADO')===t?'selected':''}>${t}</option>`).join('')}</select></div>
-        <div class="c2" style="grid-column:span 2"><label>Razón social</label><input id="ct-razon" value="${esc(e.razon)}"></div>
+        <div class="c2" style="grid-column:span 2"><label>Razón social</label><input id="ct-razon" value="${esc(e.razon)}" ${contrato.razon?'readonly':''}></div>
         <div><label>RFC empresa</label><input id="ct-rfc" value="${esc(e.rfc)}"></div>
-        <div><label>Representante legal</label><input id="ct-rep" value="${esc(e.representante)}" placeholder="NOMBRE DEL REPRESENTANTE"></div>
+        <div><label>Firmante del patrón</label><input id="ct-rep" value="${esc(e.representante)}" placeholder="NOMBRE DE QUIEN FIRMA" ${contrato.representante?'readonly':''}><small id="ct-rep-cargo">${esc(e.repCargo||'')}</small></div>
         <div class="c2" style="grid-column:span 2"><label>Domicilio fiscal de la empresa</label><input id="ct-dom" value="${esc(e.domicilio)}"></div>
         <div><label>Fecha del contrato</label><input id="ct-fecha" type="date" value="${w.fecha_alta||today()}"></div>
         <div><label>Fin (solo tiempo determinado)</label><input id="ct-fin" type="date" value="${w.fecha_fin_contrato||''}"></div>
       </div>
-      <p style="margin-top:12px;font-size:12px;color:var(--mut)">Sale con el formato oficial (machote JIRE_DA_RH-08). El logo y los datos de la empresa se toman según la empresa elegida: <b>JIRE</b> lleva su logo; <b>PLATINUM</b> su membrete. Los datos legales de la empresa (instrumento notarial, notario, RFC, domicilio fiscal, carácter del representante) van <b>en blanco</b> por ahora — se llenan a mano o me los pasas para cargarlos. <b>Revísalo con abogado laboral antes del primer uso.</b></p>
+      <p style="margin-top:12px;font-size:12px;color:var(--mut)">El formato toma los datos legales y el firmante de la empresa seleccionada. Revisa el documento antes de firmarlo.</p>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
@@ -219,26 +223,29 @@ function openContrato(id){
     </div>`,'md');
 }
 function ctEmpChange(){
-  const e=CFGEMP['empresa_'+$('ct-emp').value]||{razon:'',rfc:'',representante:'',domicilio:''};
+  const {empresa:e,contrato}=datosEmpresaContrato($('ct-emp').value);
   $('ct-razon').value=e.razon||'';$('ct-rfc').value=e.rfc||'';$('ct-rep').value=e.representante||'';$('ct-dom').value=e.domicilio||'';
+  $('ct-razon').readOnly=Boolean(contrato.razon);
+  $('ct-rep').readOnly=Boolean(contrato.representante);
+  $('ct-rep-cargo').textContent=e.repCargo||'';
 }
 async function generarContrato(id,opciones={}){
   const soloLectura=opciones.soloLectura===true||SOLO_CONTRATOS||!puedeEditarTrabajador();
   const valor=k=>String(opciones.datos?opciones.datos[k]??'':$('ct-'+k)?.value??'');
   const w=opciones.trabajador||WORKERS.find(x=>x.id===id),obraContrato=opciones.obra||OBRA;
   if(!w){toast('No se encontró al trabajador (recarga la página).','err');return;}
-  // FUSIONA con la config guardada (empresa_JIRE / empresa_PLATINUM) para NO perder
-  // los datos legales (instrumento notarial, notario, folio mercantil, carácter del
-  // representante, etc.) que solo viven en la config y no están en el formulario.
-  const clave='empresa_'+valor('emp');
-  const cfgEmp=opciones.empresa||CFGEMP[clave]||{};
-  const emp=Object.assign({},cfgEmp,{
-    razon:valor('razon').trim().toUpperCase(),rfc:valor('rfc').trim().toUpperCase(),
-    representante:valor('rep').trim().toUpperCase(),domicilio:valor('dom').trim().toUpperCase()});
+  const empKey=valor('emp')||'PLATINUM';
+  const clave='empresa_'+empKey;
+  const {base,contrato}=datosEmpresaContrato(empKey,opciones.empresa);
+  // La configuración particular de contratos prevalece sólo en el documento.
+  const captura={...base,rfc:valor('rfc').trim().toUpperCase(),domicilio:valor('dom').trim().toUpperCase()};
+  if(!contrato.razon)captura.razon=valor('razon').trim().toUpperCase();
+  if(!contrato.representante)captura.representante=valor('rep').trim().toUpperCase();
+  const emp={...captura,...contrato};
   const tipo=valor('tipo'), fecha=valor('fecha')||today(), fin=valor('fin');
   if(!soloLectura){
-  CFGEMP[clave]=emp;
-  try{await sb.from('config').upsert({clave,valor:emp,actualizado_por:USER.email});}catch(e){}
+  CFGEMP[clave]=captura;
+  try{await sb.from('config').upsert({clave,valor:captura,actualizado_por:USER.email});}catch(e){}
   // actualizar tipo de contrato del trabajador
   markWrite();
   await sb.from('trabajadores').update({tipo_contrato:tipo,fecha_fin_contrato:fin||null}).eq('id',id);
@@ -246,7 +253,6 @@ async function generarContrato(id,opciones={}){
   const F=v=>v&&String(v).trim()?esc(String(v).trim()):'<span style="background:#fff3b0">____________</span>';
   const fmtL=d=>{if(!d)return '____';const x=new Date(d+'T12:00');return `${x.getDate()} de ${MES[x.getMonth()].toLowerCase()} de ${x.getFullYear()}`;};
   const tipoTit = tipo==='PERIODO A PRUEBA' ? 'TIEMPO INDETERMINADO (PERIODO A PRUEBA)' : tipo;
-  const empKey=valor('emp')||'PLATINUM';
   const edad=(function(){if(!w.fecha_nacimiento)return null;const b=new Date(w.fecha_nacimiento+'T12:00'),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))a--;return a>=0?a:null;})();
   const pago=w.periodo_pago==='QUINCENAL'?'quincenal':(w.periodo_pago==='MENSUAL'?'mensual':'semanal');
   const BL=v=>(v!=null&&String(v).trim())?esc(String(v).trim()):'<span class="bl">________________</span>';
@@ -255,6 +261,10 @@ async function generarContrato(id,opciones={}){
   const L={rep:emp.representante,cargo:emp.repCargo,rfc:emp.rfc,dom:emp.domicilio,
     instrumento:emp.instrumento,volumen:emp.volumen,esc_fecha:emp.escritura_fecha,notario:emp.notario,
     notaria:emp.notaria_num,ciudad:emp.notaria_ciudad,rppc:emp.rppc,folio:emp.folio_mercantil,inscr:emp.inscripcion_fecha};
+  const poderEnConstitutiva=contrato.representante?contrato.poder_en_constitutiva===true:true;
+  const referenciaPoder=poderEnConstitutiva
+    ? ', personalidad que acredita en t&eacute;rminos del Instrumento notarial de referencia en el inciso a) que precede, la cual no le ha sido modificada, ni revocada en forma alguna a la fecha de firma del presente contrato'
+    : '';
   let tercera;
   if(tipo==='TIEMPO DETERMINADO') tercera=`Este contrato se celebra por <b>tiempo determinado</b>, con vigencia del <b>${fmtL(fecha)}</b> al <b>${fmtL(fin)}</b>, conforme al art&iacute;culo 37 de la Ley Federal del Trabajo, por as&iacute; exigirlo la naturaleza del trabajo a desarrollar.`;
   else if(tipo==='OBRA DETERMINADA') tercera=`Este contrato se celebra por <b>obra determinada</b>, conforme al art&iacute;culo 36 de la Ley Federal del Trabajo; su duraci&oacute;n ser&aacute; la que exija la ejecuci&oacute;n de los trabajos de la obra denominada <b>${esc(obraContrato.nombre)}</b>${obraContrato.ubicacion?', ubicada en '+esc(obraContrato.ubicacion):''}, extingui&eacute;ndose la relaci&oacute;n de trabajo al concluir la obra o la etapa de la misma para la que fue contratado "EL TRABAJADOR".`;
@@ -287,7 +297,7 @@ async function generarContrato(id,opciones={}){
   <h2>D E C L A R A C I O N E S:</h2>
   <p><b>I. DECLARA "EL PATR&Oacute;N"</b></p>
   <p><b>a)</b> Para los efectos de los art&iacute;culos 10, 11, 12, 13, 14, 16, 24 y 25 de la Ley Federal del Trabajo, que su representada denominada <b>${BL(emp.razon)}</b> est&aacute; legalmente constituida de conformidad con las leyes de la Rep&uacute;blica Mexicana, situaci&oacute;n que se corrobora en el Instrumento N&uacute;mero ${BL(L.instrumento)}, Volumen N&uacute;mero ${BL(L.volumen)}, de fecha ${BL(L.esc_fecha)}, pasado ante la fe del Licenciado ${BL(L.notario)}, Notario P&uacute;blico N&uacute;mero ${BL(L.notaria)} en la Ciudad ${BL(L.ciudad)}; el cual qued&oacute; inscrito en el Registro P&uacute;blico de la Propiedad y de Comercio de ${BL(L.rppc)}, bajo el folio mercantil ${BL(L.folio)} con fecha ${BL(L.inscr)}.</p>
-  <p><b>b)</b> Que comparece a la celebraci&oacute;n del presente contrato en su car&aacute;cter de <b>${BL(L.cargo)}</b>, personalidad que acredita en t&eacute;rminos del Instrumento notarial de referencia en el inciso a) que precede, la cual no le ha sido modificada, ni revocada en forma alguna a la fecha de firma del presente contrato.</p>
+  <p><b>b)</b> Que comparece a la celebraci&oacute;n del presente contrato en su car&aacute;cter de <b>${BL(L.cargo)}</b>${referenciaPoder}.</p>
   <p><b>c)</b> Que la empresa tiene su domicilio ubicado en ${BL(L.dom)}, y contar con Registro Federal de Contribuyentes ${BL(L.rfc)}.</p>
   <p><b>II. DECLARA "EL TRABAJADOR"</b></p>
   <p><b>a)</b> Para los efectos de los art&iacute;culos 8, 24 y 25 de la Ley Federal del Trabajo, "EL TRABAJADOR" declara llamarse <b>${esc(fullName(w))}</b>, sexo ${BL(w.genero)}, escolaridad ${BL(w.escolaridad)}, nacido en ${BL(w.edo_nacimiento)} que cuenta con ${edad!=null?edad:'<span class="bl">____</span>'} a&ntilde;os de edad, de nacionalidad ${BL(w.nacionalidad||'MEXICANA')} estado civil ${BL(w.estado_civil)}, con n&uacute;mero de seguridad social ${BL(w.nss)}.</p>
@@ -321,7 +331,7 @@ async function generarContrato(id,opciones={}){
   <p>Le&iacute;do que fue el presente contrato por "LAS PARTES", e impuestas de su contenido y fuerza legal, lo firmaron, quedando un tanto en poder de cada una de las mismas.</p>
   <p class="fecha">Pachuca de Soto, Hgo.; a ${fdia} de ${fmes} de ${fanio}.</p>
   <div class="firmas">
-    <div><b>"EL PATR&Oacute;N"</b><br><br><br>________________________________<br>C. ${BL(L.rep)}<br>En representaci&oacute;n legal de ${BL(emp.razon)}.</div>
+    <div><b>"EL PATR&Oacute;N"</b><br><br><br>________________________________<br>C. ${BL(L.rep)}${contrato.representante&&L.cargo?'<br>'+esc(L.cargo):''}<br>En representaci&oacute;n legal de ${BL(emp.razon)}.</div>
     <div><b>"EL TRABAJADOR"</b><br><br><br>________________________________<br>C. ${esc(fullName(w))}</div>
   </div>
   <p class="peq">Documento generado por la Base de Trabajadores PLATINUM el ${new Date().toLocaleDateString('es-MX')}. Machote JIRE_DA_RH-08; sujeto a revisi&oacute;n por abogado laboral.</p>
