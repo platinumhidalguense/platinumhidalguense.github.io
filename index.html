@@ -491,6 +491,15 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
 .sb-item.on{background:var(--sidebar-on);color:#fff;box-shadow:inset 3px 0 0 var(--gold)}
 .sb-item .pill{margin-left:auto;background:rgba(255,255,255,.14);border-radius:10px;padding:1px 7px;font-size:10.5px;font-weight:800}
 .sb-item.danger{color:#FFB4A8}
+.sb-nav .sb-item[hidden]{display:none}
+.sb-module{margin-top:5px;border-radius:9px}
+.sb-module>summary{padding:10px 9px;letter-spacing:0;text-transform:none;font-size:12px;line-height:1.4;color:var(--sidebar-txt)}
+.sb-module>summary>span:first-child{width:20px;flex:none;text-align:center}
+.sb-module.is-current>summary{background:var(--sidebar-on);color:#fff}
+.sb-seccion{margin:4px 0 6px 10px;padding-left:7px;border-left:1px solid var(--sidebar-br)}
+.sb-seccion>summary{cursor:pointer;color:var(--sidebar-mut);padding:6px 5px;font-size:11px;font-weight:700;line-height:1.4}
+.sb-seccion .sb-item{font-size:12px;padding:8px 6px}
+.sb-nav :is(summary,button):focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
 .sb-foot{flex:0 0 auto;border-top:1px solid var(--sidebar-br);padding:10px 12px;display:flex;align-items:center;gap:8px}
 .sb-foot .who{font-size:11px;color:var(--sidebar-mut);line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto}
 .sb-foot .who b{display:block;color:var(--sidebar-txt);font-size:11.5px;overflow:hidden;text-overflow:ellipsis}
@@ -803,91 +812,175 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
     <div class="sb-head">
       <span id="sb-logo"></span>
       <div class="tt">PLATINUM OS<small id="sb-company">Gestión empresarial</small></div>
-      <button class="sb-close" onclick="toggleSidebar(false)" title="Cerrar menú">×</button>
+      <button class="sb-close" type="button" onclick="toggleSidebar(false);$('burger').focus()" title="Cerrar menú" aria-label="Cerrar menú">×</button>
     </div>
 
     <nav class="sb-nav" aria-label="Herramientas y navegación">
       <details class="sb-grp sb-navigation" open>
         <summary>Navegación</summary>
-        <button class="sb-item" onclick="showNavStep('empresa')"><span class="ic">🏢</span>Cambiar empresa</button>
-        <button class="sb-item" onclick="showNavStep('obra')"><span class="ic">🏗</span>Seleccionar centro de trabajo</button>
+        <button class="sb-item" type="button" onclick="navPaso('empresa')"><span class="ic">🏢</span>Cambiar empresa</button>
+        <button class="sb-item" type="button" onclick="navPaso('obra')"><span class="ic">🏗</span>Seleccionar centro de trabajo</button>
       </details>
-      <details class="sb-grp" open>
-        <summary>Operación</summary>
-        <button class="sb-item on" id="vb-trab" onclick="setView('trab')"><span class="ic">👷</span>Trabajadores</button>
-        <button class="sb-item" id="vb-conciliador" onclick="setView('conciliador')"><span class="ic">⚖️</span>Conciliador General</button>
-        <button class="sb-item" onclick="sbGo(()=>openForm(null))"><span class="ic">＋</span>Nueva alta</button>
-        <button class="sb-item" id="vb-vac" onclick="setView('vac')"><span class="ic">🌴</span>Vacaciones y permisos</button>
-        <button class="sb-item" id="vb-actas" onclick="setView('actas')"><span class="ic">📋</span>Actas</button>
-        <button class="sb-item" id="vb-nom" onclick="setView('nom')"><span class="ic">🧠</span>NOM-035</button>
-        <button class="sb-item" id="vb-papeles" onclick="setView('papeles')"><span class="ic">📂</span>Control de papeles</button>
-        <button class="sb-item" id="vb-anual" onclick="setView('anual')"><span class="ic">🪙</span>PTU / Aguinaldo</button>
-      </details>
-
-      <details class="sb-grp">
-        <summary>Documentos</summary>
-        <button class="sb-item" onclick="sbGo(exportExpedientesGlobal)"><span class="ic">📚</span>Exportar expedientes (filtro actual)</button>
-        <button class="sb-item" onclick="sbGo(openAsistencia)"><span class="ic">📝</span>Listas de asistencia + directorio</button>
-        <button class="sb-item" onclick="sbGo(openCuadrillas)"><span class="ic">👷</span>Cuadrillas por contratista</button>
-        <button class="sb-item" onclick="sbGo(openRequisicion)"><span class="ic">🪪</span>Requisición de tarjetas</button>
-        <button class="sb-item" onclick="sbGo(openRecepcionTarjetas)"><span class="ic">✍</span>Recepción de tarjetas (firmas)</button>
-        <button class="sb-item" onclick="sbGo(openFaltanRecibos)"><span class="ic">📋</span>Faltan recibos de nómina</button>
-        <button class="sb-item" onclick="sbGo(openReporteDocs)"><span class="ic">📑</span>Reporte de documentación</button>
-        <button class="sb-item" onclick="sbGo(openSolicitudEmpleo)"><span class="ic">📄</span>Solicitud de empleo</button>
-        <button class="sb-item" onclick="sbGo(openAltasSemana)"><span class="ic">📆</span>Altas por semana</button>
+      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="inicio" data-nav-title="Inicio y Centro de Control">
+        <summary><span aria-hidden="true">🏠</span><span>Inicio y Centro de Control</span></summary>
+        <details class="sb-seccion" data-nav-section="Supervisión" open>
+          <summary>Supervisión</summary>
+          <button class="sb-item" id="vb-control" type="button" data-nav-label="Centro de control" onclick="sbGo(openControlEmpresarial,this)"><span class="ic" aria-hidden="true">🛡️</span>Centro de control</button>
+          <button class="sb-item" type="button" data-nav-label="Dashboard ejecutivo" onclick="sbGo(openDashboard,this)"><span class="ic" aria-hidden="true">📈</span>Dashboard ejecutivo</button>
+          <button class="sb-item" type="button" data-nav-label="Alertas" onclick="sbGo(openAlertas,this)"><span class="ic" aria-hidden="true">🔔</span>Alertas<span class="pill" id="sb-alert-badge" style="display:none"></span></button>
+          <button type="button" class="sb-item" data-nav-label="Pendientes y aprobaciones" onclick="sbGo(()=>PLATINUM_FLOWS.bandeja(false),this)"><span class="ic" aria-hidden="true">🧭</span>Pendientes y aprobaciones</button>
+        </details>
       </details>
 
-      <details class="sb-grp">
-        <summary>Nómina</summary>
-        <button class="sb-item" onclick="sbGo(openProyeccion)"><span class="ic">💰</span>Proyección de nómina</button>
-        <button class="sb-item" onclick="sbGo(openISRQuincenal)"><span class="ic">🧾</span>ISR mensual quincenal</button>
-        <button class="sb-item" onclick="sbGo(openProyContratista)"><span class="ic">👷</span>Proyección por contratista</button>
-        <button class="sb-item" onclick="sbGo(()=>openMovimientos(isoWeek()))"><span class="ic">📅</span>Movimientos de la semana</button>
-        <button class="sb-item" onclick="sbGo(openIncidencias)"><span class="ic">📉</span>Incidencias de la semana</button>
-        <button class="sb-item" onclick="sbGo(openCalendarioRet)"><span class="ic">🗓</span>Calendario de retenciones</button>
-        <button class="sb-item" onclick="sbGo(openVerificadorNOI)"><span class="ic">🔢</span>Verificar números vs NOI</button>
+      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="empleados" data-nav-title="Empleados y Expedientes" open>
+        <summary><span aria-hidden="true">👷</span><span>Empleados y Expedientes</span></summary>
+        <details class="sb-seccion" data-nav-section="Padrón y movimientos" open>
+          <summary>Padrón y movimientos</summary>
+          <button class="sb-item on" id="vb-trab" type="button" data-nav-label="Padrón de trabajadores" onclick="navVista('trab')"><span class="ic" aria-hidden="true">👷</span>Padrón de trabajadores</button>
+          <button class="sb-item" type="button" data-nav-label="Nueva alta" data-nav-permiso="edicion" onclick="sbGo(()=>openForm(null),this)"><span class="ic" aria-hidden="true">＋</span>Nueva alta</button>
+          <button class="sb-item" type="button" data-nav-label="Altas por semana" onclick="sbGo(openAltasSemana,this)"><span class="ic" aria-hidden="true">📆</span>Altas por semana</button>
+          <button class="sb-item" type="button" data-nav-label="Control de cambios de salario" onclick="sbGo(openControlSalarios,this)"><span class="ic" aria-hidden="true">📈</span>Control de cambios de salario</button>
+          <button class="sb-item" type="button" data-nav-label="Transferir de obra" onclick="sbGo(openTransferencia,this)"><span class="ic" aria-hidden="true">🔁</span>Transferir de obra</button>
+        </details>
+        <details class="sb-seccion" data-nav-section="Expedientes y documentos">
+          <summary>Expedientes y documentos</summary>
+          <button class="sb-item" type="button" data-nav-label="Solicitud de empleo" onclick="sbGo(openSolicitudEmpleo,this)"><span class="ic" aria-hidden="true">📄</span>Solicitud de empleo</button>
+          <button class="sb-item" type="button" data-nav-label="Exportar expedientes (filtro actual)" onclick="sbGo(exportExpedientesGlobal,this)"><span class="ic" aria-hidden="true">📚</span>Exportar expedientes (filtro actual)</button>
+          <button class="sb-item" type="button" data-nav-label="Reporte de documentación" onclick="sbGo(openReporteDocs,this)"><span class="ic" aria-hidden="true">📑</span>Reporte de documentación</button>
+        </details>
       </details>
 
-      <details class="sb-grp">
-        <summary>Importar</summary>
-        <button class="sb-item" onclick="openAvisosInfonavit()"><span class="ic">🏠</span>Avisos INFONAVIT · por RP</button>
-        <button class="sb-item" onclick="sbGo(openImportExp)"><span class="ic">🏦</span>Respuesta del banco (.exp)</button>
-        <button class="sb-item" onclick="sbGo(openImport)"><span class="ic">🏛</span>Cuentas del banco (Excel)</button>
-        <button class="sb-item" onclick="sbGo(openPdfImport)"><span class="ic">📎</span>Acuses IMSS y recibos (PDF)</button>
-
+      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="asistencia" data-nav-title="Asistencia, Calendarios e Incidencias">
+        <summary><span aria-hidden="true">📅</span><span>Asistencia, Calendarios e Incidencias</span></summary>
+        <details class="sb-seccion" data-nav-section="Asistencia y cuadrillas" open>
+          <summary>Asistencia y cuadrillas</summary>
+          <button class="sb-item" type="button" data-nav-label="Listas de asistencia + directorio" onclick="sbGo(openAsistencia,this)"><span class="ic" aria-hidden="true">📝</span>Listas de asistencia + directorio</button>
+          <button class="sb-item" type="button" data-nav-label="Cuadrillas por contratista" onclick="sbGo(openCuadrillas,this)"><span class="ic" aria-hidden="true">👷</span>Cuadrillas por contratista</button>
+          <button class="sb-item" type="button" data-nav-label="Movimientos de la semana" onclick="sbGo(()=>openMovimientos(isoWeek()),this)"><span class="ic" aria-hidden="true">📅</span>Movimientos de la semana</button>
+        </details>
+        <details class="sb-seccion" data-nav-section="Ausencias e incidencias">
+          <summary>Ausencias e incidencias</summary>
+          <button class="sb-item" id="vb-vac" type="button" data-nav-label="Vacaciones y permisos" onclick="navVista('vac')"><span class="ic" aria-hidden="true">🌴</span>Vacaciones y permisos</button>
+          <button class="sb-item" type="button" data-nav-label="Incidencias de la semana" onclick="sbGo(openIncidencias,this)"><span class="ic" aria-hidden="true">📉</span>Incidencias de la semana</button>
+        </details>
       </details>
 
-      <details class="sb-grp" open>
-        <summary>Control empresarial</summary>
-        <button class="sb-item" id="vb-control" onclick="sbGo(openControlEmpresarial)"><span class="ic">🛡️</span>Centro de control</button>
+      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="nomina" data-nav-title="Nómina">
+        <summary><span aria-hidden="true">🧮</span><span>Nómina</span></summary>
+        <details class="sb-seccion" data-nav-section="Cálculo y proyecciones" open>
+          <summary>Cálculo y proyecciones</summary>
+          <button class="sb-item" type="button" data-nav-label="Proyección de nómina" onclick="sbGo(openProyeccion,this)"><span class="ic" aria-hidden="true">💰</span>Proyección de nómina</button>
+          <button class="sb-item" type="button" data-nav-label="Proyección por contratista" onclick="sbGo(openProyContratista,this)"><span class="ic" aria-hidden="true">👷</span>Proyección por contratista</button>
+          <button class="sb-item" type="button" data-nav-label="ISR mensual quincenal" onclick="sbGo(openISRQuincenal,this)"><span class="ic" aria-hidden="true">🧾</span>ISR mensual quincenal</button>
+        </details>
+        <details class="sb-seccion" data-nav-section="Retenciones y prestaciones">
+          <summary>Retenciones y prestaciones</summary>
+          <button class="sb-item" type="button" data-nav-label="Calendario de retenciones" onclick="sbGo(openCalendarioRet,this)"><span class="ic" aria-hidden="true">🗓</span>Calendario de retenciones</button>
+          <button type="button" class="sb-item" data-nav-label="Papeles de prestaciones y finiquitos" onclick="sbGo(()=>openPapelesFiniquito(),this)"><span class="ic" aria-hidden="true">🧮</span>Papeles de prestaciones y finiquitos</button>
+          <button class="sb-item" id="vb-anual" type="button" data-nav-label="PTU / Aguinaldo" onclick="navVista('anual')"><span class="ic" aria-hidden="true">🪙</span>PTU / Aguinaldo</button>
+        </details>
+        <details class="sb-seccion" data-nav-section="Cierres y auditoría">
+          <summary>Cierres y auditoría</summary>
+          <button type="button" class="sb-item" data-nav-label="Cierres y versiones · Conciliador" onclick="sbGo(()=>openCtrlCierres(),this)"><span class="ic" aria-hidden="true">⚖️</span>Cierres y versiones · Conciliador</button>
+          <button class="sb-item" type="button" data-nav-label="Bitácora de nómina" onclick="sbGo(openBitacoraNomina,this)"><span class="ic" aria-hidden="true">🛡️</span>Bitácora de nómina</button>
+        </details>
       </details>
 
-      <details class="sb-grp">
-        <summary>Reportes y control</summary>
-        <button class="sb-item" onclick="sbGo(openDashboard)"><span class="ic">📈</span>Dashboard ejecutivo</button>
-        <button class="sb-item" onclick="sbGo(openAlertas)"><span class="ic">🔔</span>Alertas<span class="pill" id="sb-alert-badge" style="display:none"></span></button>
-        <button class="sb-item" onclick="sbGo(openResumen)"><span class="ic">📊</span>Resumen por contratista</button>
-        <button class="sb-item" onclick="sbGo(openControlSalarios)"><span class="ic">📈</span>Control de cambios de salario</button>
-        <button class="sb-item" onclick="sbGo(openPlantillaFecha)"><span class="ic">📸</span>Plantilla a una fecha</button>
-        <button class="sb-item" onclick="sbGo(openExports)"><span class="ic">🧮</span>Exports contables · IMSS/IDSE</button>
-        <button class="sb-item" onclick="sbGo(openPersonalHistorico)"><span class="ic">📜</span>Personal histórico</button>
-        <button class="sb-item" onclick="sbGo(openCorreos)"><span class="ic">✉</span>Correos creados</button>
+      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="seguridad" data-nav-title="Seguridad Social y Obligaciones Laborales">
+        <summary><span aria-hidden="true">🛡️</span><span>Seguridad Social y Obligaciones Laborales</span></summary>
+        <details class="sb-seccion" data-nav-section="IMSS, IDSE y SUA" open>
+          <summary>IMSS, IDSE y SUA</summary>
+          <button type="button" class="sb-item" data-nav-label="Movimientos afiliatorios" onclick="sbGo(()=>openCtrlMovimientos(),this)"><span class="ic" aria-hidden="true">📅</span>Movimientos afiliatorios</button>
+          <button type="button" class="sb-item" data-nav-label="Incidentes, incapacidades y ST-7" onclick="sbGo(()=>openCtrlIncidentes(),this)"><span class="ic" aria-hidden="true">🦺</span>Incidentes, incapacidades y ST-7</button>
+          <button type="button" class="sb-item" data-nav-label="Altas y bajas sin servicio" onclick="sbGo(()=>openCtrlAltasCortas(),this)"><span class="ic" aria-hidden="true">↔️</span>Altas y bajas sin servicio</button>
+        </details>
+        <details class="sb-seccion" data-nav-section="Créditos y evidencias">
+          <summary>Créditos y evidencias</summary>
+          <button class="sb-item" type="button" data-nav-label="Avisos INFONAVIT · por RP" onclick="sbGo(()=>openAvisosInfonavit(),this,false)"><span class="ic" aria-hidden="true">🏠</span>Avisos INFONAVIT · por RP</button>
+          <button type="button" class="sb-item" data-nav-label="Expediente de cumplimiento" onclick="sbGo(()=>openCtrlDocumentos(),this)"><span class="ic" aria-hidden="true">🗂️</span>Expediente de cumplimiento</button>
+        </details>
       </details>
 
-      <details class="sb-grp">
-        <summary>Administración</summary>
-        <button class="sb-item" onclick="sbGo(openContratistas)"><span class="ic">🪪</span>Contratistas / REPSE</button>
-        <button class="sb-item" onclick="sbGo(()=>openHistorial(null))"><span class="ic">🕘</span>Historial de cambios</button>
-        <button class="sb-item" onclick="sbGo(openBitacoraNomina)"><span class="ic">🛡️</span>Bitácora de nómina</button>
-        <button class="sb-item" onclick="sbGo(openTransferencia)"><span class="ic">🔁</span>Transferir de obra</button>
-        <button class="sb-item" onclick="sbGo(openEditContratistas)"><span class="ic">👷</span>Editar contratistas</button>
-        <button class="sb-item" onclick="sbGo(openAutorrellenar)"><span class="ic">🪄</span>Autorrellenar desde CURP</button>
-        <button class="sb-item" onclick="sbGo(openNuevaObra)"><span class="ic">➕</span>Nueva obra / centro</button>
-        <button class="sb-item hide" id="btn-edit-centro" onclick="sbGo(()=>openEditObra(OBRA.id))"><span class="ic">✎</span>Editar centro seleccionado</button>
-        <button class="sb-item" onclick="sbGo(()=>exportRespaldo(false))"><span class="ic">⬇</span>Respaldo Excel</button>
-        <button class="sb-item" onclick="sbGo(()=>exportRespaldo(true))"><span class="ic">📧</span>Respaldo por correo</button>
-        <button class="sb-item" onclick="sbGo(openIA)"><span class="ic">🤖</span>Asistente e índice de IA</button>
-        <button class="sb-item danger hide" id="btn-papelera" onclick="sbGo(openPapelera)"><span class="ic">🗑</span>Papelera</button>
+      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="pagos" data-nav-title="Pagos, Bancos y Cheques">
+        <summary><span aria-hidden="true">🏦</span><span>Pagos, Bancos y Cheques</span></summary>
+        <details class="sb-seccion" data-nav-section="Pagos y cheques" open>
+          <summary>Pagos y cheques</summary>
+          <button type="button" class="sb-item" data-nav-label="Pagos y comprobantes bancarios · Conciliador" onclick="sbGo(()=>openImportPago(),this)"><span class="ic" aria-hidden="true">💳</span>Pagos y comprobantes bancarios · Conciliador</button>
+          <button type="button" class="sb-item" id="vb-cheques" data-nav-label="Gestión de Cheques" onclick="navGestionCheques()"><span class="ic" aria-hidden="true">🧾</span>Gestión de Cheques</button>
+          <button type="button" class="sb-item" data-nav-label="Revisión de pagos del sábado" onclick="sbGo(()=>PLATINUM_PAGOS_SABADO.abrir(),this)"><span class="ic" aria-hidden="true">🗓</span>Revisión de pagos del sábado</button>
+        </details>
+        <details class="sb-seccion" data-nav-section="Cuentas y tarjetas">
+          <summary>Cuentas y tarjetas</summary>
+          <button class="sb-item" type="button" data-nav-label="Respuesta del banco (.exp)" onclick="sbGo(openImportExp,this)"><span class="ic" aria-hidden="true">🏦</span>Respuesta del banco (.exp)</button>
+          <button class="sb-item" type="button" data-nav-label="Cuentas del banco (Excel)" onclick="sbGo(openImport,this)"><span class="ic" aria-hidden="true">🏛</span>Cuentas del banco (Excel)</button>
+          <button class="sb-item" type="button" data-nav-label="Requisición de tarjetas" onclick="sbGo(openRequisicion,this)"><span class="ic" aria-hidden="true">🪪</span>Requisición de tarjetas</button>
+          <button class="sb-item" type="button" data-nav-label="Recepción de tarjetas (firmas)" onclick="sbGo(openRecepcionTarjetas,this)"><span class="ic" aria-hidden="true">✍</span>Recepción de tarjetas (firmas)</button>
+        </details>
+      </details>
+
+      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="conciliacion" data-nav-title="Conciliación y Comprobantes">
+        <summary><span aria-hidden="true">⚖️</span><span>Conciliación y Comprobantes</span></summary>
+        <details class="sb-seccion" data-nav-section="NOI y diferencias" open>
+          <summary>NOI y diferencias</summary>
+          <button class="sb-item" id="vb-conciliador" type="button" data-nav-label="Conciliador General" onclick="navVista('conciliador')"><span class="ic" aria-hidden="true">⚖️</span>Conciliador General</button>
+          <button class="sb-item" type="button" data-nav-label="Verificar números vs NOI" onclick="sbGo(openVerificadorNOI,this)"><span class="ic" aria-hidden="true">🔢</span>Verificar números vs NOI</button>
+        </details>
+        <details class="sb-seccion" data-nav-section="Recibos y acuses">
+          <summary>Recibos y acuses</summary>
+          <button class="sb-item" type="button" data-nav-label="Acuses IMSS y recibos (PDF)" onclick="sbGo(openPdfImport,this)"><span class="ic" aria-hidden="true">📎</span>Acuses IMSS y recibos (PDF)</button>
+          <button class="sb-item" type="button" data-nav-label="Faltan recibos de nómina" onclick="sbGo(openFaltanRecibos,this)"><span class="ic" aria-hidden="true">📋</span>Faltan recibos de nómina</button>
+        </details>
+      </details>
+
+      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="rrhh" data-nav-title="Gestión de RRHH y Cumplimiento Interno">
+        <summary><span aria-hidden="true">📋</span><span>Gestión de RRHH y Cumplimiento Interno</span></summary>
+        <details class="sb-seccion" data-nav-section="Operación y seguimiento" open>
+          <summary>Operación y seguimiento</summary>
+          <button type="button" class="sb-item" data-nav-label="Operación RRHH" onclick="sbGo(()=>PLATINUM_RRHH.abrir(),this)"><span class="ic" aria-hidden="true">⚙️</span>Operación RRHH</button>
+          <button class="sb-item" id="vb-papeles" type="button" data-nav-label="Control de papeles" onclick="navVista('papeles')"><span class="ic" aria-hidden="true">📂</span>Control de papeles</button>
+        </details>
+        <details class="sb-seccion" data-nav-section="Prevención y disciplina">
+          <summary>Prevención y disciplina</summary>
+          <button class="sb-item" id="vb-actas" type="button" data-nav-label="Actas" onclick="navVista('actas')"><span class="ic" aria-hidden="true">📋</span>Actas</button>
+          <button class="sb-item" id="vb-nom" type="button" data-nav-label="NOM-035" onclick="navVista('nom')"><span class="ic" aria-hidden="true">🧠</span>NOM-035</button>
+        </details>
+      </details>
+
+      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="reportes" data-nav-title="Reportes y Análisis">
+        <summary><span aria-hidden="true">📊</span><span>Reportes y Análisis</span></summary>
+        <details class="sb-seccion" data-nav-section="Personal e históricos" open>
+          <summary>Personal e históricos</summary>
+          <button class="sb-item" type="button" data-nav-label="Plantilla a una fecha" onclick="sbGo(openPlantillaFecha,this)"><span class="ic" aria-hidden="true">📸</span>Plantilla a una fecha</button>
+          <button class="sb-item" type="button" data-nav-label="Personal histórico" onclick="sbGo(openPersonalHistorico,this)"><span class="ic" aria-hidden="true">📜</span>Personal histórico</button>
+          <button class="sb-item" type="button" data-nav-label="Correos creados" onclick="sbGo(openCorreos,this)"><span class="ic" aria-hidden="true">✉</span>Correos creados</button>
+        </details>
+        <details class="sb-seccion" data-nav-section="Costos, contratistas y exportación">
+          <summary>Costos, contratistas y exportación</summary>
+          <button class="sb-item" type="button" data-nav-label="Resumen por contratista" onclick="sbGo(openResumen,this)"><span class="ic" aria-hidden="true">📊</span>Resumen por contratista</button>
+          <button type="button" class="sb-item" data-nav-label="Concentrado por contratista" onclick="sbGo(()=>openCtrlConcentradoContratistas(),this)"><span class="ic" aria-hidden="true">📒</span>Concentrado por contratista</button>
+          <button type="button" class="sb-item" data-nav-label="Costo real de obra" onclick="sbGo(()=>openCtrlCostos(),this)"><span class="ic" aria-hidden="true">📊</span>Costo real de obra</button>
+          <button class="sb-item" type="button" data-nav-label="Exports contables · IMSS/IDSE" onclick="sbGo(openExports,this)"><span class="ic" aria-hidden="true">🧮</span>Exports contables · IMSS/IDSE</button>
+        </details>
+      </details>
+
+      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="administracion" data-nav-title="Administración y Configuración">
+        <summary><span aria-hidden="true">⚙️</span><span>Administración y Configuración</span></summary>
+        <details class="sb-seccion" data-nav-section="Centros y contratistas" open>
+          <summary>Centros y contratistas</summary>
+          <button class="sb-item" type="button" data-nav-label="Nueva obra / centro" data-nav-permiso="admin" onclick="sbGo(openNuevaObra,this)"><span class="ic" aria-hidden="true">➕</span>Nueva obra / centro</button>
+          <button class="sb-item hide" id="btn-edit-centro" type="button" data-nav-label="Editar centro seleccionado" onclick="sbGo(()=>openEditObra(OBRA.id),this)"><span class="ic" aria-hidden="true">✎</span>Editar centro seleccionado</button>
+          <button class="sb-item" type="button" data-nav-label="Contratistas / REPSE" onclick="sbGo(openContratistas,this)"><span class="ic" aria-hidden="true">🪪</span>Contratistas / REPSE</button>
+          <button class="sb-item" type="button" data-nav-label="Editar contratistas" onclick="sbGo(openEditContratistas,this)"><span class="ic" aria-hidden="true">👷</span>Editar contratistas</button>
+        </details>
+        <details class="sb-seccion" data-nav-section="Mantenimiento y respaldos">
+          <summary>Mantenimiento y respaldos</summary>
+          <button class="sb-item" type="button" data-nav-label="Historial de cambios" onclick="sbGo(()=>openHistorial(null),this)"><span class="ic" aria-hidden="true">🕘</span>Historial de cambios</button>
+          <button class="sb-item" type="button" data-nav-label="Autorrellenar desde CURP" onclick="sbGo(openAutorrellenar,this)"><span class="ic" aria-hidden="true">🪄</span>Autorrellenar desde CURP</button>
+          <button class="sb-item" type="button" data-nav-label="Respaldo Excel" onclick="sbGo(()=>exportRespaldo(false),this)"><span class="ic" aria-hidden="true">⬇</span>Respaldo Excel</button>
+          <button class="sb-item" type="button" data-nav-label="Respaldo por correo" onclick="sbGo(()=>exportRespaldo(true),this)"><span class="ic" aria-hidden="true">📧</span>Respaldo por correo</button>
+          <button class="sb-item" type="button" data-nav-label="Asistente e índice de IA" onclick="sbGo(openIA,this)"><span class="ic" aria-hidden="true">🤖</span>Asistente e índice de IA</button>
+          <button class="sb-item danger hide" id="btn-papelera" type="button" data-nav-label="Papelera" onclick="sbGo(openPapelera,this)"><span class="ic" aria-hidden="true">🗑</span>Papelera</button>
+        </details>
       </details>
     </nav>
 
@@ -910,7 +1003,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
         <span id="act-live-notice" hidden style="font-size:10px;color:var(--mut)" aria-label="Ubicación de módulo y campo compartida con administración, sin valores">◉</span>
         <button id="act-live-open" class="sb-mini" type="button" hidden onclick="PLATINUM_ACTIVIDAD.abrir()" aria-label="Ver actividad de usuarios, sólo administrador" title="Actividad de usuarios · sólo administrador">👥</button>
         <button class="sb-mini" onclick="actualizarDatosCompartidos()" title="Actualizar datos compartidos sin recargar la página" aria-label="Actualizar datos compartidos">↻</button>
-        <span class="context-tool" id="alert-badge" title="Avisos pendientes: consulta Menú → Reportes y control → Alertas" aria-live="polite" style="background:var(--amber-bg);color:var(--amber);border-radius:8px;padding:4px 8px;font-size:11px;font-weight:800;display:none"></span>
+        <span class="context-tool" id="alert-badge" title="Avisos pendientes: consulta Menú → Inicio y Centro de Control → Alertas" aria-live="polite" style="background:var(--amber-bg);color:var(--amber);border-radius:8px;padding:4px 8px;font-size:11px;font-weight:800;display:none"></span>
       </div>
     </header>
 
@@ -1100,7 +1193,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 <script src="platinum-rrhh.js?v=20261023.2"></script>
 <script src="platinum-pagos-sabado.js?v=20261023.2"></script>
 <aside id="act-live-panel" class="act-live-panel" data-actividad-panel hidden aria-label="Actividad en vivo, sólo administrador"><div class="act-live-head"><h2>Actividad de usuarios</h2><button type="button" class="btn" onclick="PLATINUM_ACTIVIDAD.abrir()" aria-label="Actualizar actividad">↻</button><button type="button" class="btn" onclick="PLATINUM_ACTIVIDAD.cerrar()" aria-label="Cerrar actividad">×</button></div><div id="act-live-body" class="act-live-body"></div></aside>
-<script src="assets/platinum-app.5f34d1e07e7b854e.js" integrity="sha384-sN8DysOZ+xngiAJV5EO1irR0U9LJqMId8ax0qLfe7CpXcZXQEcnuxFqk+/XRJsyj" crossorigin="anonymous"></script>
+<script src="assets/platinum-app.2a25536e86fa2ce0.js" integrity="sha384-gBMFoFE0yHahVw8RwqWG083SZd5diK0K1hheajk5atTLF8ytVhqHbVieKBa62rrH" crossorigin="anonymous"></script>
 <script src="concentrado-contratistas.js"></script>
 </body>
 </html>

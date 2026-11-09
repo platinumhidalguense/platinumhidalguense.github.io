@@ -100,6 +100,7 @@ suites.push('test_gestion_cheques_tabs_ui');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_conciliador_tabs_folios_fisicos.sql')))suites.push('test_cheques_folios_cerrados_pg');
 else console.log('ALCANCE PÚBLICO FOLIOS: la prueba PostgreSQL requiere la migración privada; tabla y servicio sí se prueban.');
 suites.push('test_realtime_deltas_ui');
+suites.push('test_navegacion_modular');
 if(fs.existsSync('supabase/migrations/20261107154700_padron_realtime_fuentes_rapidas.sql'))suites.push('test_padron_realtime_pg');
 else console.log('ALCANCE PÚBLICO RENDIMIENTO: se verifica la UI en dos sesiones sintéticas; la migración privada se verifica localmente.');
 for(const file of suites){

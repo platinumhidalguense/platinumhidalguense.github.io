@@ -19,6 +19,7 @@ function toggleSidebar(forzar){
   if(sc)sc.classList.toggle('on',abrir);
   app.classList.toggle('sb-oculto',!abrir);
   if(b){b.title=abrir?'Ocultar el menú':'Mostrar el menú';b.setAttribute('aria-expanded',abrir?'true':'false');}
+  if(abrir)navActualizarPermisos();
 }
 /* Al entrar se respeta cómo lo dejó el usuario la última vez */
 function initSidebar(){
@@ -29,11 +30,82 @@ function initSidebar(){
 }
 /* Cierra SOLO el cajón de celular (en escritorio no debe plegarse al navegar) */
 function cerrarCajonMovil(){if(esPantallaChica())toggleSidebar(false);}
-/* Ejecuta una acción del panel y cierra el cajón (celular) */
-function sbGo(fn){
+let NAV_MENU_ACCION=null,NAV_MENU_MODAL=null;
+function navActualizarPermisos(){
+  for(const boton of document.querySelectorAll('.sb-nav [data-nav-permiso]')){
+    boton.hidden=boton.dataset.navPermiso==='admin'?!esAdmin():!puedeEditarTrabajador();
+  }
+}
+function navPuedeCambiar(){
+  if(NAV_BUSY)return false;
+  if(NAV_MENU_ACCION){toast('Espera a que termine de abrir la herramienta.');return false;}
+  if($('modals')?.querySelector('.overlay')||window.PLATINUM_CONCILIADOR?.estaCapturando?.()){
+    toast('Termina o cierra la captura actual antes de cambiar de pantalla.');return false;
+  }
+  return true;
+}
+function navPaso(paso){if(navPuedeCambiar())showNavStep(paso);}
+function navVista(vista){
+  return sbGo(()=>{
+    if(vista==='conciliador'&&window.PLATINUM_CONCILIADOR_SEMANAL)return window.PLATINUM_CONCILIADOR_SEMANAL.flujo();
+    return setView(vista);
+  },$('vb-'+vista),false);
+}
+function navGestionCheques(){
+  return sbGo(()=>window.PLATINUM_CONCILIADOR_SEMANAL?.cheques(),$('vb-cheques'),false);
+}
+function navRutaActual(vista){
+  const cheques=vista==='conciliador'&&window.PLATINUM_CONCILIADOR_SEMANAL?.pestana?.()==='cheques';
+  const boton=NAV_MENU_MODAL||$('vb-'+(cheques?'cheques':vista));
+  const modulo=boton?.closest?.('[data-nav-module]');
+  if(!modulo)return null;
+  const seccion=boton.closest('[data-nav-section]');
+  for(const item of document.querySelectorAll('.sb-nav [aria-current]')){
+    if(item!==boton){item.removeAttribute('aria-current');item.classList.remove('on');}
+  }
+  for(const grupo of document.querySelectorAll('.sb-module.is-current')){
+    if(grupo!==modulo)grupo.classList.remove('is-current');
+  }
+  if(boton.getAttribute('aria-current')!=='location'){
+    modulo.open=true;
+    if(seccion)seccion.open=true;
+  }
+  boton.setAttribute('aria-current','location');
+  boton.classList.add('on');
+  modulo.classList.add('is-current');
+  return {modulo:modulo.dataset.navTitle,seccion:seccion?.dataset.navSection,herramienta:boton.dataset.navLabel};
+}
+function navSeguirModal(origen){
+  const contenedor=$('modals');
+  if(!contenedor?.querySelector('.overlay'))return;
+  NAV_MENU_MODAL=origen;
+  renderCrumbs();
+  const observador=new MutationObserver(()=>{
+    if(contenedor.querySelector('.overlay'))return;
+    observador.disconnect();
+    NAV_MENU_MODAL=null;
+    renderCrumbs();
+  });
+  observador.observe(contenedor,{childList:true});
+}
+/* Las entradas contextuales conservan el contrato sbGo(fn). */
+function sbGo(fn,origen=null,completo=true){
+  if(origen&&!navPuedeCambiar())return;
   if(NAV_STEP!=='trabajadores'||!OBRA){showNavStep('obra');return;}
   toggleSidebar(false);
-  try{return conCentroCompleto(fn);}catch(e){toast('No se pudo abrir: '+e.message,'err');}
+  if(!origen){
+    try{return conCentroCompleto(fn);}catch(e){toast('No se pudo abrir: '+e.message,'err');}
+  }
+  const alcance={obra:OBRA.id,usuario:USER?.id};
+  const vigente=()=>NAV_STEP==='trabajadores'&&OBRA?.id===alcance.obra&&USER?.id===alcance.usuario;
+  NAV_MENU_ACCION=alcance;
+  return Promise.resolve().then(()=>{
+    if(vigente())return completo?conCentroCompleto(fn):fn();
+  }).then(()=>{
+    if(vigente())navSeguirModal(origen);
+  }).catch(e=>toast('No se pudo abrir: '+e.message,'err')).finally(()=>{
+    if(NAV_MENU_ACCION===alcance)NAV_MENU_ACCION=null;
+  });
 }
 /* Esc cierra primero el cajón; si no está abierto, cierra el modal de encima */
 document.addEventListener('keydown',e=>{

@@ -17,6 +17,8 @@ window.PLATINUM_GESTION_CHEQUES={montar:()=>actions.push('gestion'),refrescar:()
  await click('[data-cs="tipo"][data-tipo="CHEQUES"]');await click('[data-cs="cheque"]');assert($('modal').textContent.includes('consulta S31'));assert(!actions.includes('cheque'));await click('[data-cs="exportar-cheques"]');assert(actions.includes('exportar:q31'));
  await window.PLATINUM_CONCILIADOR.abrirCierre('c32');await settle();assert.equal(requests.at(-1).p.p_cierre,'c32');assert.equal(requests.at(-1).p.p_semana,null,'El ID de otro cierre no arrastra la semana anterior');
  window.PLATINUM_CONCILIADOR_SEMANAL.salir();box.VIEW='trab';assert.equal(window.PLATINUM_CONCILIADOR_SEMANAL.estado().data,null);
+ await window.PLATINUM_CONCILIADOR_SEMANAL.cheques();await settle();assert.equal(box.VIEW,'conciliador');assert(!$('cs-gestion').hidden);
+ const lecturas=requests.length;await window.PLATINUM_CONCILIADOR_SEMANAL.flujo();await settle();assert(!$('cs-flujo').hidden);assert.equal(requests.length,lecturas);
  assert.equal(messages.length,0,messages.join('\n'));const template=fs.readFileSync('frontend/index.template.html','utf8');for(const id of ['vb-chq','vb-pagos','vb-audit','view-chq','view-pagos','view-audit'])assert(!template.includes('id="'+id+'"'),id+' redundante');assert.equal((template.match(/>Conciliador General<\/button>/g)||[]).length,1);
  console.log('PASS UI semanal: entrada única, selector actual/histórico, lectura agregada, herramientas, alertas, histórico sin archivos/acciones, cheque consultable, exportación y desmontaje. Sin navegador.');
 })().catch(e=>{console.error(e.stack,messages);process.exitCode=1;});

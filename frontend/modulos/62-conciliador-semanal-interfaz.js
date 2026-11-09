@@ -46,6 +46,7 @@
   $s('q').oninput=e=>{local.q=e.target.value;registros(d);};alertas(d);registros(d);
   $s('tabs').onkeydown=e=>{const keys=['ArrowLeft','ArrowRight','Home','End'];if(!keys.includes(e.key))return;e.preventDefault();const t=e.key==='Home'?'flujo':e.key==='End'?'cheques':tab==='flujo'?'cheques':'flujo';seleccionarTab(t);$s('tab-'+t).focus();};
   if(tab==='cheques')window.PLATINUM_GESTION_CHEQUES.montar('cs-cheques');
+  if(typeof renderCrumbs==='function')renderCrumbs();
  }
  function herramientas(d){return`<details class="cs-menu"><summary class="btn">🧰 Herramientas de Pago</summary><div class="cs-menu-lista">${boton('Control de folios y saltos','folios','',d.solo_lectura)}${boton('Reuniones de entrega','reuniones','',d.solo_lectura)}${boton('Chequeras de 50 · liberación y legajos','chequeras')}${boton('Bloques por semana','bloques','',d.solo_lectura)}${boton('Legajos para entrega','legajos')}${boton('Exportar cheques de S'+d.semana,'exportar-cheques')}${boton('Exportar resumen de S'+d.semana,'exportar-resumen')}${!d.solo_lectura?boton('Nuevo cheque','nuevo-cheque')+boton('Finiquito por transferencia autorizada','transferencia'):''}<small>Las herramientas de modificación sólo están disponibles en el contexto actual; conservan sus permisos.</small></div></details>`;}
  function resumen(d){const pendientes=d.cheques.filter(q=>q.estatus==='PENDIENTE').length,rechazos=d.transferencias.filter(p=>p.estado==='RECHAZADO'&&!p.repetido).length;return`<div class="stats" style="margin:12px 0"><div class="stat"><div class="n">${d.personas.length}</div><div class="l">Trabajadores en fuentes de S${d.semana}</div></div><div class="stat ${rechazos?'r':'g'}"><div class="n">${rechazos}</div><div class="l">Transferencias rechazadas</div></div><div class="stat ${pendientes?'a':'g'}"><div class="n">${pendientes}</div><div class="l">Cheques pendientes de expedir</div></div><div class="stat"><div class="n">${d.cheques.filter(q=>q.estatus==='EXPEDIDO').length}</div><div class="l">Expedidos · entrega por confirmar</div></div></div>`;}
@@ -74,9 +75,16 @@
   if(a==='nueva')return PLATINUM_CONCILIADOR.nueva(d.semana);
   if(a==='cheque'){const c=d.cheques.find(c=>c.id===b.dataset.id);if(!c)return;const idx=CHEQUES.findIndex(q=>q.id===c.id);if(idx<0)CHEQUES.push(c);else CHEQUES[idx]=c;return openChequeForm(c.id);}
  }
- function seleccionarTab(t){if(!['flujo','cheques'].includes(t))return;tab=t;for(const k of ['flujo','cheques']){const b=$s('tab-'+k);b.setAttribute('aria-selected',String(k===t));b.tabIndex=k===t?0:-1;}$s('flujo').hidden=t!=='flujo';$s('gestion').hidden=t!=='cheques';if(t==='cheques')window.PLATINUM_GESTION_CHEQUES.montar('cs-cheques');else return montar();}
+ function seleccionarTab(t){if(!['flujo','cheques'].includes(t))return;tab=t;for(const k of ['flujo','cheques']){const b=$s('tab-'+k);b.setAttribute('aria-selected',String(k===t));b.tabIndex=k===t?0:-1;}$s('flujo').hidden=t!=='flujo';$s('gestion').hidden=t!=='cheques';if(typeof renderCrumbs==='function')renderCrumbs();if(t==='cheques')window.PLATINUM_GESTION_CHEQUES.montar('cs-cheques');else return montar();}
+ function abrirPestana(t){
+  if(!OBRA)return;
+  if(VIEW==='conciliador'&&$s('tab-'+t))return seleccionarTab(t);
+  tab=t;
+  if(VIEW!=='conciliador')return setView('conciliador');
+  return montar();
+ }
  function programarDerivados(){if(turno||VIEW!=='conciliador'||tab!=='flujo')return;turno=true;const centro=OBRA?.id,user=USER?.id;(window.requestAnimationFrame||((f)=>Promise.resolve().then(f)))(()=>{turno=false;if(OBRA?.id===centro&&USER?.id===user&&VIEW==='conciliador'&&tab==='flujo')seguro(montar)();});}
  function invalidarDerivados(){if(VIEW!=='conciliador')return;derivados++;programarDerivados();}
  function salir(){derivados=0;leidos=0;tab='flujo';window.PLATINUM_GESTION_CHEQUES?.salir();service.invalidar();window.PLATINUM_CONCILIADOR.desmontar();ultimo=null;firma=null;}
- window.PLATINUM_CONCILIADOR_SEMANAL=Object.freeze({invalidarDerivados,montar:seguro(montar),abrir:seguro(abrir),cierre:seguro((id,paso)=>abrir(paso,null,id)),salir,refrescar:seguro(()=>{const d=actual();return cargar(d.semana,d.detalle?.cierre.id||null);}),estado:()=>service.estado()});
+ window.PLATINUM_CONCILIADOR_SEMANAL=Object.freeze({invalidarDerivados,montar:seguro(montar),abrir:seguro(abrir),cierre:seguro((id,paso)=>abrir(paso,null,id)),salir,refrescar:seguro(()=>{const d=actual();return cargar(d.semana,d.detalle?.cierre.id||null);}),estado:()=>service.estado(),cheques:seguro(()=>abrirPestana('cheques')),flujo:seguro(()=>abrirPestana('flujo')),pestana:()=>tab});
 })();
