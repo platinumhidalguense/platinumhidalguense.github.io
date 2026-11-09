@@ -59,7 +59,7 @@ function startRealtime(){
   if(!window.PLATINUM_SYNC){$('rt-status').textContent='Actualización manual';return;}
   window._PLATINUM_RT=window.PLATINUM_SYNC.connect({client:sb,userId:USER.id,window,document,
     getObraId:()=>OBRA?.id,
-    apply:e=>window.PLATINUM_DATOS?.aplicar(e),
+    apply:e=>{window.PLATINUM_RECORRIDO?.avisarCambio(e);return window.PLATINUM_DATOS?.aplicar(e);},
     onReconnect:()=>chequearVersionEnVivo(),
     canRefresh:()=>!NAV_BUSY&&!OBRA_APERTURA_HERRAMIENTAS&&!$('modals').innerHTML,
     refresh:cambio=>softRefresh(false,cambio),
@@ -517,7 +517,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-11-08.1';
+const APP_VERSION='2026-11-08.2';
 window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){

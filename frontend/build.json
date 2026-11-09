@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-08.1",
-  "entry": "assets/platinum-app.2a25536e86fa2ce0.js",
-  "sha256": "2a25536e86fa2ce099379b8d6dd6178f1dd7a631aab6c04a5faa9ae3a873e871",
-  "integrity": "sha384-gBMFoFE0yHahVw8RwqWG083SZd5diK0K1hheajk5atTLF8ytVhqHbVieKBa62rrH",
+  "version": "2026-11-08.2",
+  "entry": "assets/platinum-app.dddd9da9c32ada49.js",
+  "sha256": "dddd9da9c32ada4920d75ee2eda1d50dc00075fc42b1888c722ed4a8d1c5ec34",
+  "integrity": "sha384-iIjHqSSAzKDDupI5bpVKZYyP+orN9TUVKuOXaCSavYhhbpXvs52nPizV0qWevOIC",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "69858c1aa9bcad3bff6f74259db8c220e4cf04db0dc4b9f5579ab91512dee1f2"
+      "sha256": "7408eb60c65291e45ae4abf9bb917fc4dd95727e1d8fec77ffc01c8644a167ab"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -22,7 +22,7 @@
     },
     {
       "path": "frontend/modulos/04-padron-expedientes.js",
-      "sha256": "5bfdae8dd80a453ed1774fbdd6f0a8bbf3b9ac297b6c693a67405a634c74b22a"
+      "sha256": "8d0a9bea150925d90066788f0eea51c27ff9f53ce6a7b3a1870dff82003e6f98"
     },
     {
       "path": "frontend/modulos/05-alta-edicion.js",
@@ -46,7 +46,7 @@
     },
     {
       "path": "frontend/modulos/10-proyeccion-nomina.js",
-      "sha256": "e00d66e15a5b8206cc32d057114bfda97058fbe3424ba67a23eb9d8a5b073ac7"
+      "sha256": "5ec1863953f92c6586b506b10b39693788e6cb80f6beecb773fb8d5e510258db"
     },
     {
       "path": "frontend/modulos/11-expedientes-excel.js",
@@ -162,7 +162,7 @@
     },
     {
       "path": "frontend/modulos/39-rrhh-adaptadores.js",
-      "sha256": "42cb9c75da75affa7dc5e32965dc8273fa4311f7a79ad323044051b642d9d47b"
+      "sha256": "c98c657de681cc4024f4514008088e287cc06a144653debac5cc101a8ce33547"
     },
     {
       "path": "frontend/modulos/40-pagos-sabado-adaptadores.js",
@@ -254,7 +254,7 @@
     },
     {
       "path": "frontend/modulos/62-conciliador-semanal-interfaz.js",
-      "sha256": "9ed0973f58cc867fd6246cce4422694b1d9508493c45fe883840a1e5cb35d121"
+      "sha256": "1aeed547627f7f5e33b51df6ee521eea246d698a62e2939b1ba4ff15540a9951"
     },
     {
       "path": "frontend/modulos/63-gestion-cheques.js",
@@ -263,6 +263,14 @@
     {
       "path": "frontend/modulos/64-datos-centro-en-vivo.js",
       "sha256": "d44f47806db11676c1e20fc40763da517c744ef76b0e8c1be4f4b8dfbcbd7f26"
+    },
+    {
+      "path": "frontend/modulos/65-recorrido-core.js",
+      "sha256": "eb2fb5b835e0f337bb35c0b6a172f165ae276743c5a2d4a3287204c4a3514d2c"
+    },
+    {
+      "path": "frontend/modulos/66-recorrido-operativo.js",
+      "sha256": "8cc95e201b3f3828bfd9c6453f1987f370bd8475eca44c379fd1a48be5d82997"
     }
   ]
 }

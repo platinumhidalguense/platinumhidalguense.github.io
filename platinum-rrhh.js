@@ -9,16 +9,21 @@
  const date=x=>x?String(x).slice(0,10):'—',stamp=x=>x?new Date(x).toLocaleString('es-MX',{timeZone:'America/Mexico_City'}):'Sin captura histórica';
  const table=(h,r)=>cfg.table(h,r,'No hay registros que coincidan con los filtros de este alcance.');
  function configure(options){cfg=options;}
- function current(){if(!state||ctx().obra?.id!==state.obraId)throw Error('Cambió el centro. Abre nuevamente Operación RRHH.');return state;}
- function valid(s,t){return state===s&&seq===t&&ctx().obra?.id===s.obraId&&!!el('rrhh-body');}
+ function mismoAmbito(s){const c=ctx();return c.obra?.id===s.obraId&&c.usuario===s.usuario;}
+ function current(){if(!state||!mismoAmbito(state))throw Error('Cambió el centro o la sesión. Abre nuevamente Operación RRHH.');return state;}
+ function valid(s,t){return state===s&&seq===t&&mismoAmbito(s)&&!!el('rrhh-body');}
  async function call(a,j={},read=false){const c=ctx(),r=await c.sb.rpc(read?'control_rrhh_consultar':'control_rrhh_operar',{p_accion:a,p_datos:j});if(r.error)throw Error(r.error.message||'No se pudo completar la consulta');if(!r.data||typeof r.data!=='object')throw Error('La base no confirmó una respuesta completa');return r.data;}
  async function operation(fn){if(busy)return;busy=true;try{return await fn();}catch(e){cfg.toast(e.message,'err');}finally{busy=false;}}
  function frame(){const s=current();cfg.modal(`<div class="m-head"><h2>⚙ Operación RRHH</h2><small>${esc(ctx().empresaNombre)} · ${esc(ctx().obra.nombre)}</small><button class="btn" style="margin-left:auto" onclick="PLATINUM_RRHH.manual()" aria-label="Guía de operación RRHH">?</button><button class="x" onclick="closeModal()">×</button></div>
   <div class="m-body"><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">${Object.entries({corte:'1 · Corte semanal',importe:'2 · Explicar importes',expediente:'3 · Expediente 360',procesos:'4 · Procesos'}).map(([k,v])=>btn(v,`tab('${k}')`,s.tab===k)).join('')}</div>
-  <div style="display:flex;flex-wrap:wrap;align-items:end;gap:10px"><label>Semana <input id="rrhh-sem" type="number" min="1" max="53" value="${s.sem}" onchange="PLATINUM_RRHH.semana(this.value)" style="width:88px"></label>${btn('↻ Actualizar','reload()')}${s.permisos.admin?btn('Plantillas internas','plantillas()'):''}</div>
+  <div style="display:flex;flex-wrap:wrap;align-items:end;gap:10px"><label>Semana <input id="rrhh-sem" type="number" min="1" max="53" value="${s.sem}" onchange="PLATINUM_RRHH.semana(this.value)" style="width:88px"></label>${btn('↻ Actualizar','reload()')}${cfg.preparacion?btn('Preparación del periodo','preparacion()'):''}${s.permisos.admin?btn('Plantillas internas','plantillas()'):''}</div>
   <p class="fhint">Objetivos internos; no sustituyen plazos legales ni trámites oficiales. Sin cambios automáticos de importes.</p><div id="rrhh-stale" hidden style="padding:10px;background:var(--amber-bg);color:var(--amber)">Cambió una fuente. Conservamos tus capturas: pulsa Actualizar antes de confirmar.</div><div id="rrhh-body"></div></div>`,'xl');}
- async function abrir(tabName='corte',workerId=null,sem=null,cierreId=null){try{const initial=ctx().obra?.id;if(!initial)throw Error('Selecciona un centro de trabajo.');const p=await call('PERMISOS');if(ctx().obra?.id!==initial)return;
-  state={obraId:initial,tab:tabName in {corte:1,procesos:1,importe:1,expediente:1}?tabName:'corte',sem:Number(sem)||cfg.week(),worker:workerId,cierreId,permisos:p,pagina:0,q:'',tipo:'',histQ:'',histCat:'',histDesde:'',histHasta:'',stale:false};frame();await reload();
+ async function abrir(tabName='corte',workerId=null,sem=null,cierreId=null,procesoId=null){try{
+  const c=ctx(),alcance={obraId:c.obra?.id,usuario:c.usuario},t=++seq;
+  if(!alcance.obraId)throw Error('Selecciona un centro de trabajo.');
+  const p=await call('PERMISOS');if(t!==seq||!mismoAmbito(alcance))return;
+  state={...alcance,tab:tabName in {corte:1,procesos:1,importe:1,expediente:1}?tabName:'corte',sem:Number(sem)||cfg.week(),worker:workerId,cierreId,permisos:p,pagina:0,q:'',tipo:'',histQ:'',histCat:'',histDesde:'',histHasta:'',stale:false};
+  frame();if(procesoId&&state.tab==='procesos')await proceso(procesoId);else await reload();
  }catch(e){cfg.toast(e.message,'err');}}
  async function tab(name){const s=current();if(!['corte','procesos','importe','expediente'].includes(name))return;s.tab=name;s.pagina=0;frame();await reload();}
  async function semana(value){const n=Number(value);if(!Number.isInteger(n)||n<1||n>53){cfg.toast('Semana inválida.','err');return;}const s=current();s.sem=n;s.pagina=0;s.cierreId=null;await reload();}
@@ -88,12 +93,26 @@
  async function evento(id){const s=current(),e=s.historial?.eventos.find(x=>x.id===id);if(!e)throw Error('Vuelve a consultar la cronología.');if(e.enlace==='DOCUMENTO')return documento(e.entidad);if(e.enlace==='CIERRE')return abrirCierre(e.entidad);if(e.enlace==='PROCESO')return proceso(e.entidad);return origen(e.enlace==='IMSS'?'IMSS':e.enlace==='PAGOS'?'PAGOS':e.enlace==='CHEQUES'?'CHEQUES':e.enlace==='RETENCION'?'RETENCIONES':e.enlace==='HISTORIAL'?'HISTORIAL':'TRABAJADOR',s.worker,e.entidad);}
  async function documento(id){return operation(()=>cfg.document(id));}
  async function abrirCierre(id){return operation(()=>cfg.openClosure(id));}
- async function origen(tipo,id=null,entidad=null){return operation(()=>cfg.route(tipo,id||state?.proceso?.proceso.trabajador_id||state?.worker,entidad));}
+ async function origen(tipo,id=null,entidad=null){return operation(()=>{
+  const s=current();
+  return cfg.route(tipo,id||s.proceso?.proceso.trabajador_id||s.worker,entidad,{sem:s.sem,cierre:s.cierreId});
+ });}
+ function estaCapturando(){
+  if(!el('rrhh-body')||!state||!mismoAmbito(state))return false;
+  return Boolean(busy||el('rrhh-responsable')||
+   state.plantillas?.some(p=>el('rrhh-pt-'+p.id+'-0'))||
+   state.proceso?.tareas?.some(t=>{const n=el('rrhh-nota-'+t.id);return n&&n.value!==(t.nota||'');}));
+ }
+ function preparacion(){
+  const s=current();
+  if(estaCapturando())throw Error('Termina de guardar o cierra la captura de RRHH antes de continuar.');
+  return cfg.preparacion?.(s.sem,s.worker,s.cierreId);
+ }
  async function plantillas(){return operation(async()=>{const s=current();if(!s.permisos.admin)throw Error('Sólo el administrador configura plantillas.');const d=await call('PLANTILLAS',{obra_id:s.obraId});s.plantillas=d.plantillas;el('rrhh-body').innerHTML=`<h3>Plantillas internas versionadas</h3><p>Los cambios aplican sólo a procesos nuevos. No se pueden quitar comprobaciones, dependencias ni el permiso de autorización.</p>${d.plantillas.map(p=>`<details style="padding:10px;border:1px solid var(--border);margin:8px 0"><summary>${esc(p.nombre)} · v${p.version}</summary>${p.pasos.map((t,i)=>`<label>Tarea ${i+1}<input id="rrhh-pt-${p.id}-${i}" maxlength="160" value="${esc(t.titulo)}"></label><label>Responsable por rol<select id="rrhh-pr-${p.id}-${i}">${['CAPTURA','CONTABILIDAD','ADMINISTRADOR'].map(k=>`<option ${k===t.rol?'selected':''}>${k}</option>`).join('')}</select></label><label>Días respecto al evento / lunes del corte<input id="rrhh-pd-${p.id}-${i}" type="number" min="-7" max="30" value="${t.dia}"></label>`).join('')}${btn('Guardar nueva versión',`guardarPlantilla('${p.id}')`)}</details>`).join('')}${btn('Volver','reload()')}`;});}
  async function guardarPlantilla(id){return operation(async()=>{const s=current();if(!s.permisos.admin)throw Error('Sólo el administrador configura plantillas.');const p=s.plantillas.find(x=>x.id===id);if(!p)throw Error('Vuelve a abrir las plantillas.');const pasos=p.pasos.map((t,i)=>({...t,titulo:el(`rrhh-pt-${id}-${i}`).value,rol:el(`rrhh-pr-${id}-${i}`).value,dia:Number(el(`rrhh-pd-${id}-${i}`).value)}));if(!confirm('¿Crear una versión para procesos nuevos, conservando los anteriores?'))return;await call('PLANTILLA',{id,pasos});cfg.toast('Nueva versión guardada. Procesos existentes intactos.','ok');await reload();});}
  function avisarCambio(){if(!state)return;state.stale=true;const x=el('rrhh-stale');if(x)x.hidden=false;}
  function manual(){const s=current();el('rrhh-body').innerHTML=`<h3>Guía rápida</h3><ol><li><b>Corte:</b> selecciona empresa, centro y semana. Inicia/enlaza tareas y revisa cada evidencia. Miércoles, jueves y viernes son objetivos internos editables; el cierre se autoriza en su módulo original.</li><li><b>Importes:</b> busca al trabajador y elige el cierre. La versión autorizada se conserva fija; un borrador se identifica. Conceptos, NOI, recibos, saldo y entrega no se confunden. Los cierres antiguos pueden no tener IDs de fuentes capturados.</li><li><b>Expediente:</b> busca eventos por texto, tipo y fechas. Separa fecha efectiva de captura y abre los módulos de origen. Nunca se copian ni sustituyen los comprobantes.</li><li><b>Procesos:</b> revisa tareas de alta, baja, reingreso, incapacidad y cambio de centro. Asigna responsable y objetivo, escribe la nota y confirma. Si cambia una fuente, revalida. Un lector no puede escribir; sólo administrador configura plantillas o cancela procesos.</li></ol><p class="fhint">Una tarea interna no acredita presentación ante IMSS/IDSE/SUA ni sustituye asesoría o plazos legales. Los pagos y fórmulas siguen en sus módulos existentes. No incluye planeación de plantilla, EPP ni paquetes de reportes.</p>${btn('Volver a la vista','reload()')}`;s.manual=true;}
  const guard=fn=>(...args)=>{try{const r=fn(...args);return r&&typeof r.catch==='function'?r.catch(e=>cfg?.toast(e.message,'err')):r;}catch(e){cfg?.toast(e.message,'err');}};
- const actions={abrir,tab,semana,reload,sincronizar,filtrar,tipo,pagina,proceso,guardar,asignar,guardarAsignacion,cancelar,buscarLuego,buscar,elegir,cambiarTrabajador,seleccionarCierre,vistaActual,filtrarHistoria,evento,documento,abrirCierre,origen,plantillas,guardarPlantilla,manual};
- root.PLATINUM_RRHH=Object.freeze({configure,avisarCambio,...Object.fromEntries(Object.entries(actions).map(([k,f])=>[k,guard(f)]))});
+ const actions={abrir,tab,semana,reload,sincronizar,filtrar,tipo,pagina,proceso,guardar,asignar,guardarAsignacion,cancelar,buscarLuego,buscar,elegir,cambiarTrabajador,seleccionarCierre,vistaActual,filtrarHistoria,evento,documento,abrirCierre,origen,preparacion,plantillas,guardarPlantilla,manual};
+ root.PLATINUM_RRHH=Object.freeze({configure,avisarCambio,estaCapturando,...Object.fromEntries(Object.entries(actions).map(([k,f])=>[k,guard(f)]))});
 })(typeof window==='undefined'?globalThis:window);

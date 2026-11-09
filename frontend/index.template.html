@@ -828,7 +828,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
           <button class="sb-item" id="vb-control" type="button" data-nav-label="Centro de control" onclick="sbGo(openControlEmpresarial,this)"><span class="ic" aria-hidden="true">🛡️</span>Centro de control</button>
           <button class="sb-item" type="button" data-nav-label="Dashboard ejecutivo" onclick="sbGo(openDashboard,this)"><span class="ic" aria-hidden="true">📈</span>Dashboard ejecutivo</button>
           <button class="sb-item" type="button" data-nav-label="Alertas" onclick="sbGo(openAlertas,this)"><span class="ic" aria-hidden="true">🔔</span>Alertas<span class="pill" id="sb-alert-badge" style="display:none"></span></button>
-          <button type="button" class="sb-item" data-nav-label="Pendientes y aprobaciones" onclick="sbGo(()=>PLATINUM_FLOWS.bandeja(false),this)"><span class="ic" aria-hidden="true">🧭</span>Pendientes y aprobaciones</button>
+          <button type="button" class="sb-item" data-nav-label="Pendientes y aprobaciones" onclick="sbGo(()=>PLATINUM_FLOWS.bandeja(false),this,false)"><span class="ic" aria-hidden="true">🧭</span>Pendientes y aprobaciones</button>
         </details>
       </details>
 
@@ -1189,8 +1189,8 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 </div>
 
 <script src="platinum-sync.js?v=20261107.1"></script>
-<script src="platinum-workflows.js?v=20261107.1"></script>
-<script src="platinum-rrhh.js?v=20261023.2"></script>
+<script src="platinum-workflows.js?v=20261108.2"></script>
+<script src="platinum-rrhh.js?v=20261108.2"></script>
 <script src="platinum-pagos-sabado.js?v=20261023.2"></script>
 <aside id="act-live-panel" class="act-live-panel" data-actividad-panel hidden aria-label="Actividad en vivo, sólo administrador"><div class="act-live-head"><h2>Actividad de usuarios</h2><button type="button" class="btn" onclick="PLATINUM_ACTIVIDAD.abrir()" aria-label="Actualizar actividad">↻</button><button type="button" class="btn" onclick="PLATINUM_ACTIVIDAD.cerrar()" aria-label="Cerrar actividad">×</button></div><div id="act-live-body" class="act-live-body"></div></aside>
 <!-- PLATINUM_APP -->

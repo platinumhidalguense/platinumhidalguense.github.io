@@ -40,6 +40,7 @@
    ${resumen(d)}<p id="cs-actualizando" class="fhint" role="status"></p><div id="cs-alertas"></div>
    <details id="cs-datos" ${noActual?'open':''}><summary>Trabajadores, comprobantes y cheques · S${d.semana}</summary><div class="cg-toolbar">${[['PERSONAS','Por trabajador'],['COMPROBANTES','Globales e individuales'],['CHEQUES','Cheques y entrega']].map(([t,n])=>boton(n,'tipo',`data-tipo="${t}"`)).join('')}<input id="cs-q" placeholder="Buscar número, nombre, contratista o folio…" aria-label="Buscar en la semana"></div><div id="cs-registros" class="cs-registros"></div></details>
    <section id="cs-stepper">${d.detalle?'':'<div class="cs-historico">Esta semana aún no tiene fotografía de cierre. Sus comprobantes y cheques se pueden consultar arriba.</div>'+(!d.solo_lectura?boton('Crear fotografía de esta semana','nueva'):'')}</section></section><section id="cs-gestion" role="tabpanel" aria-labelledby="cs-tab-cheques" ${tab!=='cheques'?'hidden':''}><div id="cs-cheques"></div></section>`;
+  if(window.PLATINUM_RECORRIDO?.coincide(d))node.querySelector('.cs-cabecera').insertAdjacentHTML('beforeend','<button class="btn" type="button" onclick="PLATINUM_RECORRIDO.abrir()">Volver a preparación</button>');
   node.onclick=e=>{const b=e.target.closest('[data-cs]');if(b)seguro(()=>accion(b))();};
   $s('semana').onchange=e=>seguro(()=>cargar(Number(e.target.value)))();
   if($s('periodo'))$s('periodo').onchange=e=>seguro(()=>cargar(d.semana,e.target.value))();

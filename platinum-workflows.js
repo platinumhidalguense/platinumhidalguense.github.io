@@ -268,7 +268,8 @@
   await call('TRANSFERIR_FINIQUITO',{trabajador_id:wid,semana:sem,pago_id:pago,motivo:el('flow-reason').value,confirmacion:'CONFIRMAR TRANSFERENCIA'});
   cfg.toast(pago?'Transferencia conciliada y cheque pendiente retirado.':'Excepción declarada; comprobante bancario pendiente.','ok');await cfg.reload();if(state?.id)await abrirCierre(state.id);else cfg.openPayments();
  });}
- async function bandeja(consolidado=false){try{
+ async function bandeja(consolidado=false,resumen=false){try{
+  if(!consolidado&&!resumen&&root.PLATINUM_RECORRIDO)return root.PLATINUM_RECORRIDO.abrir();
   await loadPermissions();const ctx=context();if(consolidado&&!permissions.admin)throw Error('El consolidado es exclusivo del administrador.');
   if(!consolidado&&!ctx.obra)throw Error('Selecciona un centro de trabajo.');
   const d=await call('BANDEJA',{obra_id:consolidado?null:ctx.obra.id});state={id:null,requests:d.solicitudes,obraId:ctx.obra?.id};

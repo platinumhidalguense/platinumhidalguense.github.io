@@ -1,20 +1,20 @@
 # Flujo integrado · PLATINUM
 
-Versión 2026-10-16.2. Supabase + GitHub Pages + xlsx-js-style. Sin motores nuevos, nuevas suscripciones ni correcciones masivas de información.
+Guía operativa actualizada para el recorrido conectado. Supabase, GitHub Pages y xlsx-js-style. [Preparación, comparación y verificación](RECORRIDO_OPERATIVO.md).
 
 ## Dónde está
 
-Selecciona empresa y centro. Abre **Centro de control → Pendientes y aprobaciones**. El administrador puede cambiar a Consolidado; los demás conservan exclusivamente su alcance. En **Cierre de nómina → Flujo integrado** están fotografía, NOI, recibos, aprobación, aplicaciones, saldos e historial. El botón pequeño **?** contiene la guía de operación.
+Selecciona empresa y centro. Abre **Inicio → Pendientes y aprobaciones** o la misma opción del Centro de control. Selecciona semana y cierre. **Conciliador del periodo** abre las acciones de fotografía, NOI, recibos, autorización, saldos e historial del cierre elegido. Consolidado requiere permiso de administración.
 
 ## Secuencia semanal
 
 1. Captura movimientos, incidencias, créditos y calendario IMSS en sus módulos habituales. Los avisos compartidos actualizan las lecturas; no sustituyen una captura abierta.
 2. Crea el cierre o prepara de nuevo su fotografía. Se usa el mismo motor de proyección existente. Previsión social queda identificada aparte del neto fiscal NOI; no se inventan percepciones ni impuestos.
 3. Importa el archivo final NOI. Se reemplaza completo en una sola transacción: un error no deja media conciliación. Las filas ausentes o diferentes quedan pendientes. Si hay PDF archivados sin lectura, utiliza **Leer recibos**. El archivo se descarga privadamente, se comprueba su huella cuando existe y se extrae el neto con el lector actual. Si no es legible, requiere revisión; nunca se supone un importe.
-4. Contabilidad envía a revisión. Otra persona, que además debe ser el administrador, autoriza con confirmación adicional. Se guarda una versión fija y sus obligaciones por trabajador/concepto. Exportar un periodo autorizado usa esa versión, no una nueva ejecución del motor.
+4. Desde BORRADOR, una cuenta con escritura, alcance y autorización efectiva confirma el cierre directo. El servidor revalida fotografía, fuentes y conciliación. Los cierres con estado histórico REVISADO conservan su ruta admitida. La autorización fija la versión y sus obligaciones por trabajador y concepto. La exportación autorizada usa esa versión.
 5. Importa los comprobantes bancarios por los métodos habituales. Una transferencia exacta de la semana actual puede completar automáticamente el saldo si no hay ambigüedad. También se contempla que se haya importado antes de autorizar. Los parciales se aplican eligiendo comprobante e importe; muestran saldo restante. Registrar/aplicar comprobantes **no envía dinero al banco**.
-6. Expide cheques sólo con NOI positivo y conciliado y cierre autorizado. No se admiten diferencias de un centavo. Expedición registra pago; entrega física pendiente se controla separadamente y continúa en reuniones/bloques. Marcar entregado no vuelve a sumar el importe.
-7. **Timbrado** requiere los CFDI XML de la semana y su coincidencia; un PDF de recibo no sustituye XML. **Pagado** requiere saldos sin pendientes ni excedentes. Los ajustes de información de un periodo autorizado exigen solicitud, reapertura aprobada y nueva autorización.
+6. Usa las guardas del Conciliador para candidatos nuevos. Para un cheque existente, verifica el importe fiscal con el comprobante timbrado admisible o la fuente de respaldo prevista por la operación. La corrección auditada de folios físicos tiene su propio permiso. Expedición registra el pago y entrega es un estado independiente.
+7. **Timbrado** requiere respaldo fiscal admitido por el servidor. XML o PDF fiscal verificable deben coincidir con empresa, persona, periodo, concepto, folio e importe. Un UUID respaldado en ambos formatos cuenta una vez. Las contradicciones quedan pendientes. **Pagado** exige una segunda cuenta autorizada y saldos sin pendientes ni excedentes. Los cambios de un periodo protegido siguen la solicitud y reapertura autorizadas.
 
 ## Excepciones y regularizaciones
 

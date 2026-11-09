@@ -108,18 +108,22 @@ async function pyDatosFrescos(entradas=null){
   if($('py-prev'))pyPreview();
   return true;
 }
-function openProyeccion(){
-  const [d1,d2]=weekBounds();
+function openProyeccion(contexto=null){
+  const semana=Number(contexto?.semana);
+  const seleccion=Number.isInteger(semana)&&semana>=1&&semana<=53;
+  const fechas=[contexto?.desde,contexto?.hasta];
+  const [d1,d2]=seleccion&&fechas.every(f=>/^\d{4}-\d{2}-\d{2}$/.test(f))&&fechas[0]<=fechas[1]?fechas:weekBounds();
+  const periodo=seleccion?contexto.periodo:null;
   modal(`
     <div class="m-head"><h2>💰 Proyección de nómina</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <p style="color:var(--mut);margin-bottom:14px">Obra: <b>${esc(OBRA.nombre)}</b>. Incluye activos y bajas de la semana. Los finiquitos son por cheque salvo excepción de transferencia autorizada por el administrador. En dispersión, la nómina sin cuenta ni CLABE aparece al final con método POR DEFINIR. La proyección para contratistas conserva únicamente el total general. Los totales del Excel llevan fórmulas.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
-        <div><label>No. de semana</label><input id="py-sem" type="number" value="${semObra()}" oninput="semSincroniza('py-sem','py-d1','py-d2',pyPreview)"></div>
+        <div><label>No. de semana</label><input id="py-sem" type="number" value="${seleccion?semana:semObra()}" oninput="semSincroniza('py-sem','py-d1','py-d2',pyPreview)"></div>
         <div><label>Del día</label><input id="py-d1" type="date" value="${d1}" oninput="pyPreview()"></div>
         <div><label>Al día</label><input id="py-d2" type="date" value="${d2}" oninput="pyPreview()"></div>
         <div><label>Periodo</label><select id="py-periodo" onchange="pyPreview()">
-          <option value="SEMANAL">Solo semanales</option><option value="QUINCENAL">Solo quincenales</option><option value="TODOS">Todos</option>
+          <option value="SEMANAL">Solo semanales</option><option value="QUINCENAL" ${periodo==='QUINCENAL'?'selected':''}>Solo quincenales</option><option value="TODOS" ${periodo==='TODOS'?'selected':''}>Todos</option>
         </select></div>
       </div>
       <div id="py-prev" style="margin-top:14px">Actualizando trabajadores y retenciones...</div>

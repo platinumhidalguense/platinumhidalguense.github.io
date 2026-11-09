@@ -286,8 +286,8 @@ function agruparExpedienteFicha(){
     }else if(cuerpo)cuerpo.appendChild(n);
   });
 }
-function openDetail(id){
-  if(typeof OBRA_CARGA_COMPLETA!=='undefined'&&!OBRA_CARGA_COMPLETA)return conCentroCompleto(()=>openDetail(id));
+function openDetail(id,mesCalendario){
+  if(typeof OBRA_CARGA_COMPLETA!=='undefined'&&!OBRA_CARGA_COMPLETA)return conCentroCompleto(()=>openDetail(id,mesCalendario));
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
   const d=w.docs||{};
   const kv=(l,v)=>`<div class="kv"><b>${l}</b><span>${(v??'')||'—'}</span></div>`;
@@ -371,6 +371,7 @@ function openDetail(id){
       <button class="btn" onclick="exportExpediente('${w.id}')">📊 Exportar expediente (Excel)</button>
       <button class="btn" onclick="openHistorial('${w.id}')">🕘 Historial</button>
       ${window.PLATINUM_RRHH?`<button class="btn" onclick="PLATINUM_RRHH.abrir('expediente','${w.id}')">🗂 Expediente 360</button><button class="btn" onclick="PLATINUM_RRHH.abrir('importe','${w.id}')">🔎 Explicar nómina</button>`:''}
+      ${window.PLATINUM_RECORRIDO?`<button class="btn" onclick="PLATINUM_RECORRIDO.abrir(null,'${w.id}',null,'${periodoPago(w)}')">Preparación de nómina</button>`:''}
       ${puedeEditarTrabajador()?`<button class="btn" onclick="openIMSSWorker('${w.id}')">🏥 Control IMSS</button>`:''}
       <button class="btn" onclick="openValidar('${w.id}')">🔍 Validar</button>
       <button class="btn" onclick="openContrato('${w.id}')">📄 Contrato</button>
@@ -389,7 +390,7 @@ function openDetail(id){
       </div></details>
     </div>`,'worker-ficha');
   agruparExpedienteFicha();
-  window.PLATINUM_CALENDARIO?.montar(id);
+  window.PLATINUM_CALENDARIO?.montar(id,mesCalendario);
   /* Consulta dirigida de SUS documentos, filtrando en el servidor. Si trae
      algo que la carga masiva no tenía, se vuelve a pintar solo esa sección.
      Se comprueba que la ficha siga abierta y sea la misma persona: si el

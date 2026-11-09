@@ -57,8 +57,9 @@ async function rrhhAbrirCierre(id){
   if(OBRA?.id!==r.data.obra_id){await selectObra(r.data.obra_id);if(OBRA?.id!==r.data.obra_id)throw Error('No se pudo abrir el centro del cierre.');}
   return window.PLATINUM_FLOWS.abrirCierre(id);
 }
-async function rrhhAbrirOrigen(tipo,id,entidad){
-  if(tipo==='CIERRES')return openCtrlCierres();
+async function rrhhAbrirOrigen(tipo,id,entidad,periodo){
+  if(tipo==='CIERRES')return periodo&&window.PLATINUM_CONCILIADOR_SEMANAL
+    ?window.PLATINUM_CONCILIADOR_SEMANAL.abrir(null,periodo.sem,periodo.cierre):openCtrlCierres();
   if(tipo==='IMSS')return id?openFichaIncidentes(id):openCtrlIncidentes();
   if(tipo==='PAGOS')return openControlPagos();
   if(tipo==='CHEQUES'){closeModal();return setView('chq');}
@@ -69,7 +70,8 @@ async function rrhhAbrirOrigen(tipo,id,entidad){
   throw Error('Este origen no tiene navegación habilitada. Consulta el módulo correspondiente.');
 }
 if(window.PLATINUM_RRHH)window.PLATINUM_RRHH.configure({
-  context:()=>({sb,obra:OBRA,empresaNombre:OBRA?razonSocialEmpresa(empresaDeObra(OBRA)):''}),
+  context:()=>({sb,obra:OBRA,usuario:USER?.id,empresaNombre:OBRA?razonSocialEmpresa(empresaDeObra(OBRA)):''}),
   $,esc,money,table:ctrlTabla,modal,toast,week:isoWeek,range:semRange,preview:rrhhVistaActual,
-  document:rrhhAbrirDocumento,openClosure:rrhhAbrirCierre,route:rrhhAbrirOrigen
+  document:rrhhAbrirDocumento,openClosure:rrhhAbrirCierre,route:rrhhAbrirOrigen,
+  preparacion:(...args)=>window.PLATINUM_RECORRIDO?.abrir(...args)
 });
