@@ -293,12 +293,23 @@
  async function exportar(id){return operation(async()=>{const d=await call('DETALLE',{cierre_id:id});await cfg.exportRows('SALDOS Y COMPROBANTES · S'+d.cierre.semana,
   ['NO.','TRABAJADOR','CONTRATISTA','CONCEPTO','MÉTODO','AUTORIZADO','PAGO REGISTRADO','SALDO','ENTREGA PENDIENTE','ESTADO'],d.saldos.map(x=>[x.numero,x.nombre,x.contratista,x.tipo,x.metodo,x.importe,x.pago_registrado,x.saldo,x.entrega_pendiente,x.estado_pago]),'SALDOS_S'+d.cierre.semana);});}
  const netosEnCurso=new Map();
- async function resolverNeto(c){
-  const key=JSON.stringify([c.obra_id,c.trabajador_id,c.semana,c.tipo_pago,c.cierre_id||null]);
+ async function resolverNeto(c,{diagnostico:incluirDiagnostico=true}={}){
+  const key=JSON.stringify([c.id||null,c.obra_id,c.trabajador_id,c.semana,c.tipo_pago,c.cierre_id||null,incluirDiagnostico]);
   if(netosEnCurso.has(key))return netosEnCurso.get(key);
   const task=(async()=>{try{
    const initial=context().obra?.id;if(initial!==c.obra_id)throw Error('Abre el cheque en su centro de trabajo.');
-   let r=await call('NETO_CHEQUE',c);const notes=[],tp=c.tipo_pago==='FINIQUITO'?'FINIQUITO':'NOMINA';
+   let r=await call('NETO_CHEQUE',c);
+   if(c.id&&root.PLATINUM_ARCHIVO_RECIBOS?.cotejar){
+    let diagnostico;
+    try{if(incluirDiagnostico)diagnostico=await root.PLATINUM_ARCHIVO_RECIBOS.cotejar(c);}
+    catch(e){r={...r,advertencias:[...(r.advertencias||[]),'No se pudo abrir el detalle documental: '+e.message]};}
+    if(context().obra?.id!==initial)throw Error('Cambió el centro durante la verificación.');
+    const neto=r.neto==null?null:Number(r.neto);
+    if(r.error)return {...r,diagnostico};
+    if(!Number.isFinite(neto)||neto<=0)return {...r,diagnostico,error:'El respaldo de este concepto indica $0 o un neto no positivo; no corresponde expedir cheque.'};
+    return {...r,neto,diagnostico};
+   }
+   const notes=[],tp=c.tipo_pago==='FINIQUITO'?'FINIQUITO':'NOMINA';
    if(!r.error||['SIN_RESPALDO','DIFERENCIA_FUENTES'].includes(r.estado))for(const doc of [...new Map((r.recibos_sin_leer||[]).map(d=>[d.id,d])).values()].slice(0,20)){
     if(context().obra?.id!==initial)throw Error('Cambió el centro durante la verificación.');
     try{

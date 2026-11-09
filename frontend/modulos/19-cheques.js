@@ -159,9 +159,9 @@ async function crCrearFaltantes(){
 }
 /* El importe prioriza CFDI timbrado y después NOI; sin NOI, PDF individual de la
    misma obra, semana, persona Y tipo. Nunca sustituir finiquito por sueldo. */
-async function chqResolverNeto(c){
+async function chqResolverNeto(c,opciones){
   if(!window.PLATINUM_FLOWS)return {error:'El flujo integrado no cargó. Recarga antes de expedir.'};
-  return window.PLATINUM_FLOWS.resolverNeto(c);
+  return window.PLATINUM_FLOWS.resolverNeto(c,opciones);
 }
 function chqCapturaExistente(c,w,semana,tipo,neto){
   return !!(c?.id&&c.estatus==='PENDIENTE'&&!c.eliminado&&c.obra_id===OBRA?.id
@@ -184,12 +184,21 @@ async function chqTraerRecibo(){
   const nom=($('c-nombre')?.value||'').trim().toUpperCase(),w=WORKERS.find(x=>fullName(x).toUpperCase()===nom);
   if(!w){toast('Elige primero un trabajador registrado.','err');return;}
   const rec={obra_id:OBRA.id,trabajador_id:w.id,semana:$('f-c-semana')?.value,tipo_pago:$('c-tipo')?.value};
-  const r=await chqResolverNeto(rec),input=$('f-c-importe'),aviso=$('c-neto-fuente');
-  if(!aviso||aviso!==$('c-neto-fuente')||rec.obra_id!==OBRA?.id||rec.trabajador_id!==(WORKERS.find(x=>fullName(x).toUpperCase()===($('c-nombre')?.value||'').trim().toUpperCase())?.id)||rec.semana!==$('f-c-semana')?.value||rec.tipo_pago!==$('c-tipo')?.value)return;
-  if(r.error){aviso.textContent=r.error;if(r.puede_leer_pdf&&window.PLATINUM_RECIBOS_IA){const b=document.createElement('button');b.type='button';b.className='btn';b.textContent='Leer recibos con Gemini';b.onclick=()=>window.PLATINUM_RECIBOS_IA.abrir(normSem(rec.semana));aviso.appendChild(b);}toast(r.error,'err');return;}
-  if(input)input.value=r.neto.toFixed(2);
   const previo=CHEQUES.find(c=>c.id===$('c-save')?.dataset?.chequeId);
-  chqMostrarRespaldo(r,chqCapturaExistente(previo,w,rec.semana,rec.tipo_pago,r.neto));
+  if(previo?.obra_id===rec.obra_id&&previo.trabajador_id===rec.trabajador_id&&normSem(previo.semana)===normSem(rec.semana)&&previo.tipo_pago===rec.tipo_pago)
+    Object.assign(rec,{id:previo.id,cierre_id:previo.cierre_id});
+  const aviso=$('c-neto-fuente'),r=await chqResolverNeto(rec),input=$('f-c-importe');
+  if(!aviso||aviso!==$('c-neto-fuente')||rec.obra_id!==OBRA?.id||rec.trabajador_id!==(WORKERS.find(x=>fullName(x).toUpperCase()===($('c-nombre')?.value||'').trim().toUpperCase())?.id)||rec.semana!==$('f-c-semana')?.value||rec.tipo_pago!==$('c-tipo')?.value)return;
+  if(r.error)aviso.textContent=r.error;
+  else{
+   if(input)input.value=r.neto.toFixed(2);
+   chqMostrarRespaldo(r,chqCapturaExistente(previo,w,rec.semana,rec.tipo_pago,r.neto));
+  }
+  if(r.diagnostico&&window.PLATINUM_ARCHIVO_RECIBOS){
+   const b=document.createElement('button');b.type='button';b.className='btn';b.textContent='Revisar PDF, XML y NOI';
+   b.onclick=()=>window.PLATINUM_ARCHIVO_RECIBOS.abrirCheque(rec,r.diagnostico,chqTraerRecibo,true);aviso.appendChild(b);
+  }
+  if(r.error){toast(r.error,'err');return;}
   toast(`Importe $${money(r.neto)} verificado contra ${r.origen}.`,'ok');
 }
 function renderCheques(){if(!$('chq-tbody'))return $('gq-tbody')?window.PLATINUM_GESTION_CHEQUES.refrescar():window.PLATINUM_CONCILIADOR_SEMANAL?.refrescar();

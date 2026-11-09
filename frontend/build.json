@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-09.1",
-  "entry": "assets/platinum-app.751023791fb06a67.js",
-  "sha256": "751023791fb06a67ecaa1f8b24517e4c58b5a9ecbb01f05ed6940c72d7137a06",
-  "integrity": "sha384-WZ/JAsDlsNmJel0KvTjnnyV+bz+R0dXt0mFx83aANzEkio1rHW+C81Ge1bU1GO08",
+  "version": "2026-11-09.2",
+  "entry": "assets/platinum-app.2890c36626937de5.js",
+  "sha256": "2890c36626937de5240ce0950df88eafffce34bfd11fe156816d10267590e449",
+  "integrity": "sha384-lYenaoDaApygdTm/bdKQOJmtUAAtXcwHjaeKj/8jTBNpwzZk0WTZftqTRpW1c/88",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "dd7e97acfc1c771ad1d91034e8e08c9bc2512742eca580ddab2e0506da4124b2"
+      "sha256": "8650687db52ecb229ddb98e92769ff95971468c54a5c313cd5900f075142eb20"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -82,7 +82,7 @@
     },
     {
       "path": "frontend/modulos/19-cheques.js",
-      "sha256": "e05c90c79c9846b87ea4a9c11e70a742458f7754381968cbbc754bf00405b8c9"
+      "sha256": "6a7a15808c13b2fe3911483b0ce9707605d0c908260a9c63690ad2d7fa2f7247"
     },
     {
       "path": "frontend/modulos/20-movimientos-semanales.js",
@@ -258,7 +258,7 @@
     },
     {
       "path": "frontend/modulos/63-gestion-cheques.js",
-      "sha256": "ab3ae207b334db88f17285e6f761956f80ace967444070f8d22cd025f3b767a7"
+      "sha256": "cf5b08068528dcdbf3aad35397692223bd2cd6e6411c5bd9810b1589208dced4"
     },
     {
       "path": "frontend/modulos/64-datos-centro-en-vivo.js",
@@ -274,7 +274,11 @@
     },
     {
       "path": "frontend/modulos/67-archivo-recibos.js",
-      "sha256": "dad137664f4a68ce1013416acc7094ebacca2b77f73ac381172c13f76042dba5"
+      "sha256": "92cdb90e327aa17b4d375fed8195b70c7258b4c0ae8a043a2adb9e081a669e7c"
+    },
+    {
+      "path": "frontend/modulos/68-lectura-contextual-recibos.js",
+      "sha256": "2b294bba0050bc6c1cbeef253d4c406fcd4635dd8ff94040375d25fb4ac4e1e7"
     }
   ]
 }

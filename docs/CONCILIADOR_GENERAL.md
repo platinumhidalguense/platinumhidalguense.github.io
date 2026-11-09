@@ -43,7 +43,15 @@ Se retiran los cuerpos de presentación, conservando los nombres como rutas de c
 | Importador directo PDF/XML | `openCfdiImport` | Archivo documental por cierre |
 | Detalle integrado de cierre independiente | `renderCierre` en coordinador | Mismo Stepper |
 
-Para archivar recibos, usa **Pagos y conciliación → Recibos de nómina → Importar recibos PDF y XML**. El mismo importador se abre desde la cabecera del Conciliador, el paso 3 y Faltan recibos. Confirma el centro, el cierre y sus fechas antes de elegir archivos. El archivo de un borrador histórico conserva el paso financiero y su fotografía. Los archivos archivados quedan pendientes de verificación fiscal. La función **Importar acuses IMSS** está en **IMSS / INFONAVIT**. El paso 3 conserva la verificación, los controles financieros y la recuperación de originales que ya estaban cargados.
+Para archivar recibos, usa **Pagos y conciliación → Recibos de nómina → Importar recibos PDF y XML**. El mismo importador se abre desde la cabecera del Conciliador, el paso 3 y Faltan recibos. Confirma el centro, el cierre y sus fechas antes de elegir archivos. El archivo de un borrador histórico conserva el paso financiero y su fotografía. La vista indica cuáles originales siguen pendientes de verificación fiscal. La función **Importar acuses IMSS** está en **IMSS / INFONAVIT**. El paso 3 conserva la verificación, los controles financieros y la recuperación de originales que ya estaban cargados.
+
+### Lectura de originales y revisión por cheque
+
+La vista previa lee PDF y XML al seleccionarlos. En **Revisar campos**, compara el original y la región detectada. La transcripción manual o asistida sólo se incorpora si coincide literalmente con esa región. Un conflicto de identidad, un bloque sin límites fiables o una región sin texto comprobable queda en revisión. Cuando cada página tiene un resumen y una identidad comprobables, la vista previa distingue los bloques. Para el archivo canónico se requieren originales individuales.
+
+Confirmar intenta el archivo privado y la comprobación fiscal del mismo original. La lectura fiscal del servidor comprueba la huella y usa la fuente fiscal que consulta Gestión de Cheques. Los pendientes archivados aparecen al volver al cierre y se pueden retomar desde la misma vista. Si Gemini devuelve 429 o 503, se conservan las filas anteriores. La ayuda sólo envía la etiqueta y el fragmento solicitado. No consulta el estado del CFDI ante el SAT.
+
+En **Gestión de Cheques → Revisar fuentes**, compara el cheque con NOI, PDF y XML de su mismo contexto. Se muestran los recibos pendientes, la procedencia disponible de NOI y las fuentes descartadas por periodo o concepto. Un desglose sin vínculo se muestra como candidato y requiere cotejo del reporte original antes de adoptarlo. PDF y XML compatibles del mismo UUID cuentan como un timbre.
 
 ## Verificación
 

@@ -61,7 +61,7 @@
   "buildProyDestinoWS": "Despacha al formato corporativo del contratista de diez columnas; conserva intacto el exportador compacto de dispersión y no modifica el modelo.",
   "buildProyRetencionesWS": "Sólo para contratista colorea el tipo de crédito INFONAVIT/FONACOT; importes, fórmulas y salida de dispersión intactos.",
   "proyLibro": "Transmite el destino al estilo del detalle de retenciones; conserva ambos libros, marcas corporativas y alcance de obras.",
-  "chqTraerRecibo": "Conserva respaldo NOI/PDF por identidad, semana y concepto y validación de contexto; informa que la captura física de un pendiente persistido idéntico no requiere aprobar el cierre. Crear o cambiar identidad/importe/concepto conserva las guardas previas.",
+  "chqTraerRecibo": "Consulta respaldo del cheque vinculado y abre la revisión contextual sin perder su captura. Conserva confirmaciones financieras.",
   "ctrlExtraerFilasNOI": "Conserva RFC, CURP y NSS originales de cada fila para cruzar por identidad y archivar la clave NOI sin asociar sólo por número.",
   "softRefresh": "Propaga únicamente nombres de fuentes invalidadas al lector; conserva consulta de centros autorizados, alcance, errores visibles y captura diferida. Manual y reconexión solicitan una comprobación completa. 07/11: Sólo recupera fuentes requeridas en reconexión, acción explícita o derivación de cierre; no borra la última lectura.",
   "actualizarDatosCompartidos": "La acción manual pide prioridad inmediata a la cola sin permitir consultas simultáneas ni saltarse el bloqueo de capturas abiertas. 07/11: Conserva la solicitud manual cuando hay captura abierta.",
@@ -173,5 +173,6 @@
   "doBaja": "07/11: La baja usa vista provisional aislada, confirma en Supabase y revierte ante error; mantiene el cheque y la bitácora en sus rutas actuales.",
   "renderObraBar": " 07/11: conteo agregado bajo demanda; aviso de versión sin intervalo.",
   "refreshCounts": " 07/11: conteo agregado bajo demanda; aviso de versión sin intervalo.",
-  "openFaltanRecibos": "Abre el importador documental con la semana consultada y recupera el mismo contexto al volver."
+  "openFaltanRecibos": "Abre el importador documental con la semana consultada y recupera el mismo contexto al volver.",
+  "chqResolverNeto": "Conserva la ruta fiscal y permite omitir diagnóstico detallado durante verificaciones de lista."
 }
