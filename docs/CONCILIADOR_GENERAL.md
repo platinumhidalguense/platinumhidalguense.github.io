@@ -40,10 +40,10 @@ Se retiran los cuerpos de presentación, conservando los nombres como rutas de c
 | Listado de cierres / nueva fotografía | `openCtrlCierres`, `openCtrlNuevoCierre` | Selector del Conciliador / fotografía existente |
 | Importador y comparador NOI independiente | `openCtrlConciliacionSelector`, `ctrlOpenConciliacion` | Etapa 1 |
 | Importador BBVA independiente | `openImportPago` | Etapa 2 |
-| Importador XML independiente | `openCfdiImport` | Etapa 3 |
+| Importador directo PDF/XML | `openCfdiImport` | Archivo documental por cierre |
 | Detalle integrado de cierre independiente | `renderCierre` en coordinador | Mismo Stepper |
 
-Los recibos PDF también se canalizan a la etapa 3. El importador documental anterior conserva acuses IMSS. Los lectores, reportes, solicitudes, saldos, aplicaciones, autorizaciones y archivo administrativo no se eliminan. No deben borrarse completos los módulos 14, 15, 25 o 35: contienen servicios reutilizados.
+Para archivar recibos, usa **Pagos y conciliación → Recibos de nómina → Importar recibos PDF y XML**. El mismo importador se abre desde la cabecera del Conciliador, el paso 3 y Faltan recibos. Confirma el centro, el cierre y sus fechas antes de elegir archivos. El archivo de un borrador histórico conserva el paso financiero y su fotografía. Los archivos archivados quedan pendientes de verificación fiscal. La función **Importar acuses IMSS** está en **IMSS / INFONAVIT**. El paso 3 conserva la verificación, los controles financieros y la recuperación de originales que ya estaban cargados.
 
 ## Verificación
 

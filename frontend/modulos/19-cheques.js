@@ -74,7 +74,7 @@ async function crAnalizar(){
   const sem=($('cr-sem').value||'').trim(); const ns=normSem(sem);
   if(!ns){toast('Escribe la semana (ej. S17).','err');return;}
   const recs=(DOCSX||[]).filter(d=>esRecibo(d)&&normSem(d.semana)===ns);
-  if(!recs.length){$('cr-out').innerHTML='<div class="empty">No hay recibos de nómina archivados en la semana S'+ns+' en esta obra. Impórtalos en 📥 Importar → Acuses IMSS y recibos (categoría RECIBO DE NÓMINA).</div>';$('cr-btn').classList.add('hide');return;}
+  if(!recs.length){$('cr-out').innerHTML='<div class="empty">No hay recibos de nómina archivados en la semana S'+ns+' en esta obra. Impórtalos en Pagos y conciliación → Recibos de nómina → Importar recibos PDF y XML.</div>';$('cr-btn').classList.add('hide');return;}
   $('cr-out').innerHTML=skeletonRows(Math.min(9,Math.max(3,recs.length)),'1.5fr .8fr 1fr 1fr 1fr','Descargando y leyendo '+recs.length+' recibo(s) de nómina...');
   try{for(let offset=0;offset<recs.length;offset+=100){
     const r=await sb.rpc('control_flujo_operar',{p_accion:'DOCUMENTOS_FISCALES',p_datos:{obra_id:obraConsulta,ids:recs.slice(offset,offset+100).map(d=>d.id)}});

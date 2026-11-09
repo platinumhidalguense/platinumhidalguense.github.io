@@ -1,0 +1,804 @@
+{
+  "base": "2026-11-08.2",
+  "candidata": "2026-11-09.1",
+  "contexto": [
+    "navPaso('empresa')",
+    "navPaso('obra')"
+  ],
+  "contextuales": "Coincidencias literales fuera de la cinta. El mapa operativo documenta los enlaces por controlador.",
+  "acciones": [
+    {
+      "etiqueta": "Centro de control",
+      "modulo": "Inicio y Centro de Control",
+      "grupo": "Supervisión",
+      "destino": "sbGo(openControlEmpresarial,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": "vb-control",
+      "moduloNuevo": "Inicio",
+      "grupoNuevo": "Supervisión",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Dashboard ejecutivo",
+      "modulo": "Inicio y Centro de Control",
+      "grupo": "Supervisión",
+      "destino": "sbGo(openDashboard,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Inicio",
+      "grupoNuevo": "Supervisión",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Alertas",
+      "modulo": "Inicio y Centro de Control",
+      "grupo": "Supervisión",
+      "destino": "sbGo(openAlertas,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Inicio",
+      "grupoNuevo": "Supervisión",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Pendientes y aprobaciones",
+      "modulo": "Inicio y Centro de Control",
+      "grupo": "Supervisión",
+      "destino": "sbGo(()=>PLATINUM_FLOWS.bandeja(false),this,false)",
+      "carga": "Sin carga completa previa",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Inicio",
+      "grupoNuevo": "Seguimiento",
+      "contextuales": [
+        "platinum-workflows.js"
+      ]
+    },
+    {
+      "etiqueta": "Operación RRHH",
+      "modulo": "Gestión de RRHH y Cumplimiento Interno",
+      "grupo": "Operación y seguimiento",
+      "destino": "sbGo(()=>PLATINUM_RRHH.abrir(),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Inicio",
+      "grupoNuevo": "Seguimiento",
+      "contextuales": [
+        "frontend/modulos/04-padron-expedientes.js"
+      ]
+    },
+    {
+      "etiqueta": "Padrón de trabajadores",
+      "modulo": "Empleados y Expedientes",
+      "grupo": "Padrón y movimientos",
+      "destino": "navVista('trab')",
+      "carga": "Delegada a la vista",
+      "permiso": "Guardas de la herramienta",
+      "id": "vb-trab",
+      "moduloNuevo": "Empleados",
+      "grupoNuevo": "Padrón y alta",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Nueva alta",
+      "modulo": "Empleados y Expedientes",
+      "grupo": "Padrón y movimientos",
+      "destino": "sbGo(()=>openForm(null),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "edicion",
+      "id": null,
+      "moduloNuevo": "Empleados",
+      "grupoNuevo": "Padrón y alta",
+      "contextuales": [
+        "frontend/modulos/04-padron-expedientes.js"
+      ]
+    },
+    {
+      "etiqueta": "Altas por semana",
+      "modulo": "Empleados y Expedientes",
+      "grupo": "Padrón y movimientos",
+      "destino": "sbGo(openAltasSemana,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Empleados",
+      "grupoNuevo": "Padrón y alta",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Control de cambios de salario",
+      "modulo": "Empleados y Expedientes",
+      "grupo": "Padrón y movimientos",
+      "destino": "sbGo(openControlSalarios,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Empleados",
+      "grupoNuevo": "Cambios y adscripción",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Transferir de obra",
+      "modulo": "Empleados y Expedientes",
+      "grupo": "Padrón y movimientos",
+      "destino": "sbGo(openTransferencia,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Empleados",
+      "grupoNuevo": "Cambios y adscripción",
+      "contextuales": [
+        "frontend/modulos/04-padron-expedientes.js"
+      ]
+    },
+    {
+      "etiqueta": "Solicitud de empleo",
+      "modulo": "Empleados y Expedientes",
+      "grupo": "Expedientes y documentos",
+      "destino": "sbGo(openSolicitudEmpleo,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Expediente",
+      "grupoNuevo": "Expedientes y documentos",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Exportar expedientes (filtro actual)",
+      "modulo": "Empleados y Expedientes",
+      "grupo": "Expedientes y documentos",
+      "destino": "sbGo(exportExpedientesGlobal,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Expediente",
+      "grupoNuevo": "Expedientes y documentos",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Reporte de documentación",
+      "modulo": "Empleados y Expedientes",
+      "grupo": "Expedientes y documentos",
+      "destino": "sbGo(openReporteDocs,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Expediente",
+      "grupoNuevo": "Expedientes y documentos",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Control de papeles",
+      "modulo": "Gestión de RRHH y Cumplimiento Interno",
+      "grupo": "Operación y seguimiento",
+      "destino": "navVista('papeles')",
+      "carga": "Delegada a la vista",
+      "permiso": "Guardas de la herramienta",
+      "id": "vb-papeles",
+      "moduloNuevo": "Expediente",
+      "grupoNuevo": "Expedientes y documentos",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Actas",
+      "modulo": "Gestión de RRHH y Cumplimiento Interno",
+      "grupo": "Prevención y disciplina",
+      "destino": "navVista('actas')",
+      "carga": "Delegada a la vista",
+      "permiso": "Guardas de la herramienta",
+      "id": "vb-actas",
+      "moduloNuevo": "Expediente",
+      "grupoNuevo": "Prevención y disciplina",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "NOM-035",
+      "modulo": "Gestión de RRHH y Cumplimiento Interno",
+      "grupo": "Prevención y disciplina",
+      "destino": "navVista('nom')",
+      "carga": "Delegada a la vista",
+      "permiso": "Guardas de la herramienta",
+      "id": "vb-nom",
+      "moduloNuevo": "Expediente",
+      "grupoNuevo": "Prevención y disciplina",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Listas de asistencia + directorio",
+      "modulo": "Asistencia, Calendarios e Incidencias",
+      "grupo": "Asistencia y cuadrillas",
+      "destino": "sbGo(openAsistencia,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Asistencia",
+      "grupoNuevo": "Listas y movimientos",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Movimientos de la semana",
+      "modulo": "Asistencia, Calendarios e Incidencias",
+      "grupo": "Asistencia y cuadrillas",
+      "destino": "sbGo(()=>openMovimientos(isoWeek()),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Asistencia",
+      "grupoNuevo": "Listas y movimientos",
+      "contextuales": [
+        "frontend/modulos/20-movimientos-semanales.js"
+      ]
+    },
+    {
+      "etiqueta": "Vacaciones y permisos",
+      "modulo": "Asistencia, Calendarios e Incidencias",
+      "grupo": "Ausencias e incidencias",
+      "destino": "navVista('vac')",
+      "carga": "Delegada a la vista",
+      "permiso": "Guardas de la herramienta",
+      "id": "vb-vac",
+      "moduloNuevo": "Asistencia",
+      "grupoNuevo": "Ausencias e incidencias",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Incidencias de la semana",
+      "modulo": "Asistencia, Calendarios e Incidencias",
+      "grupo": "Ausencias e incidencias",
+      "destino": "sbGo(openIncidencias,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Asistencia",
+      "grupoNuevo": "Ausencias e incidencias",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Proyección de nómina",
+      "modulo": "Nómina",
+      "grupo": "Cálculo y proyecciones",
+      "destino": "sbGo(openProyeccion,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Nómina",
+      "grupoNuevo": "Cálculo y proyecciones",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "ISR mensual quincenal",
+      "modulo": "Nómina",
+      "grupo": "Cálculo y proyecciones",
+      "destino": "sbGo(openISRQuincenal,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Nómina",
+      "grupoNuevo": "Cálculo y proyecciones",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Calendario de retenciones",
+      "modulo": "Nómina",
+      "grupo": "Retenciones y prestaciones",
+      "destino": "sbGo(openCalendarioRet,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Nómina",
+      "grupoNuevo": "Retenciones y prestaciones",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Papeles de prestaciones y finiquitos",
+      "modulo": "Nómina",
+      "grupo": "Retenciones y prestaciones",
+      "destino": "sbGo(()=>openPapelesFiniquito(),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Nómina",
+      "grupoNuevo": "Retenciones y prestaciones",
+      "contextuales": [
+        "frontend/modulos/46-papeles-prestaciones.js"
+      ]
+    },
+    {
+      "etiqueta": "PTU / Aguinaldo",
+      "modulo": "Nómina",
+      "grupo": "Retenciones y prestaciones",
+      "destino": "navVista('anual')",
+      "carga": "Delegada a la vista",
+      "permiso": "Guardas de la herramienta",
+      "id": "vb-anual",
+      "moduloNuevo": "Nómina",
+      "grupoNuevo": "Retenciones y prestaciones",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Cierres y versiones · Conciliador",
+      "modulo": "Nómina",
+      "grupo": "Cierres y auditoría",
+      "destino": "sbGo(()=>openCtrlCierres(),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Nómina",
+      "grupoNuevo": "Cierres y auditoría",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Bitácora de nómina",
+      "modulo": "Nómina",
+      "grupo": "Cierres y auditoría",
+      "destino": "sbGo(openBitacoraNomina,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Nómina",
+      "grupoNuevo": "Cierres y auditoría",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Movimientos afiliatorios",
+      "modulo": "Seguridad Social y Obligaciones Laborales",
+      "grupo": "IMSS, IDSE y SUA",
+      "destino": "sbGo(()=>openCtrlMovimientos(),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "IMSS / INFONAVIT",
+      "grupoNuevo": "IMSS, IDSE y SUA",
+      "contextuales": [
+        "frontend/modulos/35-centro-control.js"
+      ]
+    },
+    {
+      "etiqueta": "Incidentes, incapacidades y ST-7",
+      "modulo": "Seguridad Social y Obligaciones Laborales",
+      "grupo": "IMSS, IDSE y SUA",
+      "destino": "sbGo(()=>openCtrlIncidentes(),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "IMSS / INFONAVIT",
+      "grupoNuevo": "IMSS, IDSE y SUA",
+      "contextuales": [
+        "frontend/modulos/36-imss-sin-servicio-st7.js"
+      ]
+    },
+    {
+      "etiqueta": "Altas y bajas sin servicio",
+      "modulo": "Seguridad Social y Obligaciones Laborales",
+      "grupo": "IMSS, IDSE y SUA",
+      "destino": "sbGo(()=>openCtrlAltasCortas(),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "IMSS / INFONAVIT",
+      "grupoNuevo": "IMSS, IDSE y SUA",
+      "contextuales": [
+        "frontend/modulos/35-centro-control.js",
+        "frontend/modulos/36-imss-sin-servicio-st7.js"
+      ]
+    },
+    {
+      "etiqueta": "Avisos INFONAVIT · por RP",
+      "modulo": "Seguridad Social y Obligaciones Laborales",
+      "grupo": "Créditos y evidencias",
+      "destino": "sbGo(()=>openAvisosInfonavit(),this,false)",
+      "carga": "Sin carga completa previa",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "IMSS / INFONAVIT",
+      "grupoNuevo": "Créditos y evidencias",
+      "contextuales": [
+        "frontend/modulos/04-padron-expedientes.js"
+      ]
+    },
+    {
+      "etiqueta": "Expediente de cumplimiento",
+      "modulo": "Seguridad Social y Obligaciones Laborales",
+      "grupo": "Créditos y evidencias",
+      "destino": "sbGo(()=>openCtrlDocumentos(),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "IMSS / INFONAVIT",
+      "grupoNuevo": "Créditos y evidencias",
+      "contextuales": [
+        "frontend/modulos/35-centro-control.js"
+      ]
+    },
+    {
+      "etiqueta": "Conciliador General",
+      "modulo": "Conciliación y Comprobantes",
+      "grupo": "NOI y diferencias",
+      "destino": "navVista('conciliador')",
+      "carga": "Delegada a la vista",
+      "permiso": "Guardas de la herramienta",
+      "id": "vb-conciliador",
+      "moduloNuevo": "Pagos y conciliación",
+      "grupoNuevo": "Conciliación",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Verificar números vs NOI",
+      "modulo": "Conciliación y Comprobantes",
+      "grupo": "NOI y diferencias",
+      "destino": "sbGo(openVerificadorNOI,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Pagos y conciliación",
+      "grupoNuevo": "Conciliación",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Importar acuses IMSS",
+      "modulo": "Conciliación y Comprobantes",
+      "grupo": "Recibos y acuses",
+      "destino": "sbGo(openPdfImport,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "IMSS / INFONAVIT",
+      "grupoNuevo": "IMSS, IDSE y SUA",
+      "contextuales": [
+        "frontend/modulos/04-padron-expedientes.js"
+      ]
+    },
+    {
+      "etiqueta": "Importar recibos PDF y XML",
+      "modulo": "Conciliación y Comprobantes",
+      "grupo": "Recibos y acuses",
+      "destino": "sbGo(openCfdiImport,this,false)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Pagos y conciliación",
+      "grupoNuevo": "Recibos de nómina",
+      "contextuales": [],
+      "decision": "Archivo documental por cierre"
+    },
+    {
+      "etiqueta": "Faltan recibos de nómina",
+      "modulo": "Conciliación y Comprobantes",
+      "grupo": "Recibos y acuses",
+      "destino": "sbGo(openFaltanRecibos,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Pagos y conciliación",
+      "grupoNuevo": "Recibos de nómina",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Pagos y comprobantes bancarios · Conciliador",
+      "modulo": "Pagos, Bancos y Cheques",
+      "grupo": "Pagos y cheques",
+      "destino": "sbGo(()=>openImportPago(),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Pagos y conciliación",
+      "grupoNuevo": "Pagos y cheques",
+      "contextuales": [
+        "frontend/modulos/15-banca-conciliacion.js"
+      ]
+    },
+    {
+      "etiqueta": "Gestión de Cheques",
+      "modulo": "Pagos, Bancos y Cheques",
+      "grupo": "Pagos y cheques",
+      "destino": "navGestionCheques()",
+      "carga": "Delegada a la vista",
+      "permiso": "Guardas de la herramienta",
+      "id": "vb-cheques",
+      "moduloNuevo": "Pagos y conciliación",
+      "grupoNuevo": "Pagos y cheques",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Revisión de pagos del sábado",
+      "modulo": "Pagos, Bancos y Cheques",
+      "grupo": "Pagos y cheques",
+      "destino": "sbGo(()=>PLATINUM_PAGOS_SABADO.abrir(),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Pagos y conciliación",
+      "grupoNuevo": "Pagos y cheques",
+      "contextuales": [
+        "frontend/modulos/15-banca-conciliacion.js",
+        "frontend/modulos/19-cheques.js"
+      ]
+    },
+    {
+      "etiqueta": "Respuesta del banco (.exp)",
+      "modulo": "Pagos, Bancos y Cheques",
+      "grupo": "Cuentas y tarjetas",
+      "destino": "sbGo(openImportExp,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Pagos y conciliación",
+      "grupoNuevo": "Cuentas y tarjetas",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Cuentas del banco (Excel)",
+      "modulo": "Pagos, Bancos y Cheques",
+      "grupo": "Cuentas y tarjetas",
+      "destino": "sbGo(openImport,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Pagos y conciliación",
+      "grupoNuevo": "Cuentas y tarjetas",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Requisición de tarjetas",
+      "modulo": "Pagos, Bancos y Cheques",
+      "grupo": "Cuentas y tarjetas",
+      "destino": "sbGo(openRequisicion,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Pagos y conciliación",
+      "grupoNuevo": "Cuentas y tarjetas",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Recepción de tarjetas (firmas)",
+      "modulo": "Pagos, Bancos y Cheques",
+      "grupo": "Cuentas y tarjetas",
+      "destino": "sbGo(openRecepcionTarjetas,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Pagos y conciliación",
+      "grupoNuevo": "Cuentas y tarjetas",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Cuadrillas por contratista",
+      "modulo": "Asistencia, Calendarios e Incidencias",
+      "grupo": "Asistencia y cuadrillas",
+      "destino": "sbGo(openCuadrillas,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Cuadrillas y contratistas",
+      "grupoNuevo": "Equipos de obra",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Contratistas / REPSE",
+      "modulo": "Administración y Configuración",
+      "grupo": "Centros y contratistas",
+      "destino": "sbGo(openContratistas,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Cuadrillas y contratistas",
+      "grupoNuevo": "Contratistas y REPSE",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Editar contratistas",
+      "modulo": "Administración y Configuración",
+      "grupo": "Centros y contratistas",
+      "destino": "sbGo(openEditContratistas,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Cuadrillas y contratistas",
+      "grupoNuevo": "Contratistas y REPSE",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Proyección por contratista",
+      "modulo": "Nómina",
+      "grupo": "Cálculo y proyecciones",
+      "destino": "sbGo(openProyContratista,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Cuadrillas y contratistas",
+      "grupoNuevo": "Nómina y concentrados",
+      "contextuales": [
+        "frontend/modulos/10-proyeccion-nomina.js"
+      ]
+    },
+    {
+      "etiqueta": "Resumen por contratista",
+      "modulo": "Reportes y Análisis",
+      "grupo": "Costos, contratistas y exportación",
+      "destino": "sbGo(openResumen,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Cuadrillas y contratistas",
+      "grupoNuevo": "Nómina y concentrados",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Concentrado por contratista",
+      "modulo": "Reportes y Análisis",
+      "grupo": "Costos, contratistas y exportación",
+      "destino": "sbGo(()=>openCtrlConcentradoContratistas(),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Cuadrillas y contratistas",
+      "grupoNuevo": "Nómina y concentrados",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Plantilla a una fecha",
+      "modulo": "Reportes y Análisis",
+      "grupo": "Personal e históricos",
+      "destino": "sbGo(openPlantillaFecha,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Reportes",
+      "grupoNuevo": "Personal e históricos",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Personal histórico",
+      "modulo": "Reportes y Análisis",
+      "grupo": "Personal e históricos",
+      "destino": "sbGo(openPersonalHistorico,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Reportes",
+      "grupoNuevo": "Personal e históricos",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Correos creados",
+      "modulo": "Reportes y Análisis",
+      "grupo": "Personal e históricos",
+      "destino": "sbGo(openCorreos,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Reportes",
+      "grupoNuevo": "Personal e históricos",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Costo real de obra",
+      "modulo": "Reportes y Análisis",
+      "grupo": "Costos, contratistas y exportación",
+      "destino": "sbGo(()=>openCtrlCostos(),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Reportes",
+      "grupoNuevo": "Costos y exportación",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Exports contables · IMSS/IDSE",
+      "modulo": "Reportes y Análisis",
+      "grupo": "Costos, contratistas y exportación",
+      "destino": "sbGo(openExports,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Reportes",
+      "grupoNuevo": "Costos y exportación",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Nueva obra / centro",
+      "modulo": "Administración y Configuración",
+      "grupo": "Centros y contratistas",
+      "destino": "sbGo(openNuevaObra,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "admin",
+      "id": null,
+      "moduloNuevo": "Sistema",
+      "grupoNuevo": "Centros de trabajo",
+      "contextuales": [
+        "frontend/modulos/01-sesion-centros-sincronizacion.js"
+      ]
+    },
+    {
+      "etiqueta": "Editar centro seleccionado",
+      "modulo": "Administración y Configuración",
+      "grupo": "Centros y contratistas",
+      "destino": "sbGo(()=>openEditObra(OBRA.id),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Visibilidad por rol al iniciar sesión",
+      "id": "btn-edit-centro",
+      "moduloNuevo": "Sistema",
+      "grupoNuevo": "Centros de trabajo",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Historial de cambios",
+      "modulo": "Administración y Configuración",
+      "grupo": "Mantenimiento y respaldos",
+      "destino": "sbGo(()=>openHistorial(null),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Sistema",
+      "grupoNuevo": "Historial y asistencia",
+      "contextuales": [
+        "frontend/modulos/04-padron-expedientes.js"
+      ]
+    },
+    {
+      "etiqueta": "Autorrellenar desde CURP",
+      "modulo": "Administración y Configuración",
+      "grupo": "Mantenimiento y respaldos",
+      "destino": "sbGo(openAutorrellenar,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Sistema",
+      "grupoNuevo": "Historial y asistencia",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Asistente e índice de IA",
+      "modulo": "Administración y Configuración",
+      "grupo": "Mantenimiento y respaldos",
+      "destino": "sbGo(openIA,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Sistema",
+      "grupoNuevo": "Historial y asistencia",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Respaldo Excel",
+      "modulo": "Administración y Configuración",
+      "grupo": "Mantenimiento y respaldos",
+      "destino": "sbGo(()=>exportRespaldo(false),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Sistema",
+      "grupoNuevo": "Mantenimiento y respaldos",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Respaldo por correo",
+      "modulo": "Administración y Configuración",
+      "grupo": "Mantenimiento y respaldos",
+      "destino": "sbGo(()=>exportRespaldo(true),this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Guardas de la herramienta",
+      "id": null,
+      "moduloNuevo": "Sistema",
+      "grupoNuevo": "Mantenimiento y respaldos",
+      "contextuales": []
+    },
+    {
+      "etiqueta": "Papelera",
+      "modulo": "Administración y Configuración",
+      "grupo": "Mantenimiento y respaldos",
+      "destino": "sbGo(openPapelera,this)",
+      "carga": "Centro completo bajo demanda",
+      "permiso": "Visibilidad por rol al iniciar sesión",
+      "id": "btn-papelera",
+      "moduloNuevo": "Sistema",
+      "grupoNuevo": "Mantenimiento y respaldos",
+      "contextuales": []
+    }
+  ]
+}

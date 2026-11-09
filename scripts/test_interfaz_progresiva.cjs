@@ -12,14 +12,16 @@ const ids=new Map(),$=id=>{if(!ids.has(id))ids.set(id,new El());return ids.get(i
 const c={console,Date,Math,Number,String,Set,Map,parseInt,$,window:{scrollTo(){},_NAVIDS:[]},document:{querySelector:()=>null,querySelectorAll:()=>[],createElement:t=>new El(t)},localStorage:{setItem(){},getItem(){return null;}},toast(){},USER:{email:'test@example.test'},WORKERS:[],DOCSX:[],ALTAS_CORTAS:[],CHEQUES:[],DESC:[],CUADS:[],ACTAS:[],NOM:[],VIEW:'trab',SORT:{k:'no_trab',asc:true},OBRA:null,OBRAS:[{id:'p',nombre:'PLATINUM',empresa_codigo:'PLATINUM'},{id:'j',nombre:'JIRE',empresa_codigo:'JIRE'}],EMPRESA_ACTIVA:'PLATINUM',EMPRESAS:{PLATINUM:{corto:'PLATINUM',nombre:'Comercializadora PLATINUM'},JIRE:{corto:'JIRE',nombre:'Grupo JIRE'}},VISTAS:{trab:{txt:'Trabajadores',ic:'👷'},chq:{txt:'Cheques',ic:'🧾'}},NAV_STEP:'empresa',NAV_BUSY:false,esAdmin:()=>false,esVip:()=>false,empresaDeObra:o=>o.empresa_codigo,obrasEmpresa:code=>c.OBRAS.filter(o=>o.empresa_codigo===(code||c.EMPRESA_ACTIVA)),esc:v=>String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x])),fullName:w=>[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolean).join(' '),fmtD:v=>v||'',money:v=>Number(v||0).toFixed(2),renderStats(){},renderPagosView(){},auCargar(){},cpCargar(){},renderObraBar(){},pintarLogo(){},refreshCounts(){}};
 Object.assign(c,{SOLO_CONTRATOS:false,puedeEditarTrabajador:()=>false,repintarInstantaneaObra(){},pintarVistaObra(v){if(v==='trab')c.renderTable();}});vm.createContext(c);
 c.navRutaActual=()=>null;
+c.razonSocialEmpresa=code=>c.EMPRESAS[code].nombre;
+c.navObservarModal=()=>{};
 ['sidebarVisible','toggleSidebar','navActualizarPermisos','initSidebar','showNavStep','resetWorkerFilters','selectEmpresa','selectObra','setView','renderCrumbs','fechaAcuseISO','indiceAcusesIMSS','estadoAcuseIMSS','altaImssPendiente','altaImssPresentada','marcadorAcuseIMSS','marcadoresIMSS','baseFiltered','renderTable','fichaResumenHTML','agruparExpedienteFicha','openDetail','enterApp'].forEach(n=>vm.runInContext(fn(n),c));
 async function main(){
   c.sb={from:()=>({select:()=>({order:async()=>({data:c.OBRAS})})})};Object.assign(c,{cargaPermisos:async()=>{},iaMostrarFab(){},loadConfig:async()=>{},chequearVersion(){},chequearVersionEnVivo(){},setInterval(){},cargarContratistas:async()=>{},startRealtime(){}});
   let loads=0;c.loadPadronRapido=async()=>{loads++;return true;};c.activarPadronProgramado=async()=>{};c.OBRA_DATOS_ID=null;c.OBRA_CARGA_COMPLETA=true;
   await c.enterApp();assert.equal(c.NAV_STEP,'empresa');assert.equal(loads,0,'No abre una obra automáticamente');assert.equal($('scr-app').attrs['data-nav'],'empresa');
   await c.selectEmpresa('JIRE');assert.equal(c.NAV_STEP,'obra');assert.equal(loads,0);assert.equal(c.EMPRESA_ACTIVA,'JIRE');
-  await c.selectObra('j');assert.equal(c.NAV_STEP,'trabajadores');assert.equal(c.OBRA.id,'j');assert.equal(loads,1);assert.equal(c.VIEW,'trab');assert(!c.sidebarVisible());
-  c.toggleSidebar(true);assert(c.sidebarVisible());assert.equal($('burger').attrs['aria-expanded'],'true');c.setView('chq');assert(!c.sidebarVisible());c.showNavStep('empresa');assert.equal(c.NAV_STEP,'empresa');
+  await c.selectObra('j');assert.equal(c.NAV_STEP,'trabajadores');assert.equal(c.OBRA.id,'j');assert.equal(loads,1);assert.equal(c.VIEW,'trab');assert(c.sidebarVisible());
+  c.toggleSidebar(false);assert(!c.sidebarVisible());assert.equal($('burger').attrs['aria-expanded'],'false');c.setView('chq');assert(!c.sidebarVisible());c.showNavStep('empresa');assert.equal(c.NAV_STEP,'empresa');
   await c.selectEmpresa('PLATINUM');c.loadPadronRapido=async()=>false;await c.selectObra('p');assert.equal(c.NAV_STEP,'obra');assert.equal(c.OBRA.id,'j','Carga fallida no expone datos de otra obra');assert.equal(c.NAV_BUSY,false);
   let release;c.loadPadronRapido=()=>new Promise(r=>release=r);const pending=c.selectObra('p');await c.selectObra('j');assert.equal(c.OBRA.id,'p','Bloquea selecciones concurrentes');release(true);await pending;
   const w={id:'w',no_trab:10,primer_apellido:'PRUEBA',nombres:'UNO',estatus:'ACTIVO',fecha_alta:'2026-09-01',contratista:'MG',puesto:'ALBAÑIL',sd:350,sdi:370,sal_semanal:2400,cuenta:'SECRET_ACCOUNT',telefono:'SECRET_PHONE',docs:{}};
@@ -34,7 +36,16 @@ async function main(){
   $('q').value='10';assert.equal(c.baseFiltered().length,1);c.resetWorkerFilters();assert.equal($('q').value,'');
   const root=new El();ids.set('worker-more-content',root);const section=new El();section.className='sect';section.appendChild(new Text('Descuentos'));const button=new El('button');button.textContent='Editar';section.appendChild(button);const row=new El();row.textContent='Dato conservado';const docs=new El();docs.id='fd-docs';docs.textContent='Documentos conservados';root.appendChild(section);root.appendChild(row);root.appendChild(docs);c.agruparExpedienteFicha();assert.equal(root.children.filter(x=>x.tagName==='details').length,2);assert(root.textContent.includes('Dato conservado'));assert(root.textContent.includes('Documentos conservados'));assert.equal(root.querySelectorAll('button')[0],button,'Conserva nodos y eventos');assert.equal(docs.parentNode.className,'worker-section-body');
   const outputs=[];Object.assign(c,{agruparExpedienteFicha(){},DOCS:['INE','CURP'],docsOk:()=>1,datosFaltantes:()=>[],navTrabajadores:()=>['w'],saldoVac:()=>({saldo:0,derecho:12,anios:0}),fueraHoy:()=>null,rpDe:()=>'',tieneRPpropio:()=>false,primaDe:()=>0,fichaPagosHTML:()=>'<div class="sect">Pagos</div><p>PAGO_PRUEBA</p>',fichaDocsHTML:()=>'<div class="sect">Acuses IMSS</div><p>DOC_PRUEBA</p>',refrescaDocsDe:async()=>0,refrescaPagosDe:async()=>0,modal:(s,cls)=>{outputs.push(s);assert.equal(cls,'worker-ficha');},edad:()=>20});
-  for(const status of ['ACTIVO','BAJA','PENDIENTE']){w.estatus=status;c.openDetail('w');}
+  const calendarios=[];
+  c.window.PLATINUM_RRHH={};c.window.PLATINUM_RECORRIDO={};
+  c.window.PLATINUM_CALENDARIO={montar:(...args)=>calendarios.push(args)};
+  c.periodoPago=()=> 'SEMANAL';
+  for(const status of ['ACTIVO','BAJA','PENDIENTE']){w.estatus=status;c.openDetail('w','2026-11');}
+  assert.deepEqual(calendarios,Array.from({length:3},()=>['w','2026-11']));
+  for(const ficha of outputs){
+    assert.match(ficha,/PLATINUM_RRHH\.abrir\('expediente','w'\)/);
+    assert.match(ficha,/PLATINUM_RECORRIDO\.abrir\(null,'w',null,'SEMANAL'\)/);
+  }
   const python=process.env.PLATINUM_TEST_PYTHON||(process.platform==='win32'?'C:/Users/Admin/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe':'python3');
   const result=spawnSync(python,['-c',`import json,sys
 from lxml import html

@@ -124,7 +124,6 @@ function showNavStep(step){
   NAV_STEP=step;
   $('scr-app').setAttribute('data-nav',step);
   const fab=$('ia-fab');if(fab)fab.classList.toggle('nav-hidden',step!=='trabajadores');
-  toggleSidebar(false);
   renderObraBar();
   const heading=document.querySelector(step==='empresa'?'#empresa-step h1':step==='obra'?'#obra-step h1':'#q');
   if(heading)heading.focus({preventScroll:true});
@@ -517,7 +516,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-11-08.2';
+const APP_VERSION='2026-11-09.1';
 window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){
@@ -577,27 +576,26 @@ function setView(v){
   pintarVistaObra(v);
   if(v==='papeles')cpCargar();
   renderCrumbs();
-  toggleSidebar(false);
-  window.scrollTo({top:0,behavior:'smooth'});
+  window.scrollTo({top:0,behavior:'instant'});
 }
 /* Migas de pan: siempre se ve dónde está uno parado */
 function renderCrumbs(){
   const c=$('crumbs'); if(!c)return;
   const v=VISTAS[VIEW]||VISTAS.trab;
   const obra=(OBRA&&OBRA.nombre)||'—';
-  const empresa=(EMPRESAS[EMPRESA_ACTIVA]||EMPRESAS.PLATINUM).corto;
+  const empresa=razonSocialEmpresa(EMPRESA_ACTIVA);
   if(NAV_STEP!=='trabajadores'){
-    c.innerHTML=`<span class="c-i"><a href="#" onclick="navPaso('empresa');return false">🏢 Empresas</a></span>${NAV_STEP==='obra'?`<span class="sep">›</span><span class="c-i cur">${esc(empresa)} · Centros de trabajo</span>`:''}`;
+    c.innerHTML=`<span class="c-i"><a href="#" onclick="navPaso('empresa');return false">Empresas</a></span>${NAV_STEP==='obra'?`<span class="sep" aria-hidden="true">›</span><span class="c-i cur">${esc(empresa)} · Centros de trabajo</span>`:''}`;
     return;
   }
   const ruta=navRutaActual(VIEW);
   const secciones=[ruta?.modulo,ruta?.seccion].filter(Boolean)
-    .map(txt=>`<span class="sep hide-sm">›</span><span class="c-i hide-sm">${esc(txt)}</span>`).join('');
+    .map(txt=>`<span class="sep hide-sm" aria-hidden="true">›</span><span class="c-i hide-sm">${esc(txt)}</span>`).join('');
   c.innerHTML=`
-    <span class="c-i"><a href="#" onclick="navPaso('empresa');return false" title="Cambiar de empresa">🏢 ${esc(empresa)}</a></span>
-    <span class="sep">›</span>
-    <span class="c-i"><a href="#" onclick="navPaso('obra');return false" title="Cambiar de centro">🏗 ${esc(obra)}</a></span>
+    <span class="c-i nav-empresa"><a href="#" onclick="navPaso('empresa');return false" title="Cambiar de empresa">${esc(empresa)}</a></span>
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="c-i"><a href="#" onclick="navPaso('obra');return false" title="Cambiar de centro">${esc(obra)}</a></span>
     ${secciones}
-    <span class="sep">›</span>
+    <span class="sep" aria-hidden="true">›</span>
     <span class="c-i cur" aria-current="location">${esc(ruta?.herramienta||v.txt)}</span>`;
 }

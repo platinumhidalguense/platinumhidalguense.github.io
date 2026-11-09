@@ -1,0 +1,83 @@
+/* Navegación y densidad. Los módulos operativos conservan sus estilos y datos. */
+.app-shell{display:grid;grid-template-columns:minmax(0,1fr);min-height:100dvh}
+.shell{min-width:0;display:flex;flex-direction:column}
+.nav-symbols{position:absolute;width:0;height:0;overflow:hidden}
+.nav-icon{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+.appbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;min-height:var(--topbar-h);padding:7px 16px;z-index:45;position:relative}
+.nav-brand{display:flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.075em;flex:none}
+.nav-brand b span{color:var(--mut)}
+.nav-brand .logo-mark,.nav-brand .logo-img{width:34px;height:23px;display:block}
+.appbar .crumbs{flex:1 1 280px;line-height:1.45;gap:4px 7px;overflow-wrap:anywhere}
+.appbar .crumbs .c-i{display:inline;white-space:normal}
+.appbar .crumbs .cur{font-weight:750}
+.nav-empresa{font-weight:700}
+.appbar-right{gap:6px;min-width:0;max-width:100%;flex-wrap:wrap;justify-content:flex-end}
+#rt-status,#act-live-notice{font-size:11px;color:var(--mut)}
+#rt-status{max-width:min(27vw,180px);overflow-wrap:anywhere}
+#alert-badge,.sb-nav .pill{background:var(--amber-bg);color:var(--amber);border-radius:6px;padding:2px 5px;font-size:11px;font-weight:750}
+.appbar .sb-mini,.nav-account summary,.nav-modules .burger{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid var(--border);border-radius:7px;color:var(--txt);background:var(--card);cursor:pointer;flex:none}
+.appbar .sb-mini:hover,.nav-account summary:hover,.nav-modules .burger:hover{background:var(--hover);color:var(--brand-txt)}
+.appbar .sb-mini[hidden],.sb-nav [hidden],.sb-nav .hide{display:none}
+.nav-account{position:relative}
+.nav-account summary{list-style:none}
+.nav-account summary::-webkit-details-marker{display:none}
+.nav-account-panel{position:absolute;z-index:2;right:0;top:calc(100% + 6px);width:min(280px,calc(100vw - 24px));display:grid;gap:8px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--card);box-shadow:var(--shadow-lg);overflow-wrap:anywhere}
+.nav-account:not([open]) .nav-account-panel{display:none}
+.nav-account-panel .who b{display:block}
+.nav-account-panel .who,#sb-company{font-size:12px;color:var(--mut)}
+.nav-account-panel .btn{display:flex;align-items:center;gap:8px;justify-content:flex-start;text-align:left;min-height:36px}
+.nav-account-panel .sb-legal{padding:5px 0 0;border-color:var(--border)}
+.nav-account-panel .sb-legal a{color:var(--mut)}
+
+.sb-nav{flex:0 0 auto;min-width:0;background:var(--card);border-bottom:1px solid var(--border)}
+.app-shell:not([data-nav="trabajadores"]) .sb-nav{display:none}
+.nav-modules{display:flex;align-items:center;gap:8px;background:var(--topbar-bg);border-bottom:1px solid var(--border);padding:0 12px 0 6px}
+.nav-tabs{display:flex;align-items:stretch;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin;flex:1;min-width:0}
+.nav-tab{position:relative;display:flex;align-items:center;gap:6px;min-height:43px;flex:none;padding:5px 11px;background:none;color:var(--mut);font-size:12.5px;font-weight:680;border:0;border-bottom:2px solid transparent;white-space:nowrap;cursor:pointer;transition:background var(--fast) ease,color var(--fast) ease}
+.nav-tab .nav-icon{width:16px;height:16px}
+.nav-tab[aria-selected="true"]{border-bottom-color:var(--brand-txt);background:var(--hover);color:var(--brand-txt)}
+.nav-tab[data-tool-active]:not([aria-selected="true"])::after{content:"";width:5px;height:5px;background:var(--brand-txt);border-radius:50%}
+.nav-tab:hover{background:var(--hover);color:var(--txt)}
+.nav-ribbon{overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin;background:var(--card)}
+.nav-module{display:flex;align-items:stretch;width:max-content;min-width:100%;padding:6px 10px 4px}
+.nav-group{display:flex;flex-direction:column;justify-content:space-between;padding:1px 9px 0;border-inline-end:1px solid var(--border)}
+.nav-group:not(:has(.sb-item:not([hidden]):not(.hide))){display:none}
+.nav-group:last-child{border-inline-end:0}
+.nav-group h3{margin:4px 0 1px;text-align:center;color:var(--mut);font-size:10.5px;font-weight:650}
+.nav-tools{display:flex;gap:3px}
+.nav-tools .sb-item{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:5px;width:clamp(94px,8.8vw,138px);min-height:60px;padding:6px 5px;border:1px solid transparent;border-radius:6px;background:none;color:var(--txt);font:inherit;font-size:11.5px;font-weight:620;line-height:1.24;text-align:center;white-space:normal;overflow-wrap:anywhere;cursor:pointer;transition:background var(--fast) ease,border-color var(--fast) ease}
+.nav-tools .sb-item .nav-icon{color:var(--mut);width:19px;height:19px}
+.nav-tools .sb-item:hover,.nav-tools .sb-item[aria-current="location"]{background:var(--hover);border-color:var(--border)}
+.nav-tools .sb-item[data-nav-primary] .nav-icon,.nav-tools .sb-item[aria-current="location"] .nav-icon{color:var(--brand-txt)}
+.nav-tools .sb-item[aria-current="location"]{border-color:var(--brand-txt)}
+.nav-tools .sb-item.danger,.nav-tools .sb-item.danger .nav-icon{color:var(--red)}
+.nav-tools .sb-item[aria-busy="true"]{border-color:var(--brand-txt);cursor:progress}
+.nav-tools .sb-item:disabled{color:var(--mut);opacity:.55;cursor:not-allowed}
+.nav-tools .pill{position:absolute;top:3px;right:3px}
+.sb-nav :is(button,a):focus-visible,.appbar :is(button,a,summary):focus-visible,.worker-form .wf-stepper button:focus-visible{outline:2px solid var(--brand-txt);outline-offset:-2px}
+.app-shell[data-nav="trabajadores"] #view-trab{height:100%;min-height:0}
+.app-shell .wrap table,.app-shell #worker-count{font-variant-numeric:tabular-nums}
+
+.worker-form .wf-workspace{display:grid;grid-template-columns:minmax(155px,185px) minmax(0,1fr);flex:1;min-height:0}
+.worker-form .wf-stepper{display:flex;flex-direction:column;align-items:stretch;padding:14px 10px;gap:5px;border-bottom:0;border-inline-end:1px solid var(--border);overflow:auto}
+.worker-form .wf-stepper button{min-height:44px;padding:8px;gap:7px;border-radius:7px}
+.worker-form .wf-stepper button span{width:23px;height:23px}
+.worker-form .wf-workspace .m-body{min-width:0}
+@media(max-width:760px){
+  .appbar{padding:6px 9px;gap:5px 8px}
+  .appbar .crumbs{order:3;flex:1 0 100%;font-size:12px}
+  .appbar .sb-mini,.nav-account summary,.nav-modules .burger{width:44px;height:44px}
+  .nav-modules{padding-right:6px}
+  .nav-tab{min-height:44px}
+  .nav-module{padding:4px 4px 3px}
+  .nav-group{padding-inline:5px}
+  .nav-tools .sb-item{width:104px;min-height:61px}
+  .worker-form .wf-workspace{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  .worker-form .wf-stepper{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:7px;gap:4px;border-inline-end:0;border-bottom:1px solid var(--border)}
+  .worker-form .wf-stepper button{padding:5px 2px;gap:3px;font-size:11px}
+}
+@media(prefers-reduced-motion:reduce){
+  .app-shell,.app-shell *{scroll-behavior:auto}
+  .appbar :is(button,a),.sb-nav :is(button,a){transition:none}
+  .modal,.overlay{animation:none}
+}

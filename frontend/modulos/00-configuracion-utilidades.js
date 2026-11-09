@@ -187,6 +187,7 @@ function rangoTexto(d1,d2){if(!d1||!d2)return'';const a=new Date(d1+'T12:00'),b=
    (en celular, position:fixed mueve el scroll a 0; lo devolvemos para que
    NO se vea "movido" todo al salir de una ficha). */
 function closeModal(force=false){
+  if(!force&&$('ar-recibos')?.dataset.busy==='1')return;
   const formulario=$('worker-form-body');
   if(formulario&&!force){
     if(formulario.dataset.busy==='1')return;

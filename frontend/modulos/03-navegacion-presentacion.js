@@ -1,10 +1,4 @@
-/* ============================================================
-   v36.1 · PANEL LATERAL PLEGABLE
-   En CELULAR/TABLET (≤1024px) es un cajón que entra por la izquierda con
-   fondo oscurecido. En ESCRITORIO se pliega y despliega con el mismo botón
-   ☰ de la barra superior, y el contenido se estira a todo el ancho.
-   El estado de escritorio se recuerda en este navegador.
-   ============================================================ */
+/* Cinta de acciones. Los nombres de apertura conservan su contrato histórico. */
 const esPantallaChica=()=>window.matchMedia('(max-width:1024px)').matches;
 function sidebarVisible(){
   const app=$('scr-app'),sb=$('sidebar');
@@ -12,29 +6,50 @@ function sidebarVisible(){
   return sb.classList.contains('open');
 }
 function toggleSidebar(forzar){
-  const app=$('scr-app'),sb=$('sidebar'),sc=$('sb-scrim'),b=$('burger');
-  if(!sb||!app)return;
+  const sb=$('sidebar'),b=$('burger');
+  if(!sb)return;
   const abrir=(forzar===undefined)?!sidebarVisible():!!forzar;
   sb.classList.toggle('open',abrir);
-  if(sc)sc.classList.toggle('on',abrir);
-  app.classList.toggle('sb-oculto',!abrir);
-  if(b){b.title=abrir?'Ocultar el menú':'Mostrar el menú';b.setAttribute('aria-expanded',abrir?'true':'false');}
+  sb.hidden=!abrir;
+  if(b){
+    b.title=abrir?'Plegar la cinta':'Expandir la cinta';
+    b.setAttribute('aria-label',b.title);
+    b.setAttribute('aria-expanded',String(abrir));
+    if(!abrir&&sb.contains?.(document.activeElement))b.focus();
+  }
   if(abrir)navActualizarPermisos();
 }
-/* Al entrar se respeta cómo lo dejó el usuario la última vez */
 function initSidebar(){
-  const app=$('scr-app'); if(!app)return;
-  toggleSidebar(false);
-  const b=$('burger');
-  if(b){const v=sidebarVisible();b.title=v?'Ocultar el menú':'Mostrar el menú';b.setAttribute('aria-expanded',v?'true':'false');}
+  if(!$('scr-app'))return;
+  toggleSidebar(true);
+  navObservarModal();
 }
-/* Cierra SOLO el cajón de celular (en escritorio no debe plegarse al navegar) */
 function cerrarCajonMovil(){if(esPantallaChica())toggleSidebar(false);}
-let NAV_MENU_ACCION=null,NAV_MENU_MODAL=null;
+let NAV_MENU_ACCION=null,NAV_MENU_MODAL=null,NAV_MODAL_OBSERVADO=null;
 function navActualizarPermisos(){
   for(const boton of document.querySelectorAll('.sb-nav [data-nav-permiso]')){
     boton.hidden=boton.dataset.navPermiso==='admin'?!esAdmin():!puedeEditarTrabajador();
   }
+}
+function navSeleccionarModulo(tab){
+  if(NAV_STEP!=='trabajadores'||!tab?.dataset.navTab)return;
+  for(const otro of document.querySelectorAll('[data-nav-tab]')){
+    const activo=otro===tab,panel=$(otro.getAttribute('aria-controls'));
+    otro.setAttribute('aria-selected',String(activo));
+    otro.tabIndex=activo?0:-1;
+    if(panel)panel.hidden=!activo;
+  }
+  toggleSidebar(true);
+}
+function navTeclasModulo(e){
+  const tab=e.target.closest?.('[data-nav-tab]');
+  if(!tab||!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+  const tabs=[...tab.parentElement.querySelectorAll('[data-nav-tab]')];
+  const i=tabs.indexOf(tab);
+  const siguiente=e.key==='Home'?tabs[0]:e.key==='End'?tabs.at(-1):tabs[(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length];
+  e.preventDefault();
+  navSeleccionarModulo(siguiente);
+  siguiente.focus();
 }
 function navPuedeCambiar(){
   if(NAV_BUSY)return false;
@@ -56,63 +71,95 @@ function navGestionCheques(){
 }
 function navRutaActual(vista){
   const cheques=vista==='conciliador'&&window.PLATINUM_CONCILIADOR_SEMANAL?.pestana?.()==='cheques';
-  const boton=NAV_MENU_MODAL||$('vb-'+(cheques?'cheques':vista));
-  const modulo=boton?.closest?.('[data-nav-module]');
+  const modal=$('modals')?.querySelector?.('.overlay:last-child');
+  const expediente=modal?.querySelector('.worker-ficha');
+  const boton=(modal?.querySelector('#ro-panel')?document.querySelector('[data-nav-label="Pendientes y aprobaciones"]'):
+    modal?.querySelector('#rrhh-body')?document.querySelector('[data-nav-label="Operación RRHH"]'):
+    modal?.querySelector('#worker-form-body')?document.querySelector('[data-nav-label="Nueva alta"]'):null)
+    ||NAV_MENU_MODAL?.origen||$('vb-'+(cheques?'cheques':vista));
+  const modulo=expediente?$('nav-panel-expediente'):boton?.closest?.('[data-nav-module]');
   if(!modulo)return null;
-  const seccion=boton.closest('[data-nav-section]');
+  const seccion=boton?.closest('[data-nav-section]');
   for(const item of document.querySelectorAll('.sb-nav [aria-current]')){
-    if(item!==boton){item.removeAttribute('aria-current');item.classList.remove('on');}
+    if(item!==boton||expediente){item.removeAttribute('aria-current');item.classList.remove('on');}
   }
-  for(const grupo of document.querySelectorAll('.sb-module.is-current')){
-    if(grupo!==modulo)grupo.classList.remove('is-current');
+  for(const tab of document.querySelectorAll('[data-nav-tab]')){
+    tab.toggleAttribute('data-tool-active',tab.dataset.navTab===modulo.dataset.navModule);
   }
-  if(boton.getAttribute('aria-current')!=='location'){
-    modulo.open=true;
-    if(seccion)seccion.open=true;
+  if(boton&&!expediente){
+    boton.setAttribute('aria-current','location');
+    boton.classList.add('on');
   }
-  boton.setAttribute('aria-current','location');
-  boton.classList.add('on');
-  modulo.classList.add('is-current');
-  return {modulo:modulo.dataset.navTitle,seccion:seccion?.dataset.navSection,herramienta:boton.dataset.navLabel};
+  const titulo=modal?.querySelector('.m-head h2')?.textContent.trim();
+  return {modulo:modulo.dataset.navTitle,seccion:expediente?'Ficha individual':seccion?.dataset.navSection,
+    herramienta:titulo||boton?.dataset.navLabel};
 }
-function navSeguirModal(origen){
+function navObservarModal(){
   const contenedor=$('modals');
-  if(!contenedor?.querySelector('.overlay'))return;
-  NAV_MENU_MODAL=origen;
-  renderCrumbs();
-  const observador=new MutationObserver(()=>{
-    if(contenedor.querySelector('.overlay'))return;
-    observador.disconnect();
-    NAV_MENU_MODAL=null;
+  if(!contenedor||NAV_MODAL_OBSERVADO===contenedor)return;
+  NAV_MODAL_OBSERVADO=contenedor;
+  new MutationObserver(()=>{
+    if(NAV_MODAL_OBSERVADO!==contenedor||NAV_STEP!=='trabajadores')return;
+    const modal=contenedor.querySelector('.overlay:last-child');
+    if(!modal&&NAV_MENU_MODAL){
+      const {origen,alcance}=NAV_MENU_MODAL;
+      NAV_MENU_MODAL=null;
+      if(OBRA?.id===alcance.obra&&USER?.id===alcance.usuario&&EMPRESA_ACTIVA===alcance.empresa){
+        const panel=origen.closest('[data-nav-module]');
+        const objetivo=sidebarVisible()&&panel&&!panel.hidden&&!origen.hidden&&!origen.classList.contains('hide')
+          ?origen:document.querySelector('[data-nav-tab][aria-selected="true"]');
+        objetivo?.focus();
+      }
+    }
     renderCrumbs();
-  });
-  observador.observe(contenedor,{childList:true});
+  }).observe(contenedor,{childList:true});
+}
+function navSeguirModal(origen,alcance){
+  const modal=$('modals')?.querySelector('.overlay:last-child');
+  if(!modal)return;
+  NAV_MENU_MODAL={origen,alcance};
+  const encabezado=modal.querySelector('.m-head h2');
+  if(encabezado&&!modal.contains(document.activeElement)){
+    encabezado.tabIndex=-1;
+    encabezado.focus();
+  }
+  renderCrumbs();
 }
 /* Las entradas contextuales conservan el contrato sbGo(fn). */
 function sbGo(fn,origen=null,completo=true){
   if(origen&&!navPuedeCambiar())return;
+  if(origen&&(origen.hidden||origen.disabled||origen.classList.contains('hide')))return;
   if(NAV_STEP!=='trabajadores'||!OBRA){showNavStep('obra');return;}
-  toggleSidebar(false);
   if(!origen){
     try{return conCentroCompleto(fn);}catch(e){toast('No se pudo abrir: '+e.message,'err');}
   }
-  const alcance={obra:OBRA.id,usuario:USER?.id};
-  const vigente=()=>NAV_STEP==='trabajadores'&&OBRA?.id===alcance.obra&&USER?.id===alcance.usuario;
+  const alcance={obra:OBRA.id,usuario:USER?.id,empresa:EMPRESA_ACTIVA};
+  const vigente=()=>NAV_STEP==='trabajadores'&&OBRA?.id===alcance.obra&&USER?.id===alcance.usuario&&EMPRESA_ACTIVA===alcance.empresa;
+  const abrir=()=>{if(vigente())return fn();};
   NAV_MENU_ACCION=alcance;
+  origen.setAttribute('aria-busy','true');
   return Promise.resolve().then(()=>{
-    if(vigente())return completo?conCentroCompleto(fn):fn();
+    if(vigente())return completo?conCentroCompleto(abrir):abrir();
   }).then(()=>{
-    if(vigente())navSeguirModal(origen);
-  }).catch(e=>toast('No se pudo abrir: '+e.message,'err')).finally(()=>{
+    if(vigente())navSeguirModal(origen,alcance);
+  }).catch(e=>{if(vigente())toast('No se pudo abrir: '+e.message,'err');}).finally(()=>{
+    origen.removeAttribute('aria-busy');
     if(NAV_MENU_ACCION===alcance)NAV_MENU_ACCION=null;
   });
 }
-/* Esc cierra primero el cajón; si no está abierto, cierra el modal de encima */
+document.addEventListener('click',e=>{
+  const tab=e.target.closest?.('[data-nav-tab]');
+  if(tab)navSeleccionarModulo(tab);
+  const cuenta=$('nav-account');
+  if(cuenta?.open&&!cuenta.contains(e.target))cuenta.open=false;
+});
 document.addEventListener('keydown',e=>{
+  navTeclasModulo(e);
   if(e.key!=='Escape')return;
-  const sb=$('sidebar');
-  if(sidebarVisible()){toggleSidebar(false);$('burger').focus();return;}
-  if($('modals')&&$('modals').querySelector('.overlay'))closeModal2();
+  if($('modals')?.querySelector('.overlay')){closeModal2();return;}
+  const cuenta=$('nav-account');
+  if(cuenta?.open){cuenta.open=false;cuenta.querySelector('summary').focus();return;}
+  if(NAV_STEP==='trabajadores'&&sidebarVisible()){toggleSidebar(false);$('burger')?.focus();}
 });
 
 /* ============================================================

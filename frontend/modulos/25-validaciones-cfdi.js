@@ -111,7 +111,7 @@ function cfdiTotalImportado(valor){
   if(!/^\d+(?:\.\d{1,6})?$/.test(texto)||!Number.isFinite(n)||n<0)throw Error('El XML no contiene un total monetario válido.');
   return n;
 }
-function openCfdiImport(){if(!window.PLATINUM_CONCILIADOR){toast("Actualiza la plataforma para abrir el Conciliador General.","err");return;}return window.PLATINUM_CONCILIADOR.abrir(3);}
+function openCfdiImport(contexto){return window.PLATINUM_ARCHIVO_RECIBOS.abrir(contexto);}
 async function parseCfdi(inp){
   CFDIIMP=[];
   $('cf-prev').innerHTML=skeletonRows(6,'26px 1.6fr 1.2fr 1fr','Leyendo los CFDI timbrados...');

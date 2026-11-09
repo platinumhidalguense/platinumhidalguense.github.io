@@ -1,16 +1,16 @@
 {
-  "version": "2026-11-08.2",
-  "entry": "assets/platinum-app.dddd9da9c32ada49.js",
-  "sha256": "dddd9da9c32ada4920d75ee2eda1d50dc00075fc42b1888c722ed4a8d1c5ec34",
-  "integrity": "sha384-iIjHqSSAzKDDupI5bpVKZYyP+orN9TUVKuOXaCSavYhhbpXvs52nPizV0qWevOIC",
+  "version": "2026-11-09.1",
+  "entry": "assets/platinum-app.751023791fb06a67.js",
+  "sha256": "751023791fb06a67ecaa1f8b24517e4c58b5a9ecbb01f05ed6940c72d7137a06",
+  "integrity": "sha384-WZ/JAsDlsNmJel0KvTjnnyV+bz+R0dXt0mFx83aANzEkio1rHW+C81Ge1bU1GO08",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
-      "sha256": "e55e55ba86562d430390b3bb9a66c14ecf548148e8cdcda6bc9602551fbd55c7"
+      "sha256": "20108dca8afa193e742312dc5aa3490dd931f8bbee7a39c9dbebbcc2c2cdd735"
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "7408eb60c65291e45ae4abf9bb917fc4dd95727e1d8fec77ffc01c8644a167ab"
+      "sha256": "dd7e97acfc1c771ad1d91034e8e08c9bc2512742eca580ddab2e0506da4124b2"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -18,7 +18,7 @@
     },
     {
       "path": "frontend/modulos/03-navegacion-presentacion.js",
-      "sha256": "80a1edeaedc6794ae4c028015104cb678c1f066919939f3b5120683dfed77346"
+      "sha256": "aab772c22643c70deb864f653c041cffbf19b6398807b1ab8352260e1aa0f433"
     },
     {
       "path": "frontend/modulos/04-padron-expedientes.js",
@@ -26,7 +26,7 @@
     },
     {
       "path": "frontend/modulos/05-alta-edicion.js",
-      "sha256": "c38cf604ade4b7827f8ef849bdc63a732cad098eeb4ec8b29848486376859098"
+      "sha256": "f22dda9bbc2a53956c23d7330b0a3028d30efe196571decd6cd35165712f41f6"
     },
     {
       "path": "frontend/modulos/06-movimientos-historial.js",
@@ -62,7 +62,7 @@
     },
     {
       "path": "frontend/modulos/14-importacion-documental.js",
-      "sha256": "bda15d2b2d3f8166f2c9f08eef9dbee52475941471e47f12a89f368469dcfc99"
+      "sha256": "944571a270ac8da62524e4ddfd179b7d6c73efa2c10b5bbfa915e8c43c0056d2"
     },
     {
       "path": "frontend/modulos/15-banca-conciliacion.js",
@@ -82,7 +82,7 @@
     },
     {
       "path": "frontend/modulos/19-cheques.js",
-      "sha256": "a7371a29ea9330b99fbefe55b169d4e2285c0e11846f8d535ba56d4b63029f3c"
+      "sha256": "e05c90c79c9846b87ea4a9c11e70a742458f7754381968cbbc754bf00405b8c9"
     },
     {
       "path": "frontend/modulos/20-movimientos-semanales.js",
@@ -106,7 +106,7 @@
     },
     {
       "path": "frontend/modulos/25-validaciones-cfdi.js",
-      "sha256": "97671095c05f3bef6bf23fbd041d59c0877fa579ea344472f1555b3e9f0fa718"
+      "sha256": "1ba61c38a5e45f69a09a637600ddbcbd762bc251621ce2cf27bbac7f4541ab5e"
     },
     {
       "path": "frontend/modulos/26-prestaciones-anuales.js",
@@ -134,7 +134,7 @@
     },
     {
       "path": "frontend/modulos/32-legajos.js",
-      "sha256": "be62d7daced22018c3a79683c5ed17a634597abe92557f76446f6043c619024a"
+      "sha256": "d9eab970e97baff70e3b1b7a9c0319cc8dcec959dcf06a48d27afe1c5b10baf7"
     },
     {
       "path": "frontend/modulos/33-finiquitos.js",
@@ -246,7 +246,7 @@
     },
     {
       "path": "frontend/modulos/60-conciliador-general-stepper.js",
-      "sha256": "fdd24d38cfbb03afce1f73009b3e7a234617f2e19ffe78ae57842f3fe60429bb"
+      "sha256": "b84cb9a491377717c245fe88ae17e17ed5c59f23a0b31efefa40bd7f44083bd1"
     },
     {
       "path": "frontend/modulos/61-conciliacion-semanal.js",
@@ -254,7 +254,7 @@
     },
     {
       "path": "frontend/modulos/62-conciliador-semanal-interfaz.js",
-      "sha256": "1aeed547627f7f5e33b51df6ee521eea246d698a62e2939b1ba4ff15540a9951"
+      "sha256": "3a6b74142414ab189f0022c54eb7212ca4e2e31c09ea75224a347e85ec941331"
     },
     {
       "path": "frontend/modulos/63-gestion-cheques.js",
@@ -271,6 +271,10 @@
     {
       "path": "frontend/modulos/66-recorrido-operativo.js",
       "sha256": "8cc95e201b3f3828bfd9c6453f1987f370bd8475eca44c379fd1a48be5d82997"
+    },
+    {
+      "path": "frontend/modulos/67-archivo-recibos.js",
+      "sha256": "dad137664f4a68ce1013416acc7094ebacca2b77f73ac381172c13f76042dba5"
     }
   ]
 }

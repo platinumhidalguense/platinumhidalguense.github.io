@@ -102,7 +102,6 @@
   --logo-ink:#12243D; --logo-bar:#0E1C30; --logo-bar-txt:#FFFFFF;
   /* --- medidas / movimiento --- */
   --radius:12px;
-  --sidebar-w:270px;       /* ancho del panel lateral en escritorio */
   --content-max:none;      /* usar todo el monitor, incluso pantallas 4K/55 pulgadas */
   --topbar-h:56px;
   --fast:.15s; --ease:cubic-bezier(.2,.7,.3,1);
@@ -437,75 +436,6 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
 .btn.dark:hover{background:var(--navy2)}
 .brand-badge{border-radius:10px}
 
-/* ============================================================
-   v36 · ARQUITECTURA DE NAVEGACIÓN — PANEL LATERAL + BREADCRUMBS
-   El menú de botones de arriba se eliminó. Todo vive en un panel
-   lateral agrupado por categorías que en móvil se vuelve cajón
-   (hamburguesa). El contenido tiene tope de ancho y se centra para
-   que en monitores ultrawide no queden huecos enormes a los lados.
-   ============================================================ */
-.app-shell{display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr);min-height:100vh;
-  transition:grid-template-columns .22s var(--ease)}
-/* v36.1 · PANEL PLEGABLE TAMBIÉN EN ESCRITORIO
-   El botón ☰ de la barra superior lo oculta y lo vuelve a mostrar; el estado
-   se recuerda por navegador. Al ocultarse, el contenido ocupa todo el ancho. */
-@media(min-width:1025px){
-  /* El menú es flotante: ocultarlo nunca crea una pista de ancho cero. */
-  .app-shell.sb-oculto{grid-template-columns:minmax(0,1fr)}
-  .app-shell.sb-oculto .sidebar{transform:translateX(-101%);opacity:0;visibility:hidden;pointer-events:none}
-  .sidebar{transition:transform .22s var(--ease),opacity .16s ease}
-}
-
-/* ---------- PANEL LATERAL ---------- */
-.sidebar{
-  grid-column:1;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;
-  background:linear-gradient(180deg,var(--sidebar-bg) 0%,var(--sidebar-bg2) 100%);
-  color:var(--sidebar-txt);border-right:1px solid var(--sidebar-br);z-index:60;
-}
-.sb-head{display:flex;align-items:center;gap:11px;padding:14px 16px 12px;border-bottom:1px solid var(--sidebar-br);flex:0 0 auto}
-.sb-head .tt{font-family:'Montserrat','Segoe UI',sans-serif;font-weight:800;font-size:13.5px;letter-spacing:.4px;line-height:1.25}
-.sb-head .tt small{display:block;font-weight:600;font-size:9.5px;color:var(--sidebar-mut);letter-spacing:.2px;margin-top:2px;max-width:130px;line-height:1.25}
-.sb-nav{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;padding:10px 10px 18px;scrollbar-width:thin}
-.sb-nav::-webkit-scrollbar{width:8px}
-.sb-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:8px}
-.sb-grp{margin-top:12px}
-.sb-grp:first-child{margin-top:2px}
-.sb-grp>summary{
-  list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
-  font-size:10.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;
-  color:var(--sidebar-mut);padding:8px 10px 6px;border-radius:8px;user-select:none;
-  transition:color var(--fast) ease,background var(--fast) ease;
-}
-.sb-grp>summary::-webkit-details-marker{display:none}
-.sb-grp>summary:hover{color:var(--sidebar-txt);background:var(--sidebar-hover)}
-.sb-grp>summary::after{content:'▾';margin-left:auto;font-size:11px;transition:transform var(--fast) var(--ease)}
-.sb-grp[open]>summary::after{transform:rotate(180deg)}
-.sb-item{
-  display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:none;background:none;
-  color:var(--sidebar-txt);font-size:13px;font-weight:600;padding:9px 11px;border-radius:9px;
-  cursor:pointer;line-height:1.3;transition:background var(--fast) ease,color var(--fast) ease,transform .06s ease;
-}
-.sb-item:hover{background:var(--sidebar-hover)}
-.sb-item:active{transform:translateX(1px)}
-.sb-item .ic{width:19px;text-align:center;flex:0 0 auto;font-size:14px}
-.sb-item.on{background:var(--sidebar-on);color:#fff;box-shadow:inset 3px 0 0 var(--gold)}
-.sb-item .pill{margin-left:auto;background:rgba(255,255,255,.14);border-radius:10px;padding:1px 7px;font-size:10.5px;font-weight:800}
-.sb-item.danger{color:#FFB4A8}
-.sb-nav .sb-item[hidden]{display:none}
-.sb-module{margin-top:5px;border-radius:9px}
-.sb-module>summary{padding:10px 9px;letter-spacing:0;text-transform:none;font-size:12px;line-height:1.4;color:var(--sidebar-txt)}
-.sb-module>summary>span:first-child{width:20px;flex:none;text-align:center}
-.sb-module.is-current>summary{background:var(--sidebar-on);color:#fff}
-.sb-seccion{margin:4px 0 6px 10px;padding-left:7px;border-left:1px solid var(--sidebar-br)}
-.sb-seccion>summary{cursor:pointer;color:var(--sidebar-mut);padding:6px 5px;font-size:11px;font-weight:700;line-height:1.4}
-.sb-seccion .sb-item{font-size:12px;padding:8px 6px}
-.sb-nav :is(summary,button):focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
-.sb-foot{flex:0 0 auto;border-top:1px solid var(--sidebar-br);padding:10px 12px;display:flex;align-items:center;gap:8px}
-.sb-foot .who{font-size:11px;color:var(--sidebar-mut);line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto}
-.sb-foot .who b{display:block;color:var(--sidebar-txt);font-size:11.5px;overflow:hidden;text-overflow:ellipsis}
-.sb-mini{border:1px solid var(--sidebar-br);background:transparent;color:var(--sidebar-txt);border-radius:8px;padding:6px 9px;font-size:13px;line-height:1;transition:background var(--fast) ease}
-.sb-mini:hover{background:var(--sidebar-hover)}
-
 /* ---------- LOGO CORPORATIVO ----------
    El monograma va como SVG (nítido a cualquier tamaño y con fondo
    transparente, así se funde con el panel en claro y en oscuro sin
@@ -516,32 +446,15 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
 .logo-mark .ink{fill:var(--logo-ink)}
 .logo-mark .bar{fill:var(--logo-bar)}
 .logo-mark .bar-txt{fill:var(--logo-bar-txt)}
-.sidebar .logo-mark .ink{fill:#fff}
-.sidebar .logo-mark .bar{fill:#0B1220}
-.sidebar .logo-mark .bar-txt{fill:#fff}
 .logo-img{width:94px;height:58px;object-fit:contain;flex:0 0 auto;mix-blend-mode:screen;filter:contrast(1.06)}
 :root[data-theme="light"] .logo-img{mix-blend-mode:multiply}
 @media(prefers-color-scheme:light){:root:not([data-theme="dark"]) .logo-img{mix-blend-mode:multiply}}
 
-/* ---------- CAJÓN EN MÓVIL ---------- */
-.sb-scrim{display:none;position:fixed;inset:0;background:rgba(8,14,26,.55);z-index:59;
-  opacity:0;transition:opacity .18s ease;backdrop-filter:blur(1px)}
-.sb-scrim.on{display:block;opacity:1}
-.sb-close{display:none}
-
-/* ---------- BARRA SUPERIOR (solo contexto, sin menú de botones) ---------- */
-.shell{grid-column:2;min-width:0;display:flex;flex-direction:column}
 .appbar{
   position:sticky;top:0;z-index:45;background:var(--topbar-bg);color:var(--topbar-txt);
   border-bottom:1px solid var(--border);min-height:var(--topbar-h);
   display:flex;align-items:center;gap:12px;padding:8px 20px;
 }
-/* El ☰ vive SIEMPRE en la barra superior (escritorio, tablet y celular) */
-.burger{display:inline-flex;align-items:center;justify-content:center;
-  border:1px solid var(--border);background:var(--card);color:var(--txt);
-  border-radius:9px;width:38px;height:38px;font-size:17px;line-height:1;flex:0 0 auto;
-  transition:background var(--fast) ease,border-color var(--fast) ease}
-.burger:hover{border-color:var(--navy);background:var(--hover)}
 /* Migas de pan: la ruta actual siempre visible */
 .crumbs{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);flex-wrap:wrap;min-width:0}
 .crumbs .c-i{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
@@ -582,17 +495,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
 thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 /* Ultrawide: más aire alrededor de la columna de contenido */
 @media(min-width:1800px){
-  :root{--sidebar-w:300px}
   .wrap{padding-left:clamp(20px,1vw,36px);padding-right:clamp(20px,1vw,36px)}
 }
-@media(min-width:2400px){:root{--sidebar-w:320px}.trab-table{font-size:clamp(13px,.42vw,16px)}}
+@media(min-width:2400px){.trab-table{font-size:clamp(13px,.42vw,16px)}}
 
 /* 2026-10-07 · Inicio progresivo y expediente por bloques. Solo presentación. */
-.app-shell,.app-shell.sb-oculto{grid-template-columns:minmax(0,1fr)}
-.shell{grid-column:1}
-.sidebar{position:fixed;inset:0 auto 0 0;width:min(86vw,330px);height:100dvh;transform:translateX(-102%);transition:transform .2s ease;box-shadow:var(--shadow-lg)}
-.app-shell:not(.sb-oculto) .sidebar.open{transform:none;opacity:1;visibility:visible;pointer-events:auto}
-.sb-close{display:inline-flex;margin-left:auto;border:0;background:transparent;color:inherit;font-size:24px;cursor:pointer}
 .selection-step{width:100%;max-width:1240px;margin:auto;padding:clamp(24px,5vw,80px) clamp(18px,5vw,64px)}
 .selection-heading{margin-bottom:32px}.selection-heading h1{font-size:clamp(25px,3vw,42px);line-height:1.18;margin:14px 0;font-weight:800;color:var(--txt)}
 .selection-heading h1:focus{outline:none} /* El foco de navegación está en un título, no en un control. */
@@ -606,7 +513,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 .empresa-nav{background:transparent;border:0;min-width:0}
 .app-shell:not([data-nav="trabajadores"]) .empresa-nav{display:flex;min-height:calc(100dvh - var(--topbar-h))}
 .app-shell[data-nav="empresa"] #obra-step,.app-shell[data-nav="obra"] #empresa-step,.app-shell[data-nav="trabajadores"] .selection-step{display:none}
-.app-shell:not([data-nav="trabajadores"]) .wrap,.app-shell:not([data-nav="trabajadores"]) #centro-meta,.app-shell:not([data-nav="trabajadores"]) .context-tool,.app-shell:not([data-nav="trabajadores"]) .sb-grp:not(.sb-navigation){display:none}
+.app-shell:not([data-nav="trabajadores"]) .wrap,.app-shell:not([data-nav="trabajadores"]) #centro-meta,.app-shell:not([data-nav="trabajadores"]) .context-tool{display:none}
 .app-shell[data-nav="trabajadores"] #centro-meta{padding:8px 18px;font-size:11px;flex-wrap:wrap}
 .app-shell[data-nav="trabajadores"] .wrap{max-width:none;padding:10px 16px;width:100%;flex:1;min-height:0}
 #view-trab{display:flex;flex-direction:column;gap:8px;height:calc(100dvh - var(--topbar-h) - 65px);min-height:300px}
@@ -639,21 +546,8 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 .ia-fab.nav-hidden{display:none!important}.app-shell #view-trab{height:100%}
 @media(max-width:760px){.modal.worker-ficha{height:100dvh;max-height:100dvh;min-height:0}}
 @media(max-width:760px){.empresa-selector{grid-template-columns:1fr}.empresa-btn{min-height:200px}.worker-overview{grid-template-columns:1fr}.worker-hint{display:none}.worker-search{flex-wrap:wrap}.worker-search label{width:100%}.worker-ficha .m-body{padding:12px}.worker-section-body .kv{grid-template-columns:1fr}.modal.worker-ficha{max-width:100%;width:100%}.app-shell[data-nav="trabajadores"] .wrap{padding:8px}#view-trab{height:calc(100dvh - var(--topbar-h) - 120px)}.worker-block{padding:14px}}
-@media(prefers-reduced-motion:reduce){.sidebar,.empresa-btn{transition:none}.empresa-btn:hover{transform:none}}
+@media(prefers-reduced-motion:reduce){.empresa-btn{transition:none}.empresa-btn:hover{transform:none}}
 
-/* ---------- TABLET / MÓVIL: el panel se vuelve cajón ---------- */
-@media(max-width:1024px){
-  .app-shell{grid-template-columns:1fr}
-  .sidebar{
-    position:fixed;top:0;left:0;bottom:0;width:min(86vw,320px);height:100dvh;
-    transform:translateX(-102%);transition:transform .22s var(--ease);box-shadow:var(--shadow-lg);
-  }
-  .sidebar.open{transform:none}
-  .shell{grid-column:1}
-  .sb-close{display:inline-flex;align-items:center;justify-content:center;margin-left:auto;
-    border:none;background:transparent;color:var(--sidebar-mut);font-size:22px;padding:0 4px;cursor:pointer}
-  .sb-close:hover{color:#fff}
-}
 @media(max-width:760px){
   .appbar{padding:8px 12px;gap:9px}
   .crumbs{font-size:11.5px}
@@ -778,6 +672,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
   .ia-msgs{scroll-behavior:auto}
 }
 </style>
+<link rel="stylesheet" href="assets/platinum-cinta.css?v=20261109.1">
 </head>
 <body>
 
@@ -805,207 +700,210 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
   </div>
 </div>
 
-<div id="scr-app" class="hide app-shell sb-oculto" data-nav="empresa">
+<div id="scr-app" class="hide app-shell" data-nav="empresa">
 
-  <!-- ======================= PANEL LATERAL ======================= -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sb-head">
-      <span id="sb-logo"></span>
-      <div class="tt">PLATINUM OS<small id="sb-company">Gestión empresarial</small></div>
-      <button class="sb-close" type="button" onclick="toggleSidebar(false);$('burger').focus()" title="Cerrar menú" aria-label="Cerrar menú">×</button>
-    </div>
 
-    <nav class="sb-nav" aria-label="Herramientas y navegación">
-      <details class="sb-grp sb-navigation" open>
-        <summary>Navegación</summary>
-        <button class="sb-item" type="button" onclick="navPaso('empresa')"><span class="ic">🏢</span>Cambiar empresa</button>
-        <button class="sb-item" type="button" onclick="navPaso('obra')"><span class="ic">🏗</span>Seleccionar centro de trabajo</button>
-      </details>
-      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="inicio" data-nav-title="Inicio y Centro de Control">
-        <summary><span aria-hidden="true">🏠</span><span>Inicio y Centro de Control</span></summary>
-        <details class="sb-seccion" data-nav-section="Supervisión" open>
-          <summary>Supervisión</summary>
-          <button class="sb-item" id="vb-control" type="button" data-nav-label="Centro de control" onclick="sbGo(openControlEmpresarial,this)"><span class="ic" aria-hidden="true">🛡️</span>Centro de control</button>
-          <button class="sb-item" type="button" data-nav-label="Dashboard ejecutivo" onclick="sbGo(openDashboard,this)"><span class="ic" aria-hidden="true">📈</span>Dashboard ejecutivo</button>
-          <button class="sb-item" type="button" data-nav-label="Alertas" onclick="sbGo(openAlertas,this)"><span class="ic" aria-hidden="true">🔔</span>Alertas<span class="pill" id="sb-alert-badge" style="display:none"></span></button>
-          <button type="button" class="sb-item" data-nav-label="Pendientes y aprobaciones" onclick="sbGo(()=>PLATINUM_FLOWS.bandeja(false),this,false)"><span class="ic" aria-hidden="true">🧭</span>Pendientes y aprobaciones</button>
-        </details>
-      </details>
-
-      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="empleados" data-nav-title="Empleados y Expedientes" open>
-        <summary><span aria-hidden="true">👷</span><span>Empleados y Expedientes</span></summary>
-        <details class="sb-seccion" data-nav-section="Padrón y movimientos" open>
-          <summary>Padrón y movimientos</summary>
-          <button class="sb-item on" id="vb-trab" type="button" data-nav-label="Padrón de trabajadores" onclick="navVista('trab')"><span class="ic" aria-hidden="true">👷</span>Padrón de trabajadores</button>
-          <button class="sb-item" type="button" data-nav-label="Nueva alta" data-nav-permiso="edicion" onclick="sbGo(()=>openForm(null),this)"><span class="ic" aria-hidden="true">＋</span>Nueva alta</button>
-          <button class="sb-item" type="button" data-nav-label="Altas por semana" onclick="sbGo(openAltasSemana,this)"><span class="ic" aria-hidden="true">📆</span>Altas por semana</button>
-          <button class="sb-item" type="button" data-nav-label="Control de cambios de salario" onclick="sbGo(openControlSalarios,this)"><span class="ic" aria-hidden="true">📈</span>Control de cambios de salario</button>
-          <button class="sb-item" type="button" data-nav-label="Transferir de obra" onclick="sbGo(openTransferencia,this)"><span class="ic" aria-hidden="true">🔁</span>Transferir de obra</button>
-        </details>
-        <details class="sb-seccion" data-nav-section="Expedientes y documentos">
-          <summary>Expedientes y documentos</summary>
-          <button class="sb-item" type="button" data-nav-label="Solicitud de empleo" onclick="sbGo(openSolicitudEmpleo,this)"><span class="ic" aria-hidden="true">📄</span>Solicitud de empleo</button>
-          <button class="sb-item" type="button" data-nav-label="Exportar expedientes (filtro actual)" onclick="sbGo(exportExpedientesGlobal,this)"><span class="ic" aria-hidden="true">📚</span>Exportar expedientes (filtro actual)</button>
-          <button class="sb-item" type="button" data-nav-label="Reporte de documentación" onclick="sbGo(openReporteDocs,this)"><span class="ic" aria-hidden="true">📑</span>Reporte de documentación</button>
-        </details>
-      </details>
-
-      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="asistencia" data-nav-title="Asistencia, Calendarios e Incidencias">
-        <summary><span aria-hidden="true">📅</span><span>Asistencia, Calendarios e Incidencias</span></summary>
-        <details class="sb-seccion" data-nav-section="Asistencia y cuadrillas" open>
-          <summary>Asistencia y cuadrillas</summary>
-          <button class="sb-item" type="button" data-nav-label="Listas de asistencia + directorio" onclick="sbGo(openAsistencia,this)"><span class="ic" aria-hidden="true">📝</span>Listas de asistencia + directorio</button>
-          <button class="sb-item" type="button" data-nav-label="Cuadrillas por contratista" onclick="sbGo(openCuadrillas,this)"><span class="ic" aria-hidden="true">👷</span>Cuadrillas por contratista</button>
-          <button class="sb-item" type="button" data-nav-label="Movimientos de la semana" onclick="sbGo(()=>openMovimientos(isoWeek()),this)"><span class="ic" aria-hidden="true">📅</span>Movimientos de la semana</button>
-        </details>
-        <details class="sb-seccion" data-nav-section="Ausencias e incidencias">
-          <summary>Ausencias e incidencias</summary>
-          <button class="sb-item" id="vb-vac" type="button" data-nav-label="Vacaciones y permisos" onclick="navVista('vac')"><span class="ic" aria-hidden="true">🌴</span>Vacaciones y permisos</button>
-          <button class="sb-item" type="button" data-nav-label="Incidencias de la semana" onclick="sbGo(openIncidencias,this)"><span class="ic" aria-hidden="true">📉</span>Incidencias de la semana</button>
-        </details>
-      </details>
-
-      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="nomina" data-nav-title="Nómina">
-        <summary><span aria-hidden="true">🧮</span><span>Nómina</span></summary>
-        <details class="sb-seccion" data-nav-section="Cálculo y proyecciones" open>
-          <summary>Cálculo y proyecciones</summary>
-          <button class="sb-item" type="button" data-nav-label="Proyección de nómina" onclick="sbGo(openProyeccion,this)"><span class="ic" aria-hidden="true">💰</span>Proyección de nómina</button>
-          <button class="sb-item" type="button" data-nav-label="Proyección por contratista" onclick="sbGo(openProyContratista,this)"><span class="ic" aria-hidden="true">👷</span>Proyección por contratista</button>
-          <button class="sb-item" type="button" data-nav-label="ISR mensual quincenal" onclick="sbGo(openISRQuincenal,this)"><span class="ic" aria-hidden="true">🧾</span>ISR mensual quincenal</button>
-        </details>
-        <details class="sb-seccion" data-nav-section="Retenciones y prestaciones">
-          <summary>Retenciones y prestaciones</summary>
-          <button class="sb-item" type="button" data-nav-label="Calendario de retenciones" onclick="sbGo(openCalendarioRet,this)"><span class="ic" aria-hidden="true">🗓</span>Calendario de retenciones</button>
-          <button type="button" class="sb-item" data-nav-label="Papeles de prestaciones y finiquitos" onclick="sbGo(()=>openPapelesFiniquito(),this)"><span class="ic" aria-hidden="true">🧮</span>Papeles de prestaciones y finiquitos</button>
-          <button class="sb-item" id="vb-anual" type="button" data-nav-label="PTU / Aguinaldo" onclick="navVista('anual')"><span class="ic" aria-hidden="true">🪙</span>PTU / Aguinaldo</button>
-        </details>
-        <details class="sb-seccion" data-nav-section="Cierres y auditoría">
-          <summary>Cierres y auditoría</summary>
-          <button type="button" class="sb-item" data-nav-label="Cierres y versiones · Conciliador" onclick="sbGo(()=>openCtrlCierres(),this)"><span class="ic" aria-hidden="true">⚖️</span>Cierres y versiones · Conciliador</button>
-          <button class="sb-item" type="button" data-nav-label="Bitácora de nómina" onclick="sbGo(openBitacoraNomina,this)"><span class="ic" aria-hidden="true">🛡️</span>Bitácora de nómina</button>
-        </details>
-      </details>
-
-      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="seguridad" data-nav-title="Seguridad Social y Obligaciones Laborales">
-        <summary><span aria-hidden="true">🛡️</span><span>Seguridad Social y Obligaciones Laborales</span></summary>
-        <details class="sb-seccion" data-nav-section="IMSS, IDSE y SUA" open>
-          <summary>IMSS, IDSE y SUA</summary>
-          <button type="button" class="sb-item" data-nav-label="Movimientos afiliatorios" onclick="sbGo(()=>openCtrlMovimientos(),this)"><span class="ic" aria-hidden="true">📅</span>Movimientos afiliatorios</button>
-          <button type="button" class="sb-item" data-nav-label="Incidentes, incapacidades y ST-7" onclick="sbGo(()=>openCtrlIncidentes(),this)"><span class="ic" aria-hidden="true">🦺</span>Incidentes, incapacidades y ST-7</button>
-          <button type="button" class="sb-item" data-nav-label="Altas y bajas sin servicio" onclick="sbGo(()=>openCtrlAltasCortas(),this)"><span class="ic" aria-hidden="true">↔️</span>Altas y bajas sin servicio</button>
-        </details>
-        <details class="sb-seccion" data-nav-section="Créditos y evidencias">
-          <summary>Créditos y evidencias</summary>
-          <button class="sb-item" type="button" data-nav-label="Avisos INFONAVIT · por RP" onclick="sbGo(()=>openAvisosInfonavit(),this,false)"><span class="ic" aria-hidden="true">🏠</span>Avisos INFONAVIT · por RP</button>
-          <button type="button" class="sb-item" data-nav-label="Expediente de cumplimiento" onclick="sbGo(()=>openCtrlDocumentos(),this)"><span class="ic" aria-hidden="true">🗂️</span>Expediente de cumplimiento</button>
-        </details>
-      </details>
-
-      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="pagos" data-nav-title="Pagos, Bancos y Cheques">
-        <summary><span aria-hidden="true">🏦</span><span>Pagos, Bancos y Cheques</span></summary>
-        <details class="sb-seccion" data-nav-section="Pagos y cheques" open>
-          <summary>Pagos y cheques</summary>
-          <button type="button" class="sb-item" data-nav-label="Pagos y comprobantes bancarios · Conciliador" onclick="sbGo(()=>openImportPago(),this)"><span class="ic" aria-hidden="true">💳</span>Pagos y comprobantes bancarios · Conciliador</button>
-          <button type="button" class="sb-item" id="vb-cheques" data-nav-label="Gestión de Cheques" onclick="navGestionCheques()"><span class="ic" aria-hidden="true">🧾</span>Gestión de Cheques</button>
-          <button type="button" class="sb-item" data-nav-label="Revisión de pagos del sábado" onclick="sbGo(()=>PLATINUM_PAGOS_SABADO.abrir(),this)"><span class="ic" aria-hidden="true">🗓</span>Revisión de pagos del sábado</button>
-        </details>
-        <details class="sb-seccion" data-nav-section="Cuentas y tarjetas">
-          <summary>Cuentas y tarjetas</summary>
-          <button class="sb-item" type="button" data-nav-label="Respuesta del banco (.exp)" onclick="sbGo(openImportExp,this)"><span class="ic" aria-hidden="true">🏦</span>Respuesta del banco (.exp)</button>
-          <button class="sb-item" type="button" data-nav-label="Cuentas del banco (Excel)" onclick="sbGo(openImport,this)"><span class="ic" aria-hidden="true">🏛</span>Cuentas del banco (Excel)</button>
-          <button class="sb-item" type="button" data-nav-label="Requisición de tarjetas" onclick="sbGo(openRequisicion,this)"><span class="ic" aria-hidden="true">🪪</span>Requisición de tarjetas</button>
-          <button class="sb-item" type="button" data-nav-label="Recepción de tarjetas (firmas)" onclick="sbGo(openRecepcionTarjetas,this)"><span class="ic" aria-hidden="true">✍</span>Recepción de tarjetas (firmas)</button>
-        </details>
-      </details>
-
-      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="conciliacion" data-nav-title="Conciliación y Comprobantes">
-        <summary><span aria-hidden="true">⚖️</span><span>Conciliación y Comprobantes</span></summary>
-        <details class="sb-seccion" data-nav-section="NOI y diferencias" open>
-          <summary>NOI y diferencias</summary>
-          <button class="sb-item" id="vb-conciliador" type="button" data-nav-label="Conciliador General" onclick="navVista('conciliador')"><span class="ic" aria-hidden="true">⚖️</span>Conciliador General</button>
-          <button class="sb-item" type="button" data-nav-label="Verificar números vs NOI" onclick="sbGo(openVerificadorNOI,this)"><span class="ic" aria-hidden="true">🔢</span>Verificar números vs NOI</button>
-        </details>
-        <details class="sb-seccion" data-nav-section="Recibos y acuses">
-          <summary>Recibos y acuses</summary>
-          <button class="sb-item" type="button" data-nav-label="Acuses IMSS y recibos (PDF)" onclick="sbGo(openPdfImport,this)"><span class="ic" aria-hidden="true">📎</span>Acuses IMSS y recibos (PDF)</button>
-          <button class="sb-item" type="button" data-nav-label="Faltan recibos de nómina" onclick="sbGo(openFaltanRecibos,this)"><span class="ic" aria-hidden="true">📋</span>Faltan recibos de nómina</button>
-        </details>
-      </details>
-
-      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="rrhh" data-nav-title="Gestión de RRHH y Cumplimiento Interno">
-        <summary><span aria-hidden="true">📋</span><span>Gestión de RRHH y Cumplimiento Interno</span></summary>
-        <details class="sb-seccion" data-nav-section="Operación y seguimiento" open>
-          <summary>Operación y seguimiento</summary>
-          <button type="button" class="sb-item" data-nav-label="Operación RRHH" onclick="sbGo(()=>PLATINUM_RRHH.abrir(),this)"><span class="ic" aria-hidden="true">⚙️</span>Operación RRHH</button>
-          <button class="sb-item" id="vb-papeles" type="button" data-nav-label="Control de papeles" onclick="navVista('papeles')"><span class="ic" aria-hidden="true">📂</span>Control de papeles</button>
-        </details>
-        <details class="sb-seccion" data-nav-section="Prevención y disciplina">
-          <summary>Prevención y disciplina</summary>
-          <button class="sb-item" id="vb-actas" type="button" data-nav-label="Actas" onclick="navVista('actas')"><span class="ic" aria-hidden="true">📋</span>Actas</button>
-          <button class="sb-item" id="vb-nom" type="button" data-nav-label="NOM-035" onclick="navVista('nom')"><span class="ic" aria-hidden="true">🧠</span>NOM-035</button>
-        </details>
-      </details>
-
-      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="reportes" data-nav-title="Reportes y Análisis">
-        <summary><span aria-hidden="true">📊</span><span>Reportes y Análisis</span></summary>
-        <details class="sb-seccion" data-nav-section="Personal e históricos" open>
-          <summary>Personal e históricos</summary>
-          <button class="sb-item" type="button" data-nav-label="Plantilla a una fecha" onclick="sbGo(openPlantillaFecha,this)"><span class="ic" aria-hidden="true">📸</span>Plantilla a una fecha</button>
-          <button class="sb-item" type="button" data-nav-label="Personal histórico" onclick="sbGo(openPersonalHistorico,this)"><span class="ic" aria-hidden="true">📜</span>Personal histórico</button>
-          <button class="sb-item" type="button" data-nav-label="Correos creados" onclick="sbGo(openCorreos,this)"><span class="ic" aria-hidden="true">✉</span>Correos creados</button>
-        </details>
-        <details class="sb-seccion" data-nav-section="Costos, contratistas y exportación">
-          <summary>Costos, contratistas y exportación</summary>
-          <button class="sb-item" type="button" data-nav-label="Resumen por contratista" onclick="sbGo(openResumen,this)"><span class="ic" aria-hidden="true">📊</span>Resumen por contratista</button>
-          <button type="button" class="sb-item" data-nav-label="Concentrado por contratista" onclick="sbGo(()=>openCtrlConcentradoContratistas(),this)"><span class="ic" aria-hidden="true">📒</span>Concentrado por contratista</button>
-          <button type="button" class="sb-item" data-nav-label="Costo real de obra" onclick="sbGo(()=>openCtrlCostos(),this)"><span class="ic" aria-hidden="true">📊</span>Costo real de obra</button>
-          <button class="sb-item" type="button" data-nav-label="Exports contables · IMSS/IDSE" onclick="sbGo(openExports,this)"><span class="ic" aria-hidden="true">🧮</span>Exports contables · IMSS/IDSE</button>
-        </details>
-      </details>
-
-      <details class="sb-grp sb-module" name="platinum-modulos" data-nav-module="administracion" data-nav-title="Administración y Configuración">
-        <summary><span aria-hidden="true">⚙️</span><span>Administración y Configuración</span></summary>
-        <details class="sb-seccion" data-nav-section="Centros y contratistas" open>
-          <summary>Centros y contratistas</summary>
-          <button class="sb-item" type="button" data-nav-label="Nueva obra / centro" data-nav-permiso="admin" onclick="sbGo(openNuevaObra,this)"><span class="ic" aria-hidden="true">➕</span>Nueva obra / centro</button>
-          <button class="sb-item hide" id="btn-edit-centro" type="button" data-nav-label="Editar centro seleccionado" onclick="sbGo(()=>openEditObra(OBRA.id),this)"><span class="ic" aria-hidden="true">✎</span>Editar centro seleccionado</button>
-          <button class="sb-item" type="button" data-nav-label="Contratistas / REPSE" onclick="sbGo(openContratistas,this)"><span class="ic" aria-hidden="true">🪪</span>Contratistas / REPSE</button>
-          <button class="sb-item" type="button" data-nav-label="Editar contratistas" onclick="sbGo(openEditContratistas,this)"><span class="ic" aria-hidden="true">👷</span>Editar contratistas</button>
-        </details>
-        <details class="sb-seccion" data-nav-section="Mantenimiento y respaldos">
-          <summary>Mantenimiento y respaldos</summary>
-          <button class="sb-item" type="button" data-nav-label="Historial de cambios" onclick="sbGo(()=>openHistorial(null),this)"><span class="ic" aria-hidden="true">🕘</span>Historial de cambios</button>
-          <button class="sb-item" type="button" data-nav-label="Autorrellenar desde CURP" onclick="sbGo(openAutorrellenar,this)"><span class="ic" aria-hidden="true">🪄</span>Autorrellenar desde CURP</button>
-          <button class="sb-item" type="button" data-nav-label="Respaldo Excel" onclick="sbGo(()=>exportRespaldo(false),this)"><span class="ic" aria-hidden="true">⬇</span>Respaldo Excel</button>
-          <button class="sb-item" type="button" data-nav-label="Respaldo por correo" onclick="sbGo(()=>exportRespaldo(true),this)"><span class="ic" aria-hidden="true">📧</span>Respaldo por correo</button>
-          <button class="sb-item" type="button" data-nav-label="Asistente e índice de IA" onclick="sbGo(openIA,this)"><span class="ic" aria-hidden="true">🤖</span>Asistente e índice de IA</button>
-          <button class="sb-item danger hide" id="btn-papelera" type="button" data-nav-label="Papelera" onclick="sbGo(openPapelera,this)"><span class="ic" aria-hidden="true">🗑</span>Papelera</button>
-        </details>
-      </details>
-    </nav>
-
-    <div class="sb-legal"><a href="privacidad.html" target="_blank" rel="noopener">Privacidad</a><a href="terminos.html" target="_blank" rel="noopener">Uso interno</a><a href="cookies.html" target="_blank" rel="noopener">Cookies</a></div>
-    <div class="sb-foot">
-      <div class="who" id="user-chip"></div>
-      <button class="sb-mini" id="theme-btn" onclick="toggleTema()" title="Cambiar tema claro / oscuro">🌙</button>
-      <button class="sb-mini" onclick="doLogout()" title="Cerrar sesión">⏻</button>
-    </div>
-  </aside>
-  <div class="sb-scrim" id="sb-scrim" onclick="toggleSidebar(false)"></div>
-
-  <!-- ======================= CONTENIDO ======================= -->
   <div class="shell">
+    <svg class="nav-symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><symbol id="pl-icon-home" viewBox="0 0 24 24"><path d="M3 10 12 3l9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z M9 21v-7h6v7"></path></symbol><symbol id="pl-icon-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M22 21v-2a4 4 0 0 0-3-4 M17 3a4 4 0 0 1 0 8"></path></symbol><symbol id="pl-icon-folder" viewBox="0 0 24 24"><path d="M3 7V5a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z M3 9h18"></path></symbol><symbol id="pl-icon-calendar" viewBox="0 0 24 24"><path d="M3 5h18v16H3z M7 3v4m10-4v4M3 10h18m-13 5h2m4 0h2"></path></symbol><symbol id="pl-icon-calc" viewBox="0 0 24 24"><path d="M5 3h14v18H5z M8 7h8M8 11h1m6 0h1M8 15h1m6 0h1M8 18h1m6 0h1"></path></symbol><symbol id="pl-icon-shield" viewBox="0 0 24 24"><path d="M12 22c5-2 8-6 8-11V5l-8-3-8 3v6c0 5 3 9 8 11z M9 12l2 2 4-4"></path></symbol><symbol id="pl-icon-wallet" viewBox="0 0 24 24"><path d="M3 6h17v14H3z M3 6l14-3v3m3 5h-6a2 2 0 0 0 0 4h6m-5-2h.01"></path></symbol><symbol id="pl-icon-teams" viewBox="0 0 24 24"><path d="M3 21v-6h5v6m1 0V9h6v12m1 0v-6h5v6M3 21h18M12 3v3m-3-1 3-2 3 2"></path></symbol><symbol id="pl-icon-chart" viewBox="0 0 24 24"><path d="M3 3v18h18M8 16v-5m5 5V8m5 8V5"></path></symbol><symbol id="pl-icon-settings" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16M8 3v6m8 0v6m-6 0v6"></path></symbol><symbol id="pl-icon-list" viewBox="0 0 24 24"><path d="M4 4h16v16H4z M8 9h8m-8 6h8"></path></symbol><symbol id="pl-icon-card" viewBox="0 0 24 24"><path d="M3 5h18v14H3z M3 10h18m-14 5h4"></path></symbol><symbol id="pl-icon-badge" viewBox="0 0 24 24"><path d="M5 4h14v16H5z M9 4V2h6v2m-2 7a1 1 0 1 1-2 0 1 1 0 0 1 2 0m-4 5c0-3 6-3 6 0"></path></symbol><symbol id="pl-icon-office" viewBox="0 0 24 24"><path d="M4 21V4h12v17m0-12h4v12M2 21h20M8 8h4m-4 4h4m-4 4h4"></path></symbol><symbol id="pl-icon-swap" viewBox="0 0 24 24"><path d="M4 8h15l-4-4m5 12H5l4 4"></path></symbol><symbol id="pl-icon-add" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol><symbol id="pl-icon-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2 6m2-12v6h-6"></path></symbol><symbol id="pl-icon-fold" viewBox="0 0 24 24"><path d="M3 5h18v14H3z M3 10h18m-12 5 3-2 3 2"></path></symbol><symbol id="pl-icon-user" viewBox="0 0 24 24"><path d="M4 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0"></path></symbol><symbol id="pl-icon-logout" viewBox="0 0 24 24"><path d="M11 4H4v16h7m3-4 4-4-4-4m-5 4h9"></path></symbol><symbol id="pl-icon-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 6-3 7-3 8h18c0-1-3-2-3-8m-8 11a2 2 0 0 0 4 0"></path></symbol><symbol id="pl-icon-edit" viewBox="0 0 24 24"><path d="M4 20l4-1 12-12-3-3L5 16z M14 7l3 3"></path></symbol><symbol id="pl-icon-download" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"></path></symbol><symbol id="pl-icon-trash" viewBox="0 0 24 24"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15m-8 4v7m4-7v7"></path></symbol></svg>
     <header class="appbar">
-      <button class="burger" id="burger" onclick="toggleSidebar()" title="Mostrar u ocultar el menú" aria-label="Mostrar u ocultar el menú" aria-controls="sidebar" aria-expanded="true">☰</button>
-      <nav class="crumbs" id="crumbs" aria-label="Ruta actual"></nav>
+      <div class="nav-brand"><span id="sb-logo"></span><b>PLATINUM <span>OS</span></b></div>
+      <nav class="crumbs" id="crumbs" aria-label="Contexto y ruta actual"></nav>
       <div class="appbar-right">
-        <span id="rt-status" style="font-size:11.5px;color:var(--mut)"></span>
-        <span id="act-live-notice" hidden style="font-size:10px;color:var(--mut)" aria-label="Ubicación de módulo y campo compartida con administración, sin valores">◉</span>
-        <button id="act-live-open" class="sb-mini" type="button" hidden onclick="PLATINUM_ACTIVIDAD.abrir()" aria-label="Ver actividad de usuarios, sólo administrador" title="Actividad de usuarios · sólo administrador">👥</button>
-        <button class="sb-mini" onclick="actualizarDatosCompartidos()" title="Actualizar datos compartidos sin recargar la página" aria-label="Actualizar datos compartidos">↻</button>
-        <span class="context-tool" id="alert-badge" title="Avisos pendientes: consulta Menú → Inicio y Centro de Control → Alertas" aria-live="polite" style="background:var(--amber-bg);color:var(--amber);border-radius:8px;padding:4px 8px;font-size:11px;font-weight:800;display:none"></span>
+        <span id="rt-status" role="status"></span>
+        <span id="act-live-notice" hidden aria-label="Ubicación de módulo y campo compartida con administración, sin valores">◉</span>
+        <button id="act-live-open" class="sb-mini" type="button" hidden onclick="PLATINUM_ACTIVIDAD.abrir()" aria-label="Ver actividad de usuarios, sólo administrador" title="Actividad de usuarios · sólo administrador"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-users"></use></svg></button>
+        <button class="sb-mini" type="button" onclick="actualizarDatosCompartidos()" title="Actualizar datos compartidos" aria-label="Actualizar datos compartidos"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-refresh"></use></svg></button>
+        <span class="context-tool" id="alert-badge" title="Avisos pendientes · Inicio → Alertas" aria-live="polite" style="display:none"></span>
+        <details class="nav-account" id="nav-account">
+          <summary aria-label="Cuenta y preferencias" title="Cuenta y preferencias"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-user"></use></svg></summary>
+          <div class="nav-account-panel">
+            <div class="who" id="user-chip"></div>
+            <p id="sb-company">Gestión empresarial</p>
+            <button class="btn" type="button" id="theme-btn" onclick="toggleTema()" aria-label="Cambiar tema claro u oscuro" title="Cambiar tema claro u oscuro">🌙</button>
+            <button class="btn" type="button" onclick="if(navPuedeCambiar())doLogout()"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-logout"></use></svg> Cerrar sesión</button>
+            <div class="sb-legal"><a href="privacidad.html" target="_blank" rel="noopener">Privacidad</a><a href="terminos.html" target="_blank" rel="noopener">Uso interno</a><a href="cookies.html" target="_blank" rel="noopener">Cookies</a></div>
+          </div>
+        </details>
       </div>
     </header>
+    <nav class="sb-nav" aria-label="Módulos y acciones">
+      <div class="nav-modules">
+        <div class="nav-tabs" role="tablist" aria-label="Módulos de PLATINUM">
+          <button type="button" class="nav-tab" id="nav-tab-inicio" role="tab" data-nav-tab="inicio" aria-controls="nav-panel-inicio" aria-selected="false" tabindex="-1"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-home"></use></svg><span>Inicio</span></button>
+          <button type="button" class="nav-tab" id="nav-tab-empleados" role="tab" data-nav-tab="empleados" aria-controls="nav-panel-empleados" aria-selected="true" tabindex="0"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-users"></use></svg><span>Empleados</span></button>
+          <button type="button" class="nav-tab" id="nav-tab-expediente" role="tab" data-nav-tab="expediente" aria-controls="nav-panel-expediente" aria-selected="false" tabindex="-1"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-folder"></use></svg><span>Expediente</span></button>
+          <button type="button" class="nav-tab" id="nav-tab-asistencia" role="tab" data-nav-tab="asistencia" aria-controls="nav-panel-asistencia" aria-selected="false" tabindex="-1"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-calendar"></use></svg><span>Asistencia</span></button>
+          <button type="button" class="nav-tab" id="nav-tab-nomina" role="tab" data-nav-tab="nomina" aria-controls="nav-panel-nomina" aria-selected="false" tabindex="-1"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-calc"></use></svg><span>Nómina</span></button>
+          <button type="button" class="nav-tab" id="nav-tab-seguridad" role="tab" data-nav-tab="seguridad" aria-controls="nav-panel-seguridad" aria-selected="false" tabindex="-1"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-shield"></use></svg><span>IMSS / INFONAVIT</span></button>
+          <button type="button" class="nav-tab" id="nav-tab-pagos" role="tab" data-nav-tab="pagos" aria-controls="nav-panel-pagos" aria-selected="false" tabindex="-1"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-wallet"></use></svg><span>Pagos y conciliación</span></button>
+          <button type="button" class="nav-tab" id="nav-tab-contratistas" role="tab" data-nav-tab="contratistas" aria-controls="nav-panel-contratistas" aria-selected="false" tabindex="-1"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-teams"></use></svg><span>Cuadrillas y contratistas</span></button>
+          <button type="button" class="nav-tab" id="nav-tab-reportes" role="tab" data-nav-tab="reportes" aria-controls="nav-panel-reportes" aria-selected="false" tabindex="-1"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-chart"></use></svg><span>Reportes</span></button>
+          <button type="button" class="nav-tab" id="nav-tab-sistema" role="tab" data-nav-tab="sistema" aria-controls="nav-panel-sistema" aria-selected="false" tabindex="-1"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-settings"></use></svg><span>Sistema</span></button>
+        </div>
+        <button type="button" id="burger" class="burger" onclick="toggleSidebar()" aria-controls="sidebar" aria-expanded="true" title="Plegar la cinta" aria-label="Plegar la cinta"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-fold"></use></svg></button>
+      </div>
+      <div id="sidebar" class="nav-ribbon open">
+        <section id="nav-panel-inicio" class="nav-module sb-module" role="tabpanel" aria-labelledby="nav-tab-inicio" data-nav-module="inicio" data-nav-title="Inicio" hidden>
+<section class="nav-group" data-nav-section="Supervisión" aria-labelledby="nav-grupo-inicio-0">
+  <div class="nav-tools"><button data-nav-primary="" class="sb-item" id="vb-control" type="button" data-nav-label="Centro de control" onclick="sbGo(openControlEmpresarial,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-home" /></svg><span class="nav-action-label">Centro de control</span></button>
+    <button class="sb-item" type="button" data-nav-label="Dashboard ejecutivo" onclick="sbGo(openDashboard,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-home" /></svg><span class="nav-action-label">Dashboard ejecutivo</span></button>
+    <button class="sb-item" type="button" data-nav-label="Alertas" onclick="sbGo(openAlertas,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-bell" /></svg><span class="nav-action-label">Alertas</span><span class="pill" id="sb-alert-badge" style="display:none"></span></button></div>
+  <h3 id="nav-grupo-inicio-0">Supervisión</h3>
+</section>
+<section class="nav-group" data-nav-section="Seguimiento" aria-labelledby="nav-grupo-inicio-1">
+  <div class="nav-tools"><button data-nav-primary="" type="button" class="sb-item" data-nav-label="Pendientes y aprobaciones" onclick="sbGo(()=>PLATINUM_FLOWS.bandeja(false),this,false)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-list" /></svg><span class="nav-action-label">Pendientes y aprobaciones</span></button>
+    <button type="button" class="sb-item" data-nav-label="Operación RRHH" onclick="sbGo(()=>PLATINUM_RRHH.abrir(),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-users" /></svg><span class="nav-action-label">Operación RRHH</span></button></div>
+  <h3 id="nav-grupo-inicio-1">Seguimiento</h3>
+</section>
+</section>
+<section id="nav-panel-empleados" class="nav-module sb-module" role="tabpanel" aria-labelledby="nav-tab-empleados" data-nav-module="empleados" data-nav-title="Empleados">
+<section class="nav-group" data-nav-section="Padrón y alta" aria-labelledby="nav-grupo-empleados-0">
+  <div class="nav-tools"><button data-nav-primary="" class="sb-item on" id="vb-trab" type="button" data-nav-label="Padrón de trabajadores" onclick="navVista('trab')"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-users" /></svg><span class="nav-action-label">Padrón de trabajadores</span></button>
+    <button data-nav-primary="" class="sb-item" type="button" data-nav-label="Nueva alta" data-nav-permiso="edicion" onclick="sbGo(()=>openForm(null),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-add" /></svg><span class="nav-action-label">Nueva alta</span></button>
+    <button class="sb-item" type="button" data-nav-label="Altas por semana" onclick="sbGo(openAltasSemana,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-calendar" /></svg><span class="nav-action-label">Altas por semana</span></button></div>
+  <h3 id="nav-grupo-empleados-0">Padrón y alta</h3>
+</section>
+<section class="nav-group" data-nav-section="Cambios y adscripción" aria-labelledby="nav-grupo-empleados-1">
+  <div class="nav-tools"><button class="sb-item" type="button" data-nav-label="Control de cambios de salario" onclick="sbGo(openControlSalarios,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-swap" /></svg><span class="nav-action-label">Control de cambios de salario</span></button>
+    <button class="sb-item" type="button" data-nav-label="Transferir de obra" onclick="sbGo(openTransferencia,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-swap" /></svg><span class="nav-action-label">Transferir de obra</span></button></div>
+  <h3 id="nav-grupo-empleados-1">Cambios y adscripción</h3>
+</section>
+</section>
+<section id="nav-panel-expediente" class="nav-module sb-module" role="tabpanel" aria-labelledby="nav-tab-expediente" data-nav-module="expediente" data-nav-title="Expediente" hidden>
+<section class="nav-group" data-nav-section="Expedientes y documentos" aria-labelledby="nav-grupo-expediente-0">
+  <div class="nav-tools"><button class="sb-item" type="button" data-nav-label="Solicitud de empleo" onclick="sbGo(openSolicitudEmpleo,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-folder" /></svg><span class="nav-action-label">Solicitud de empleo</span></button>
+    <button class="sb-item" type="button" data-nav-label="Exportar expedientes (filtro actual)" onclick="sbGo(exportExpedientesGlobal,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-download" /></svg><span class="nav-action-label">Exportar expedientes (filtro actual)</span></button>
+    <button class="sb-item" type="button" data-nav-label="Reporte de documentación" onclick="sbGo(openReporteDocs,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-folder" /></svg><span class="nav-action-label">Reporte de documentación</span></button>
+    <button class="sb-item" id="vb-papeles" type="button" data-nav-label="Control de papeles" onclick="navVista('papeles')"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-folder" /></svg><span class="nav-action-label">Control de papeles</span></button></div>
+  <h3 id="nav-grupo-expediente-0">Expedientes y documentos</h3>
+</section>
+<section class="nav-group" data-nav-section="Prevención y disciplina" aria-labelledby="nav-grupo-expediente-1">
+  <div class="nav-tools"><button class="sb-item" id="vb-actas" type="button" data-nav-label="Actas" onclick="navVista('actas')"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-shield" /></svg><span class="nav-action-label">Actas</span></button>
+    <button class="sb-item" id="vb-nom" type="button" data-nav-label="NOM-035" onclick="navVista('nom')"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-shield" /></svg><span class="nav-action-label">NOM-035</span></button></div>
+  <h3 id="nav-grupo-expediente-1">Prevención y disciplina</h3>
+</section>
+</section>
+<section id="nav-panel-asistencia" class="nav-module sb-module" role="tabpanel" aria-labelledby="nav-tab-asistencia" data-nav-module="asistencia" data-nav-title="Asistencia" hidden>
+<section class="nav-group" data-nav-section="Listas y movimientos" aria-labelledby="nav-grupo-asistencia-0">
+  <div class="nav-tools"><button class="sb-item" type="button" data-nav-label="Listas de asistencia + directorio" onclick="sbGo(openAsistencia,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-calendar" /></svg><span class="nav-action-label">Listas de asistencia + directorio</span></button>
+    <button class="sb-item" type="button" data-nav-label="Movimientos de la semana" onclick="sbGo(()=>openMovimientos(isoWeek()),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-calendar" /></svg><span class="nav-action-label">Movimientos de la semana</span></button></div>
+  <h3 id="nav-grupo-asistencia-0">Listas y movimientos</h3>
+</section>
+<section class="nav-group" data-nav-section="Ausencias e incidencias" aria-labelledby="nav-grupo-asistencia-1">
+  <div class="nav-tools"><button class="sb-item" id="vb-vac" type="button" data-nav-label="Vacaciones y permisos" onclick="navVista('vac')"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-list" /></svg><span class="nav-action-label">Vacaciones y permisos</span></button>
+    <button class="sb-item" type="button" data-nav-label="Incidencias de la semana" onclick="sbGo(openIncidencias,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-list" /></svg><span class="nav-action-label">Incidencias de la semana</span></button></div>
+  <h3 id="nav-grupo-asistencia-1">Ausencias e incidencias</h3>
+</section>
+</section>
+<section id="nav-panel-nomina" class="nav-module sb-module" role="tabpanel" aria-labelledby="nav-tab-nomina" data-nav-module="nomina" data-nav-title="Nómina" hidden>
+<section class="nav-group" data-nav-section="Cálculo y proyecciones" aria-labelledby="nav-grupo-nomina-0">
+  <div class="nav-tools"><button data-nav-primary="" class="sb-item" type="button" data-nav-label="Proyección de nómina" onclick="sbGo(openProyeccion,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-calc" /></svg><span class="nav-action-label">Proyección de nómina</span></button>
+    <button class="sb-item" type="button" data-nav-label="ISR mensual quincenal" onclick="sbGo(openISRQuincenal,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-calc" /></svg><span class="nav-action-label">ISR mensual quincenal</span></button></div>
+  <h3 id="nav-grupo-nomina-0">Cálculo y proyecciones</h3>
+</section>
+<section class="nav-group" data-nav-section="Retenciones y prestaciones" aria-labelledby="nav-grupo-nomina-1">
+  <div class="nav-tools"><button class="sb-item" type="button" data-nav-label="Calendario de retenciones" onclick="sbGo(openCalendarioRet,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-calendar" /></svg><span class="nav-action-label">Calendario de retenciones</span></button>
+    <button type="button" class="sb-item" data-nav-label="Papeles de prestaciones y finiquitos" onclick="sbGo(()=>openPapelesFiniquito(),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-calendar" /></svg><span class="nav-action-label">Papeles de prestaciones y finiquitos</span></button>
+    <button class="sb-item" id="vb-anual" type="button" data-nav-label="PTU / Aguinaldo" onclick="navVista('anual')"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-calendar" /></svg><span class="nav-action-label">PTU / Aguinaldo</span></button></div>
+  <h3 id="nav-grupo-nomina-1">Retenciones y prestaciones</h3>
+</section>
+<section class="nav-group" data-nav-section="Cierres y auditoría" aria-labelledby="nav-grupo-nomina-2">
+  <div class="nav-tools"><button type="button" class="sb-item" data-nav-label="Cierres y versiones · Conciliador" onclick="sbGo(()=>openCtrlCierres(),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-list" /></svg><span class="nav-action-label">Cierres y versiones · Conciliador</span></button>
+    <button class="sb-item" type="button" data-nav-label="Bitácora de nómina" onclick="sbGo(openBitacoraNomina,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-list" /></svg><span class="nav-action-label">Bitácora de nómina</span></button></div>
+  <h3 id="nav-grupo-nomina-2">Cierres y auditoría</h3>
+</section>
+</section>
+<section id="nav-panel-seguridad" class="nav-module sb-module" role="tabpanel" aria-labelledby="nav-tab-seguridad" data-nav-module="seguridad" data-nav-title="IMSS / INFONAVIT" hidden>
+<section class="nav-group" data-nav-section="IMSS, IDSE y SUA" aria-labelledby="nav-grupo-seguridad-0">
+  <div class="nav-tools"><button type="button" class="sb-item" data-nav-label="Movimientos afiliatorios" onclick="sbGo(()=>openCtrlMovimientos(),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-shield" /></svg><span class="nav-action-label">Movimientos afiliatorios</span></button>
+    <button type="button" class="sb-item" data-nav-label="Incidentes, incapacidades y ST-7" onclick="sbGo(()=>openCtrlIncidentes(),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-shield" /></svg><span class="nav-action-label">Incidentes, incapacidades y ST-7</span></button>
+    <button type="button" class="sb-item" data-nav-label="Altas y bajas sin servicio" onclick="sbGo(()=>openCtrlAltasCortas(),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-shield" /></svg><span class="nav-action-label">Altas y bajas sin servicio</span></button>
+    <button class="sb-item" type="button" data-nav-label="Importar acuses IMSS" onclick="sbGo(openPdfImport,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-list" /></svg><span class="nav-action-label">Importar acuses IMSS</span></button></div>
+  <h3 id="nav-grupo-seguridad-0">IMSS, IDSE y SUA</h3>
+</section>
+<section class="nav-group" data-nav-section="Créditos y evidencias" aria-labelledby="nav-grupo-seguridad-1">
+  <div class="nav-tools"><button class="sb-item" type="button" data-nav-label="Avisos INFONAVIT · por RP" onclick="sbGo(()=>openAvisosInfonavit(),this,false)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-folder" /></svg><span class="nav-action-label">Avisos INFONAVIT · por RP</span></button>
+    <button type="button" class="sb-item" data-nav-label="Expediente de cumplimiento" onclick="sbGo(()=>openCtrlDocumentos(),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-folder" /></svg><span class="nav-action-label">Expediente de cumplimiento</span></button></div>
+  <h3 id="nav-grupo-seguridad-1">Créditos y evidencias</h3>
+</section>
+</section>
+<section id="nav-panel-pagos" class="nav-module sb-module" role="tabpanel" aria-labelledby="nav-tab-pagos" data-nav-module="pagos" data-nav-title="Pagos y conciliación" hidden>
+<section class="nav-group" data-nav-section="Conciliación" aria-labelledby="nav-grupo-pagos-0">
+  <div class="nav-tools"><button data-nav-primary="" class="sb-item" id="vb-conciliador" type="button" data-nav-label="Conciliador General" onclick="navVista('conciliador')"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-list" /></svg><span class="nav-action-label">Conciliador General</span></button>
+    <button class="sb-item" type="button" data-nav-label="Verificar números vs NOI" onclick="sbGo(openVerificadorNOI,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-list" /></svg><span class="nav-action-label">Verificar números vs NOI</span></button>
+</div>
+  <h3 id="nav-grupo-pagos-0">Conciliación</h3>
+</section>
+<section class="nav-group" data-nav-section="Recibos de nómina" aria-labelledby="nav-grupo-pagos-recibos">
+  <div class="nav-tools"><button data-nav-primary="" class="sb-item" type="button" data-nav-label="Importar recibos PDF y XML" onclick="sbGo(openCfdiImport,this,false)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-folder" /></svg><span class="nav-action-label">Importar recibos PDF y XML</span></button>
+    <button class="sb-item" type="button" data-nav-label="Faltan recibos de nómina" onclick="sbGo(openFaltanRecibos,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-list" /></svg><span class="nav-action-label">Faltan recibos de nómina</span></button></div>
+  <h3 id="nav-grupo-pagos-recibos">Recibos de nómina</h3>
+</section>
+<section class="nav-group" data-nav-section="Pagos y cheques" aria-labelledby="nav-grupo-pagos-1">
+  <div class="nav-tools"><button type="button" class="sb-item" data-nav-label="Pagos y comprobantes bancarios · Conciliador" onclick="sbGo(()=>openImportPago(),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-wallet" /></svg><span class="nav-action-label">Pagos y comprobantes bancarios · Conciliador</span></button>
+    <button data-nav-primary="" type="button" class="sb-item" id="vb-cheques" data-nav-label="Gestión de Cheques" onclick="navGestionCheques()"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-wallet" /></svg><span class="nav-action-label">Gestión de Cheques</span></button>
+    <button type="button" class="sb-item" data-nav-label="Revisión de pagos del sábado" onclick="sbGo(()=>PLATINUM_PAGOS_SABADO.abrir(),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-wallet" /></svg><span class="nav-action-label">Revisión de pagos del sábado</span></button></div>
+  <h3 id="nav-grupo-pagos-1">Pagos y cheques</h3>
+</section>
+<section class="nav-group" data-nav-section="Cuentas y tarjetas" aria-labelledby="nav-grupo-pagos-2">
+  <div class="nav-tools"><button class="sb-item" type="button" data-nav-label="Respuesta del banco (.exp)" onclick="sbGo(openImportExp,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-card" /></svg><span class="nav-action-label">Respuesta del banco (.exp)</span></button>
+    <button class="sb-item" type="button" data-nav-label="Cuentas del banco (Excel)" onclick="sbGo(openImport,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-card" /></svg><span class="nav-action-label">Cuentas del banco (Excel)</span></button>
+    <button class="sb-item" type="button" data-nav-label="Requisición de tarjetas" onclick="sbGo(openRequisicion,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-card" /></svg><span class="nav-action-label">Requisición de tarjetas</span></button>
+    <button class="sb-item" type="button" data-nav-label="Recepción de tarjetas (firmas)" onclick="sbGo(openRecepcionTarjetas,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-card" /></svg><span class="nav-action-label">Recepción de tarjetas (firmas)</span></button></div>
+  <h3 id="nav-grupo-pagos-2">Cuentas y tarjetas</h3>
+</section>
+</section>
+<section id="nav-panel-contratistas" class="nav-module sb-module" role="tabpanel" aria-labelledby="nav-tab-contratistas" data-nav-module="contratistas" data-nav-title="Cuadrillas y contratistas" hidden>
+<section class="nav-group" data-nav-section="Equipos de obra" aria-labelledby="nav-grupo-contratistas-0">
+  <div class="nav-tools"><button data-nav-primary="" class="sb-item" type="button" data-nav-label="Cuadrillas por contratista" onclick="sbGo(openCuadrillas,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-teams" /></svg><span class="nav-action-label">Cuadrillas por contratista</span></button></div>
+  <h3 id="nav-grupo-contratistas-0">Equipos de obra</h3>
+</section>
+<section class="nav-group" data-nav-section="Contratistas y REPSE" aria-labelledby="nav-grupo-contratistas-1">
+  <div class="nav-tools"><button data-nav-primary="" class="sb-item" type="button" data-nav-label="Contratistas / REPSE" onclick="sbGo(openContratistas,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-badge" /></svg><span class="nav-action-label">Contratistas / REPSE</span></button>
+    <button class="sb-item" type="button" data-nav-label="Editar contratistas" onclick="sbGo(openEditContratistas,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-edit" /></svg><span class="nav-action-label">Editar contratistas</span></button></div>
+  <h3 id="nav-grupo-contratistas-1">Contratistas y REPSE</h3>
+</section>
+<section class="nav-group" data-nav-section="Nómina y concentrados" aria-labelledby="nav-grupo-contratistas-2">
+  <div class="nav-tools"><button class="sb-item" type="button" data-nav-label="Proyección por contratista" onclick="sbGo(openProyContratista,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-calc" /></svg><span class="nav-action-label">Proyección por contratista</span></button>
+    <button class="sb-item" type="button" data-nav-label="Resumen por contratista" onclick="sbGo(openResumen,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-chart" /></svg><span class="nav-action-label">Resumen por contratista</span></button>
+    <button type="button" class="sb-item" data-nav-label="Concentrado por contratista" onclick="sbGo(()=>openCtrlConcentradoContratistas(),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-chart" /></svg><span class="nav-action-label">Concentrado por contratista</span></button></div>
+  <h3 id="nav-grupo-contratistas-2">Nómina y concentrados</h3>
+</section>
+</section>
+<section id="nav-panel-reportes" class="nav-module sb-module" role="tabpanel" aria-labelledby="nav-tab-reportes" data-nav-module="reportes" data-nav-title="Reportes" hidden>
+<section class="nav-group" data-nav-section="Personal e históricos" aria-labelledby="nav-grupo-reportes-0">
+  <div class="nav-tools"><button class="sb-item" type="button" data-nav-label="Plantilla a una fecha" onclick="sbGo(openPlantillaFecha,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-users" /></svg><span class="nav-action-label">Plantilla a una fecha</span></button>
+    <button class="sb-item" type="button" data-nav-label="Personal histórico" onclick="sbGo(openPersonalHistorico,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-calendar" /></svg><span class="nav-action-label">Personal histórico</span></button>
+    <button class="sb-item" type="button" data-nav-label="Correos creados" onclick="sbGo(openCorreos,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-users" /></svg><span class="nav-action-label">Correos creados</span></button></div>
+  <h3 id="nav-grupo-reportes-0">Personal e históricos</h3>
+</section>
+<section class="nav-group" data-nav-section="Costos y exportación" aria-labelledby="nav-grupo-reportes-1">
+  <div class="nav-tools"><button type="button" class="sb-item" data-nav-label="Costo real de obra" onclick="sbGo(()=>openCtrlCostos(),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-chart" /></svg><span class="nav-action-label">Costo real de obra</span></button>
+    <button class="sb-item" type="button" data-nav-label="Exports contables · IMSS/IDSE" onclick="sbGo(openExports,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-download" /></svg><span class="nav-action-label">Exports contables · IMSS/IDSE</span></button></div>
+  <h3 id="nav-grupo-reportes-1">Costos y exportación</h3>
+</section>
+</section>
+<section id="nav-panel-sistema" class="nav-module sb-module" role="tabpanel" aria-labelledby="nav-tab-sistema" data-nav-module="sistema" data-nav-title="Sistema" hidden>
+<section class="nav-group" data-nav-section="Centros de trabajo" aria-labelledby="nav-grupo-sistema-0">
+  <div class="nav-tools"><button class="sb-item" type="button" data-nav-label="Nueva obra / centro" data-nav-permiso="admin" onclick="sbGo(openNuevaObra,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-add" /></svg><span class="nav-action-label">Nueva obra / centro</span></button>
+    <button class="sb-item hide" id="btn-edit-centro" type="button" data-nav-label="Editar centro seleccionado" onclick="sbGo(()=>openEditObra(OBRA.id),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-edit" /></svg><span class="nav-action-label">Editar centro seleccionado</span></button></div>
+  <h3 id="nav-grupo-sistema-0">Centros de trabajo</h3>
+</section>
+<section class="nav-group" data-nav-section="Historial y asistencia" aria-labelledby="nav-grupo-sistema-1">
+  <div class="nav-tools"><button class="sb-item" type="button" data-nav-label="Historial de cambios" onclick="sbGo(()=>openHistorial(null),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-list" /></svg><span class="nav-action-label">Historial de cambios</span></button>
+    <button class="sb-item" type="button" data-nav-label="Autorrellenar desde CURP" onclick="sbGo(openAutorrellenar,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-list" /></svg><span class="nav-action-label">Autorrellenar desde CURP</span></button>
+    <button class="sb-item" type="button" data-nav-label="Asistente e índice de IA" onclick="sbGo(openIA,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-list" /></svg><span class="nav-action-label">Asistente e índice de IA</span></button></div>
+  <h3 id="nav-grupo-sistema-1">Historial y asistencia</h3>
+</section>
+<section class="nav-group" data-nav-section="Mantenimiento y respaldos" aria-labelledby="nav-grupo-sistema-2">
+  <div class="nav-tools"><button class="sb-item" type="button" data-nav-label="Respaldo Excel" onclick="sbGo(()=>exportRespaldo(false),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-download" /></svg><span class="nav-action-label">Respaldo Excel</span></button>
+    <button class="sb-item" type="button" data-nav-label="Respaldo por correo" onclick="sbGo(()=>exportRespaldo(true),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-download" /></svg><span class="nav-action-label">Respaldo por correo</span></button>
+    <button class="sb-item danger hide" id="btn-papelera" type="button" data-nav-label="Papelera" onclick="sbGo(openPapelera,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-trash" /></svg><span class="nav-action-label">Papelera</span></button></div>
+  <h3 id="nav-grupo-sistema-2">Mantenimiento y respaldos</h3>
+</section>
+</section>
+      </div>
+    </nav>
 
     <section class="empresa-nav" aria-label="Empresa y centro de trabajo">
       <div id="empresa-step" class="selection-step">
@@ -1189,7 +1087,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 </div>
 
 <script src="platinum-sync.js?v=20261107.1"></script>
-<script src="platinum-workflows.js?v=20261108.2"></script>
+<script src="platinum-workflows.js?v=20261109.1"></script>
 <script src="platinum-rrhh.js?v=20261108.2"></script>
 <script src="platinum-pagos-sabado.js?v=20261023.2"></script>
 <aside id="act-live-panel" class="act-live-panel" data-actividad-panel hidden aria-label="Actividad en vivo, sólo administrador"><div class="act-live-head"><h2>Actividad de usuarios</h2><button type="button" class="btn" onclick="PLATINUM_ACTIVIDAD.abrir()" aria-label="Actualizar actividad">↻</button><button type="button" class="btn" onclick="PLATINUM_ACTIVIDAD.cerrar()" aria-label="Cerrar actividad">×</button></div><div id="act-live-body" class="act-live-body"></div></aside>

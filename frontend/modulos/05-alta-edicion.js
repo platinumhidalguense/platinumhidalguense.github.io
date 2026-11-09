@@ -29,6 +29,7 @@ function openForm(id){
   const obrasAlta=obrasEmpresa(empresaDeObra(OBRA));
   modal(`
     <div class="m-head"><img class="wf-logo" src="${logoEmpresa(empresaDeObra(OBRA))}" alt="${esc(EMPRESAS[empresaDeObra(OBRA)].corto)}"><div><h2>${w?'Modificar · '+esc(fullName(w)):'Nueva alta'}</h2><p class="wf-context">${esc(EMPRESAS[empresaDeObra(OBRA)].corto)} · ${esc(OBRA.nombre)}</p></div><button class="x" onclick="closeModal()" aria-label="Cerrar registro">×</button></div>
+    <div class="wf-workspace">
     <div class="wf-stepper" role="group" aria-label="Pasos del registro">
       ${['Asignación','Datos personales','Documentos'].map((txt,i)=>`<button type="button" id="wf-tab-${i+1}" onclick="workerFormPaso(${i+1})"><span>${i+1}</span><b>${txt}</b></button>`).join('')}
     </div>
@@ -132,6 +133,7 @@ function openForm(id){
       }).join('')}</div>
       <div id="wf-drive" style="margin-top:12px"><label>Carpeta Drive del trabajador (opcional)</label><input id="f-drive_link" value="${esc(w?w.drive_link:'')}" placeholder="https://drive.google.com/..."></div>
       <datalist id="dl-contr">${[...new Set([...WORKERS.map(x=>x.contratista).filter(Boolean),...CONTRATISTAS.map(c=>c.nombre)])].sort().map(c=>`<option>${esc(c)}</option>`).join('')}</datalist>
+    </div>
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>

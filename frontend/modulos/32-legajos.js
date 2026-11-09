@@ -284,13 +284,13 @@ function faltantesReciboDe(w,recSet){
   }
   return falt;
 }
-function openFaltanRecibos(){
-  const sem=concSemanaDefault();
+function openFaltanRecibos(semana=null){
+  const sem=semana||concSemanaDefault();
   modal(`
     <div class="m-head"><h2>📋 Faltan recibos de nómina · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Revisa una semana cerrada: toma exactamente a quienes aparecen en el cierre/NOI y confirma si tienen su <b>recibo PDF</b> archivado. El XML fiscal se muestra aparte.</p>
-      <div style="display:flex;gap:8px;align-items:end;margin-bottom:10px"><div><label>Semana</label><input id="fr-sem" style="width:90px" value="S${sem}"></div><button class="btn dark" id="fr-btn" onclick="frecCargar()">↻ Revisar</button></div>
+      <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:10px"><div><label>Semana</label><input id="fr-sem" style="width:90px" value="S${sem}"></div><button class="btn" id="fr-btn" onclick="frecCargar()">↻ Revisar</button><button class="btn dark" onclick="openCfdiImport({semana:normSem($('fr-sem').value),volver:'faltantes'})">Importar recibos PDF y XML</button></div>
       <div id="fr-out">${skeletonRows(6,'1.6fr .7fr .7fr','Verificando recibos...')}</div>
     </div>
     <div class="m-foot">

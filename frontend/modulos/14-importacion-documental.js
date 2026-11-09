@@ -35,7 +35,6 @@ function openPdfImport(){
   modal(`
     <div class="m-head"><h2>📎 Importar acuses IMSS</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
-      <p><button class="btn" onclick="PLATINUM_CONCILIADOR.abrir(3)">Recibos de nómina · Conciliador General</button></p>
       <p style="color:var(--mut);margin-bottom:14px">Sube uno o varios PDFs (individuales o combinados). La app <b>lee cada página</b>, encuentra el NSS o CURP y lo liga al trabajador. Los PDFs combinados se separan solos por trabajador. Nada se guarda hasta que confirmes.</p>
       <p style="background:var(--blue-bg);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--txt);margin-bottom:14px">🆕 <b>Constancias IMSS con varios movimientos:</b> si el acuse del IDSE trae hasta <b>10 altas / reingresos / bajas / modificaciones</b> (aunque la tabla siga en la 2ª página), se leen <b>todos</b> los renglones y cada uno se liga a su trabajador por NSS. El tipo de movimiento y la fecha se toman del propio acuse, renglón por renglón.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">

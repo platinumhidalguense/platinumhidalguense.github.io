@@ -19,6 +19,8 @@ window.PLATINUM_GESTION_CHEQUES={montar:()=>actions.push('gestion'),refrescar:()
  window.PLATINUM_CONCILIADOR_SEMANAL.salir();box.VIEW='trab';assert.equal(window.PLATINUM_CONCILIADOR_SEMANAL.estado().data,null);
  await window.PLATINUM_CONCILIADOR_SEMANAL.cheques();await settle();assert.equal(box.VIEW,'conciliador');assert(!$('cs-gestion').hidden);
  const lecturas=requests.length;await window.PLATINUM_CONCILIADOR_SEMANAL.flujo();await settle();assert(!$('cs-flujo').hidden);assert.equal(requests.length,lecturas);
- assert.equal(messages.length,0,messages.join('\n'));const template=fs.readFileSync('frontend/index.template.html','utf8');for(const id of ['vb-chq','vb-pagos','vb-audit','view-chq','view-pagos','view-audit'])assert(!template.includes('id="'+id+'"'),id+' redundante');assert.equal((template.match(/>Conciliador General<\/button>/g)||[]).length,1);
+ assert.equal(messages.length,0,messages.join('\n'));const template=fs.readFileSync('frontend/index.template.html','utf8');for(const id of ['vb-chq','vb-pagos','vb-audit','view-chq','view-pagos','view-audit'])assert(!template.includes('id="'+id+'"'),id+' redundante');
+ const menu=parseHTML(template).document.querySelectorAll('button[data-nav-label="Conciliador General"]');
+ assert.equal(menu.length,1);assert.equal(menu[0].getAttribute('onclick'),"navVista('conciliador')");
  console.log('PASS UI semanal: entrada única, selector actual/histórico, lectura agregada, herramientas, alertas, histórico sin archivos/acciones, cheque consultable, exportación y desmontaje. Sin navegador.');
 })().catch(e=>{console.error(e.stack,messages);process.exitCode=1;});

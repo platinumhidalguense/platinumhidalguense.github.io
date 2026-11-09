@@ -101,6 +101,8 @@ if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_conciliador_tabs_f
 else console.log('ALCANCE PÚBLICO FOLIOS: la prueba PostgreSQL requiere la migración privada; tabla y servicio sí se prueban.');
 suites.push('test_realtime_deltas_ui');
 suites.push('test_navegacion_modular');
+suites.push('test_archivo_recibos_ui');
+if(fs.existsSync('supabase/migrations/20261109210000_archivo_documental_recibos_periodo.sql'))suites.push('test_archivo_recibos_pg');
 suites.push('test_recorrido_operativo');
 if(fs.existsSync('supabase/migrations/20261107154700_padron_realtime_fuentes_rapidas.sql'))suites.push('test_padron_realtime_pg');
 else console.log('ALCANCE PÚBLICO RENDIMIENTO: se verifica la UI en dos sesiones sintéticas; la migración privada se verifica localmente.');
