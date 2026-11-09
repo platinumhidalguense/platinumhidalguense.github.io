@@ -33,7 +33,8 @@ if(fs.existsSync(original)){
  assert.deepEqual([...antes.querySelectorAll('.sb-module [data-nav-label]')].map(x=>x.getAttribute('onclick')).concat('sbGo(openCfdiImport,this,false)').sort(),botones.map(x=>x.getAttribute('onclick')).sort());
  assert.deepEqual([...antes.querySelectorAll('.sb-navigation button')].map(x=>x.getAttribute('onclick')),mapa.contexto);
 }
-assert.match(html,/<link rel="stylesheet" href="assets\/platinum-cinta.css\?v=20261109.1">/);
+const version=JSON.parse(fs.readFileSync('frontend/modulos.json','utf8')).version;
+assert.equal(document.querySelector('link[href^="assets/platinum-cinta.css?v="]')?.getAttribute('href'),'assets/platinum-cinta.css?v='+version.replaceAll('-',''));
 const css=fs.readFileSync('assets/platinum-cinta.css','utf8');
 assert.match(css,/prefers-reduced-motion:reduce/);
 assert.match(css,/\.nav-tabs\{[^}]*overflow-x:auto/);

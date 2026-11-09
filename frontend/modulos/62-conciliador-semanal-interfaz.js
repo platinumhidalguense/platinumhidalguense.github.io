@@ -8,6 +8,19 @@
  const service=window.PLATINUM_CONCILIACION_SEMANAL.useConciliacionSemanal({context,rpc:(...a)=>sb.rpc(...a),onChange:pintar});
  const boton=(text,accion,extra='',disabled=false)=>`<button class="btn" data-cs="${accion}" ${extra} ${disabled?'disabled':''}>${text}</button>`;
  const tabla=(h,r)=>ctrlTabla(h,r,'No hay registros para esta semana y filtro.');
+ function sincronizarPresentacion(){
+  $('scr-app')?.classList.toggle('gestion-cheques-activa',VIEW==='conciliador'&&tab==='cheques');
+ }
+ const importarRecibos=d=>openCfdiImport({semana:d.semana,cierre:d.detalle?.cierre?.id||null,volver:'conciliador'});
+ function montarCheques(){
+  const d=actual();
+  window.PLATINUM_GESTION_CHEQUES.montar('cs-cheques',{
+   semanaFlujo:d.semana,
+   importar:()=>importarRecibos(actual()),
+   actualizar:()=>{const d=actual();return cargar(d.semana,d.detalle?.cierre.id||null);},
+   preparacion:window.PLATINUM_RECORRIDO?.coincide(d)?()=>window.PLATINUM_RECORRIDO.abrir():null
+  });
+ }
  function actual(){const d=service.estado().data;if(!d||d.obra_id!==OBRA?.id||VIEW!=='conciliador')throw Error('Recupera la semana antes de continuar');return d;}
  function seguro(fn){return(...a)=>Promise.resolve().then(()=>fn(...a)).catch(e=>toast(e.message,'err'));}
  function firmaDatos(sem){const xs=[typeof CHEQUES==='undefined'?[]:CHEQUES,typeof PAGOS==='undefined'?[]:PAGOS,typeof CIERRES==='undefined'?[]:CIERRES,typeof CTRLNOI==='undefined'?[]:CTRLNOI,typeof DOCSX==='undefined'?[]:DOCSX];return JSON.stringify(xs.map(rows=>rows.filter(x=>Number(String(x.semana||'').replace(/\D/g,''))===sem).map(x=>[x.id,x.updated_at,x.estatus,x.estado,x.importe,x.monto_noi,x.nomina_neto,x.hash,x.snapshot_sha256])));}
@@ -25,16 +38,18 @@
  }
  function pintar(s){
   const node=$('conciliador-root');if(!node||VIEW!=='conciliador')return;
+  sincronizarPresentacion();
   if(s.loading&&s.data){const e=$s('actualizando');if(e)e.textContent='Actualizando comprobantes…';return;}if(s.loading||!s.data){
    node.innerHTML=`<h2>⚖️ Conciliador General</h2><p role="status">${s.loading?'Consultando '+(s.seleccion?.semana?'S'+s.seleccion.semana:'la semana actual')+'…':esc(s.error||'Selecciona una semana.')}</p>${s.error?boton('Reintentar','recargar'):''}`;
    node.onclick=e=>{if(e.target.closest('[data-cs="recargar"]'))seguro(()=>cargar(s.seleccion?.semana??null,s.seleccion?.cierre))();};return;
   }
   const d=s.data;if(ultimo===d&&$s('stepper'))return;ultimo=d;
+  window.PLATINUM_GESTION_CHEQUES?.ocultar?.();
   const cs=d.cierres.filter(c=>c.semana===d.semana),noActual=d.modo!=='ACTUAL';
   node.innerHTML=`<style>.cs-cabecera{display:flex;gap:12px;align-items:end;flex-wrap:wrap;padding:15px 0;border-bottom:1px solid var(--border)}.cs-cabecera h2{margin:0;flex:1;min-width:230px}.cs-cabecera label{display:grid;gap:5px;min-width:180px;font-size:12px}.cs-menu{position:relative}.cs-menu[open] summary{background:var(--blue-bg)}.cs-menu-lista{position:absolute;right:0;z-index:30;min-width:250px;padding:9px;box-shadow:0 8px 26px #0003;background:var(--card);border:1px solid var(--border);border-radius:10px}.cs-menu-lista button{display:block;width:100%;text-align:left;margin:3px 0}.cs-badge{border-radius:14px;padding:4px 9px;font-size:12px;background:var(--amber-bg);color:var(--amber);border:1px solid currentColor}.cs-rojo{color:var(--red);background:var(--red-bg)}.cs-registros{max-height:52vh;overflow:auto}.cs-registros table{min-width:820px}.cs-historico{padding:10px;border:1px solid var(--amber);border-radius:9px;background:var(--amber-bg);margin:10px 0}</style>
-   <style>#conciliador-root .cg-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}#cs-tabs{margin:14px 0;border-bottom:1px solid var(--border);padding-bottom:10px}#cs-tabs [aria-selected="true"]{background:var(--accent);color:#fff}#cs-gestion label{display:grid;gap:4px;font-size:12px}#cs-gestion .gq-filtros{margin:12px 0}#cs-gestion td:last-child{min-width:170px}</style>
-   <header class="cs-cabecera"><h2>⚖️ Conciliador General</h2><label>Semana del flujo<select id="cs-semana">${d.semanas.map(w=>`<option value="${w.semana}" ${w.semana===d.semana?'selected':''}>Semana ${w.semana}${w.semana===d.semana_actual?' · Actual':''}</option>`).join('')}</select></label>${cs.length>1?`<label>Periodicidad / cierre<select id="cs-periodo">${cs.map(c=>`<option value="${c.id}" ${c.id===d.detalle?.cierre.id?'selected':''}>${esc(c.periodo)} · ${esc(c.estado)}</option>`).join('')}</select></label>`:''}${boton('Importar recibos PDF y XML','importar-recibos')}${boton('↻ Actualizar','recargar')}${herramientas(d)}</header>
-   <p class="fhint">${esc(OBRA.nombre)} · ${esc(d.desde)} al ${esc(d.hasta)} · ${noActual?'Consulta '+(d.modo==='HISTORICO'?'histórica':'futura'):'Semana actual'}</p>
+   <style>#conciliador-root .cg-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}#cs-tabs{margin:14px 0;border-bottom:1px solid var(--border);padding-bottom:10px}#cs-tabs [aria-selected="true"]{background:var(--accent);color:#fff}</style>
+   <div class="cs-controles-flujo"><header class="cs-cabecera"><h2>⚖️ Conciliador General</h2><label>Semana del flujo<select id="cs-semana">${d.semanas.map(w=>`<option value="${w.semana}" ${w.semana===d.semana?'selected':''}>Semana ${w.semana}${w.semana===d.semana_actual?' · Actual':''}</option>`).join('')}</select></label>${cs.length>1?`<label>Periodicidad / cierre<select id="cs-periodo">${cs.map(c=>`<option value="${c.id}" ${c.id===d.detalle?.cierre.id?'selected':''}>${esc(c.periodo)} · ${esc(c.estado)}</option>`).join('')}</select></label>`:''}${boton('Importar recibos PDF y XML','importar-recibos')}${boton('↻ Actualizar','recargar')}${herramientas(d)}</header>
+   <p class="fhint">${esc(OBRA.nombre)} · ${esc(d.desde)} al ${esc(d.hasta)} · ${noActual?'Consulta '+(d.modo==='HISTORICO'?'histórica':'futura'):'Semana actual'}</p></div>
    <div class="cg-toolbar" role="tablist" aria-label="Herramientas del Conciliador" id="cs-tabs"><button type="button" class="btn" role="tab" id="cs-tab-flujo" aria-controls="cs-flujo" aria-selected="${tab==='flujo'}" tabindex="${tab==='flujo'?0:-1}" data-cs="tab" data-tab="flujo">Flujo de Conciliación</button><button type="button" class="btn" role="tab" id="cs-tab-cheques" aria-controls="cs-gestion" aria-selected="${tab==='cheques'}" tabindex="${tab==='cheques'?0:-1}" data-cs="tab" data-tab="cheques">Gestión de Cheques</button></div><section id="cs-flujo" role="tabpanel" aria-labelledby="cs-tab-flujo" ${tab!=='flujo'?'hidden':''}>
    ${d.solo_lectura?'<div class="cs-historico" role="status"><b>Sólo lectura.</b> El flujo histórico conserva sus fuentes y cierres. En Gestión de Cheques, RRHH puede corregir sólo los folios físicos sin cambiar importe ni estatus.</div>':''}
    ${resumen(d)}<p id="cs-actualizando" class="fhint" role="status"></p><div id="cs-alertas"></div>
@@ -46,7 +61,7 @@
   if($s('periodo'))$s('periodo').onchange=e=>seguro(()=>cargar(d.semana,e.target.value))();
   $s('q').oninput=e=>{local.q=e.target.value;registros(d);};alertas(d);registros(d);
   $s('tabs').onkeydown=e=>{const keys=['ArrowLeft','ArrowRight','Home','End'];if(!keys.includes(e.key))return;e.preventDefault();const t=e.key==='Home'?'flujo':e.key==='End'?'cheques':tab==='flujo'?'cheques':'flujo';seleccionarTab(t);$s('tab-'+t).focus();};
-  if(tab==='cheques')window.PLATINUM_GESTION_CHEQUES.montar('cs-cheques');
+  if(tab==='cheques')montarCheques();
   if(typeof renderCrumbs==='function')renderCrumbs();
  }
  function herramientas(d){return`<details class="cs-menu"><summary class="btn">🧰 Herramientas de Pago</summary><div class="cs-menu-lista">${boton('Control de folios y saltos','folios','',d.solo_lectura)}${boton('Reuniones de entrega','reuniones','',d.solo_lectura)}${boton('Chequeras de 50 · liberación y legajos','chequeras')}${boton('Bloques por semana','bloques','',d.solo_lectura)}${boton('Legajos para entrega','legajos')}${boton('Exportar cheques de S'+d.semana,'exportar-cheques')}${boton('Exportar resumen de S'+d.semana,'exportar-resumen')}${!d.solo_lectura?boton('Nuevo cheque','nuevo-cheque')+boton('Finiquito por transferencia autorizada','transferencia'):''}<small>Las herramientas de modificación sólo están disponibles en el contexto actual; conservan sus permisos.</small></div></details>`;}
@@ -63,7 +78,7 @@
  async function accion(b){
   const d=actual(),a=b.dataset.cs;
   if(a==='tab')return seleccionarTab(b.dataset.tab);
-  if(a==='importar-recibos')return openCfdiImport({semana:d.semana,cierre:d.detalle?.cierre?.id||null,volver:'conciliador'});
+  if(a==='importar-recibos')return importarRecibos(d);
   if(a==='recargar')return cargar(d.semana,d.detalle?.cierre.id||null);
   if(a==='tipo'){local.tipo=b.dataset.tipo;return registros(d);}
   if(a==='pdf'){const p=d.transferencias.find(p=>p.id===b.dataset.id);if(p?.archivo)return PLATINUM_CONCILIADOR.archivoBancario(p.archivo);return;}
@@ -77,7 +92,7 @@
   if(a==='nueva')return PLATINUM_CONCILIADOR.nueva(d.semana);
   if(a==='cheque'){const c=d.cheques.find(c=>c.id===b.dataset.id);if(!c)return;const idx=CHEQUES.findIndex(q=>q.id===c.id);if(idx<0)CHEQUES.push(c);else CHEQUES[idx]=c;return openChequeForm(c.id);}
  }
- function seleccionarTab(t){if(!['flujo','cheques'].includes(t))return;tab=t;for(const k of ['flujo','cheques']){const b=$s('tab-'+k);b.setAttribute('aria-selected',String(k===t));b.tabIndex=k===t?0:-1;}$s('flujo').hidden=t!=='flujo';$s('gestion').hidden=t!=='cheques';if(typeof renderCrumbs==='function')renderCrumbs();if(t==='cheques')window.PLATINUM_GESTION_CHEQUES.montar('cs-cheques');else return montar();}
+ function seleccionarTab(t){if(!['flujo','cheques'].includes(t))return;tab=t;sincronizarPresentacion();for(const k of ['flujo','cheques']){const b=$s('tab-'+k);b.setAttribute('aria-selected',String(k===t));b.tabIndex=k===t?0:-1;}$s('flujo').hidden=t!=='flujo';$s('gestion').hidden=t!=='cheques';if(typeof renderCrumbs==='function')renderCrumbs();if(t==='cheques')montarCheques();else{window.PLATINUM_GESTION_CHEQUES?.ocultar?.();return montar();}}
  function abrirPestana(t){
   if(!OBRA)return;
   if(VIEW==='conciliador'&&$s('tab-'+t))return seleccionarTab(t);
@@ -87,6 +102,6 @@
  }
  function programarDerivados(){if(turno||VIEW!=='conciliador'||tab!=='flujo')return;turno=true;const centro=OBRA?.id,user=USER?.id;(window.requestAnimationFrame||((f)=>Promise.resolve().then(f)))(()=>{turno=false;if(OBRA?.id===centro&&USER?.id===user&&VIEW==='conciliador'&&tab==='flujo')seguro(montar)();});}
  function invalidarDerivados(){if(VIEW!=='conciliador')return;derivados++;programarDerivados();}
- function salir(){derivados=0;leidos=0;tab='flujo';window.PLATINUM_GESTION_CHEQUES?.salir();service.invalidar();window.PLATINUM_CONCILIADOR.desmontar();ultimo=null;firma=null;}
+ function salir(){derivados=0;leidos=0;tab='flujo';sincronizarPresentacion();window.PLATINUM_GESTION_CHEQUES?.salir();service.invalidar();window.PLATINUM_CONCILIADOR.desmontar();ultimo=null;firma=null;}
  window.PLATINUM_CONCILIADOR_SEMANAL=Object.freeze({invalidarDerivados,montar:seguro(montar),abrir:seguro(abrir),cierre:seguro((id,paso)=>abrir(paso,null,id)),salir,refrescar:seguro(()=>{const d=actual();return cargar(d.semana,d.detalle?.cierre.id||null);}),estado:()=>service.estado(),cheques:seguro(()=>abrirPestana('cheques')),flujo:seguro(()=>abrirPestana('flujo')),pestana:()=>tab});
 })();

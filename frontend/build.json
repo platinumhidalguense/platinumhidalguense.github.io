@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-09.2",
-  "entry": "assets/platinum-app.2890c36626937de5.js",
-  "sha256": "2890c36626937de5240ce0950df88eafffce34bfd11fe156816d10267590e449",
-  "integrity": "sha384-lYenaoDaApygdTm/bdKQOJmtUAAtXcwHjaeKj/8jTBNpwzZk0WTZftqTRpW1c/88",
+  "version": "2026-11-09.3",
+  "entry": "assets/platinum-app.eddd5b7fdc700e76.js",
+  "sha256": "eddd5b7fdc700e7684d582a437fe5f3cf8debfe391e1b850cc06bc867147fd1c",
+  "integrity": "sha384-cVcI860gGJwEhUKATJob3wcq3wnDgeadH0Mza12gK7RCrCebS30uOiG2tBJuZ9kU",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "8650687db52ecb229ddb98e92769ff95971468c54a5c313cd5900f075142eb20"
+      "sha256": "78f9d2a7aec8843541c24ae376dc4405959f7e9c0eefae774cdeb4dc2138a347"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -254,11 +254,11 @@
     },
     {
       "path": "frontend/modulos/62-conciliador-semanal-interfaz.js",
-      "sha256": "3a6b74142414ab189f0022c54eb7212ca4e2e31c09ea75224a347e85ec941331"
+      "sha256": "1e6e44a9396d4c86e03d6d107697e24811bc51b431458e4eea743396c051ac56"
     },
     {
       "path": "frontend/modulos/63-gestion-cheques.js",
-      "sha256": "cf5b08068528dcdbf3aad35397692223bd2cd6e6411c5bd9810b1589208dced4"
+      "sha256": "7d212e1130bcf27c7035b5fbeebf6d74c8b0c355a0bb4a8cf7a90e10e3a1ee8b"
     },
     {
       "path": "frontend/modulos/64-datos-centro-en-vivo.js",

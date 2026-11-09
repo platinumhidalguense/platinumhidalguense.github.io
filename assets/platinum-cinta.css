@@ -81,3 +81,107 @@
   .appbar :is(button,a),.sb-nav :is(button,a){transition:none}
   .modal,.overlay{animation:none}
 }
+
+/* Gestión de Cheques ocupa el espacio sobrante de la vista. */
+.gestion-cheques-activa[data-nav="trabajadores"] #centro-meta,
+.gestion-cheques-activa[data-nav="trabajadores"]:not(.hide) ~ #ia-fab,
+.gestion-cheques-activa #conciliador-root .cs-controles-flujo{display:none!important}
+.gestion-cheques-activa[data-nav="trabajadores"] .wrap{display:flex;flex-direction:column;padding:6px 12px}
+.gestion-cheques-activa :is(#view-conciliador:not(.hide),#conciliador-root,#cs-gestion:not([hidden]),#cs-cheques){
+  display:flex;flex:1 1 auto;flex-direction:column;min-width:0;min-height:0
+}
+.gestion-cheques-activa #conciliador-root #cs-tabs{flex:none;margin:0 0 6px;padding:0 0 4px;gap:5px}
+.gestion-cheques-activa #cs-tabs .btn{padding:4px 10px;min-height:28px;font-size:12px}
+.gestion-cheques-activa .nav-tab{min-height:37px}
+.gestion-cheques-activa .nav-module{padding-block:3px}
+.gestion-cheques-activa .nav-tools .sb-item{
+  flex-direction:row;align-items:center;width:auto;min-height:30px;padding:3px 7px;gap:4px;white-space:nowrap
+}
+.gestion-cheques-activa .nav-tools .sb-item .nav-icon{width:16px;height:16px}
+
+#cs-gestion .gq-superior{display:flex;align-items:center;gap:4px 12px;flex-wrap:wrap;flex:none}
+#cs-gestion .gq-acciones{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+#cs-gestion .gq-acciones .btn{min-height:30px;padding:4px 8px;font-size:12px}
+#cs-gestion .gq-acciones [data-gq="verificar"]{background:var(--navy);color:#fff;border-color:var(--navy)}
+#cs-gestion :is(.btn[hidden],.gq-fiscal-movil){display:none}
+#cs-gestion .btn[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+#cs-gestion #chq-stats{display:flex;flex-wrap:wrap;margin:0;gap:4px 10px}
+#cs-gestion .stat{display:flex;flex:none;align-items:baseline;gap:3px;min-width:0;padding:0;background:transparent;border:0}
+#cs-gestion .stat .n{font-size:13px;font-variant-numeric:tabular-nums}
+#cs-gestion .stat .l{font-size:11px;text-transform:none;letter-spacing:0}
+#cs-gestion .gq-filtros{display:grid;grid-template-columns:minmax(160px,2fr) minmax(84px,.65fr) minmax(100px,1fr) minmax(110px,1fr) minmax(120px,1.1fr);gap:4px 8px;margin:4px 0 6px;flex:none}
+#cs-gestion .gq-filtros label{display:grid;min-width:0;gap:2px;margin:0;font-size:11px;line-height:14px;text-transform:none;letter-spacing:0}
+#cs-gestion .gq-filtros :is(input,select){height:30px;padding:4px 7px;font-size:12px}
+#cs-gestion .gq-lista{
+  flex:1 1 auto;min-width:0;min-height:128px;overflow:auto;overscroll-behavior:contain;
+  background:var(--card);border:1px solid var(--border);border-radius:8px;isolation:isolate
+}
+#cs-gestion .gq-tabla{width:100%;min-width:1070px;height:auto;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:12.5px}
+#cs-gestion .gq-tabla th{position:sticky;inset-block-start:0;padding:5px 7px;line-height:16px;letter-spacing:0;cursor:default}
+#cs-gestion .gq-tabla td{
+  padding:4px 7px;line-height:18px;white-space:normal;overflow-wrap:anywhere;
+  vertical-align:middle;cursor:default;border-bottom:1px solid var(--line)
+}
+#cs-gestion .gq-tabla .gq-contratista{width:100px}
+#cs-gestion .gq-tabla .gq-periodo{width:122px}
+#cs-gestion .gq-tabla .gq-importe{width:98px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#cs-gestion .gq-tabla .gq-tipo{width:77px}
+#cs-gestion .gq-tabla .gq-numero{width:88px}
+#cs-gestion .gq-tabla .gq-estatus{width:99px}
+#cs-gestion .gq-tabla .gq-recibo{width:93px}
+#cs-gestion .gq-tabla .gq-accion-fija{width:143px;position:sticky;inset-inline-end:0;border-inline-start:1px solid var(--border)}
+#cs-gestion .gq-tabla th.gq-accion-fija{z-index:7}
+#cs-gestion .gq-tabla td.gq-accion-fija{background:var(--card);z-index:2}
+#cs-gestion .gq-tabla tr:hover td.gq-accion-fija{background:var(--hover)}
+#cs-gestion .gq-trabajador{
+  display:block;min-height:28px;max-width:100%;border:0;padding:0;text-align:left;background:none;
+  color:var(--brand-txt);line-height:18px;overflow-wrap:anywhere
+}
+#cs-gestion .gq-trabajador:hover b{text-decoration:underline}
+#cs-gestion :is(.gq-fechas,.gq-trabajador small,.gq-guardando){color:var(--mut)}
+#cs-gestion .gq-guardando{display:block;font-size:11px}
+#cs-gestion .gq-acciones-fila{display:flex;gap:4px;align-items:center;flex-wrap:nowrap}
+#cs-gestion .gq-acciones-fila .btn{min-height:28px;padding:3px 6px;justify-content:center;font-size:11.5px;line-height:17px}
+#cs-gestion .gq-acciones-fila .gq-mas{width:28px;font-size:19px}
+#cs-gestion .gq-captura-icono{display:none}
+:is(#cs-gestion,#gq-fuentes-lista) .gq-fiscal-tag{display:inline-block;white-space:nowrap;font-size:11px;font-weight:650;line-height:17px;padding:0 5px;border-radius:5px;border:1px solid var(--border);color:var(--mut);background:var(--bg)}
+:is(#cs-gestion,#gq-fuentes-lista) .gq-fiscal-tag[data-fiscal="COINCIDE"]{background:var(--green-bg);color:var(--txt);border-color:var(--green)}
+:is(#cs-gestion,#gq-fuentes-lista) .gq-fiscal-tag[data-fiscal="DIFERENCIA"]{background:var(--red-bg);color:var(--txt);border-color:var(--red)}
+:is(#cs-gestion,#gq-fuentes-lista) .gq-fiscal-tag[data-fiscal="REVISAR"]{background:var(--amber-bg);color:var(--txt);border-color:var(--amber)}
+#cs-gestion .gq-tabla .badge{font-size:10px;padding:1px 5px;white-space:nowrap}
+#cs-gestion .gq-vacio td{padding:12px;text-align:center;color:var(--mut)}
+#cs-gestion .gq-pie{display:flex;align-items:center;flex-wrap:wrap;gap:2px 12px;flex:none;min-height:28px;padding-top:3px;color:var(--mut);font-size:11.5px}
+#cs-gestion #gq-pagina:not([hidden]){margin-inline-start:auto;padding:0;gap:6px}
+#cs-gestion #gq-pagina .btn{padding:3px 7px;min-height:24px;font-size:11.5px}
+#cs-gestion .gq-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;clip-path:inset(50%);overflow:hidden;white-space:nowrap}
+#cs-gestion :is(button,select,input,.gq-lista):focus-visible,.gq-menu button:focus-visible{outline:2px solid var(--brand-txt);outline-offset:-2px}
+
+.gq-menu{position:fixed;z-index:1100;width:236px;overflow:auto;padding:4px;background:var(--card);color:var(--txt);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-lg)}
+.gq-menu button{display:block;width:100%;min-height:32px;padding:5px 8px;border:0;border-radius:5px;background:none;color:var(--txt);text-align:left;font:inherit;font-size:12.5px}
+.gq-menu button:not(:disabled):is(:hover,:focus){background:var(--hover)}
+.gq-menu button:disabled{opacity:.55}
+.gq-revision-acciones{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.gq-revision-acciones button[hidden]{display:none}
+.gq-revision-tabla{max-height:45dvh;overflow:auto}
+.gq-revision-tabla table{min-width:560px}
+
+@media(max-width:760px){
+  .gestion-cheques-activa[data-nav="trabajadores"] .wrap{padding:4px 6px}
+  .gestion-cheques-activa #cs-tabs .btn{min-height:44px}
+  .gestion-cheques-activa .nav-tools .sb-item{min-height:44px}
+  #cs-gestion .gq-acciones .btn,#cs-gestion #gq-pagina .btn,.gq-menu button{min-height:44px}
+  #cs-gestion .gq-filtros{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 6px}
+  #cs-gestion .gq-filtros .gq-buscar{grid-column:1/-1}
+  #cs-gestion .gq-filtros :is(input,select){height:44px;font-size:16px}
+  #cs-gestion .gq-tabla{min-width:0;font-size:11.5px}
+  #cs-gestion .gq-tabla .gq-sec,#cs-gestion .gq-captura-texto{display:none}
+  #cs-gestion .gq-captura-icono,#cs-gestion .gq-fiscal-tag.gq-fiscal-movil{display:inline-block}
+  #cs-gestion [data-recibo-movil]{display:block}
+  #cs-gestion .gq-tabla :is(th,td){padding-inline:3px}
+  #cs-gestion .gq-tabla .gq-importe{width:76px}
+  #cs-gestion .gq-tabla .gq-estatus{width:80px}
+  #cs-gestion .gq-tabla .gq-accion-fija{width:97px}
+  #cs-gestion .gq-acciones-fila{gap:2px}
+  #cs-gestion .gq-acciones-fila .btn{width:44px;min-height:44px;padding:3px;font-size:17px}
+  #cs-gestion .gq-trabajador{min-height:44px}
+}
