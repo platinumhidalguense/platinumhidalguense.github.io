@@ -106,6 +106,7 @@ suites.push('test_recibo_fragmento');
 if(fs.existsSync('supabase/migrations/20261109210000_archivo_documental_recibos_periodo.sql'))suites.push('test_archivo_recibos_pg');
 if(fs.existsSync('supabase/migrations/20261109223000_revision_recibos_por_documento.sql'))suites.push('test_revision_recibos_pg');
 suites.push('test_recorrido_operativo');
+suites.push('test_padron_ficha_personal');
 if(fs.existsSync('supabase/migrations/20261107154700_padron_realtime_fuentes_rapidas.sql'))suites.push('test_padron_realtime_pg');
 else console.log('ALCANCE PÚBLICO RENDIMIENTO: se verifica la UI en dos sesiones sintéticas; la migración privada se verifica localmente.');
 for(const file of suites){

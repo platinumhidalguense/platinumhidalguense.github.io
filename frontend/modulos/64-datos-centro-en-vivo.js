@@ -13,7 +13,7 @@
   control_altas_bajas_cortas:[()=>ALTAS_CORTAS,v=>{ALTAS_CORTAS=v;}],
   control_finiquitos_transferencia:[()=>FINTRANS,v=>{FINTRANS=v;}]
  };
- const campos='id obra_id no_trab nombres primer_apellido segundo_apellido estatus contratista puesto periodo_pago semana_ingreso fecha_alta fecha_baja fecha_reingreso movimiento_imss fecha_mov_imss curp rfc nss telefono correo updated_at'.split(' ');
+ const campos='id obra_id no_trab nombres primer_apellido segundo_apellido estatus contratista puesto id_cuadrilla periodo_pago semana_ingreso fecha_alta fecha_baja fecha_reingreso movimiento_imss fecha_mov_imss curp rfc nss telefono correo updated_at'.split(' ');
  const acuse=d=>String(d?.categoria||'').trim().toUpperCase()==='ACUSE_IMSS';
  const llaves=()=>[OBRA?.id,USER?.id].join(':');
  let scope='',orden=new Map(),op=new Map(),pendientes=new Set(),paginas=new Map(),frame=false;
@@ -41,7 +41,7 @@
    ||(['diferenciales','prima_pagos'].includes(n)&&q.activo===false);
   if(sale)return i<0?rows:rows.filter((_,j)=>j!==i);
   let fila={...prev,...q};
-  if(n==='trabajadores'&&padron){fila=Object.fromEntries(campos.map(k=>[k,fila[k]??null]));fila.cuenta=String(q.cuenta||'').toUpperCase()==='CREAR'?'CREAR':null;}
+  if(n==='trabajadores'&&padron&&!Object.hasOwn(prev||{},'docs')){fila=Object.fromEntries(campos.map(k=>[k,fila[k]??null]));fila.cuenta=String(q.cuenta||'').toUpperCase()==='CREAR'?'CREAR':null;}
   if(docAcuse&&padron)fila=Object.fromEntries('id obra_id trabajador_id categoria subtipo fecha_doc anulado'.split(' ').map(k=>[k,fila[k]??null]));
   if(n==='control_altas_bajas_cortas')fila=Object.fromEntries('id obra_id trabajador_id anio semana estado_servicio'.split(' ').map(k=>[k,fila[k]??null]));
   if(prev&&Object.keys(fila).length===Object.keys(prev).length&&Object.keys(fila).every(k=>Object.is(fila[k],prev[k])))return rows;
@@ -93,9 +93,12 @@
   if(stamp&&stamp<(orden.get(key)||0))return true;
   if(stamp)orden.set(key,stamp);
   for(const t of lecturas)if(t.scope===scope)t.eventos.push(e);
-  if(OBRA_DATOS_ID!==OBRA.id||!OBRA_CARGA_COMPLETA&&!['trabajadores','documentos','control_altas_bajas_cortas'].includes(tabla))return true;
+  if(OBRA_DATOS_ID!==OBRA.id||!OBRA_CARGA_COMPLETA&&!['trabajadores','documentos','control_altas_bajas_cortas'].includes(tabla)){
+   window.PLATINUM_PADRON?.invalidar(tabla);
+   return true;
+  }
   const next=combinar(current,e,!OBRA_CARGA_COMPLETA);
-  if(next!==current){tablas[tabla][1](next);mostrar(tabla);}
+  if(next!==current){tablas[tabla][1](next);window.PLATINUM_PADRON?.invalidar(tabla);mostrar(tabla);}
   return true;
  }
  function vista(tabla,rows){
@@ -137,5 +140,6 @@
    DESC=DESC.filter(x=>x.trabajador_id!==id).concat(publicar(parciales,r.data,'descuentos'));mostrar('descuentos');
   }finally{cerrar(t);}
  }
- window.PLATINUM_DATOS=Object.freeze({iniciar,cerrar,publicar,cache,aplicar,vista,pagina,optimista,reiniciar,mostrar,revalidarDescuentos});
+ const masReciente=(a,b)=>fecha(a?.updated_at)>fecha(b?.updated_at)&&!!fecha(b?.updated_at);
+ window.PLATINUM_DATOS=Object.freeze({iniciar,cerrar,publicar,cache,aplicar,vista,pagina,optimista,reiniciar,mostrar,revalidarDescuentos,masReciente});
 })();

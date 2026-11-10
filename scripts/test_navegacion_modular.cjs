@@ -121,7 +121,7 @@ const key=(target,k)=>{
  assert(!proyeccion.hasAttribute('aria-busy'));c.renderCrumbs();assert.match($('crumbs').textContent,/Grupo JIRE.*Obra J/s);
  c.navPaso('obra');assert.deepEqual(llamadas.at(-1),['paso','obra']);
  const form=fs.readFileSync('frontend/modulos/05-alta-edicion.js','utf8');
- const nombresForm=new Set(['fld','cuadRefresca','openForm','organizarFormularioTrabajador','workerFormPaso']);
+ const nombresForm=new Set(['fld','cuadRefresca','openForm','dibujarFormularioTrabajador','organizarFormularioTrabajador','workerFormPaso']);
  const funcionesForm=acorn.parse(form,{ecmaVersion:'latest'}).body
    .filter(n=>n.type==='FunctionDeclaration'&&nombresForm.has(n.id.name)).map(n=>form.slice(n.start,n.end)).join('\n');
  Object.assign(c,{EMPRESAS:{JIRE:{corto:'JIRE'}},WORKERS:[],CONTRATISTAS:[],DOCS:['INE','NSS'],logoEmpresa:()=>'',empresaDeObra:o=>o.empresa_codigo,
@@ -131,21 +131,21 @@ const key=(target,k)=>{
   conCentroCompleto:f=>f()
  });
  c.OBRA={...c.OBRA,empresa_codigo:'JIRE'};
- vm.runInContext(funcionesForm,c);
+ vm.runInContext(form.match(/^const WF_SECCIONES=.*;$/m)[0]+'\n'+funcionesForm,c);
  c.boton=alta;
  vm.runInContext('(function(){'+alta.getAttribute('onclick')+'}).call(boton)',c);
  await tick();
  assert.equal($('worker-form-body').parentElement.className,'wf-workspace');
  assert.equal($('wf-tab-1').getAttribute('aria-current'),'step');
  assert.equal($('f-obra_id').options[0].value,'j');
- assert($('save-btn').hidden&&$('wf-step-2').hidden);
+ assert(!$('save-btn').hidden&&$('wf-step-2').hidden);
  c.workerFormPaso(2);
  $('f-nombres').value='Persona de ejemplo';
- c.workerFormPaso(1);c.workerFormPaso(3);
+ c.workerFormPaso(1);c.workerFormPaso(8);
  assert.equal($('f-nombres').value,'Persona de ejemplo');
- assert.equal($('wf-tab-3').getAttribute('aria-current'),'step');
+ assert.equal($('wf-tab-8').getAttribute('aria-current'),'step');
  assert(!$('save-btn').hidden&&$('wf-next').hidden);
  assert.equal($('save-btn').getAttribute('onclick'),'saveWorker(null)');
  assert.match($('crumbs').textContent,/Grupo JIRE.*Nueva alta/s);
- console.log('PASS cinta: 63 rutas, seis accesos de contratistas, tres perfiles, teclado, foco, pliegue, contexto y capturas, tardíos, alta de tres pasos y ambas pestañas financieras.');
+ console.log('PASS cinta: 63 rutas, seis accesos de contratistas, tres perfiles, teclado, foco, pliegue, contexto y capturas, tardíos, alta por secciones y ambas pestañas financieras.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

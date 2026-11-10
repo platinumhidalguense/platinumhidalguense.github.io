@@ -1,4 +1,5 @@
 /* ---------- formulario alta / edición ---------- */
+const WF_SECCIONES=['Identificación','Datos personales','Domicilio','Contratación','Centro, puesto, cuadrilla y contratista','Salario y forma de pago','Datos fiscales y de nómina','Documentos y otros datos'];
 function fld(id,label,val='',opts={}){
   const{type='text',cls='',hint='',ph='',list=''}=opts;
   return `<div class="${cls}"><label>${label}</label><input id="f-${id}" type="${type}" value="${esc(val)}" placeholder="${ph}" ${list?`list="${list}"`:''} ${opts.extra||''}><div class="fhint" id="h-${id}">${hint}</div></div>`;
@@ -11,7 +12,9 @@ function cuadRefresca(idSel){
   const actual=idSel!==undefined?idSel:sel.value;
   // No ofrecer cuadrillas retiradas en nuevas asignaciones; conservar la actual
   // al editar un registro histórico para no desasignarlo accidentalmente.
-  const lista=cuadsDe(contr).filter(c=>c.activa!==false||c.id===actual);
+  const otro=$('worker-form-body')?._cuadrillasDestino;
+  const lista=(otro?otro.filter(c=>String(c.contratista||'').toUpperCase()===contr.toUpperCase()):cuadsDe(contr))
+    .filter(c=>c.activa!==false||c.id===actual);
   sel.innerHTML='<option value="">— sin cuadrilla —</option>'+
     lista.map(c=>`<option value="${c.id}" ${c.id===actual?'selected':''}>${esc(c.nombre)}${c.lider_id?' · cabeza: '+esc(cuadLider(c)):''}</option>`).join('');
   const h=$('h-id_cuadrilla');
@@ -19,6 +22,14 @@ function cuadRefresca(idSel){
     :(contr?`${contr.toUpperCase()} no tiene cuadrillas — se administran en 👷 Cuadrillas`:'Escribe el contratista para ver sus cuadrillas');
 }
 function openForm(id){
+  if(!puedeEditarTrabajador()||!OBRA||!id||!window.PLATINUM_PERSONAL)return dibujarFormularioTrabajador(id);
+  if($('worker-form-body')){closeModal();if($('worker-form-body'))return;}
+  const c=window.PLATINUM_PERSONAL.contexto(),origen=$('modals')?.firstElementChild;
+  return window.PLATINUM_PERSONAL.trabajador(id,c).then(w=>{
+    if(w&&window.PLATINUM_PERSONAL.vigente(c)&&$('modals')?.firstElementChild===origen)return dibujarFormularioTrabajador(id);
+  }).catch(e=>{if(window.PLATINUM_PERSONAL.vigente(c))toast(e.message,'err');});
+}
+function dibujarFormularioTrabajador(id){
   if(!puedeEditarTrabajador()){toast('Tu usuario tiene acceso de consulta; no puede registrar ni modificar trabajadores.','err');return;}
   const w=id?WORKERS.find(x=>x.id===id):null;
   if(id&&!w){toast('No se encontró el trabajador. Actualiza el centro antes de editar.','err');return;}
@@ -27,12 +38,14 @@ function openForm(id){
   const nextNo=Math.max(0,...WORKERS.map(x=>x.no_trab||0))+1;
   const cuentaCrear=w?String(w.cuenta).toUpperCase()==='CREAR':true;
   const obrasAlta=obrasEmpresa(empresaDeObra(OBRA));
+  const personal=window.PLATINUM_PERSONAL,med=personal?.medir(id?'formulario-edicion':'formulario-alta',typeof OBRA_CARGA_COMPLETA!=='undefined'&&OBRA_CARGA_COMPLETA?'centro-completo':'padron-ligero');
   modal(`
     <div class="m-head"><img class="wf-logo" src="${logoEmpresa(empresaDeObra(OBRA))}" alt="${esc(EMPRESAS[empresaDeObra(OBRA)].corto)}"><div><h2>${w?'Modificar · '+esc(fullName(w)):'Nueva alta'}</h2><p class="wf-context">${esc(EMPRESAS[empresaDeObra(OBRA)].corto)} · ${esc(OBRA.nombre)}</p></div><button class="x" onclick="closeModal()" aria-label="Cerrar registro">×</button></div>
     <div class="wf-workspace">
-    <div class="wf-stepper" role="group" aria-label="Pasos del registro">
-      ${['Asignación','Datos personales','Documentos'].map((txt,i)=>`<button type="button" id="wf-tab-${i+1}" onclick="workerFormPaso(${i+1})"><span>${i+1}</span><b>${txt}</b></button>`).join('')}
+    <div class="wf-stepper" role="group" aria-label="Secciones del registro">
+      ${WF_SECCIONES.map((txt,i)=>`<button type="button" id="wf-tab-${i+1}" onclick="workerFormPaso(${i+1})" aria-controls="wf-step-${i+1}"><span>${i+1}</span><b>${txt}</b></button>`).join('')}
     </div>
+    <label class="wf-seccion-selector">Sección <select id="wf-seccion-select" onchange="workerFormPaso(Number(this.value))">${WF_SECCIONES.map((txt,i)=>`<option value="${i+1}">${txt}</option>`).join('')}</select></label>
     <div class="m-body" id="worker-form-body" data-worker-id="${w?w.id:''}" data-worker-version="${esc(w?.updated_at||'')}" data-worker-obra="${esc(w?.obra_id||'')}" data-user-id="${esc(USER.id)}" data-step="1">
       <div class="sect">Obra y puesto</div>
       <div class="grid">
@@ -144,18 +157,42 @@ function openForm(id){
     </div>`,'worker-form');
   organizarFormularioTrabajador();
   cuentaModo();
-  cuadRefresca(w?(w.id_cuadrilla||''):'');
+  const form=$('worker-form-body');
   actualizarResumenFormulario();
   workerFormPaso(1,false);
+  med?.marca('navegable');med?.marca('utilizable');
+  if(personal){
+    const c=personal.contexto(),q=$('f-id_cuadrilla'),info=$('h-id_cuadrilla'),selector=$('f-obra_id');
+    let turno=0;
+    const confirmar=(inicial=false)=>{
+      const revision=++turno,obra=selector.value,m=inicial?med:null;
+      const vigente=()=>revision===turno&&$('worker-form-body')===form&&personal.vigente(c);
+      q.disabled=true;info.textContent='Verificando cuadrillas…';form.dataset.cuadrillas='leyendo';
+      return personal.cuadrillas(c,m,obra).then(filas=>{
+        if(!vigente()){m?.fin('descartada');return;}
+        form._cuadrillasDestino=obra===OBRA.id?null:filas;
+        q.disabled=false;delete form.dataset.cuadrillas;cuadRefresca(w?.obra_id===obra?w.id_cuadrilla||'':'');
+        actualizarResumenFormulario();m?.marca('secundarios');m?.fin();
+      }).catch(e=>{
+        if(!vigente())return;
+        form.dataset.cuadrillas='error';info.textContent=e.message+' ';
+        const b=document.createElement('button');b.type='button';b.className='btn';b.textContent='Reintentar';b.onclick=()=>confirmar();info.appendChild(b);m?.fin('error');
+      });
+    };
+    selector.addEventListener('change',()=>confirmar());
+    confirmar(true);
+  }else cuadRefresca(w?.id_cuadrilla||'');
 }
 function organizarFormularioTrabajador(){
   const root=$('worker-form-body');if(!root)return;
   const grupos=new Map(),usados=new Set();
-  root.querySelectorAll('.grid input,.grid select').forEach(el=>{if(el.id)grupos.set(el.id.replace(/^f-/,''),el.closest('.grid > div'));});
+  root.querySelectorAll('.grid input,.grid select').forEach(el=>{
+    if(!el.id)return;
+    const campo=el.id.replace(/^f-/,''),bloque=['fecha_baja','monto_finiquito','motivo_baja'].includes(campo)&&el.closest('.grid > div')?.querySelectorAll('input,select').length>1?el.parentElement:el.closest('.grid > div');
+    grupos.set(campo,bloque);
+  });
   const datalists=Array.from(root.querySelectorAll('datalist')),privacy=$('wf-privacy');
-  const titulos=['Asignación y condiciones de trabajo','Datos del trabajador','Documentos y revisión'];
-  const textos=['Selecciona contratista y cuadrilla, confirma las fechas y el salario.','Captura su identidad, contacto y forma de pago. Los datos complementarios están desplegables.','Marca lo recibido, revisa el resumen y guarda. Ninguna casilla significa pendiente.'];
-  const panels=titulos.map((titulo,i)=>{const p=document.createElement('section');p.id='wf-step-'+(i+1);p.className='wf-panel';p.innerHTML=`<h2 tabindex="-1">${titulo}</h2><p class="wf-intro">${textos[i]}</p>`;return p;});
+  const panels=WF_SECCIONES.map((titulo,i)=>{const p=document.createElement('section');p.id='wf-step-'+(i+1);p.className='wf-panel';p.innerHTML=`<h2 tabindex="-1">${titulo}</h2>`;return p;});
   const tarjeta=(paso,titulo,ids,opcional=false)=>{
     const cont=document.createElement(opcional?'details':'article');cont.className=opcional?'wf-optional':'wf-card';
     cont.innerHTML=`<${opcional?'summary':'h3'}>${titulo}</${opcional?'summary':'h3'}><div class="wf-grid"></div>`;
@@ -165,22 +202,24 @@ function organizarFormularioTrabajador(){
     if(grid.children.length)panels[paso-1].appendChild(cont);
     return cont;
   };
-  tarjeta(1,'Contratista y cuadrilla',['contratista','id_cuadrilla','puesto','no_trab']);
-  tarjeta(1,'Centro y fechas',['obra_id','fecha_alta','fecha_reingreso','fecha_baja','semana_ingreso','periodo_pago','turno']);
-  tarjeta(1,'Salario registrado',['sd','sdi','sal_semanal']);
-  tarjeta(1,'Contrato y funciones · datos complementarios',['tipo_contrato','fecha_fin_contrato','funciones'],true);
-  if(privacy)panels[1].appendChild(privacy);
-  tarjeta(2,'Identidad',['primer_apellido','segundo_apellido','nombres','curp','rfc','nss']);
+  if(privacy)panels[0].appendChild(privacy);
+  tarjeta(1,'Nombre e identidad',['primer_apellido','segundo_apellido','nombres','curp']);
+  tarjeta(2,'Nacimiento y datos personales',['fecha_nacimiento','genero','estado_civil','escolaridad','nacionalidad','edo_nacimiento']);
+  grupos.get('fecha_nacimiento')?.insertAdjacentHTML('beforeend','<div class="fhint" id="wf-edad" aria-live="polite">Edad: —</div>');
   tarjeta(2,'Contacto',['telefono','correo']);
-  tarjeta(2,'Datos bancarios y forma de pago',['cuenta-modo','cuenta','clabe','banco','forma_pago','observaciones']);
-  tarjeta(2,'Domicilio y datos personales complementarios',['fecha_nacimiento','genero','estado_civil','escolaridad','nacionalidad','edo_nacimiento','direccion','cp'],true);
-  tarjeta(2,'Beneficiario · contacto y porcentaje',['beneficiario','benef_parentesco','benef_telefono','benef_porcentaje'],true);
+  tarjeta(3,'Dirección registrada',['direccion','cp']);
+  tarjeta(4,'Contrato y fechas',['fecha_alta','fecha_reingreso','fecha_baja','semana_ingreso','tipo_contrato','fecha_fin_contrato','monto_finiquito','motivo_baja']);
+  tarjeta(5,'Adscripción',['obra_id','contratista','id_cuadrilla','puesto','no_trab','turno','funciones']);
+  tarjeta(6,'Salario registrado',['periodo_pago','sd','sdi','sal_semanal']);
+  tarjeta(6,'Forma de pago y cuenta',['cuenta-modo','cuenta','clabe','banco','forma_pago','observaciones']);
+  tarjeta(7,'Identificadores fiscales y de seguridad social',['rfc','nss']);
+  tarjeta(8,'Beneficiario',['beneficiario','benef_parentesco','benef_telefono','benef_porcentaje'],true);
   // Conserva cualquier campo legado/futuro que no esté en el mapeo explícito.
   const extras=[...grupos].filter(([,g])=>g&&!usados.has(g)).map(([id])=>id);
-  tarjeta(2,'Otros datos del expediente',extras,true);
+  tarjeta(8,'Otros datos del expediente',extras,true);
   const documentos=document.createElement('article');documentos.className='wf-card';documentos.innerHTML='<h3>Recepción de documentos <span id="wf-doc-count"></span></h3>';
-  documentos.appendChild($('wf-documentos'));documentos.appendChild($('wf-drive'));panels[2].appendChild(documentos);
-  const revision=document.createElement('article');revision.className='wf-card';revision.innerHTML='<h3>Antes de guardar</h3><dl class="wf-review" id="wf-review"></dl><p class="wf-note">El alta IMSS, sus acuses, el registro patronal propio y la prima de riesgo se gestionan después desde la ficha → Control IMSS. Esta lista registra recepción; no sustituye el archivo del documento.</p>';panels[2].appendChild(revision);
+  documentos.appendChild($('wf-documentos'));documentos.appendChild($('wf-drive'));panels[7].appendChild(documentos);
+  const revision=document.createElement('article');revision.className='wf-card';revision.innerHTML='<h3>Antes de guardar</h3><dl class="wf-review" id="wf-review"></dl><p class="wf-note">Gestiona el alta IMSS, sus acuses, el registro patronal propio y la prima de riesgo desde la ficha → IMSS.</p>';panels[7].appendChild(revision);
   root.replaceChildren(...panels,...datalists);
   root.querySelectorAll('label').forEach(label=>{if(!label.htmlFor&&!label.querySelector('input')){const control=label.parentElement.querySelector('input:not([type="hidden"]),select');if(control&&control.id)label.htmlFor=control.id;}});
   const cambio=()=>{root.dataset.dirty='1';actualizarResumenFormulario();};
@@ -188,10 +227,11 @@ function organizarFormularioTrabajador(){
 }
 function workerFormPaso(paso,enfocar=true){
   const root=$('worker-form-body');if(!root||root.dataset.busy==='1')return;
-  const n=Math.max(1,Math.min(3,Number(paso)||1));root.dataset.step=String(n);
-  [1,2,3].forEach(i=>{const p=$('wf-step-'+i),b=$('wf-tab-'+i);p.hidden=i!==n;if(i===n)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');});
-  $('wf-back').hidden=n===1;$('wf-next').hidden=n===3;$('save-btn').hidden=n!==3;
-  $('wf-progress').textContent='PASO '+n+' DE 3';root.scrollTop=0;
+  const max=WF_SECCIONES.length,n=Math.max(1,Math.min(max,Number(paso)||1));root.dataset.step=String(n);
+  WF_SECCIONES.forEach((_,j)=>{const i=j+1,p=$('wf-step-'+i),b=$('wf-tab-'+i);p.hidden=i!==n;if(i===n)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');});
+  $('wf-seccion-select').value=String(n);
+  $('wf-back').hidden=n===1;$('wf-next').hidden=n===max;
+  $('wf-progress').textContent=n+' / '+max;root.scrollTop=0;
   actualizarResumenFormulario();
   if(enfocar)$('wf-step-'+n).querySelector('h2').focus({preventScroll:true});
 }
@@ -203,6 +243,7 @@ function formDocEstado(clave,estado,marcado){
   $('worker-form-body').dataset.dirty='1';actualizarResumenFormulario();
 }
 function actualizarResumenFormulario(){
+  actualizarEdadFormulario();
   const resumen=$('wf-review');if(!resumen)return;
   const valor=id=>($('f-'+id)?.value||'').trim();
   let entregados=0,noAplica=0;DOCS.forEach(k=>{const v=$('doc-'+k.replace(/[^A-Z]/g,''))?.value;entregados+=Number(v==='ENTREGADO');noAplica+=Number(v==='NO APLICA');});
@@ -213,13 +254,13 @@ function actualizarResumenFormulario(){
 }
 function formEnfocarError(){
   const root=$('worker-form-body'),el=root&&root.querySelector('.err');if(!el)return;
-  const panel=el.closest('.wf-panel');if(panel)workerFormPaso(Number(panel.id.slice(-1)),false);
+  const panel=el.closest('.wf-panel');if(panel)workerFormPaso(Number(panel.id.replace('wf-step-','')),false);
   let p=el.parentElement;while(p&&p!==root){if(p.tagName==='DETAILS')p.open=true;p=p.parentElement;}
   el.focus();
 }
 function formGuardando(valor){
   const root=$('worker-form-body');if(root)root.dataset.busy=valor?'1':'0';
-  ['save-btn','wf-back','wf-next','wf-tab-1','wf-tab-2','wf-tab-3'].forEach(id=>{const b=$(id);if(b)b.disabled=!!valor;});
+  ['save-btn','wf-back','wf-next','wf-seccion-select',...WF_SECCIONES.map((_,i)=>'wf-tab-'+(i+1))].forEach(id=>{const b=$(id);if(b)b.disabled=!!valor;});
   if($('save-btn'))$('save-btn').innerHTML=valor?'<span class="spin"></span> Guardando…':'💾 Guardar '+(root?.dataset.workerId?'cambios':'alta');
 }
 function openIMSSWorker(id){
@@ -347,6 +388,11 @@ function curpAssist(){
     ?`<span style="color:var(--green)">✔ Se llenó solo: ${puestos.join(', ')}.</span>`
     :'18 caracteres. Llena fecha de nacimiento, género y estado de nacimiento automáticamente.';
   valMark('curp',c===''||RX.curp.test(c));
+  actualizarEdadFormulario();
+}
+function actualizarEdadFormulario(){
+  const salida=$('wf-edad');
+  if(salida){const e=edad(dmyAiso($('f-fecha_nacimiento').value));salida.textContent='Edad: '+(e===''?'—':e+' años');}
 }
 /* Cruza el RFC contra la CURP: la fecha de nacimiento debe coincidir. */
 function rfcAssist(){
@@ -691,6 +737,10 @@ async function formValidarSesion(){
 async function saveWorker(id){
   if(!puedeEditarTrabajador()){toast('Tu usuario solo puede consultar.','err');return;}
   if($('save-btn')?.disabled)return;
+  if($('worker-form-body')?.dataset.cuadrillas){
+    workerFormPaso(5);
+    toast('Verifica el catálogo de cuadrillas antes de guardar.','err');return;
+  }
   const w=collectForm();
   const {errs,warns}=validateWorker(w,id);
   if(errs.length){formEnfocarError();toast(errs[0],'err');if(errs.length>1)setTimeout(()=>toast(errs[1],'err'),350);return;}
@@ -714,6 +764,7 @@ async function saveWorker(id){
     }
   }
   const formularioGuardando=$('worker-form-body');
+  const personal=window.PLATINUM_PERSONAL,contexto=personal?.contexto();
   formGuardando(true);
   try{
   if(!await formValidarSesion())return;
@@ -725,11 +776,11 @@ async function saveWorker(id){
   // activarse todavía, aunque el expediente esté completo.
   const finSemActual=weekBounds()[1];
   const esFuturo=w.fecha_alta&&w.fecha_alta>finSemActual;
-  let error, msg;
+  let error,data,msg;
   if(id){
     const prev=WORKERS.find(x=>x.id===id);
     if(prev&&prev.estatus==='PENDIENTE'&&!falt.length&&!prev.pendiente_manual&&!esFuturo)w.estatus='ACTIVO';
-    ({error}=await guardarRegistroTrabajador(w,id));
+    ({error,data}=await guardarRegistroTrabajador(w,id));
     msg=w.estatus==='ACTIVO'&&prev&&prev.estatus==='PENDIENTE'
       ?'Expediente completo: el trabajador pasó automáticamente a ACTIVO.'
       :'Cambios guardados. Quedó registrado en el historial.';
@@ -737,7 +788,7 @@ async function saveWorker(id){
     w.creado_por=USER.email;
     w.estatus=(falt.length||esFuturo)?'PENDIENTE':'ACTIVO';
     if(esFuturo&&!falt.length)w.motivo_pendiente=`PROGRAMADO: ingresa el ${fmtD(w.fecha_alta)} (semana ${isoWeek(new Date(w.fecha_alta+'T12:00'))}). Pasa a ACTIVO solo automáticamente.`;
-    ({error}=await guardarRegistroTrabajador(w,null));
+    ({error,data}=await guardarRegistroTrabajador(w,null));
     msg=esFuturo&&!falt.length
       ?`Alta guardada como PENDIENTE — su fecha de ingreso (${fmtD(w.fecha_alta)}) es de la próxima semana. No aparecerá en la dispersión de esta semana y pasará a ACTIVO solo cuando llegue su fecha.`
       :falt.length
@@ -753,16 +804,26 @@ async function saveWorker(id){
     const w2={...w}; delete w2.registro_patronal; delete w2.prima_rt; delete w2.benef_parentesco; delete w2.benef_telefono; delete w2.benef_porcentaje;
     const perdioCuad=/id_cuadrilla/i.test(error.message||'')&&w2.id_cuadrilla;
     if(perdioCuad)delete w2.id_cuadrilla;
-    ({error}=await guardarRegistroTrabajador(w2,id));
+    ({error,data}=await guardarRegistroTrabajador(w2,id));
     if(!error)toast(perdioCuad
       ?'Guardado, pero SIN CUADRILLA: falta correr el Script 56 en Supabase. Vuelve a asignársela después de correrlo.'
       :'Guardado, pero algunos campos nuevos (registro patronal/prima o datos del beneficiario) NO se aplicaron: falta correr el Script 42 o 47 en Supabase.','err');
   }
   if(error){toast('Error al guardar: '+error.message,'err');return;}
+  if(personal&&!personal.vigente(contexto))return;
   closeModal(true);toast(msg,'ok');
-  await loadObraData(OBRA.id);refreshCounts();
+  const guardado=data?.[0];
+  if(!personal||!guardado?.obra_id)await loadObraData(OBRA.id);
+  else if(guardado.obra_id===OBRA.id)personal.aplicarFila(guardado,contexto);
+  else if(id)window.PLATINUM_DATOS?.aplicar({table:'trabajadores',eventType:'UPDATE',new:guardado});
+  refreshCounts();
+  if(personal&&guardado?.obra_id===OBRA.id&&personal.vigente(contexto)){
+    modal(`<div class="m-head"><h2>Registro confirmado</h2></div><div class="m-body"><p>${esc(msg)}</p></div>
+      <div class="m-foot"><button class="btn" onclick="closeModal()">Volver al padrón</button>
+      <button class="btn dark" onclick="closeModal();openDetail('${esc(guardado.id)}')">Abrir ficha</button></div>`,'sm');
+  }
   // Alta NUEVA: ¿esta persona ya venía en el control de papeles?
-  if(!id)await cpAvisaAlta(fullName(w));
+  if(!id)await cpAvisaAlta(fullName(w),guardado?.obra_id===OBRA.id?guardado.id:null);
   }catch(e){toast('No se pudo guardar: '+e.message,'err');}
   finally{if($('worker-form-body')===formularioGuardando)formGuardando(false);}
 }
@@ -776,7 +837,7 @@ async function guardarRegistroTrabajador(valores,id){
   let q=id?sb.from('trabajadores').update(valores).eq('id',id)
     .eq('obra_id',form.dataset.workerObra).eq('updated_at',form.dataset.workerVersion)
     :sb.from('trabajadores').insert(valores);
-  const {data,error}=await q.select('id');
+  const {data,error}=await q.select('*');
   if(error)return {error};
   if(!data||data.length!==1)return {error:{message:id
     ?'La ficha cambió desde que la abriste o ya no tienes acceso. No se sobrescribió ningún dato. Conserva tu captura y vuelve a abrir la ficha para revisar los cambios.'
@@ -791,15 +852,16 @@ async function guardarRegistroTrabajador(valores,id){
    Se avisa DESPUÉS de guardar, no antes: el alta no se bloquea ni se
    condiciona a esto. Y no se cierra solo — un nombre parecido no es una
    prueba, así que se pregunta. */
-async function cpAvisaAlta(nombre){
+async function cpAvisaAlta(nombre,trabajadorId=null){
   if(!OBRA||!nombre)return;
+  const obra=OBRA.id,uid=USER?.id,origen=$('modals')?.firstElementChild;
   let r=null;
   try{
     const {data,error}=await sb.rpc('buscar_pendiente_parecido',{p_obra:OBRA.id,p_nombre:nombre});
     if(error)throw error;
     r=data;
   }catch(e){ return; }   // sin el Script 65 el alta sigue funcionando igual
-  if(!r||!r.encontrado||!r.fila)return;
+  if(!r||!r.encontrado||!r.fila||OBRA?.id!==obra||USER?.id!==uid||$('modals')?.firstElementChild!==origen)return;
   const f=r.fila, n=Number(f.semanas_adeudadas)||0;
   modal(`
     <div class="m-head" style="background:var(--amber-bg)"><h2>📂 Ya venía en el control de papeles</h2><button class="x" onclick="closeModal()">×</button></div>
@@ -811,6 +873,7 @@ async function cpAvisaAlta(nombre){
       ${r.exacto?'':`<div class="kv" style="background:var(--amber-bg)"><b>Ojo</b><span>En el control de papeles está como <b>${esc(f.nombre_completo)}</b> y lo diste de alta como <b>${esc(nombre)}</b>. Si son dos personas distintas, no lo cierres.</span></div>`}
     </div>
     <div class="m-foot">
+      ${trabajadorId?`<button class="btn" onclick="closeModal();openDetail('${esc(trabajadorId)}')">Abrir ficha</button>`:''}
       <button class="btn" onclick="closeModal()">No es la misma persona</button>
       <button class="btn dark" onclick="closeModal();cpCerrarPorAlta('${f.id}')">✔ Sí, cerrar su renglón</button>
     </div>`,'sm');

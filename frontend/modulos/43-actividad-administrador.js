@@ -12,7 +12,7 @@
  function targetOf(target){
   if(!target||target.type==='password'||target.closest?.('[data-actividad-panel]'))return{campo:'NINGUNO',trabajador_id:null};
   const row=target.closest?.('.trab-table tbody tr'),cell=target.closest?.('td');
-  if(row){const id=uuid((row.getAttribute('onclick')||'').match(/openDetail\('([^']+)'\)/)?.[1]);return{campo:columns[cell?.cellIndex]||'NINGUNO',trabajador_id:id};}
+  if(row){const id=uuid(row.dataset?.padronTrabajador||(row.getAttribute('onclick')||'').match(/openDetail\('([^']+)'\)/)?.[1]);return{campo:cell?.dataset?.activityField||columns[cell?.cellIndex]||'NINGUNO',trabajador_id:id};}
   return{campo:fields[target.id]||extraFields[target.id]||(target.type==='checkbox'&&target.closest?.('#worker-form-body')?'DOCUMENTOS':'NINGUNO'),trabajador_id:null};
  }
  function snapshot(ctx,dom,point,lastInteraction,now,route){
@@ -38,7 +38,9 @@
  async function rpc(action,data={}){const r=await cfg.context().sb.rpc('control_actividad',{p_accion:action,p_datos:data});if(r.error){const e=Error(r.error.message);e.code=r.error.code;throw e;}if(!r.data)throw Error('Respuesta incompleta');return r.data;}
  function clearMarker(){doc().querySelectorAll('.act-live-target').forEach(e=>{e.classList.remove('act-live-target');e.removeAttribute('data-activity-user');});}
  function highlight(s){clearMarker();if(!s.open||s.failed||!s.connected||!s.follow)return;const r=s.rows.find(x=>x.sesion_id===s.follow);if(!r||r.estado!=='ACTIVO'||r.obra_id!==cfg.context().obra?.id||r.seccion!=='LISTA')return;
-  const index=columns.indexOf(r.campo);if(index<0||!uuid(r.trabajador_id))return;const row=Array.from(doc().querySelectorAll('.trab-table tbody tr')).find(e=>(e.getAttribute('onclick')||'')===`openDetail('${r.trabajador_id}')`),cell=row?.cells?.[index];
+  if(!uuid(r.trabajador_id))return;
+  const row=Array.from(doc().querySelectorAll('.trab-table tbody tr')).find(e=>e.dataset?.padronTrabajador===r.trabajador_id||(e.getAttribute('onclick')||'')===`openDetail('${r.trabajador_id}')`);
+  const cell=row?.dataset?.padronTrabajador?Array.from(row.cells||[]).find(c=>c.dataset.activityField===r.campo):row?.cells?.[columns.indexOf(r.campo)];
   if(cell){cell.classList.add('act-live-target');cell.setAttribute('data-activity-user',r.usuario);}
  }
  function render(s){const box=doc().getElementById('act-live-body');if(!box||!s.open)return;

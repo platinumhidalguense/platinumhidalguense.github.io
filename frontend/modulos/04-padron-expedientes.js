@@ -158,6 +158,7 @@ function renderTable(){
   const datos=window.PLATINUM_DATOS,base=baseFiltered(datos?.vista('trabajadores',WORKERS)??WORKERS);
   let rows=base.filter(w=>!fe||w.estatus===fe);
   renderStats(base);
+  if(window.PLATINUM_PADRON?.render(rows))return;
   const k=SORT.k;
   document.querySelectorAll('.trab-table th[data-sort]').forEach(th=>th.setAttribute('aria-sort',th.dataset.sort===k?(SORT.asc?'ascending':'descending'):'none'));
   rows.sort((x,y)=>{
@@ -206,10 +207,11 @@ function fichaDocsHTML(w){
   const re=DOCSX.filter(x=>x.trabajador_id===w.id&&esReciboPdf(x)).sort((a,b)=>byW(a)-byW(b));
   const cf=DOCSX.filter(x=>x.trabajador_id===w.id&&esCfdiXml(x)).sort((a,b)=>byW(a)-byW(b));
   const item=x=>`<div class="kv"><b>${esc(x.subtipo||'DOC')} ${esc(x.semana)}</b><span>${esc(x.nombre_archivo)} · ${fmtD(x.fecha_doc||x.created_at)} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:8px" onclick="verDoc('${x.id}')">📄 Ver</button> <button class="btn" style="padding:2px 8px;font-size:11px" onclick="openRenombrarDoc('${x.id}','${w.id}')" title="Cambiar el nombre y el tipo de movimiento (ALTA, BAJA...)">✎</button> <button class="btn danger" style="padding:2px 8px;font-size:11px" onclick="anularDoc('${x.id}','${w.id}')" title="Quitar del expediente (queda rastro de quién y por qué)">🗑</button></span></div>`;
-  const falt=faltantesReciboDe(w);
+  const verificado=typeof OBRA_CARGA_COMPLETA==='undefined'||OBRA_CARGA_COMPLETA;
+  const falt=verificado?faltantesReciboDe(w):[];
   const faltHtml=falt.length
     ?`<div class="kv" style="background:var(--amber-bg)"><b style="color:var(--amber)">⚠ Faltan ${falt.length}</b><span>${falt.map(W=>'<span class="badge PENDIENTE" style="font-size:10px;margin:1px">S'+W+'</span>').join(' ')} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:6px" onclick="openPdfImport()">📎 Importar recibos</button></span></div>`
-    :(re.length?`<div class="kv"><b style="color:var(--green)">✔ Completos</b><span>No falta ningún recibo de nómina (semanas cerradas).</span></div>`:'');
+    :(verificado&&re.length?`<div class="kv"><b style="color:var(--green)">✔ Completos</b><span>No falta ningún recibo de nómina (semanas cerradas).</span></div>`:!verificado?'<p class="fhint">Se muestran los recibos archivados. La verificación de faltantes por cierre está en Pagos y conciliación.</p>':'');
   const reList=re.length?re.map(item).join(''):'<div class="kv"><b>—</b><span>Sin representaciones PDF archivadas.</span></div>';
   const reWrap=re.length>8?`<div style="max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:4px">${reList}</div>`:reList;
   const cfList=cf.length?cf.map(item).join(''):'<div class="kv"><b>—</b><span>Sin XML fiscales archivados.</span></div>';
@@ -250,95 +252,40 @@ async function refrescaPagosDe(id){
 }
 async function openFichaIncidentes(id){
   const w=WORKERS.find(x=>x.id===id);if(!w)return;
-  await openCtrlIncidentes();
+  const abierto=await openCtrlIncidentes(id);
+  if(abierto===false)return;
   const input=$('salud-buscar');if(input){input.value=fullName(w);ctrlFiltrarSalud(input.value);}
 }
-function fichaResumenHTML(w){
-  const dato=(l,v)=>`<div><dt>${esc(l)}</dt><dd>${v||'—'}</dd></div>`;
-  const bloque=(titulo,contenido)=>`<section class="worker-block"><h3>${esc(titulo)}</h3><dl>${contenido}</dl></section>`;
+function fichaResumenHTML(w,verificado=false){
   const cuad=CUADS.find(c=>c.id===w.id_cuadrilla);
-  return `<div class="worker-overview">
-    ${bloque('Identificación y asignación',dato('Número',esc(String(w.no_trab??'')))+dato('Puesto',esc(w.puesto))+dato('Contratista',esc(w.contratista))+dato('Cuadrilla',esc(cuad?.nombre))+dato('NSS',esc(w.nss))+dato('CURP',esc(w.curp))+dato('RFC',esc(w.rfc))+dato('Centro de trabajo',esc(OBRA.nombre)))}
-    ${bloque('Relación laboral',dato('Estatus',`<span class="badge ${esc(w.estatus)}">${esc(w.estatus)}</span>`)+dato('Fecha de alta',fmtD(w.fecha_alta))+dato('Reingreso',w.fecha_reingreso?`<span style="color:var(--amber)">${fmtD(w.fecha_reingreso)}</span>`:'—')+dato('Fecha de baja',w.fecha_baja?`<span style="color:var(--red)">${fmtD(w.fecha_baja)}</span>`:'—')+dato('Tipo de contrato',esc(w.tipo_contrato||'OBRA DETERMINADA'))+dato('Acuses IMSS',marcadoresIMSS(w)))}
-    ${bloque('Contacto',dato('Teléfono',esc(w.telefono))+dato('Correo electrónico',esc(w.correo))+dato('Beneficiario',esc(w.beneficiario))+dato('Parentesco',esc(w.benef_parentesco))+dato('Teléfono del beneficiario',esc(w.benef_telefono))+dato('Domicilio',esc(w.direccion)))}
-${bloque('Salario y forma de pago',dato('Salario diario','$'+money(w.sd))+dato('Salario integrado','$'+esc(w.sdi??'—'))+dato('Periodo',esc(w.periodo_pago||'SEMANAL'))+dato('Salario del periodo','$'+money(w.sal_semanal))+dato('Forma de pago',esc(w.forma_pago))+dato('Banco',esc(w.banco)))}
-  </div>`;
+  const programado=window.PLATINUM_PADRON?.programado(w);
+  const item=(k,v)=>`<div><dt>${esc(k)}</dt><dd>${esc(v||'—')}</dd></div>`;
+  return `<section class="worker-block"><h3>Relación laboral</h3><dl>${item('Puesto',w.puesto)}${item('Contratista',w.contratista)}${item('Cuadrilla',cuad?.nombre)}${item('Estatus registrado',w.estatus)}${item('Alta inicial',fmtD(w.fecha_alta))}${item('Última baja',fmtD(w.fecha_baja))}${item('Reingreso efectivo',fmtD(w.fecha_reingreso))}${programado?item('Vigencia',programado):''}</dl></section>
+  <section class="worker-block"><h3>Estado del expediente</h3>${marcadoresIMSS(w)}${verificado&&w.estatus==='PENDIENTE'?`<div style="background:var(--amber-bg);border:1px solid #ecd9a0;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px"><b style="color:var(--amber)">⏳ PENDIENTE</b> — ${(function(){if(w.pendiente_manual)return 'Pausado manualmente — <b>'+esc(w.motivo_pendiente||'SIN MOTIVO')+'</b>. No sale en proyección ni requisición y NO se reactiva solo: usa "Marcar ACTIVO" cuando se resuelva.';const f=datosFaltantes(w);return f.length?'Falta capturar: <b>'+f.join(', ')+'</b>. Al completarlo pasará a ACTIVO solo, o usa el botón "Marcar ACTIVO".':'Ya tiene todos los datos: usa el botón "Marcar ACTIVO".';})()}</div>`:''}</section>`;
 }
-function agruparExpedienteFicha(){
-  const raiz=$('worker-more-content');if(!raiz)return;
-  let cuerpo=null;
-  const seccion=titulo=>{
-    const detalle=document.createElement('details');detalle.className='worker-section';
-    const resumen=document.createElement('summary');resumen.textContent=titulo;detalle.appendChild(resumen);
-    const box=document.createElement('div');box.className='worker-section-body';detalle.appendChild(box);raiz.appendChild(detalle);return box;
-  };
-  // Mover nodos conserva IDs, eventos y actualizaciones dirigidas de documentos/pagos.
-  const nodos=Array.from(raiz.childNodes);
-  nodos.forEach(n=>{
-    if(n.nodeType===1&&n.classList.contains('sect')){
-      const label=n.cloneNode(true);label.querySelectorAll('button').forEach(b=>b.remove());
-      cuerpo=seccion(label.textContent.trim());
-      Array.from(n.childNodes).filter(x=>x.nodeType===3).forEach(x=>x.remove());
-      n.className='ficha-section-actions';
-      if(n.children.length)cuerpo.appendChild(n);
-    }else if(n.nodeType===1&&(n.id==='fd-pagos'||n.id==='fd-docs')){
-      cuerpo=seccion(n.id==='fd-pagos'?'Pagos bancarios':'Acuses IMSS, recibos y CFDI');cuerpo.appendChild(n);
-    }else if(cuerpo)cuerpo.appendChild(n);
-  });
-}
-function openDetail(id,mesCalendario){
-  if(typeof OBRA_CARGA_COMPLETA!=='undefined'&&!OBRA_CARGA_COMPLETA)return conCentroCompleto(()=>openDetail(id,mesCalendario));
-  const w=WORKERS.find(x=>x.id===id); if(!w)return;
-  const d=w.docs||{};
-  const kv=(l,v)=>`<div class="kv"><b>${l}</b><span>${(v??'')||'—'}</span></div>`;
-  const chq=CHEQUES.filter(c=>c.trabajador_id===id||(w.curp&&c.curp===w.curp))
-    .sort((a,b)=>(parseInt(String(a.semana||'').replace(/\D/g,''))||0)-(parseInt(String(b.semana||'').replace(/\D/g,''))||0));
-  const _ids=navTrabajadores(), _pos=_ids.indexOf(id);
-  const _nav=_ids.length>1?`<div class="ficha-nav">
-      <button class="btn" ${_pos<=0?'disabled':''} onclick="abrirTrabajadorVecino('${id}',-1)" title="Trabajador anterior">‹</button>
-      <span class="pos">${_pos>=0?(_pos+1)+' / '+_ids.length:''}</span>
-      <button class="btn" ${_pos<0||_pos>=_ids.length-1?'disabled':''} onclick="abrirTrabajadorVecino('${id}',1)" title="Trabajador siguiente">›</button>
-    </div>`:'';
-  modal(`
-    <div class="m-head"><h2>${esc(fullName(w))}</h2><span class="badge ${w.estatus}">${w.estatus}</span>
-      <span class="badge ${w.periodo_pago||'SEMANAL'}">${w.periodo_pago||'SEMANAL'}</span>
-      ${_nav}
-      <button class="x" onclick="closeModal()">×</button></div>
-    <div class="m-body">
-      ${w.estatus==='PENDIENTE'?`<div style="background:var(--amber-bg);border:1px solid #ecd9a0;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px"><b style="color:var(--amber)">⏳ PENDIENTE</b> — ${(function(){if(w.pendiente_manual)return 'Pausado manualmente — <b>'+esc(w.motivo_pendiente||'SIN MOTIVO')+'</b>. No sale en proyección ni requisición y NO se reactiva solo: usa "Marcar ACTIVO" cuando se resuelva.';const f=datosFaltantes(w);return f.length?'Falta capturar: <b>'+f.join(', ')+'</b>. Al completarlo pasará a ACTIVO solo, o usa el botón "Marcar ACTIVO".':'Ya tiene todos los datos: usa el botón "Marcar ACTIVO".';})()}</div>`:''}
-      <div id="worker-overview" data-activity-worker="${w.id}">${fichaResumenHTML(w)}</div>
-      <section id="cal-contenido" data-worker-id="${w.id}" aria-label="Calendario de incidencias"></section>
-      <details class="worker-more"><summary>Mostrar más · Expediente completo<small>Datos personales y bancarios · IMSS · créditos y descuentos · incidencias · documentos · recibos · historial</small></summary><div id="worker-more-content" class="worker-more-content">
-      <div class="sect">Obra y puesto</div>
+function agruparExpedienteFicha(w,seccion){
+  const d=w.docs||{},kv=(l,v)=>`<div class="kv"><b>${l}</b><span>${(v??'')||'—'}</span></div>`;
+  const chq=seccion==='nomina'?CHEQUES.filter(c=>c.trabajador_id===w.id||(!c.trabajador_id&&w.curp&&c.curp===w.curp&&c.obra_id===w.obra_id)).sort((a,b)=>Number(normSem(a.semana))-Number(normSem(b.semana))):[];
+  if(seccion==="identidad")return `<div class="sect">Datos personales <button class="btn" onclick="openValidar('${w.id}')">Validar identidad</button></div>
+      ${kv('CURP',esc(w.curp))}${kv('RFC',esc(w.rfc))}${kv('NSS',esc(w.nss))}${kv('Fecha de nacimiento',fmtD(w.fecha_nacimiento)+(w.fecha_nacimiento?' ('+edad(w.fecha_nacimiento)+' años)':''))}${kv('Género',esc(w.genero))}${kv('Estado civil',esc(w.estado_civil))}${kv('Escolaridad',esc(w.escolaridad))}${kv('Nacionalidad',esc(w.nacionalidad))}${kv('Edo. nacimiento',esc(w.edo_nacimiento))}${kv('Dirección',esc(w.direccion))}${kv('C.P.',esc(w.cp))}${kv('Teléfono',esc(w.telefono))}${kv('Correo',esc(w.correo))}${kv('Beneficiario',esc(w.beneficiario)+((w.benef_parentesco||w.benef_telefono||(w.benef_porcentaje!=null&&w.benef_porcentaje!==''))?` <span style="color:var(--mut);font-size:11.5px">(${[w.benef_parentesco?esc(w.benef_parentesco):'',w.benef_telefono?'tel. '+esc(w.benef_telefono):'',(w.benef_porcentaje!=null&&w.benef_porcentaje!=='')?esc(w.benef_porcentaje)+'%':''].filter(Boolean).join(' · ')})</span>`:''))}`;
+  if(seccion==="contratacion")return `<div class="sect">Obra y puesto</div>
       ${kv('Obra',esc(OBRA.nombre))}${kv('Contratista',esc(w.contratista))}${kv('No. trabajador',w.no_trab)}${kv('Puesto',esc(w.puesto))}${kv('Funciones',esc(w.funciones))}${kv('Turno',esc(w.turno))}${kv('Semana de ingreso',esc(w.semana_ingreso))}${kv('Fecha alta',fmtD(w.fecha_alta))}${w.fecha_reingreso?kv('Fecha de reingreso',fmtD(w.fecha_reingreso)+' (la antigüedad cuenta desde aquí)'):''}${kv('Tipo de contrato',esc(w.tipo_contrato||'OBRA DETERMINADA')+(w.fecha_fin_contrato?' · vence '+fmtD(w.fecha_fin_contrato):''))}${(w.estatus==='BAJA'||w.fecha_baja)?kv('Fecha baja'+(w.estatus!=='BAJA'?' anterior':''),fmtD(w.fecha_baja))+(w.estatus==='BAJA'?kv('Monto finiquito',w.monto_finiquito!=null?'$'+money(w.monto_finiquito):''):''):''}
-      <div class="sect">Salario <button class="btn" style="padding:2px 10px;font-size:11.5px;float:right" onclick="openHistSalario('${w.id}')">📈 Historial de salario</button></div>
+${kv('Cuadrilla',esc(CUADS.find(c=>c.id===w.id_cuadrilla)?.nombre))}
+<div class="ficha-section-actions">      <button class="btn" onclick="openContrato('${w.id}')">📄 Contrato</button>
+      <button class="btn" onclick="openConstanciaLaboral('${w.id}')">📜 Constancia laboral</button>
+      ${w.estatus==='PENDIENTE'?`<button class="btn" style="color:var(--green);border-color:#b7dcc8" onclick="doActivar('${w.id}')">✔ Marcar ACTIVO</button>`:''}
+      ${w.estatus==='ACTIVO'?`<button class="btn" style="color:#8a6d1a;border-color:#ecd9a0" onclick="openPendiente('${w.id}')">⏸ Pasar a PENDIENTE</button>
+      <button class="btn" onclick="openTransferencia('${w.id}')">🔁 Transferir de obra</button>`:''}
+      ${w.estatus!=='BAJA'
+        ?`<button class="btn" onclick="openSeparacionDoc('${w.id}')">📄 Documento de separación</button>
+           <button class="btn danger" onclick="openBaja('${w.id}')">Dar de BAJA</button>`
+        :`<button class="btn" onclick="openRenuncia('${w.id}')">📄 Renuncia y finiquito</button>
+           <button class="btn" onclick="doReactivar('${w.id}')">Reactivar (nueva alta)</button>`}
+      ${esAdmin()?`<button class="btn danger" style="background:#7a1414;border-color:#7a1414" onclick="openEliminarTrabajador('${w.id}')">🗑 Eliminar (papelera)</button>`:''}</div>`;
+  if(seccion==="nomina")return `<div class="sect">Salario <button class="btn" style="padding:2px 10px;font-size:11.5px;float:right" onclick="openHistSalario('${w.id}')">📈 Historial de salario</button></div>
       ${kv('Periodo de pago',w.periodo_pago||'SEMANAL')}${kv('SD','$'+money(w.sd))}${kv('SDI','$'+esc(w.sdi??'—'))}${kv('Salario '+(w.periodo_pago==='QUINCENAL'?'quincenal':'semanal'),'$'+money(w.sal_semanal))}
-      <div class="sect">Datos personales</div>
-      ${kv('CURP',esc(w.curp))}${kv('RFC',esc(w.rfc))}${kv('NSS',esc(w.nss))}${kv('Fecha de nacimiento',fmtD(w.fecha_nacimiento)+(w.fecha_nacimiento?' ('+edad(w.fecha_nacimiento)+' años)':''))}${kv('Género',esc(w.genero))}${kv('Estado civil',esc(w.estado_civil))}${kv('Escolaridad',esc(w.escolaridad))}${kv('Nacionalidad',esc(w.nacionalidad))}${kv('Edo. nacimiento',esc(w.edo_nacimiento))}${kv('Dirección',esc(w.direccion))}${kv('C.P.',esc(w.cp))}${kv('Teléfono',esc(w.telefono))}${kv('Correo',esc(w.correo))}${kv('Beneficiario',esc(w.beneficiario)+((w.benef_parentesco||w.benef_telefono||(w.benef_porcentaje!=null&&w.benef_porcentaje!==''))?` <span style="color:var(--mut);font-size:11.5px">(${[w.benef_parentesco?esc(w.benef_parentesco):'',w.benef_telefono?'tel. '+esc(w.benef_telefono):'',(w.benef_porcentaje!=null&&w.benef_porcentaje!=='')?esc(w.benef_porcentaje)+'%':''].filter(Boolean).join(' · ')})</span>`:''))}
       <div class="sect">Datos bancarios</div>
       ${kv('Cuenta',esc(w.cuenta))}${kv('CLABE',esc(w.clabe))}${kv('Banco',esc(w.banco))}${kv('Forma de pago',esc(w.forma_pago))}${kv('Observaciones',esc(w.observaciones))}
-      <div class="sect">IMSS ${puedeEditarTrabajador()?`<button class="btn" onclick="openIMSSWorker('${w.id}')">⚙ Gestionar IMSS</button>`:''}</div>
-      ${kv('Movimiento IMSS',esc(w.movimiento_imss||'SIN MOVIMIENTO'))}${kv('Fecha del movimiento',fmtD(w.fecha_mov_imss))}${kv('SBC (SDI)','$'+esc(w.sdi??'—'))}${kv('Registro patronal',esc(rpDe(w))+(tieneRPpropio(w)?' <b style="color:var(--accent)">(propio)</b>':' <span style="color:var(--mut)">(de la obra)</span>'))}${tieneRPpropio(w)?kv('Prima RT','<b style="color:var(--accent)">'+primaDe(w)+'% (propia)</b>'):''}
-      <div class="sect">Incidentes e incapacidades IMSS</div>
-      ${kv('Expediente de salud',`<button class="btn" onclick="openFichaIncidentes('${w.id}')">Ver incidentes, certificados, calendario y ST-7</button>`)}
-      ${kv('Avisos INFONAVIT',`<button class="btn" onclick="openAvisosInfonavit('${String(w.nss||'').replace(/\D/g,'')}','${String(rpDe(w)||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}')">Comparar avisos de su registro patronal</button> <small>Consulta sin modificar su crédito.</small>`)}
-      ${(function(){
-        const fijos=DESC.filter(d=>d.trabajador_id===w.id&&d.recurrente&&d.activo);
-        const inc=DESC.filter(d=>d.trabajador_id===w.id&&!d.recurrente&&d.activo).sort((a,b)=>String(b.semana).localeCompare(String(a.semana))).slice(0,8);
-        return `<div class="sect">Descuentos <button class="btn" style="float:right;padding:3px 10px;font-size:11.5px;margin-top:-4px" onclick="openDescuento('${w.id}')">＋ Agregar descuento fijo</button></div>
-        ${fijos.length?fijos.map(d=>`<div class="kv"><b>${esc(d.tipo)} (fijo)</b><span>S${isoWeek()}: $${money(retencionAplicadaPeriodo(d,w,'S'+isoWeek(),perDe(w)).monto)} · ${String(d.tipo).toUpperCase()==='INFONAVIT'?`crédito ${numeroCreditoInfonavit(d)?esc(numeroCreditoInfonavit(d)):'<b style="color:var(--amber)">⚠ número sin cotejar</b>'} · `:''}${esc(d.motivo)||'sin nota'}${exResumen(d)} <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openDescuento('${w.id}','${d.id}')">✏️ Editar</button> <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openAjusteRetencion('${d.id}')">＋ Días/importe</button> ${String(d.tipo).toUpperCase()==='INFONAVIT'?`<button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openCreditoNumero('${d.id}')">No. crédito</button>`:''} <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openExcepcion('${d.id}')">⏸/×2 Semana</button> <button class="btn danger" style="padding:2px 8px;font-size:11px;margin-left:8px" onclick="toggleDescuento('${d.id}',false)">Desactivar</button></span></div>`).join(''):'<div class="kv"><b>Fijos</b><span>Sin descuentos fijos activos</span></div>'}
-        ${inc.length?inc.map(d=>`<div class="kv"><b>${esc(d.semana)} · ${esc(d.tipo)}</b><span>$${money(d.monto)} · ${esc(d.motivo)||''} <button class="btn danger" style="padding:2px 8px;font-size:11px;margin-left:8px" onclick="toggleDescuento('${d.id}',false)">Quitar</button></span></div>`).join(''):''}`;
-      })()}
-      ${(function(){
-        const s=saldoVac(w);
-        const f=fueraHoy(w);
-        const nActas=ACTAS.filter(a=>a.trabajador_id===w.id&&a.activo!==false).length;
-        const nomU=NOM.filter(n=>n.trabajador_id===w.id&&n.activo!==false).sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)))[0];
-        return `<div class="sect">Vacaciones, actas y NOM-035</div>
-        <div class="kv"><b>Vacaciones</b><span>Saldo <b style="color:var(--green)">${s.saldo}</b> de ${s.derecho} día(s) · ${s.anios} año(s) de antigüedad ${f?` · <span class="badge PENDIENTE">${esc(f.tipo)} hasta ${fmtD(f.fecha_fin)}</span>`:''} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:6px" onclick="openVacForm('${w.id}')">🌴 Ver / registrar</button></span></div>
-        <div class="kv"><b>Actas</b><span>${nActas?nActas+' registro(s) en su expediente':'Sin actas'} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:6px" onclick="openActaForm('${w.id}')">📋 Nueva acta</button></span></div>
-        <div class="kv"><b>NOM-035</b><span>${nomU?`${esc(nomU.guia)} · ${fmtD(nomU.fecha)} · <b>${esc(nomU.resultado)}</b>${nomU.requiere_atencion?' ⚠️':''}`:'Sin evaluación registrada'}</span></div>`;
-      })()}
       ${(function(){
         /* CONTROL INTERNO SALARIAL (Bloque 2) — solo VIP.
            Esconder el recuadro no protegería nada: lo que de verdad tapa las
@@ -356,56 +303,47 @@ function openDetail(id,mesCalendario){
         <div class="kv"><b></b><span><button class="btn" style="padding:3px 12px;font-size:12px" onclick="openSueldoInterno('${w.id}')">✎ Editar control interno</button>${si.actualizado_por?` <span style="color:var(--mut);font-size:11px;margin-left:8px">Última edición: ${esc(si.actualizado_por)}</span>`:''}</span></div>`;
       })()}
       <div id="fd-pagos">${fichaPagosHTML(w)}</div>
-      <div id="fd-docs">${fichaDocsHTML(w)}</div>
+      ${chq.length?`<div class="sect">Cheques de este trabajador (${chq.length})</div>
+        ${chq.map(c=>`<div class="kv"><b>${esc(c.semana)} · ${esc(c.tipo_pago)}</b><span>$${money(c.importe)} · ${c.num_cheque?'Cheque '+esc(c.num_cheque):'sin número'} · <span class="badge ${c.estatus}">${c.estatus}</span></span></div>`).join('')}`:''}
+<div class="ficha-section-actions">      ${window.PLATINUM_RRHH?`<button class="btn" onclick="PLATINUM_RRHH.abrir('importe','${w.id}')">🔎 Explicar nómina</button>`:''}      ${window.PLATINUM_RECORRIDO?`<button class="btn" onclick="PLATINUM_RECORRIDO.abrir(null,'${w.id}',null,'${periodoPago(w)}')">Preparación de nómina</button>`:''}</div>`;
+  if(seccion==="incidencias")return `<div class="ficha-section-actions">      <button class="btn" onclick="fichaPrestaciones('${w.id}')">🧮 Prestaciones</button></div>
+      ${(function(){
+        const fijos=DESC.filter(d=>d.trabajador_id===w.id&&d.recurrente&&d.activo);
+        const inc=DESC.filter(d=>d.trabajador_id===w.id&&!d.recurrente&&d.activo).sort((a,b)=>String(b.semana).localeCompare(String(a.semana))).slice(0,8);
+        return `<div class="sect">Descuentos <button class="btn" style="float:right;padding:3px 10px;font-size:11.5px;margin-top:-4px" onclick="openDescuento('${w.id}')">＋ Agregar descuento fijo</button></div>
+        ${fijos.length?fijos.map(d=>`<div class="kv"><b>${esc(d.tipo)} (fijo)</b><span>S${isoWeek()}: $${money(retencionAplicadaPeriodo(d,w,'S'+isoWeek(),perDe(w)).monto)} · ${String(d.tipo).toUpperCase()==='INFONAVIT'?`crédito ${numeroCreditoInfonavit(d)?esc(numeroCreditoInfonavit(d)):'<b style="color:var(--amber)">⚠ número sin cotejar</b>'} · `:''}${esc(d.motivo)||'sin nota'}${exResumen(d)} <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openDescuento('${w.id}','${d.id}')">✏️ Editar</button> <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openAjusteRetencion('${d.id}')">＋ Días/importe</button> ${String(d.tipo).toUpperCase()==='INFONAVIT'?`<button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openCreditoNumero('${d.id}')">No. crédito</button>`:''} <button class="btn" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="openExcepcion('${d.id}')">⏸/×2 Semana</button> <button class="btn danger" style="padding:2px 8px;font-size:11px;margin-left:8px" onclick="toggleDescuento('${d.id}',false)">Desactivar</button></span></div>`).join(''):'<div class="kv"><b>Fijos</b><span>Sin descuentos fijos activos</span></div>'}
+        ${inc.length?inc.map(d=>`<div class="kv"><b>${esc(d.semana)} · ${esc(d.tipo)}</b><span>$${money(d.monto)} · ${esc(d.motivo)||''} <button class="btn danger" style="padding:2px 8px;font-size:11px;margin-left:8px" onclick="toggleDescuento('${d.id}',false)">Quitar</button></span></div>`).join(''):''}`;
+      })()}
+      ${(function(){
+        const s=saldoVac(w);
+        const f=fueraHoy(w);
+        const nActas=ACTAS.filter(a=>a.trabajador_id===w.id&&a.activo!==false).length;
+        const nomU=NOM.filter(n=>n.trabajador_id===w.id&&n.activo!==false).sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)))[0];
+        return `<div class="sect">Vacaciones, actas y NOM-035</div>
+        <div class="kv"><b>Vacaciones</b><span>Saldo <b style="color:var(--green)">${s.saldo}</b> de ${s.derecho} día(s) · ${s.anios} año(s) de antigüedad ${f?` · <span class="badge PENDIENTE">${esc(f.tipo)} hasta ${fmtD(f.fecha_fin)}</span>`:''} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:6px" onclick="openVacForm('${w.id}')">🌴 Ver / registrar</button></span></div>
+        <div class="kv"><b>Actas</b><span>${nActas?nActas+' registro(s) en su expediente':'Sin actas'} <button class="btn" style="padding:2px 10px;font-size:11px;margin-left:6px" onclick="openActaForm('${w.id}')">📋 Nueva acta</button></span></div>
+        <div class="kv"><b>NOM-035</b><span>${nomU?`${esc(nomU.guia)} · ${fmtD(nomU.fecha)} · <b>${esc(nomU.resultado)}</b>${nomU.requiere_atencion?' ⚠️':''}`:'Sin evaluación registrada'}</span></div>`;
+      })()}`;
+  if(seccion==="imss")return `<div class="sect">IMSS ${puedeEditarTrabajador()?`<button class="btn" onclick="openIMSSWorker('${w.id}')">⚙ Gestionar IMSS</button>`:''}</div>
+      ${kv('Movimiento IMSS',esc(w.movimiento_imss||'SIN MOVIMIENTO'))}${kv('Fecha del movimiento',fmtD(w.fecha_mov_imss))}${kv('SBC (SDI)','$'+esc(w.sdi??'—'))}${kv('Registro patronal',esc(rpDe(w))+(tieneRPpropio(w)?' <b style="color:var(--accent)">(propio)</b>':' <span style="color:var(--mut)">(de la obra)</span>'))}${tieneRPpropio(w)?kv('Prima RT','<b style="color:var(--accent)">'+primaDe(w)+'% (propia)</b>'):''}
+      <div class="sect">Incidentes e incapacidades IMSS</div>
+      ${kv('Expediente de salud',`<button class="btn" onclick="openFichaIncidentes('${w.id}')">Ver incidentes, certificados, calendario y ST-7</button>`)}
+      ${kv('Avisos INFONAVIT',`<button class="btn" onclick="openAvisosInfonavit('${String(w.nss||'').replace(/\D/g,'')}','${String(rpDe(w)||'').toUpperCase().replace(/[^A-Z0-9]/g,'')}')">Comparar avisos de su registro patronal</button> <small>Consulta sin modificar su crédito.</small>`)}`;
+  if(seccion==="expediente")return `<div id="fd-docs">${fichaDocsHTML(w)}</div>
       <div class="sect">Documentación (${docsOk(w)}/${DOCS.length} entregados)</div>
       ${DOCS.map(k=>`<div class="kv"><b>${k}</b><span>${d[k]==='ENTREGADO'?'✅ ENTREGADO':(d[k]==='NO APLICA'?'➖ NO APLICA':'⬜ PENDIENTE')}</span></div>`).join('')}
       ${kv('Carpeta en Drive',w.drive_link?`<a href="${esc(w.drive_link)}" target="_blank">${esc(w.drive_link)}</a>`:'')}
-      ${chq.length?`<div class="sect">Cheques de este trabajador (${chq.length})</div>
-        ${chq.map(c=>`<div class="kv"><b>${esc(c.semana)} · ${esc(c.tipo_pago)}</b><span>$${money(c.importe)} · ${c.num_cheque?'Cheque '+esc(c.num_cheque):'sin número'} · <span class="badge ${c.estatus}">${c.estatus}</span></span></div>`).join('')}`:''}
-      <div class="sect">Registro</div>
+<div class="ficha-section-actions"><button class="btn" onclick="fichaExportar('${w.id}')">Exportar expediente (Excel)</button>${window.PLATINUM_RRHH?`<button class="btn" onclick="PLATINUM_RRHH.abrir('expediente','${w.id}')">Expediente 360</button>`:''}</div>`;
+  if(seccion==="historial")return `<div class="sect">Registro</div>
       ${kv('Capturado por',esc(w.creado_por))}${kv('Última modificación',esc(w.actualizado_por)+' · '+fmtD(w.updated_at))}
-      </div></details>
-    </div>
-    <div class="m-foot">
-      <details class="worker-actions"><summary>Herramientas de este trabajador · editar, documentos y movimientos</summary><div>
-      <button class="btn" onclick="exportExpediente('${w.id}')">📊 Exportar expediente (Excel)</button>
-      <button class="btn" onclick="openHistorial('${w.id}')">🕘 Historial</button>
-      ${window.PLATINUM_RRHH?`<button class="btn" onclick="PLATINUM_RRHH.abrir('expediente','${w.id}')">🗂 Expediente 360</button><button class="btn" onclick="PLATINUM_RRHH.abrir('importe','${w.id}')">🔎 Explicar nómina</button>`:''}
-      ${window.PLATINUM_RECORRIDO?`<button class="btn" onclick="PLATINUM_RECORRIDO.abrir(null,'${w.id}',null,'${periodoPago(w)}')">Preparación de nómina</button>`:''}
-      ${puedeEditarTrabajador()?`<button class="btn" onclick="openIMSSWorker('${w.id}')">🏥 Control IMSS</button>`:''}
-      <button class="btn" onclick="openValidar('${w.id}')">🔍 Validar</button>
-      <button class="btn" onclick="openContrato('${w.id}')">📄 Contrato</button>
-      <button class="btn" onclick="openConstanciaLaboral('${w.id}')">📜 Constancia laboral</button>
-      <button class="btn" onclick="openPrestaciones('${w.id}')">🧮 Prestaciones</button>
-      ${w.estatus==='PENDIENTE'?`<button class="btn" style="color:var(--green);border-color:#b7dcc8" onclick="doActivar('${w.id}')">✔ Marcar ACTIVO</button>`:''}
-      ${w.estatus==='ACTIVO'?`<button class="btn" style="color:#8a6d1a;border-color:#ecd9a0" onclick="openPendiente('${w.id}')">⏸ Pasar a PENDIENTE</button>
-      <button class="btn" onclick="openTransferencia('${w.id}')">🔁 Transferir de obra</button>`:''}
-      ${w.estatus!=='BAJA'
-        ?`<button class="btn" onclick="openSeparacionDoc('${w.id}')">📄 Documento de separación</button>
-           <button class="btn danger" onclick="openBaja('${w.id}')">Dar de BAJA</button>`
-        :`<button class="btn" onclick="openRenuncia('${w.id}')">📄 Renuncia y finiquito</button>
-           <button class="btn" onclick="doReactivar('${w.id}')">Reactivar (nueva alta)</button>`}
-      <button class="btn dark" onclick="openForm('${w.id}')">✎ Modificar</button>
-      ${esAdmin()?`<button class="btn danger" style="background:#7a1414;border-color:#7a1414" onclick="openEliminarTrabajador('${w.id}')">🗑 Eliminar (papelera)</button>`:''}
-      </div></details>
-    </div>`,'worker-ficha');
-  agruparExpedienteFicha();
-  window.PLATINUM_CALENDARIO?.montar(id,mesCalendario);
-  /* Consulta dirigida de SUS documentos, filtrando en el servidor. Si trae
-     algo que la carga masiva no tenía, se vuelve a pintar solo esa sección.
-     Se comprueba que la ficha siga abierta y sea la misma persona: si el
-     usuario ya se movió a otra, no se le repinta encima. */
-  refrescaDocsDe(id).then(n=>{
-    if(n===null)return;
-    renderTable();
-    const principal=$('worker-overview');
-    if(principal&&document.querySelector(`#modals [onclick*="openForm('${id}')"]`))principal.innerHTML=fichaResumenHTML(w);
-    const cont=$('fd-docs');
-    if(cont&&document.querySelector(`#modals [onclick*="openForm('${id}')"]`))
-      cont.innerHTML=fichaDocsHTML(w);
-  }).catch(()=>{});
-  refrescaPagosDe(id).then(()=>{const cont=$('fd-pagos');if(cont&&document.querySelector(`#modals [onclick*="openForm('${id}')"]`))cont.innerHTML=fichaPagosHTML(w);}).catch(()=>{});
+<button class="btn" onclick="openHistorial('${w.id}')">Historial detallado y cambios de cuenta</button><div id="ficha-historial"></div>`;
+  return fichaResumenHTML(w,true);
 }
+function openDetail(id,mesCalendario,navegacion){
+  return window.PLATINUM_FICHA?.abrir(id,mesCalendario,navegacion);
+}
+function fichaPrestaciones(id){return conCentroCompleto(()=>{if(window.PLATINUM_FICHA?.actual(id))openPrestaciones(id);});}
+function fichaExportar(id){return conCentroCompleto(()=>{if(window.PLATINUM_FICHA?.actual(id))exportExpediente(id);});}
 /* v20: eliminar = mover a la papelera (eliminado=true). Solo visible/permitido
    para el administrador (esAdmin()). Pide escribir el nombre EXACTO para evitar
    un clic accidental — no hay atajo ni doble-clic que la salte. */
@@ -452,7 +390,9 @@ async function eliminarTrabajador(id){
    Supabase (Script 27) hace que la consulta les regrese 0 filas siempre. */
 async function openPapelera(){
   if(!esAdmin()){toast('Solo el administrador tiene acceso a la papelera.','err');return;}
+  const obra=OBRA?.id,uid=USER?.id,turno=typeof NAV_MENU_ACCION==='undefined'?null:NAV_MENU_ACCION;
   const {data,error}=await sb.from('trabajadores').select('*').eq('eliminado',true).order('eliminado_en',{ascending:false});
+  if(obra!==OBRA?.id||uid!==USER?.id||!esAdmin()||typeof NAV_MENU_ACCION!=='undefined'&&turno!==NAV_MENU_ACCION)return;
   if(error){toast('Error al leer la papelera: '+error.message,'err');return;}
   const rows=data||[];
   modal(`

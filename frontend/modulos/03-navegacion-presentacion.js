@@ -53,7 +53,6 @@ function navTeclasModulo(e){
 }
 function navPuedeCambiar(){
   if(NAV_BUSY)return false;
-  if(NAV_MENU_ACCION){toast('Espera a que termine de abrir la herramienta.');return false;}
   if($('modals')?.querySelector('.overlay')||window.PLATINUM_CONCILIADOR?.estaCapturando?.()){
     toast('Termina o cierra la captura actual antes de cambiar de pantalla.');return false;
   }
@@ -130,20 +129,23 @@ function sbGo(fn,origen=null,completo=true){
   if(origen&&!navPuedeCambiar())return;
   if(origen&&(origen.hidden||origen.disabled||origen.classList.contains('hide')))return;
   if(NAV_STEP!=='trabajadores'||!OBRA){showNavStep('obra');return;}
-  if(!origen){
-    try{return conCentroCompleto(fn);}catch(e){toast('No se pudo abrir: '+e.message,'err');}
-  }
-  const alcance={obra:OBRA.id,usuario:USER?.id,empresa:EMPRESA_ACTIVA};
-  const vigente=()=>NAV_STEP==='trabajadores'&&OBRA?.id===alcance.obra&&USER?.id===alcance.usuario&&EMPRESA_ACTIVA===alcance.empresa;
+  const ligeras=['openResumen','openPapelera','openSolicitudEmpleo','openNuevaObra','openContratistas','openCorreos','openAltasSemana','openIA','iaAbrir'];
+  const sinPaquete=!completo||origen?.dataset?.navLectura==='directa'||ligeras.includes(fn.name);
+  const alcance={obra:OBRA.id,usuario:USER?.id,empresa:EMPRESA_ACTIVA,origen};
+  const med=window.PLATINUM_PERSONAL?.medir(sinPaquete?'herramienta-directa':'herramienta-completa',
+    OBRA_CARGA_COMPLETA?'centro-completo':NAV_MENU_ACCION?'con-lectura-en-curso':'primer-clic');
+  const vigente=()=>NAV_MENU_ACCION===alcance&&NAV_STEP==='trabajadores'&&OBRA?.id===alcance.obra&&USER?.id===alcance.usuario&&EMPRESA_ACTIVA===alcance.empresa;
   const abrir=()=>{if(vigente())return fn();};
   NAV_MENU_ACCION=alcance;
-  origen.setAttribute('aria-busy','true');
+  origen?.setAttribute('aria-busy','true');
+  med?.marca('navegable');
   return Promise.resolve().then(()=>{
-    if(vigente())return completo?conCentroCompleto(abrir):abrir();
+    if(vigente())return sinPaquete?abrir():conCentroCompleto(abrir,med);
   }).then(()=>{
-    if(vigente())navSeguirModal(origen,alcance);
+    if(vigente()){if(origen)navSeguirModal(origen,alcance);med?.marca('utilizable');med?.fin();}
+    else med?.fin('descartada');
   }).catch(e=>{if(vigente())toast('No se pudo abrir: '+e.message,'err');}).finally(()=>{
-    origen.removeAttribute('aria-busy');
+    if(NAV_MENU_ACCION===alcance||NAV_MENU_ACCION?.origen!==origen)origen?.removeAttribute('aria-busy');
     if(NAV_MENU_ACCION===alcance)NAV_MENU_ACCION=null;
   });
 }

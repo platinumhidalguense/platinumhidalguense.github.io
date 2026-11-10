@@ -1,16 +1,16 @@
 {
-  "version": "2026-11-09.3",
-  "entry": "assets/platinum-app.eddd5b7fdc700e76.js",
-  "sha256": "eddd5b7fdc700e7684d582a437fe5f3cf8debfe391e1b850cc06bc867147fd1c",
-  "integrity": "sha384-cVcI860gGJwEhUKATJob3wcq3wnDgeadH0Mza12gK7RCrCebS30uOiG2tBJuZ9kU",
+  "version": "2026-11-10.1",
+  "entry": "assets/platinum-app.476f4004e3e45f92.js",
+  "sha256": "476f4004e3e45f920ced812cb0b35e0b0e5cf72889cc239dc4ef62d8219f1bb1",
+  "integrity": "sha384-rKroCBZWTumVCRDThGw6knd0Z4K99yrkk7iHpq8VJIDFhBQS8Moa2/feJWDssOOc",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
-      "sha256": "20108dca8afa193e742312dc5aa3490dd931f8bbee7a39c9dbebbcc2c2cdd735"
+      "sha256": "c5fa351603c2e8d9a48ccd4a0e15d1a8a0139af194402812f56210d5e423ce21"
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "78f9d2a7aec8843541c24ae376dc4405959f7e9c0eefae774cdeb4dc2138a347"
+      "sha256": "6efaf5a04d814930493c47e300e266eb6682db5e57ab2d9637a24630c6c2e1ea"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -18,19 +18,19 @@
     },
     {
       "path": "frontend/modulos/03-navegacion-presentacion.js",
-      "sha256": "aab772c22643c70deb864f653c041cffbf19b6398807b1ab8352260e1aa0f433"
+      "sha256": "fc790c292f77997f055284d80cc00003382fa1b9a40d27e83da86c1429ee5ace"
     },
     {
       "path": "frontend/modulos/04-padron-expedientes.js",
-      "sha256": "8d0a9bea150925d90066788f0eea51c27ff9f53ce6a7b3a1870dff82003e6f98"
+      "sha256": "4004c9162423d4629fc44dfe14fe05ffccc1e32a5a182f81fe79993db51d7ec4"
     },
     {
       "path": "frontend/modulos/05-alta-edicion.js",
-      "sha256": "f22dda9bbc2a53956c23d7330b0a3028d30efe196571decd6cd35165712f41f6"
+      "sha256": "d2a82cb89f33d6a031f137f6da3ef839e29d7d24fb1427481a7a72b49a9b640e"
     },
     {
       "path": "frontend/modulos/06-movimientos-historial.js",
-      "sha256": "e5f0112a28318fe970f40e7fb57640e5d845950e3d43c3e2a14b9cc917e85d60"
+      "sha256": "8e86b204da3320e2156a95a43ed69a6c42addaa9359ad8a235458d28ca0e3481"
     },
     {
       "path": "frontend/modulos/07-exportacion-corporativa.js",
@@ -86,7 +86,7 @@
     },
     {
       "path": "frontend/modulos/20-movimientos-semanales.js",
-      "sha256": "7950d9c961f4beb95a501a596f8388abb6d3ba66785ac43aeb5e688afdc0c15f"
+      "sha256": "b2a7fae51ec9548acd5d4963f032ba2d445a341bb58efef8290c956a07f24b9e"
     },
     {
       "path": "frontend/modulos/21-cuadrillas.js",
@@ -126,7 +126,7 @@
     },
     {
       "path": "frontend/modulos/30-contratistas-alertas.js",
-      "sha256": "a07482328b142db2ff5d372bbb79a8b6b2c40c75406b58a31083687628ce7c21"
+      "sha256": "b0150e392305e4c0f3f12a8ed8f7d2d1c82ea121e45447fc9c560c4151340237"
     },
     {
       "path": "frontend/modulos/31-documentos-laborales.js",
@@ -150,7 +150,7 @@
     },
     {
       "path": "frontend/modulos/36-imss-sin-servicio-st7.js",
-      "sha256": "594de52cb65012013143d988b0ed3f458c7ea7ed66d89cb01d306d56d4fd5545"
+      "sha256": "6e695806512907f4dc573f8bd4a7f623de55b1c7a5343c7fada7183fe668bfcc"
     },
     {
       "path": "frontend/modulos/37-avisos-infonavit.js",
@@ -178,7 +178,7 @@
     },
     {
       "path": "frontend/modulos/43-actividad-administrador.js",
-      "sha256": "cf2d881a75aea6d82a3ce74c8d0d3d6d7480fbacb5fd47ab9049553d80c43706"
+      "sha256": "e3305f82e7d779b8a059243564e24914e1d6433dbaf4e3696d48dca92e12ecfa"
     },
     {
       "path": "frontend/modulos/44-respaldo-recibos.js",
@@ -262,7 +262,7 @@
     },
     {
       "path": "frontend/modulos/64-datos-centro-en-vivo.js",
-      "sha256": "d44f47806db11676c1e20fc40763da517c744ef76b0e8c1be4f4b8dfbcbd7f26"
+      "sha256": "d76376660d5fe36d8dfa6c034b57458d49585aea2ddc534a77efbdb40db693bf"
     },
     {
       "path": "frontend/modulos/65-recorrido-core.js",
@@ -279,6 +279,18 @@
     {
       "path": "frontend/modulos/68-lectura-contextual-recibos.js",
       "sha256": "2b294bba0050bc6c1cbeef253d4c406fcd4635dd8ff94040375d25fb4ac4e1e7"
+    },
+    {
+      "path": "frontend/modulos/69-personal-lecturas.js",
+      "sha256": "99b99c9c4c9e2676a96f6cdccd07a5850fb460163ae0b2e1e14906b137e0c015"
+    },
+    {
+      "path": "frontend/modulos/70-padron-movimientos.js",
+      "sha256": "8b00b697a7a3e33d99701526464dd9972799b35ee9694e698a713d0e220ff9c7"
+    },
+    {
+      "path": "frontend/modulos/71-ficha-personal.js",
+      "sha256": "eb23b7aeac2b4870b8f034ab3c7fb56efc73968dabe36c77426fc5e493dfae88"
     }
   ]
 }

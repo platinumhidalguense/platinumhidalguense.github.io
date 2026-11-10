@@ -463,13 +463,17 @@ async function ctrlExportAltasCortas(){
     a.map(x=>{const w=WORKERS.find(t=>t.id===x.trabajador_id);return [w?.no_trab??'',w?fullName(w):'',`S${x.semana}/${x.anio}`,x.estado_servicio,x.fecha_alta_base||'',x.fecha_baja_base||'',x.fecha_alta_idse||'',x.fecha_baja_idse||'',x.fecha_alta_modelo_noi||'',x.fecha_baja_modelo_noi||'',x.faltas_modelo_noi??'',x.dias_pagados_noi??'',x.neto_noi??'',x.observaciones||''];}),
     'ALTAS_BAJAS_CORTAS','ALTAS_BAJAS_CORTAS');
 }
-async function openCtrlIncidentes(){
+async function openCtrlIncidentes(trabajadorId=null){
+  const obra=OBRA?.id,usuario=USER?.id,menu=NAV_MENU_ACCION,anterior=$('modals')?.lastElementChild;
+  if(!obra)return;
+  const alcance=q=>trabajadorId?q.eq('trabajador_id',trabajadorId):q;
   ctrlAuditar('INCIDENTES_IMSS','ABRIR');
   const [ir,cr,sr]=await Promise.all([
-    fetchAllRows(()=>sb.from(CTRL_TABLAS.inc).select('*').eq('obra_id',OBRA.id),'fecha_hora'),
-    fetchAllRows(()=>sb.from(CTRL_TABLAS.casosIMSS).select('*,control_casos_imss_semanas(*)').eq('obra_id',OBRA.id).is('eliminado_en',null),'created_at'),
-    fetchAllRows(()=>sb.from(CTRL_TABLAS.st7).select('*').eq('obra_id',OBRA.id),'recibido_en')
+    fetchAllRows(()=>alcance(sb.from(CTRL_TABLAS.inc).select('*').eq('obra_id',obra)),'fecha_hora'),
+    fetchAllRows(()=>alcance(sb.from(CTRL_TABLAS.casosIMSS).select('*,control_casos_imss_semanas(*)').eq('obra_id',obra).is('eliminado_en',null)),'created_at'),
+    fetchAllRows(()=>alcance(sb.from(CTRL_TABLAS.st7).select('*').eq('obra_id',obra)),'recibido_en')
   ]);
+  if(OBRA?.id!==obra||USER?.id!==usuario||NAV_MENU_ACCION!==menu||$('modals')?.lastElementChild!==anterior)return false;
   const error=ir.error||cr.error||sr.error;if(error){toast(ctrlFaltaScript(error),'err');return;}
   const incidentes=(ir.data||[]).sort((a,b)=>String(b.fecha_hora).localeCompare(String(a.fecha_hora)));
   const casos=(cr.data||[]).sort((a,b)=>String(b.certificado_desde||b.created_at).localeCompare(String(a.certificado_desde||a.created_at)));

@@ -21,14 +21,18 @@ async function saveReingreso(){
   if(!r.updated_at){toast('Actualiza la ficha antes de registrar el reingreso.','err');return;}
   if(!confirm('¿Confirmar el reingreso efectivo el '+fmtD(fecha)+'? Se conservarán el alta y la baja anteriores.'))return;
   btn.disabled=true;
+  const personal=window.PLATINUM_PERSONAL,c=personal?.contexto();
   try{
     markWrite();
     const {data,error}=await sb.from('trabajadores').update({estatus:'ACTIVO',fecha_reingreso:fecha,monto_finiquito:null,actualizado_por:USER.email})
-      .eq('id',r.id).eq('obra_id',r.obra_id).eq('estatus','BAJA').eq('updated_at',r.updated_at).select('id');
+      .eq('id',r.id).eq('obra_id',r.obra_id).eq('estatus','BAJA').eq('updated_at',r.updated_at).select('*');
     if(error)throw error;
     if(!data||data.length!==1)throw Error('La ficha cambió o no tienes permiso. Actualiza antes de intentar nuevamente.');
-    window._REINGRESO=null;closeModal();toast('Reingreso registrado para '+fmtD(fecha)+'.','ok');
-    if(OBRA?.id===r.obra_id)await loadObraData(r.obra_id);
+    if(personal&&!personal.vigente(c))return;
+    if(personal&&data[0]?.obra_id===r.obra_id)personal.aplicarFila(data[0],c);
+    if(window._REINGRESO===r)window._REINGRESO=null;
+    if($('reingreso-guardar')===btn){closeModal();toast('Reingreso registrado para '+fmtD(fecha)+'.','ok');}
+    if(OBRA?.id===r.obra_id&&(!personal||!data[0]?.obra_id))await loadObraData(r.obra_id);
     refreshCounts();
   }catch(e){toast('No se pudo completar el reingreso: '+e.message,'err');}
   finally{if($('reingreso-guardar')===btn)btn.disabled=false;}
@@ -36,22 +40,27 @@ async function saveReingreso(){
 
 /* ---------- historial ---------- */
 const IGNORE_H=['updated_at','created_at','actualizado_por','creado_por','id'];
-async function openHistorial(trabId){
+async function openHistorial(trabId,host=null){
+  const obra=OBRA?.id,uid=USER?.id,turno=typeof NAV_MENU_ACCION==='undefined'?null:NAV_MENU_ACCION;
+  if(host)host.innerHTML='<p role="status">Consultando historial…</p>';
   let q=sb.from('historial').select('*').order('fecha',{ascending:false}).limit(trabId?400:1200);
   if(trabId)q=q.eq('trabajador_id',trabId);
   const {data,error}=await q;
-  if(error){toast('Error al cargar historial: '+error.message,'err');return;}
+  if(obra!==OBRA?.id||uid!==USER?.id||host&&$('ficha-historial')!==host||
+    typeof NAV_MENU_ACCION!=='undefined'&&turno!==NAV_MENU_ACCION)return;
+  if(error){if(host)throw Error('Error al cargar historial: '+error.message);toast('Error al cargar historial: '+error.message,'err');return;}
   window._HIST=data;window._HISTTRAB=trabId||null;
   const usuarios=[...new Set((data||[]).map(h=>h.usuario).filter(Boolean))].sort();
-  modal(`
+  const html=`
     <div class="m-head"><h2>🕘 Historial ${trabId?'· trabajador':'· todos'}</h2>
       <select id="hist-user" onchange="renderHist()" style="width:auto;max-width:240px;margin-left:10px">
         <option value="">Usuario: todos</option>${usuarios.map(u=>`<option>${esc(u)}</option>`).join('')}
       </select>
       <label style="font-size:12px;margin-left:10px;white-space:nowrap"><input type="checkbox" id="hist-solo-cta" onchange="renderHist()" style="width:auto"> 💳 Solo cambios de cuenta/CLABE</label>
-      <button class="x" onclick="closeModal()">×</button></div>
+      ${host?'':'<button class="x" onclick="closeModal()">×</button>'}</div>
     <div class="m-body" id="hist-body"></div>
-    <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`);
+    ${host?'':'<div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>'}`;
+  if(host)host.innerHTML=html;else modal(html);
   renderHist();
 }
 async function openBitacoraNomina(){

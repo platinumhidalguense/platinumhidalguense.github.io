@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "version": "2026-11-09.3",
+  "version": "2026-11-10.1",
   "modules": [
     "frontend/modulos/00-configuracion-utilidades.js",
     "frontend/modulos/01-sesion-centros-sincronizacion.js",
@@ -70,7 +70,10 @@
     "frontend/modulos/65-recorrido-core.js",
     "frontend/modulos/66-recorrido-operativo.js",
     "frontend/modulos/67-archivo-recibos.js",
-    "frontend/modulos/68-lectura-contextual-recibos.js"
+    "frontend/modulos/68-lectura-contextual-recibos.js",
+    "frontend/modulos/69-personal-lecturas.js",
+    "frontend/modulos/70-padron-movimientos.js",
+    "frontend/modulos/71-ficha-personal.js"
   ],
   "originalSha256": "9c8d55e50d79a8c1d4dda73f83ff26f8b1c9f200e3f6e8c6b96624b12857af04"
 }

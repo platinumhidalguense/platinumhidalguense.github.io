@@ -130,7 +130,8 @@ function showNavStep(step){
   window.scrollTo({top:0,behavior:'instant'});
 }
 function resetWorkerFilters(){
-  ['q','f-estatus','flt-contratista','flt-puesto','f-periodo','f-semana'].forEach(id=>{if($(id))$(id).value='';});
+  window.PLATINUM_PADRON?.reset();
+  ['q','f-estatus','flt-contratista','flt-puesto','f-periodo','f-semana','flt-cuadrilla'].forEach(id=>{if($(id))$(id).value='';});
   renderTable();
 }
 function renderEmpresaSelector(){
@@ -360,18 +361,25 @@ async function activarPadronProgramado(id){
   if(r.error)throw Error('No se pudieron comprobar las altas programadas: '+r.error.message);
   await activarProgramados(r.data);
 }
-function conCentroCompleto(accion){
+function conCentroCompleto(accion,medicion){
   if(!OBRA)return;
   if(OBRA_DATOS_ID===OBRA.id&&OBRA_CARGA_COMPLETA)return accion();
   const id=OBRA.id,uid=USER?.id;
-  if(OBRA_APERTURA_HERRAMIENTAS?.id===id&&OBRA_APERTURA_HERRAMIENTAS?.uid===uid)return;
-  const token={id,uid};OBRA_APERTURA_HERRAMIENTAS=token;
-  const label=$('rt-status');if(label)label.textContent='Cargando herramienta…';
-  return loadObraData(id,{vista:'trab'}).then(ok=>{
-    if(ok&&OBRA?.id===id&&USER?.id===uid&&NAV_STEP==='trabajadores')return accion();
-  }).catch(e=>toast(e.message,'err')).finally(()=>{
-    if(OBRA_APERTURA_HERRAMIENTAS===token){OBRA_APERTURA_HERRAMIENTAS=null;if(label?.textContent==='Cargando herramienta…')label.textContent='';window._PLATINUM_RT?.resume();}
-  });
+  let token=OBRA_APERTURA_HERRAMIENTAS;
+  if(token?.id!==id||token.uid!==uid){
+    token={id,uid,turno:0};OBRA_APERTURA_HERRAMIENTAS=token;
+    const label=$('rt-status');if(label)label.textContent='Verificando fuentes del centro…';
+    token.lectura=loadObraData(id,{vista:'trab',medicion}).finally(()=>{
+      if(OBRA_APERTURA_HERRAMIENTAS!==token)return;
+      OBRA_APERTURA_HERRAMIENTAS=null;
+      if(label?.textContent==='Verificando fuentes del centro…')label.textContent='';
+      window._PLATINUM_RT?.resume();
+    });
+  }
+  const turno=++token.turno;
+  return token.lectura.then(ok=>{
+    if(ok&&turno===token.turno&&OBRA?.id===id&&USER?.id===uid&&NAV_STEP==='trabajadores')return accion();
+  }).catch(e=>{if(turno===token.turno&&OBRA?.id===id&&USER?.id===uid)toast(e.message,'err');});
 }
 /* Todos los datos siguen completos y sincronizados. Sólo se construye el DOM
    de la herramienta visible; las demás se pintan al abrirlas. */
@@ -407,6 +415,7 @@ async function loadObraData(id,opciones={}){
   const vigente=()=>secuencia===OBRA_CARGA_SECUENCIA&&OBRA&&OBRA.id===id&&sesion===sesionActual();
   if(!vigente())return false;
   const replica=typeof window!=='undefined'?window.PLATINUM_DATOS:null,t=replica?.iniciar();
+  const medirFilas=(q,orden)=>fetchAllRows(q,orden,opciones.medicion?.consulta);
   try{
   const conservarVista=OBRA_DATOS_ID===id;
   const tablas=['trabajadores','cheques','descuentos','documentos','vacaciones','actas','nom035','pagos','prima_pagos','cuadrillas','diferenciales','bloques_cheques','sueldos_internos','control_cierres_nomina','control_conciliacion_noi','control_altas_bajas_cortas','control_finiquitos_transferencia'];
@@ -429,25 +438,25 @@ async function loadObraData(id,opciones={}){
   }
   let lecturas;
   try{lecturas=await Promise.all([
-    leer('trabajadores',()=>fetchAllRows(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false))),
-    leer('cheques',()=>fetchAllRows(()=>sb.from('cheques').select('*').eq('obra_id',id))),
-    leer('descuentos',()=>fetchAllRows(()=>sb.from('descuentos').select('*').eq('obra_id',id))),
-    leer('documentos',()=>fetchAllRows(()=>sb.from('documentos').select('*').eq('obra_id',id).eq('anulado',false))),
-    leer('vacaciones',()=>fetchAllRows(()=>sb.from('vacaciones').select('*').eq('obra_id',id))),
-    leer('actas',()=>fetchAllRows(()=>sb.from('actas').select('*').eq('obra_id',id))),
-    leer('nom035',()=>fetchAllRows(()=>sb.from('nom035').select('*').eq('obra_id',id))),
-    leer('pagos',()=>fetchAllRows(()=>sb.from('pagos').select('*').eq('obra_id',id))),
-    leer('prima_pagos',()=>fetchAllRows(()=>sb.from('prima_pagos').select('*').eq('obra_id',id))),
-    leer('cuadrillas',()=>fetchAllRows(()=>sb.from('cuadrillas').select('*').eq('obra_id',id))),
-    leer('diferenciales',()=>fetchAllRows(()=>sb.from('diferenciales').select('*').eq('obra_id',id).eq('activo',true))),
-    leer('bloques_cheques',()=>fetchAllRows(()=>sb.from('bloques_cheques').select('*').eq('obra_id',id))),
+    leer('trabajadores',()=>medirFilas(()=>sb.from('trabajadores').select('*').eq('obra_id',id).eq('eliminado',false))),
+    leer('cheques',()=>medirFilas(()=>sb.from('cheques').select('*').eq('obra_id',id))),
+    leer('descuentos',()=>medirFilas(()=>sb.from('descuentos').select('*').eq('obra_id',id))),
+    leer('documentos',()=>medirFilas(()=>sb.from('documentos').select('*').eq('obra_id',id).eq('anulado',false))),
+    leer('vacaciones',()=>medirFilas(()=>sb.from('vacaciones').select('*').eq('obra_id',id))),
+    leer('actas',()=>medirFilas(()=>sb.from('actas').select('*').eq('obra_id',id))),
+    leer('nom035',()=>medirFilas(()=>sb.from('nom035').select('*').eq('obra_id',id))),
+    leer('pagos',()=>medirFilas(()=>sb.from('pagos').select('*').eq('obra_id',id))),
+    leer('prima_pagos',()=>medirFilas(()=>sb.from('prima_pagos').select('*').eq('obra_id',id))),
+    leer('cuadrillas',()=>medirFilas(()=>sb.from('cuadrillas').select('*').eq('obra_id',id))),
+    leer('diferenciales',()=>medirFilas(()=>sb.from('diferenciales').select('*').eq('obra_id',id).eq('activo',true))),
+    leer('bloques_cheques',()=>medirFilas(()=>sb.from('bloques_cheques').select('*').eq('obra_id',id))),
     /* Si el usuario NO es VIP, la política de la base devuelve cero filas: la
        cifra no llega al navegador, no es que se esconda con CSS. */
-    leer('sueldos_internos',()=>fetchAllRows(()=>sb.from('sueldos_internos').select('*').eq('obra_id',id))),
-    leer('control_cierres_nomina',()=>fetchAllRows(()=>sb.from('control_cierres_nomina').select('*').eq('obra_id',id))),
-    leer('control_conciliacion_noi',()=>fetchAllRows(()=>sb.from('control_conciliacion_noi').select('*').eq('obra_id',id))),
-    leer('control_altas_bajas_cortas',()=>fetchAllRows(()=>sb.from('control_altas_bajas_cortas').select('id,trabajador_id,anio,semana,estado_servicio').eq('obra_id',id))),
-    leer('control_finiquitos_transferencia',()=>fetchAllRows(()=>sb.from('control_finiquitos_transferencia').select('*').eq('obra_id',id)))
+    leer('sueldos_internos',()=>medirFilas(()=>sb.from('sueldos_internos').select('*').eq('obra_id',id))),
+    leer('control_cierres_nomina',()=>medirFilas(()=>sb.from('control_cierres_nomina').select('*').eq('obra_id',id))),
+    leer('control_conciliacion_noi',()=>medirFilas(()=>sb.from('control_conciliacion_noi').select('*').eq('obra_id',id))),
+    leer('control_altas_bajas_cortas',()=>medirFilas(()=>sb.from('control_altas_bajas_cortas').select('id,trabajador_id,anio,semana,estado_servicio').eq('obra_id',id))),
+    leer('control_finiquitos_transferencia',()=>medirFilas(()=>sb.from('control_finiquitos_transferencia').select('*').eq('obra_id',id)))
   ]);}catch(e){if(vigente())OBRA_LECTURA_VERIFICADA=null;return vigente()?falloLecturaObra(id,'No se pudo actualizar el centro: '+e.message):false;}
   if(!vigente())return false;
   const etiquetas=['trabajadores','cheques','incidencias y retenciones','documentos','vacaciones','actas','NOM-035','pagos','primas','cuadrillas','diferenciales','bloques de cheques','control interno autorizado','cierres de nómina','conciliación NOI','altas y bajas sin servicio','finiquitos por transferencia'];
@@ -516,7 +525,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-11-09.3';
+const APP_VERSION='2026-11-10.1';
 window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){

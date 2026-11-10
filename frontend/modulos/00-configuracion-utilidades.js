@@ -34,13 +34,15 @@ let DIFS=[], BLOQUES=[], SUELDOSINT=[], ES_VIP=false;
    "duplicado", porque esa consulta va dirigida por hash) pero la ficha del
    trabajador decía "sin acuses importados": la fila nunca llegaba a DOCSX.
    Con `order by id` el orden es estable y ninguna página se salta nada. */
-async function fetchAllRows(makeQuery,orden){
+async function fetchAllRows(makeQuery,orden,medirPagina){
   const col=orden||'id';
   const CH=1000; let from=0, all=[], sinOrden=false;
   for(;;){
     let q=makeQuery();
     if(!sinOrden)q=q.order(col,{ascending:true});
+    const inicio=medirPagina?performance.now():0;
     const {data,error}=await q.range(from,from+CH-1);
+    medirPagina?.(data,performance.now()-inicio);
     if(error){
       // si la tabla no tuviera esa columna, se reintenta sin ordenar en vez de
       // quedarse sin datos (pero entonces sí puede saltarse filas: se avisa)
@@ -143,7 +145,13 @@ function fechaDMYinput(el){let v=el.value.replace(/[^\d]/g,'').slice(0,8);
   const iso=dmyAiso(v);const h=$('h-'+el.id.replace(/^f-/,''));
   if(h)h.innerHTML=v.length>=10?(iso?`<span style="color:var(--green)">✔ ${isoADMY(iso)}</span>`:'<span class="bad">Fecha inválida (usa DD/MM/AAAA)</span>'):'Formato: día / mes / año';}
 const bankFromClabe=c=>{c=String(c||'').trim();return RX.clabe.test(c)?(BANCOS[c.slice(0,3)]||''):'';};
-const edad=f=>{if(!f)return'';const b=new Date(f),n=new Date();let e=n.getFullYear()-b.getFullYear();if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))e--;return e;};
+const edad=(f,n=new Date())=>{
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(f||''))return '';
+  const b=new Date(f+'T12:00:00Z');
+  if(!Number.isFinite(b.getTime())||b.toISOString().slice(0,10)!==f)return '';
+  const e=n.getFullYear()-b.getUTCFullYear()-Number((n.getMonth()+1)*100+n.getDate()<(b.getUTCMonth()+1)*100+b.getUTCDate());
+  return e<0?'':e;
+};
 const docsOk=w=>{const d=w.docs||{};return DOCS.filter(k=>d[k]==='ENTREGADO').length;};
 /* v35: fecha base para ANTIGÜEDAD = reingreso si existe, si no el alta. Al
    reingresar tras una baja, la antigüedad reinicia (misma regla de siempre),
@@ -193,10 +201,12 @@ function closeModal(force=false){
     if(formulario.dataset.busy==='1')return;
     if(formulario.dataset.dirty==='1'&&!confirm('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))return;
   }
+  const volver=typeof window!=='undefined'?window.PLATINUM_FICHA?.antesCerrar?.():null;
   $('modals').innerHTML='';
   document.body.classList.remove('modal-abierto');
   if(window._scrollY!=null){const y=window._scrollY;window._scrollY=null;document.body.style.top='';window.scrollTo(0,y);}
   if(window._pendingRT){const manual=window._pendingRTManual;window._pendingRT=false;window._pendingRTManual=false;if(window._PLATINUM_RT){if(manual)window._PLATINUM_RT.request(true);else window._PLATINUM_RT.resume();}else softRefresh(false);}
+  volver?.();
 }
 function modal(html,w=''){
   // captura el scroll SOLO al abrir el primer modal (no en modales encadenados,
@@ -220,7 +230,10 @@ function modal2(html,w=''){
 }
 function closeModal2(){
   const ov=$('modals').querySelectorAll('.overlay');
-  if(ov.length>1)ov[ov.length-1].remove();   // quita solo el modal de encima, deja el formulario
+  if(ov.length>1){
+    const ultimo=ov[ov.length-1],volver=window.PLATINUM_FICHA?.antesCerrar(ultimo);
+    ultimo.remove();volver?.();
+  }
   else closeModal();
 }
 function markWrite(){lastLocalWrite=Date.now();}

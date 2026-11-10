@@ -202,14 +202,12 @@ function exportMovimientosPDF(){
    una sección por obra. Trae a todos los no-eliminados de todas las obras. */
 async function openAltasSemana(){
   window._ALTASX=[];
-  toast('Cargando trabajadores...');
-  const {data:tw,error}=await leerPorEmpresa('trabajadores','*',q=>q.eq('eliminado',false));
-  if(error){toast('Error: '+error.message,'err');return;}
-  window._ALTASX=tw||[];
+  const empresa=EMPRESA_ACTIVA,obra=OBRA?.id,usuario=USER?.id;
   modal(`
     <div class="m-head"><h2>📆 Altas por semana (Excel)</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <p style="color:var(--mut);margin-bottom:12px;font-size:12.5px">Exporta <b>todas las altas</b> agrupadas por <b>semana de ingreso</b> (una sección por obra). La semana se calcula con la fecha de inicio de cada obra, así que nunca sale negativa.</p>
+      <p id="ax-estado" role="status">Verificando el padrón de esta empresa…</p>
       <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">
         <div><label>Obra</label>
           <select id="ax-obra">
@@ -225,8 +223,22 @@ async function openAltasSemana(){
     </div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn dark" onclick="exportAltasSemana()">⬇ Generar Excel</button>
+      <button class="btn" type="button" id="ax-reintentar" hidden>Reintentar lectura</button>
+      <button class="btn dark" type="button" id="ax-exportar" onclick="exportAltasSemana()" disabled>⬇ Generar Excel</button>
     </div>`,'md');
+  const estado=$('ax-estado'),exportar=$('ax-exportar'),reintentar=$('ax-reintentar');
+  const cargar=async()=>{
+    reintentar.hidden=true;exportar.disabled=true;estado.textContent='Verificando el padrón de esta empresa…';
+    try{
+      const {data,error}=await leerPorEmpresa('trabajadores','id,obra_id,no_trab,nombres,primer_apellido,segundo_apellido,contratista,puesto,fecha_alta,semana_ingreso,estatus',q=>q.eq('eliminado',false));
+      if($('ax-estado')!==estado||EMPRESA_ACTIVA!==empresa||USER?.id!==usuario||OBRA?.id!==obra)return;
+      if(error||!Array.isArray(data))throw Error(error?.message||'Respuesta incompleta.');
+      window._ALTASX=data;exportar.disabled=!data.length;
+      estado.textContent=data.length?'Padrón verificado. Elige los filtros para exportar.':'Sin trabajadores en el alcance de la empresa.';
+    }catch(e){if($('ax-estado')===estado){estado.textContent='Lectura pendiente: '+e.message;reintentar.hidden=false;}}
+  };
+  reintentar.onclick=cargar;
+  await cargar();
 }
 function exportAltasSemana(){
   const tw=window._ALTASX||[], oid=$('ax-obra').value, est=$('ax-est').value;
@@ -287,7 +299,9 @@ function crearCorreo(){
 async function openCorreos(){
   window._MAILS=[];
   const {dom}=correoCfg();
+  const obra=OBRA?.id,empresa=EMPRESA_ACTIVA,uid=USER?.id,turno=NAV_MENU_ACCION;
   const {data,error}=await leerPorEmpresa('trabajadores','id,primer_apellido,segundo_apellido,nombres,correo,obra_id,estatus',q=>q.ilike('correo','%@'+dom).order('primer_apellido'));
+  if(OBRA?.id!==obra||EMPRESA_ACTIVA!==empresa||USER?.id!==uid||NAV_MENU_ACCION!==turno)return;
   if(error){toast('Error: '+error.message,'err');return;}
   window._MAILS=(data||[]);
   const obraN=id=>{const o=OBRAS.find(x=>x.id===id);return o?o.nombre:'';};

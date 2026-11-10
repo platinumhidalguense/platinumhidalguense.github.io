@@ -29,7 +29,9 @@ function repseEstatus(c){
   return 'VIGENTE';
 }
 async function openContratistas(){
+  const obra=OBRA?.id,uid=USER?.id,turno=typeof NAV_MENU_ACCION==='undefined'?null:NAV_MENU_ACCION;
   await cargarContratistas();
+  if(obra!==OBRA?.id||uid!==USER?.id||typeof NAV_MENU_ACCION!=='undefined'&&turno!==NAV_MENU_ACCION)return;
   modal(`
     <div class="m-head"><h2>🪪 Contratistas — Registro REPSE</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
