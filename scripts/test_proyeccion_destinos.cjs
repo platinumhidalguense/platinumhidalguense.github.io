@@ -36,6 +36,8 @@ vm.createContext(box);
 vm.runInContext(require('./soporte_motores_nomina.cjs').source(),box);
 box.periodoPago=w=>w.periodo_pago||'SEMANAL';
 vm.runInContext(['descuentoCorrespondePeriodo','adaptarRetencionPeriodo','retencionAplicadaPeriodo','retencionesDePeriodo'].map(n=>fn('function '+n+'(')).join('\n')+'\n'+fn('function proyFiniquitosSemana(')+'\n'+fn('function descuentosDe(')+'\n'+block('function proySelector(','function buildProyWS(')+'\n'+fn('async function exportProyeccion(')+'\n'+fn('async function exportProyContratista('),box);
+// Post-proceso y columnas de aguinaldo (módulo 73): sin aplicaciones, mismas hojas y totales.
+vm.runInContext(fs.readFileSync('frontend/modulos/73-aguinaldo-integracion.js','utf8'),box);
 const model=box.proyModelo(workers.slice(0,2),[workers[2]],'S28',[audit]);
 assert.equal(model.costo,4600);assert.equal(model.neto,3950);
 assert.deepEqual(Array.from(model.filas,x=>[x.costo,x.neto,x.prevision,x.creditos]),[[1600,1300,200,500],[2000,1700,0,300],[1000,950,0,50]]);

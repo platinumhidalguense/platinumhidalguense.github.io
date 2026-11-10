@@ -31,3 +31,6 @@ supabase/migrations/*_conciliador_tabs_folios_fisicos.sql
 supabase/migrations/*_padron_realtime_fuentes_rapidas.sql
 supabase/maintenance/20261107_indices_lectura_concurrentes.sql
 supabase/migrations/*_firmantes_contratos_empresas.sql
+
+# Aguinaldo aplicado a nómina y faltas históricas: SQL operativo privado.
+supabase/migrations/*_aguinaldo_faltas_historicas.sql

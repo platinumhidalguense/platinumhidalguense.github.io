@@ -109,8 +109,13 @@ suites.push('test_recorrido_operativo');
 suites.push('test_padron_ficha_personal');
 if(fs.existsSync('supabase/migrations/20261107154700_padron_realtime_fuentes_rapidas.sql'))suites.push('test_padron_realtime_pg');
 else console.log('ALCANCE PÚBLICO RENDIMIENTO: se verifica la UI en dos sesiones sintéticas; la migración privada se verifica localmente.');
+// Aguinaldo y faltas históricas: núcleo e interfaz siempre; PostgreSQL con la migración privada.
+const aguinaldoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_aguinaldo_faltas_historicas.sql'));
+suites.push('test_aguinaldo_nucleo','test_aguinaldo_ui');
+if(aguinaldoPrivate)suites.push('test_aguinaldo_pg');
+else console.log('ALCANCE PÚBLICO AGUINALDO: núcleo e interfaz se prueban; las comprobaciones PostgreSQL de faltas históricas y aplicación requieren la migración privada.');
 for(const file of suites){
  const r=spawnSync(process.execPath,['scripts/'+file+'.cjs'],{encoding:'utf8',maxBuffer:4e6});
  process.stdout.write(r.stdout||'');process.stderr.write(r.stderr||'');if(r.status!==0)process.exit(r.status||1);
 }
-console.log('PASS '+suites.length+' suites reproducibles; incluyen '+((privateMigration?95:68)+(rrhhPrivate?66:0)+(pagosPrivate?50:0)+(chequesPrivate?12:0)+(rendimientoPrivate?30:0)+(revisionPrivate?28:0)+(visorPrivate?49:0)+(recibosPrivate?32:0)+(actividadPrivate?27:0)+(netoPrivate?37:0)+(identidadPrivate?16:0)+(cerosPrivate?49:0))+' comprobaciones PostgreSQL, contratos de UI, paginación y conservación de motores. Sin aceptación visual de navegador.');
+console.log('PASS '+suites.length+' suites reproducibles; incluyen '+((privateMigration?95:68)+(rrhhPrivate?66:0)+(pagosPrivate?50:0)+(chequesPrivate?12:0)+(rendimientoPrivate?30:0)+(revisionPrivate?28:0)+(visorPrivate?49:0)+(recibosPrivate?32:0)+(actividadPrivate?27:0)+(netoPrivate?37:0)+(identidadPrivate?16:0)+(cerosPrivate?49:0)+(aguinaldoPrivate?60:0))+' comprobaciones PostgreSQL, contratos de UI, paginación y conservación de motores. Sin aceptación visual de navegador.');

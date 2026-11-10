@@ -116,6 +116,7 @@ function openPrestaciones(id){
         <div id="pr-isr-hint" style="font-size:11.5px;color:var(--mut);padding-bottom:8px">Si contabilidad cambió D001 en NOI, captura aquí ese ISR para recalcular el neto y dejar el ajuste visible. El finiquito según NOI, si se captura, sigue mandando sobre el modelo para el cheque.</div>
       </div>
       <div id="pr-out" style="margin-top:16px"></div>
+      <div id="pr-faltas-hist" style="margin-top:12px"></div>
       ${typeof ppfTablasHTML==='function'?ppfTablasHTML():''}
       <p style="font-size:11.5px;color:var(--mut);margin-top:10px">Cálculo conforme a LFT vigente: aguinaldo 15 días (art. 87), vacaciones desde 12 días (art. 76), prima vacacional 25% (art. 80), indemnización según causal y prima de antigüedad (art. 162). Sólo si la ficha tiene <b>retención INFONAVIT activa</b> se propone un día adicional cuando la baja es lunes, independientemente de salarios pendientes; escribe 0 si ya quedó retenido en otro corte. Confirma el aviso, la cédula SUA y el detalle de NOI antes de pagar: el modelo no sustituye esa conciliación.</p>
     </div>
@@ -126,6 +127,11 @@ function openPrestaciones(id){
     </div>`,'lg prestaciones-form');
   calcPrestaciones(id);
   estadoNoi.promesa=prCargarAjusteNoi(id,estadoNoi);
+  // Fuente común (faltas históricas y aguinaldo acreditado): informativa, no altera la fórmula del finiquito.
+  if(window.PLATINUM_FALTAS_HIST&&$('pr-faltas-hist')){
+    const panel=()=>{const f=$('pr-fecha')?.value||today();window.PLATINUM_FALTAS_HIST.panelFiniquito($('pr-faltas-hist'),w,f,faltasAguinaldo(w,f));};
+    panel();$('pr-fecha')?.addEventListener('change',panel);
+  }
 }
 let PR_TOTAL=0;
 function prMotivoSeparacion(escenario){

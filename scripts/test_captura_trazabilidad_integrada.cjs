@@ -21,6 +21,8 @@ vm.runInContext(functions('frontend/modulos/10-proyeccion-nomina.js',['proyReten
 vm.runInContext(functions('frontend/modulos/39-rrhh-adaptadores.js',['rrhhReferenciasModelo']),b);
 const actualRefs=b.rrhhReferenciasModelo;b.rrhhReferenciasModelo=(...args)=>{if(failRefs)throw Error('Fallo de referencias ficticio');return actualRefs(...args);};
 vm.runInContext(functions('frontend/modulos/38-adaptadores-arranque.js',['proySnapshotIntegrado']),b);
+// Post-proceso de aguinaldo (módulo 73): sin aplicaciones no altera la fotografía.
+vm.runInContext(require('node:fs').readFileSync('frontend/modulos/73-aguinaldo-integracion.js','utf8'),b);
 let calls=[],view='',messages=[],capturePayload;
 const closure={id:'C',obra_id:'O',semana:26,periodo:'SEMANAL',estado:'BORRADOR',total_neto:800,snapshot:{items:[],modelo:{filas:[]}}};
 const detail=()=>({cierre:closure,flujo:{sucio:false},diagnostico:{filas:[],pendientes:0},saldos:[],versiones:[],solicitudes:[]});

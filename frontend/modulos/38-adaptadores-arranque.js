@@ -32,7 +32,10 @@ async function proySnapshotIntegrado(sem,periodo){
   }
   finally{DESC=sources.DESC;}
   if(live.filas.some(f=>!f.fin&&f.w.periodo_pago==='QUINCENAL'))live=await isrQAplicarModelo(live);
+  // Aguinaldo aplicado: neto incluido; sueldo y previsión sin cambio. Las mismas líneas entran a la huella de fuentes.
+  live=aguinaldoExigirCompleto(aguinaldoAplicarModelo(live,globalThis._PY_AGUINALDOS),globalThis._PY_AGUINALDOS,{periodo});
   for(const f of live.filas)if(f.isr_mensual)trazabilidad.trabajadores[f.w.id].isr_mensual=f.isr_mensual;
+  for(const f of live.filas)if(f.aguinaldo&&trazabilidad.trabajadores[f.w.id])trazabilidad.trabajadores[f.w.id].aguinaldo={lineas:f.aguinaldo.lineas,bruto:f.aguinaldo.bruto,isr:f.aguinaldo.isr,neto:f.aguinaldo.neto};
   // Sólo los campos necesarios para reproducir las exportaciones, no el expediente personal.
   const fields=['id','obra_id','no_trab','nombres','primer_apellido','segundo_apellido','contratista','puesto','periodo_pago','cuenta','clabe','banco','forma_pago','fecha_baja'];
   const filas=live.filas.map(f=>{const w=Object.fromEntries(fields.map(k=>[k,f.w[k]??null]));return {...f,w,items:f.items.map(i=>({...i,w}))};});
@@ -40,9 +43,9 @@ async function proySnapshotIntegrado(sem,periodo){
   const sum=fn=>redondearCentavos(filas.reduce((a,f)=>a+fn(f),0));
   const snapshot={obra_id:obra.id,empresa_codigo:empresaDeObra(obra),obra:obra.nombre,semana:sem,periodo,desde,hasta,formula_version:MOTOR_NOMINA_VERSION,
     total_nomina:sum(f=>f.fin?0:f.sueldo),total_prevision:sum(f=>f.prevision),total_retenciones:sum(f=>f.fin?0:f.incidencias+f.creditos+f.otras),
-    total_finiquitos:sum(f=>f.fin?f.neto:0),total_neto:modelo.neto,total_trabajadores:filas.length,modelo,
+    total_finiquitos:sum(f=>f.fin?f.neto:0),total_neto:modelo.neto,total_trabajadores:filas.length,modelo,...aguinaldoCamposSnapshot(filas),
     items:filas.map(f=>({trabajador_id:f.w.id,numero:f.w.no_trab,nombre:fullName(f.w),tipo:f.fin?'FINIQUITO':'NOMINA',metodo_pago:f.pago,
-      sueldo_nomina:f.sueldo,prevision_social:f.prevision,retenciones:f.fin?0:redondearCentavos(f.incidencias+f.creditos+f.otras),monto:f.neto}))};
+      sueldo_nomina:f.sueldo,prevision_social:f.prevision,retenciones:f.fin?0:redondearCentavos(f.incidencias+f.creditos+f.otras),monto:f.neto,...aguinaldoCamposItem(f)}))};
   snapshot.trazabilidad=trazabilidad;
   if(historico)snapshot.contexto_historico=historico.trazabilidad;
   return {obra_id:obra.id,semana:sem,periodo,snapshot,fuente:source.fuente};

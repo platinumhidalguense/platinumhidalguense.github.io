@@ -244,8 +244,10 @@ async function exportProyeccion(eleccion){
     try{DESC=fuentes.DESC;DIFS=fuentes.DIFS;FINTRANS=fuentes.FINTRANS;m=proyModelo(act,fins,sem,audits);}
     finally{DESC=actual.DESC;DIFS=actual.DIFS;FINTRANS=actual.FINTRANS;}
     if(m.filas.some(f=>!f.fin&&f.w.periodo_pago==='QUINCENAL'))m=await isrQAplicarModelo(m);
+    m=aguinaldoAplicarModelo(m,globalThis._PY_AGUINALDOS);
     if(window.__PLATINUM_REQUIERE_FLUJO&&!window.PLATINUM_FLOWS)throw Error('El módulo de coordinación no cargó. Recarga la plataforma.');
     if(window.PLATINUM_FLOWS)m=await window.PLATINUM_FLOWS.versionarModelo(m,{obras:[obra.id],sem,periodo,desde:d1,hasta:d2,versiones});
+    aguinaldoExigirCompleto(m,globalThis._PY_AGUINALDOS,{periodo});
     if(!m.filas.length)throw Error('No hay trabajadores en el periodo seleccionado.');
     const codigo=empresaDeObra(obra);
     const emp=CFGEMP['empresa_'+codigo]||{razon:EMPRESAS[codigo].nombre,rfc:''};
@@ -274,9 +276,9 @@ async function pcDatosFrescos(codigo){
   ]);
   const error=rs.find(r=>r.error||!Array.isArray(r.data));if(error)throw Error('No se pudieron actualizar los datos: '+(error.error?.message||'respuesta incompleta'));
   if(codigo!==EMPRESA_ACTIVA)throw Error('Cambió la empresa. Abre nuevamente la proyección.');
-  const historicos=await proyCargarHistoricos(rs[0].data||[]);
+  const historicos=await proyCargarHistoricos(rs[0].data||[]),aguinaldos=await aguinaldoLeerLineas(ids);
   if(codigo!==EMPRESA_ACTIVA)throw Error('Cambió la empresa. Abre nuevamente la proyección.');
-  return {all:rs[0].data||[],desc:rs[1].data||[],difs:rs[2].data||[],altas:rs[3].data||[],fintrans:rs[4].data||[],historicos};
+  return {all:rs[0].data||[],desc:rs[1].data||[],difs:rs[2].data||[],altas:rs[3].data||[],fintrans:rs[4].data||[],historicos,aguinaldos};
 }
 async function openProyContratista(){
   const [d1,d2]=weekBounds(),codigo=EMPRESA_ACTIVA;
@@ -328,7 +330,7 @@ async function exportProyContratista(eleccion){
       let act=personal.filter(w=>asVigenteSemana(w,d1,d2)&&(w.estatus==='ACTIVO'||(w.estatus==='BAJA'&&w.fecha_baja>d2)));
       if(periodo!=='TODOS')act=act.filter(w=>(w.periodo_pago||'SEMANAL')===periodo);
       const fins=proyFiniquitosSemana(personal,d1,d2,datos.historicos);
-      return {ct,act,fins};
+      return {ct,act,fins,ids:new Set(personal.map(w=>w.id))};
     });
     if(!candidatos.length)throw Error('No hay personal para esos contratistas y fechas.');
     const versiones=window.PLATINUM_FLOWS?await window.PLATINUM_FLOWS.obtenerVersiones(oid?[oid]:obrasEmpresa(codigo).map(o=>o.id),sem):null;
@@ -343,8 +345,10 @@ async function exportProyContratista(eleccion){
     for(const c of modelos){
       let m=c.modelo;
       if(m.filas.some(f=>!f.fin&&f.w.periodo_pago==='QUINCENAL'))m=await isrQAplicarModelo(m);
+      m=aguinaldoAplicarModelo(m,datos.aguinaldos);
       if(window.__PLATINUM_REQUIERE_FLUJO&&!window.PLATINUM_FLOWS)throw Error('El módulo de coordinación no cargó. Recarga la plataforma.');
       if(window.PLATINUM_FLOWS)m=await window.PLATINUM_FLOWS.versionarModelo(m,{obras:oid?[oid]:obrasEmpresa(codigo).map(o=>o.id),sem,periodo,contratista:c.ct,desde:d1,hasta:d2,versiones});
+      aguinaldoExigirCompleto(m,datos.aguinaldos,{periodo,trabajadores:c.ids});
       if(!m.filas.length)continue;
       const meta={codigo,colB:'OBRA',titulo:`PROYECCIÓN DE NÓMINA · ${c.ct} · SEMANA ${semN} · ${rangoTexto(d1,d2)}`,
         sub:`${emp.razon||''}${emp.rfc?' · RFC: '+emp.rfc:''} · ${oid?(OBRAS.find(o=>o.id===oid)?.nombre||''):'TODOS LOS CENTROS'} · ${c.ct}`,

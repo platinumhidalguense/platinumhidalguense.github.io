@@ -9,6 +9,8 @@ const b={Date,WORKERS:ws,DESC:ds,DIFS:[],FINTRANS:[],OBRA:{id:'O',nombre:'FICTIC
  pyCandidatos:()=>{if(failed)throw Error('Ciclo duplicado ficticio');if(historical){assert.equal(b.WORKERS[0].monto_finiquito,100);assert.equal(b._PY_BAJAS_HISTORICAS.length,0);}return{act:[b.WORKERS[0]],fins:[]};},
  proyLeerFiniquitos:async()=>[],proyModelo:act=>{if(historical)assert.equal(b.DESC[0].activo,true);return{neto:100,filas:act.map(w=>({w,fin:false,sueldo:120,prevision:0,incidencias:0,creditos:20,otras:0,neto:100,pago:'TRANSFERENCIA',items:[]}))};},
  empresaDeObra:()=> 'PLATINUM',fullName:()=> 'PERSONA FICTICIA',MOTOR_NOMINA_VERSION:'PRUEBA',rrhhReferenciasModelo:()=>({}),redondearCentavos:x=>Math.round(x*100)/100};vm.createContext(b);vm.runInContext(src.slice(node.start,node.end),b);
+// Post-proceso de aguinaldo (módulo 73): sin aplicaciones no altera la fotografía.
+vm.runInContext(fs.readFileSync('frontend/modulos/73-aguinaldo-integracion.js','utf8'),b);
 (async()=>{let n=0,r=await b.proySnapshotIntegrado(26,'SEMANAL');assert.equal(r.snapshot.total_neto,100);assert.equal(r.snapshot.contexto_historico.version,1);assert.equal(r.snapshot.total_trabajadores,1);n+=3;
  assert.strictEqual(b.WORKERS,ws);assert.strictEqual(b.DESC,ds);assert.strictEqual(b._PY_BAJAS_HISTORICAS,cs);n+=3;
  failed=true;await assert.rejects(b.proySnapshotIntegrado(26,'SEMANAL'),/duplicado/);assert.strictEqual(b.WORKERS,ws);assert.strictEqual(b._PY_BAJAS_HISTORICAS,cs);n+=3;failed=false;

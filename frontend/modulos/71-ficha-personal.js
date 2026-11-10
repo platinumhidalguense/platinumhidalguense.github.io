@@ -3,7 +3,7 @@
  'use strict';
  const secciones={
   resumen:'Resumen',identidad:'Identificación y contacto',contratacion:'Contratación y adscripción',
-  nomina:'Salario y nómina',incidencias:'Incidencias y prestaciones',imss:'IMSS',expediente:'Expediente',historial:'Historial'
+  nomina:'Salario y nómina',incidencias:'Incidencias y prestaciones',faltas:'Faltas históricas y acumulado',imss:'IMSS',expediente:'Expediente',historial:'Historial'
  };
  const fuentes={
   nomina:['pagos','cheques','sueldos_internos'],
@@ -58,6 +58,12 @@
    if(seccion==='incidencias'){
     cuerpo.innerHTML='<section id="cal-contenido" data-worker-id="'+esc(w.id)+'" aria-label="Calendario de incidencias"></section><section id="ficha-incidencias-datos"></section>';
     window.PLATINUM_CALENDARIO?.montar(w.id,s.mes);
+   }
+   if(seccion==='faltas'){
+    // Fuente común de aguinaldo y finiquitos; su propio módulo verifica permisos en el servidor.
+    if(!window.PLATINUM_FALTAS_HIST)throw Error('No cargó el módulo de faltas históricas. Recarga la plataforma.');
+    await window.PLATINUM_FALTAS_HIST.montar(cuerpo,w,vigente);
+    met.marca('utilizable');s.meta?.marca('utilizable');met.fin(vigente()?undefined:'descartada');return;
    }
    const destino=seccion==='incidencias'?$('ficha-incidencias-datos'):cuerpo;
    const depende=fuentes[seccion]||[];

@@ -204,15 +204,23 @@ function ptuExportar(){
   toast('PTU exportada con columna de firma.','ok');
 }
 /* ===== AGUINALDO ===== */
+/* La herramienta completa (selección, faltas, conciliación, ISR y aplicación a
+   la nómina abierta) vive en el módulo 74. El cálculo simple queda como
+   consulta rápida: no concilia pagos ni descuenta faltas, y no aplica nada. */
 function openAguinaldo(){
+  if(window.PLATINUM_AGUINALDO_UI)return window.PLATINUM_AGUINALDO_UI.abrir();
+  return agAbrirSimple();
+}
+function agAbrirSimple(){
   const anio=new Date().getFullYear();
   modal(`
-    <div class="m-head"><h2>🎄 Aguinaldo — art. 87 LFT</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-head"><h2>🎄 Aguinaldo — cálculo simple de consulta (art. 87 LFT)</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <div style="background:var(--blue-bg);border-radius:8px;padding:12px 14px;font-size:12.5px;margin-bottom:14px;line-height:1.7">
         <b>Base legal (art. 87 LFT):</b> mínimo <b>15 días de salario</b>, pagadero <b>antes del 20 de diciembre</b>.
         Quien no haya cumplido el año recibe la <b>parte proporcional</b> a los días trabajados. Se calcula con la cuota diaria (SD).
         Las bajas del año normalmente ya recibieron su proporcional en el finiquito — por eso el cálculo considera solo activos (puedes incluir bajas si hace falta).
+        <b>Consulta rápida:</b> no descuenta faltas, no concilia pagos anteriores ni calcula ISR; para pagar usa la corrida completa.
       </div>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
         <div><label>Año</label><input id="ag-anio" type="number" value="${anio}"></div>
