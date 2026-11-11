@@ -68,7 +68,7 @@
 
  /* ---------------- Estado ---------------- */
  const S={abierto:false,raiz:null,host:null,turno:0,turnoDetalle:0,turnoExc:0,turnoPlant:0,ctx:null,filtros:null,vista:'GENERAL',
-  datos:{},cargando:{},errores:{},detalle:null,excepciones:null,plantillaPedida:false,cache:new Map(),enVuelo:new Map(),
+  datos:{},cargando:{},errores:{},detalle:null,excepciones:null,plantillaPedida:false,plantillaPagina:1,cache:new Map(),enVuelo:new Map(),
   tDebounce:null,tBusqueda:null,tVigilancia:null,metricas:[],red:{solicitudes:0,ms:0},renderMs:0,exportando:false,desactualizado:false,
   retorno:null,ultimoFoco:null,ultimoEl:null,origenApertura:null,pintaProgramada:false,pintaPendiente:false,observador:null,enfocarDetalle:false,focoPanel:null,cargaActual:null};
  const firmaPermisos=()=>{const u=X.user();return [u&&u.id||'',X.vip()?1:0,X.admin()?1:0].join('|');};
@@ -85,7 +85,7 @@
  /* ---------------- Filtros ---------------- */
  const MULTI=['obras','contratistas','cuadrillas','periodicidades','periodos','conceptos','medios'];
  const CLAVES=['empresa','perspectiva','preset','desde','hasta','comparar',...MULTI];
- const PRESETS=['HISTORICO','EJERCICIO','MES','SEMANA','QUINCENA','PERSONALIZADO'];
+ const PRESETS=['HISTORICO','ACUMULADO','EJERCICIO','MES','ACTUAL','QUINCENA','PERSONALIZADO'],ALIAS_PRESET={SEMANA:'ACTUAL'};
  const COMPARAR_RPC={PERIODO_ANTERIOR:'ANTERIOR',ANTERIOR:'ANTERIOR',ANIO_ANTERIOR:'ANIO_ANTERIOR',NINGUNO:null};
  function obrasLocales(empresa){return X.obras().filter(o=>o.activa!==false&&empresaDe(o)===empresa);}
  function obrasCatalogo(empresa){
@@ -96,30 +96,31 @@
   const extra=X.obras().filter(o=>ids.has(String(o.id))&&!todas.some(t=>t.id===o.id));return todas.filter(o=>ids.has(String(o.id))).concat(extra);}
  function aplicarPreset(f){
   const hoy=hoyMx(),y=+hoy.slice(0,4),m=+hoy.slice(5,7),mm=hoy.slice(5,7);
-  f.calendario=[];
+  f.calendario=[];if(ALIAS_PRESET[f.preset])f.preset=ALIAS_PRESET[f.preset];
   switch(f.preset){
-   case 'SEMANA':case 'QUINCENA':{
+   case 'ACTUAL':case 'QUINCENA':{
     const per=f.preset==='QUINCENA'?'QUINCENAL':'SEMANAL',ps=obrasDeFiltro(f).map(o=>({o,p:periodoCentro(o,hoy,per)}));
     if(!ps.length){const p=periodoCentro({fecha_inicio:sumarDias(hoy,-((dU(hoy).getUTCDay()+6)%7))},hoy,per);f.desde=p.desde;f.hasta=p.hasta;break;}
     f.desde=ps.map(x=>x.p.desde).sort()[0];f.hasta=ps.map(x=>x.p.hasta).sort().slice(-1)[0];
     f.calendario=ps.map(x=>({obra_id:x.o.id,obra:x.o.nombre||x.o.id,semana:x.p.semana,periodicidad:per,desde:x.p.desde,hasta:x.p.hasta,fecha_pago:x.p.fecha_pago}));break;}
    case 'MES':f.desde=`${y}-${mm}-01`;f.hasta=`${y}-${mm}-${String(ultimoDia(y,m)).padStart(2,'0')}`;break;
    case 'EJERCICIO':f.desde=`${y}-01-01`;f.hasta=`${y}-12-31`;break;
+   case 'ACUMULADO':f.desde=`${y}-01-01`;f.hasta=hoy;break;
    case 'HISTORICO':f.desde=obrasDeFiltro(f).map(inicioObra).sort()[0]||`${y}-01-01`;f.hasta=hoy;break;
    default:f.preset='PERSONALIZADO';
   }
   return f;
  }
  function presetInicial(obras){
-  const o=X.obra();if(!o||obras.length!==1||obras[0]!==o.id)return 'SEMANA';
+  const o=X.obra();if(!o||obras.length!==1||obras[0]!==o.id)return 'ACTUAL';
   const act=X.workers().filter(w=>w.obra_id===o.id&&String(w.estatus||'').toUpperCase()==='ACTIVO');
-  return act.length&&act.every(w=>String(w.periodo_pago||'').toUpperCase()==='QUINCENAL')?'QUINCENA':'SEMANA';
+  return act.length&&act.every(w=>String(w.periodo_pago||'').toUpperCase()==='QUINCENAL')?'QUINCENA':'ACTUAL';
  }
  function filtrosIniciales(op={}){
   const empresa=op.empresa||X.empresa()||'PLATINUM',o=X.obra();
   const obras=Array.isArray(op.obras)?op.obras.map(String):(o&&empresaDe(o)===empresa?[o.id]:[]);
-  const f={empresa,obras,perspectiva:op.perspectiva==='PAGO'?'PAGO':'PERIODO',preset:PRESETS.includes(op.preset)?op.preset:presetInicial(obras),desde:op.desde||null,hasta:op.hasta||null,
-   comparar:op.comparar||'PERIODO_ANTERIOR',contratistas:[],cuadrillas:[],periodicidades:[],periodos:[],conceptos:[],medios:[]};
+  const f={empresa,obras,perspectiva:op.perspectiva==='PAGO'?'PAGO':'PERIODO',preset:PRESETS.includes(ALIAS_PRESET[op.preset]||op.preset)?(ALIAS_PRESET[op.preset]||op.preset):presetInicial(obras),desde:op.desde||null,hasta:op.hasta||null,
+   comparar:op.comparar||'ANTERIOR',contratistas:[],cuadrillas:[],periodicidades:[],periodos:[],conceptos:[],medios:[]};
   if(op.desde&&op.hasta&&!op.preset)f.preset='PERSONALIZADO';
   return aplicarPreset(f);
  }
@@ -169,12 +170,10 @@
  }
 
  /* ---------------- Adaptación de la forma del modelo (76/RPC) a la vista (77) ----------------
-    El modelo entrega porcentajes ×100 (85.5) y la vista espera fracciones (0.855);
-    se normaliza aquí, una sola vez, para pantalla y Excel. */
+    La vista (77) consume la forma del modelo: porcentajes en escala 0–100,
+    severidades ROJO/AMBAR/INFO y unidades CHEQUES/EVENTOS. Aquí sólo se suben
+    las llaves de navegación al nivel de la fila y se añaden alias de lectura. */
  const esA1=d=>!!(d&&typeof d.version==='string'&&/^TABLERO_/.test(d.version));
- const UNIDAD_VISTA={CHEQUES:'CONTEO',EVENTOS:'CONTEO'};
- const fr=v=>num(v)===null?(v===undefined?undefined:null):num(v)/100;
- const SEVERIDAD={ROJO:'CRITICO',AMBAR:'ATENCION',INFO:'INFO'};
  const TIPOS_EXC={SIN_PAGO:'Sin pago',PAGO_PARCIAL:'Pago parcial',EXCEDENTE_APLICADO:'Excedente aplicado',CIERRE_PROVISIONAL:'Cierre provisional',ADSCRIPCION_PENDIENTE:'Adscripción pendiente',
   DIFERENCIA_FISCAL:'Diferencia fiscal',CFDI_CONTRADICTORIO:'CFDI contradictorio',POR_VINCULAR:'Por vincular',EXCEDENTE_NO_APLICADO:'Excedente sin aplicar',SIN_ASIGNAR:'Sin asignar',
   OPERACION_ANULADA:'Operación anulada',EFECTIVO_SIN_COMPROBANTE:'Efectivo sin comprobante',POSIBLE_DUPLICADO:'Posible duplicado',DEVOLUCION_O_REVERSO:'Devolución o reverso',
@@ -183,14 +182,9 @@
   APLICACION_RETIRADA:'Aplicación retirada',PERIODO_SIN_CIERRE:'Periodo sin cierre'};
  const ESTADO_PAGO={NO_EXIGIBLE:'No exigible',SIN_OBLIGACION:'Sin obligación',EXCEDENTE:'Con excedente',REGISTRADO_POR_CONCILIAR:'Registrado por conciliar',CONCILIADO:'Conciliado',PARCIAL:'Pago parcial',SIN_PAGO:'Sin pago'};
  const SITUACION={EXITOSA:'Exitosa',REVERTIDA:'Revertida',ANULADO:'Anulado',EXPEDIDO:'Expedido',ENTREGADO:'Entregado',DECLARADO:'Efectivo declarado'};
- const TRAMOS=[['0_7','0–7 días'],['8_14','8–14 días'],['15_30','15–30 días'],['31_60','31–60 días'],['mas_60','Más de 60 días']];
  function adaptarMedida(m){
   if(!m||typeof m!=='object'||Array.isArray(m))return m;
-  const x={...m},pct=m.unidad==='PORCENTAJE',d=m.desglose&&typeof m.desglose==='object'?m.desglose:null;
-  if(UNIDAD_VISTA[m.unidad])x.unidad=UNIDAD_VISTA[m.unidad];
-  if(pct){x.valor=fr(m.valor);if(m.comparable&&typeof m.comparable==='object')x.comparable={...m.comparable,valor:fr(m.comparable.valor)};}
-  if(m.variacion&&typeof m.variacion==='object'&&('absoluta' in m.variacion||'porcentaje' in m.variacion))
-   x.variacion={...m.variacion,absoluta:pct?fr(m.variacion.absoluta):m.variacion.absoluta,porcentaje:fr(m.variacion.porcentaje)};
+  const x={...m},d=m.desglose&&typeof m.desglose==='object'?m.desglose:null;
   if(d&&num(d.operaciones)!==null&&x.operaciones===undefined)x.operaciones=d.operaciones;
   if(d&&typeof d.etiqueta==='string'&&!x.etiqueta_alcance)x.etiqueta_alcance=d.etiqueta;
   if(m.disponible===false&&!x.motivo)x.motivo=m.motivo_no_disponible||null;
@@ -201,28 +195,9 @@
   if(per==='SEMANA_DE_PAGO')return `Semana de pago ${fc(desde)}`;
   const s=[...new Set(arr(semanas))];return s.length===1?`S${s[0]} · ${fc(desde)}`:`Semana del ${fc(desde)}`;
  }
- function adaptarTendencia(t){
-  if(!Array.isArray(t.filas)||t.serie)return t;
-  const hoy=(S.datos.resumen&&S.datos.resumen.crudo&&S.datos.resumen.crudo.hoy)||hoyMx(),grupos=new Map(),C=['neto_conciliado','pagado_registrado','pagado_conciliado','pendiente_conciliacion','saldo_por_cubrir','excedentes','sin_asignar'];
-  const por_centro=t.filas.map(f=>({...f,periodo:`${f.periodicidad}|${f.periodo_desde}`,etiqueta:etiquetaPeriodo(f.periodicidad,f.periodo_desde,f.periodo_hasta,f.semanas),desde:f.periodo_desde,hasta:f.periodo_hasta,
-   cobertura:fr(f.cobertura),provisional:!!(f.periodo_hasta&&f.periodo_hasta>=hoy)}));
-  for(const f of por_centro){
-   if(!grupos.has(f.periodo))grupos.set(f.periodo,{periodo:f.periodo,periodicidad:f.periodicidad,desde:f.desde,hasta:f.hasta,provisional:false,semanas:[],centros:[],...Object.fromEntries(C.map(k=>[k,null]))});
-   const g=grupos.get(f.periodo);g.provisional=g.provisional||f.provisional;if(f.hasta>g.hasta)g.hasta=f.hasta;g.semanas.push(...arr(f.semanas));g.centros.push(f.obra);
-   for(const k of C)if(num(f[k])!==null)g[k]=r2((g[k]||0)+num(f[k]));
-  }
-  const serie=[...grupos.values()].sort((a,b)=>a.desde<b.desde?-1:a.desde>b.desde?1:String(a.periodicidad).localeCompare(String(b.periodicidad)))
-   .map(g=>({...g,etiqueta:etiquetaPeriodo(g.periodicidad,g.desde,g.hasta,g.semanas),cobertura:g.neto_conciliado?r2((g.pagado_conciliado||0)/g.neto_conciliado*10000)/10000:null}));
-  return {...t,serie,por_centro};
- }
- function adaptarComparativos(c){
-  const fila=f=>({...f,cobertura:fr(f.cobertura)});
-  return {...c,por_centro:arr(c.por_centro).map(fila),por_contratista:arr(c.por_contratista).map(fila),
-   por_medio:arr(c.por_medio).map(f=>({...fila(f),medio:f.clave,importe:f.importe??f.pagado_registrado,operaciones:f.operaciones??null}))};
- }
  const llavesArriba=f=>({...(f.llaves||{}),...f,pago_id:f.pago_id??(f.llaves&&f.llaves.pago_id)??arr(f.pago_ids)[0]??null});
  function adaptarExcepciones(x){
-  return {...x,filas:arr(x.filas).map(f=>({...llavesArriba(f),severidad:SEVERIDAD[f.severidad]||f.severidad,severidad_modelo:f.severidad,tipo_texto:TIPOS_EXC[f.tipo]||f.tipo,motivo:f.motivo??f.descripcion}))};
+  return {...x,filas:arr(x.filas).map(f=>({...llavesArriba(f),tipo_texto:TIPOS_EXC[f.tipo]||f.tipo,motivo:f.motivo??f.descripcion}))};
  }
  function adaptarDetalle(d,spec){
   const grano=d.grano||spec&&spec.grano||'OBLIGACION';
@@ -253,22 +228,11 @@
   switch(fuente){
    case 'resumen':{const out={...d,medidas:{}};for(const [k,m] of Object.entries(d.medidas||{}))out.medidas[k]=adaptarMedida(m);
     out.calidad=arr(d.calidad).map(c=>({...c,obra:c.obra||nombreObra(c.obra_id)}));return out;}
-   case 'tendencia':return adaptarTendencia(d);
-   case 'comparativos':return adaptarComparativos(d);
    case 'excepciones':return adaptarExcepciones(d);
    case 'detalle':return adaptarDetalle(d,spec);
    case 'plantilla':return agregarPlantilla(d);
   }
   return d;
- }
- /* Desgloses del RESUMEN que la vista dibuja como comparativos. */
- function derivadosResumen(){
-  const r=S.datos.resumen&&S.datos.resumen.crudo,m=r&&r.medidas;if(!m||!esA1(r))return {};
-  const out={},ch=m.cheques_por_estado&&m.cheques_por_estado.desglose,sa=m.saldo_por_antiguedad&&m.saldo_por_antiguedad.desglose,pm=m.pendiente_conciliacion&&m.pendiente_conciliacion.desglose;
-  if(ch)out.cheques_por_estado=['PENDIENTE','EXPEDIDO','ENTREGADO','CANCELADO'].filter(k=>ch[k]).map(k=>({estado:k,cantidad:ch[k].cantidad,importe:ch[k].importe}));
-  if(sa)out.saldo_por_antiguedad=TRAMOS.filter(([k])=>k in sa).map(([k,t])=>({tramo:t,clave:k,importe:sa[k],obligaciones:null}));
-  if(pm&&Array.isArray(pm.por_motivo))out.pendiente_por_motivo=pm.por_motivo.map(x=>({motivo:x.motivo,etiqueta:x.descripcion||x.motivo,importe:x.importe,operaciones:x.operaciones}));
-  return out;
  }
  function nombreObra(id){
   const c=S.datos.catalogos&&S.datos.catalogos.crudo,o=arr(c&&c.obras).find(x=>x.id===id)||X.obras().find(x=>x.id===id);
@@ -358,8 +322,8 @@
    case 'medio':return {medios:[String(valor)]};
    case 'cuadrilla':return {cuadrillas:[String(valor)]};
    case 'concepto':return {conceptos:[String(valor)]};
-   case 'periodo':{const t=S.datos.tendencia&&S.datos.tendencia.valor,p=arr(t&&t.serie).find(x=>String(x.periodo)===String(valor));
-    if(p&&fechaOK(p.desde)&&fechaOK(p.hasta))return {desde:p.desde,hasta:p.hasta,...(['SEMANAL','QUINCENAL'].includes(p.periodicidad)?{periodicidades:[p.periodicidad]}:{})};return {};}
+   case 'periodo':{if(fechaOK(valor))return {desde:String(valor),hasta:sumarDias(String(valor),6),preset:'PERSONALIZADO'};
+    const [per,ini]=String(valor).split('|');if(fechaOK(ini))return {desde:ini,hasta:sumarDias(ini,per==='QUINCENAL'?14:6),...(['SEMANAL','QUINCENAL'].includes(per)?{periodicidades:[per]}:{})};return {};}
   }
   return {};
  }
@@ -428,6 +392,7 @@
   const por=num(d&&d.por_pagina)||CFG.por_pagina,total=num(d&&d.total),max=total===null?Infinity:Math.max(1,Math.ceil(total/por));
   const p=Math.min(max,Math.max(1,Math.trunc(Number(n))||1));
   if(fuente==='detalle'&&S.detalle){if(p===S.detalle.pagina&&S.datos.detalle)return null;S.detalle.pagina=p;return cargarDetalle();}
+  if(fuente==='plantilla'){S.plantillaPagina=Math.max(1,Math.trunc(Number(n))||1);pintar();return null;}
   if(fuente==='excepciones'){if(!S.excepciones)S.excepciones={pagina:p,por_pagina:CFG.por_pagina};else{if(p===S.excepciones.pagina&&S.datos.excepciones)return null;S.excepciones.pagina=p;}return cargarExcepciones();}
   return null;
  }
@@ -440,6 +405,7 @@
   for(const k of Object.keys(p))if(CLAVES.includes(k))f[k]=MULTI.includes(k)?ordenar(p[k]):p[k];
   if('empresa' in p&&p.empresa!==S.filtros.empresa){if(!('obras' in p))f.obras=[];for(const k of MULTI)if(k!=='obras'&&!(k in p))f[k]=[];delete S.datos.catalogos;}
   if(('desde' in p||'hasta' in p)&&!('preset' in p))f.preset='PERSONALIZADO';
+  if(ALIAS_PRESET[f.preset])f.preset=ALIAS_PRESET[f.preset];
   if(!PRESETS.includes(f.preset))f.preset='PERSONALIZADO';
   if(f.preset!=='PERSONALIZADO'&&('preset' in p||'obras' in p||'empresa' in p))aplicarPreset(f);
   else if(f.preset==='PERSONALIZADO')f.calendario=[];
@@ -486,13 +452,17 @@
  /* ---------------- Pintura, foco, anuncios y desplazamiento ---------------- */
  function estadoVista(){
   const d=k=>S.datos[k]?S.datos[k].valor:null,res=d('resumen');
-  const comp=d('comparativos'),der=derivadosResumen(),comparativos=comp||Object.keys(der).length?{...der,...(comp||{})}:null;
-  if(comp)for(const k of Object.keys(der))if(!arr(comp[k]).length)comparativos[k]=der[k];
+  const comparativos=d('comparativos');
   const exc=d('excepciones'),det=d('detalle');
-  return {filtros:{...S.filtros},catalogos:catalogosVista(),resumen:res,tendencia:d('tendencia'),comparativos,excepciones:S.excepciones?exc:null,detalle:S.detalle?det:null,plantilla:d('plantilla'),
+  return {filtros:{...S.filtros},catalogos:catalogosVista(),resumen:res,tendencia:d('tendencia'),comparativos,excepciones:S.excepciones?exc:null,detalle:S.detalle?det:null,plantilla:plantillaVista(d('plantilla')),
    vista:S.vista,cargando:{...S.cargando},errores:{...S.errores},actualizado_en:res&&res.actualizado_en||null,
    desactualizado:S.desactualizado||Object.values(S.datos).some(x=>x&&x.desactualizado),ahora:new Date().toISOString(),vigencia_minutos:CFG.vigencia_minutos,
    bajo_demanda:{excepciones:!S.excepciones,detalle:!S.detalle},controlador:VERSION};
+ }
+ /* Eventos de PLANTILLA: leídos completos para la serie; la tabla se muestra por páginas. */
+ function plantillaVista(p){
+  if(!p||!p.eventos)return p;const todos=arr(p.eventos.filas),por=CFG.por_pagina,max=Math.max(1,Math.ceil(todos.length/por)),pag=Math.min(max,Math.max(1,S.plantillaPagina||1));
+  return {...p,eventos:{...p.eventos,filas:todos.slice((pag-1)*por,pag*por),total:todos.length,pagina:pag,por_pagina:por}};
  }
  const scrollers=()=>{const ov=S.raiz&&S.raiz.closest?S.raiz.closest('.overlay'):null;return [ov,S.host];};
  const leerScroll=()=>scrollers().map(x=>x?x.scrollTop||0:0);
@@ -548,7 +518,7 @@
  /* Pintura mínima si 77 no cargó: indicadores, errores con «Reintentar», detalle y exportación. */
  function renderMinimo(host,e){
   const med=e.resumen&&e.resumen.medidas||{},err=Object.entries(e.errores||{});
-  const val=m=>m&&typeof m==='object'?(m.valor===null||m.valor===undefined?'No disponible':typeof m.valor==='number'?(m.unidad==='PORCENTAJE'?r2(m.valor*100)+'%':m.unidad==='MXN'?'$'+(typeof money==='function'?money(m.valor):m.valor):entero(m.valor)):'—'):String(m??'—');
+  const val=m=>m&&typeof m==='object'?(m.valor===null||m.valor===undefined?'No disponible':typeof m.valor==='number'?(m.unidad==='PORCENTAJE'?r2(m.valor)+'%':m.unidad==='MXN'?'$'+(typeof money==='function'?money(m.valor):m.valor):entero(m.valor)):'—'):String(m??'—');
   const det=e.detalle;
   host.innerHTML=`<section class="tb tb-minimo"><h2 id="tbm-titulo" tabindex="-1">Tablero ejecutivo</h2><p>Actualizado: ${E(fechaHora(e.actualizado_en))}${e.desactualizado?' · puede estar desactualizado':''}</p>
    ${err.map(([k,x])=>`<p role="alert">No se pudo leer ${E(NOMBRE[k]||k)}: ${E(x.mensaje)} <button type="button" class="btn" data-tablero-accion="reintentar" data-fuente="${E(k)}">Reintentar</button></p>`).join('')}
@@ -570,7 +540,7 @@
  const tipoFila=f=>f&&f.tipo&&f.descripcion!==undefined?'EXCEPCION':f&&f.operacion_id&&!f.obligacion_id||f&&f.fecha_efectiva!==undefined?'OPERACION':'OBLIGACION';
  function panel(titulo,fila,tipo){
   if(typeof modal2!=='function'){avisar(titulo,'');return null;}
-  S.focoPanel=S.ultimoFoco;
+  S.focoPanel={clave:S.ultimoFoco,el:S.ultimoEl};
   const campos=CAMPOS[tipo].filter(([k])=>fila&&fila[k]!==undefined&&fila[k]!==null&&fila[k]!=='').map(([clave,etq,t])=>({clave,etiqueta:etq,tipo:t}));
   modal2(`<div class="m-head"><h2 id="tablero-panel-t" tabindex="-1">${E(titulo)}</h2><button type="button" class="x" data-tablero-panel="cerrar" aria-label="Cerrar ${E(titulo)}">×</button></div><div class="m-body" id="tablero-panel"></div>`,'md');
   const ovs=$id('modals').querySelectorAll('.overlay'),ov=ovs[ovs.length-1],cont=ov.querySelector('#tablero-panel');
@@ -587,7 +557,7 @@
   anunciar(titulo+' abierto.');
   return ov;
  }
- function restaurarFocoPanel(){const k=S.focoPanel;S.focoPanel=null;Promise.resolve().then(()=>{if(S.pintaPendiente&&!cubierto()){S.pintaPendiente=false;pintar();}enfocarClave(k);});}
+ function restaurarFocoPanel(){const k=S.focoPanel||{};S.focoPanel=null;Promise.resolve().then(()=>{if(S.pintaPendiente&&!cubierto()){S.pintaPendiente=false;pintar();}if(k.el&&k.el.isConnected&&typeof k.el.focus==='function')k.el.focus({preventScroll:true});else enfocarClave(k.clave);});}
  function cerrarPanel(ov){if(!ov||!ov.isConnected)return;if(typeof closeModal2==='function')closeModal2();else ov.remove();restaurarFocoPanel();}
  function mostrarFila(fila,origen){const t=tipoFila(fila);return panel(t==='EXCEPCION'?'Excepción · '+(fila.tipo_texto||fila.tipo):t==='OPERACION'?'Operación de pago':'Obligación de pago',fila,t);}
  function abrirObligacion(id,fila){
@@ -734,7 +704,7 @@
   return {consistente:h0===h1,resumen:r1.data,tendencia:tend.data,comparativos:comp.data,obligaciones:obl,operaciones:ope,excepciones:exc};
  }
  const ESTILO={
-  pct:()=>({...(typeof ST!=='undefined'?ST.cell:{}),numFmt:'0.0%',alignment:{horizontal:'right',vertical:'center'}}),
+  pct:()=>({...(typeof ST!=='undefined'?ST.cell:{}),numFmt:'0.0"%"',alignment:{horizontal:'right',vertical:'center'}}),
   ent:()=>({...(typeof ST!=='undefined'?ST.cell:{}),numFmt:'#,##0',alignment:{horizontal:'right',vertical:'center'}}),
   txt:()=>({...(typeof ST!=='undefined'?ST.cell:{}),numFmt:'@'})
  };
@@ -845,9 +815,9 @@
   ws=buildSheet(resRows,resSt,[34,26,18,14,18,18,14,14,12,12,40],[{s:{r:0,c:0},e:{r:0,c:10}}]);XLSX.utils.book_append_sheet(wb,ws,'RESUMEN');
   const MED=['neto_conciliado','pagado_registrado','pagado_conciliado','pendiente_conciliacion','saldo_por_cubrir','excedentes'].map(k=>[k,n$(k),'MXN']);
   hojaTabla(wb,'TENDENCIA','Tendencia por periodo y centro (fechas reales)',[['obra_id','ID centro','id'],['obra','Centro'],['periodicidad','Periodicidad'],['semanas','Semanas internas','LISTA'],['periodo_desde','Periodo desde','FECHA'],
-   ['periodo_hasta','Periodo hasta','FECHA'],['fecha_pago','Fecha de pago','FECHA'],...MED,['sin_asignar','Sin asignar','MXN'],['cobertura_fr',n$('cobertura'),'PCT']],arr(r.tendencia.filas).map(f=>({...f,cobertura_fr:fr(f.cobertura)})),true);
-  const compFilas=[];for(const [dim,nom] of [['por_centro','Centro'],['por_contratista','Contratista'],['por_medio','Medio de pago']])for(const f of arr(r.comparativos[dim]))compFilas.push({dimension:nom,...f,cobertura_fr:fr(f.cobertura)});
-  hojaTabla(wb,'COMPARATIVOS','Comparativos por centro, contratista y medio',[['dimension','Dimensión'],['clave','Clave','id'],['etiqueta','Etiqueta'],...MED,['sin_asignar','Sin asignar','MXN'],['cobertura_fr',n$('cobertura'),'PCT'],['trabajadores_con_pago',n$('trabajadores_con_pago'),'ENT']],compFilas);
+   ['periodo_hasta','Periodo hasta','FECHA'],['fecha_pago','Fecha de pago','FECHA'],...MED,['sin_asignar','Sin asignar','MXN'],['cobertura',n$('cobertura'),'PCT']],arr(r.tendencia.filas),true);
+  const compFilas=[];for(const [dim,nom] of [['por_centro','Centro'],['por_contratista','Contratista'],['por_medio','Medio de pago']])for(const f of arr(r.comparativos[dim]))compFilas.push({dimension:nom,...f});
+  hojaTabla(wb,'COMPARATIVOS','Comparativos por centro, contratista y medio',[['dimension','Dimensión'],['clave','Clave','id'],['etiqueta','Etiqueta'],...MED,['sin_asignar','Sin asignar','MXN'],['cobertura',n$('cobertura'),'PCT'],['trabajadores_con_pago',n$('trabajadores_con_pago'),'ENT']],compFilas);
   const ob=r.obligaciones.data.filas,op=r.operaciones.data.filas,ex=r.excepciones.data.filas;
   const hObl=hojaTabla(wb,'DETALLE OBLIGACIONES','Detalle por obligación (todas las páginas)',columnasCon(COLS.OBLIGACION(),ob),ob,true);
   const hOpe=hojaTabla(wb,'DETALLE OPERACIONES','Detalle por operación de pago (todas las páginas)',columnasCon(COLS.OPERACION(),op),op,true);
@@ -887,8 +857,8 @@
   const l=d.createElement('link');l.rel='stylesheet';l.href=href;d.head.appendChild(l);
  }
  function enlazar(raiz){
-  raiz.addEventListener('click',ev=>{const t=ev.target,f=t&&t.closest?t.closest('[data-foco],[data-tablero-foco]'):null;
-   if(f){S.ultimoFoco=f.getAttribute('data-foco')||f.getAttribute('data-tablero-foco');S.ultimoEl=f;}},true);
+  raiz.addEventListener('click',ev=>{const t=ev.target,f=t&&t.closest?t.closest('[data-foco],[data-tablero-foco]'):null,el=t&&t.closest?t.closest('button,a,input,select,[tabindex]'):null;
+   if(el)S.ultimoEl=el;if(f){S.ultimoFoco=f.getAttribute('data-foco')||f.getAttribute('data-tablero-foco');if(!el)S.ultimoEl=f;}},true);
   raiz.addEventListener('click',ev=>{
    const b=ev.target&&ev.target.closest?ev.target.closest('[data-tablero-accion]'):null;if(!b||!raiz.contains(b))return;
    const a=b.getAttribute('data-tablero-accion');ev.preventDefault();

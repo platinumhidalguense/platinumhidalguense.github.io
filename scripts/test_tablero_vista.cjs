@@ -4,58 +4,68 @@
 // emisión de acciones con la clave correcta y escape de texto.
 // Sin red ni Supabase: el módulo corre en una VM con linkedom.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict'),acorn=require('acorn'),{parseHTML}=require('linkedom');
-const raiz=path.resolve(__dirname,'..'),RUTA=path.join(raiz,'frontend/modulos/77-tablero-vista.js'),CSS=path.join(raiz,'assets/platinum-tablero.css');
+const raiz=path.resolve(__dirname,'..'),RUTA=path.join(raiz,'frontend/modulos/77-tablero-vista.js'),CSS=path.join(raiz,'assets/platinum-tablero.css'),MODELO=path.join(raiz,'frontend/modulos/76-tablero-modelo.js');
 let n=0;const ok=(c,m)=>{assert(c,m);n++;},eq=(a,b,m)=>{const j=x=>x===undefined?x:JSON.parse(JSON.stringify(x));assert.deepStrictEqual(j(a),j(b),m);n++;};
 
-/* ---------- Estado ficticio completo (datos inventados) ---------- */
+/* ---------- Estado ficticio completo con las formas de 76-tablero-modelo.js ---------- */
 const XSS='<img src=x onerror="alert(1)"><script>alert(2)</script><u>u</u>';
+const M=(valor,o={})=>({valor,unidad:'MXN',definicion:'',formula:'',provisional:false,disponible:true,motivo_no_disponible:null,desglose:{},comparable:null,variacion:null,...o});
 function estadoCompleto(){
- const semanas=Array.from({length:12},(_,i)=>{const d=new Date(Date.UTC(2026,7,17+7*i)),h=new Date(d.getTime()+6*864e5),iso=x=>x.toISOString().slice(0,10);
-  return {periodo:'S'+(34+i),etiqueta:'S'+(34+i),desde:iso(d),hasta:iso(h),neto_conciliado:100000+i*2500,pagado_conciliado:i===11?60000:98000+i*2400,saldo_por_cubrir:i===11?(100000+i*2500-60000):2000+i*100,provisional:i===11};});
+ const iso=x=>x.toISOString().slice(0,10),dia=(y,m,d)=>new Date(Date.UTC(y,m,d));
+ const filas=[];
+ for(let i=0;i<12;i++){
+  const d1=dia(2026,7,24+7*i),d2=dia(2026,7,26+7*i);
+  filas.push({obra_id:'o1',obra:'CENTRO NORTE',periodicidad:'SEMANAL',semanas:[21+i],periodo_desde:iso(d1),periodo_hasta:iso(new Date(+d1+6*864e5)),fecha_pago:iso(new Date(+d1+4*864e5)),neto_conciliado:60000+i*1000,pagado_registrado:59000,pagado_conciliado:i===12-1?30000:58000+i*900,pendiente_conciliacion:500,saldo_por_cubrir:i===11?29500:1500,excedentes:0,sin_asignar:0,cobertura:95});
+  filas.push({obra_id:'o2',obra:'CENTRO SUR',periodicidad:'SEMANAL',semanas:[12+i],periodo_desde:iso(d2),periodo_hasta:iso(new Date(+d2+6*864e5)),fecha_pago:iso(new Date(+d2+4*864e5)),neto_conciliado:40000+i*1500,pagado_registrado:39000,pagado_conciliado:38000+i*1400,pendiente_conciliacion:400,saldo_por_cubrir:1600,excedentes:0,sin_asignar:0,cobertura:95});
+ }
  return {
   vista:'GENERAL',cargando:false,errores:{},actualizado_en:'2026-11-11T16:30:00Z',
-  filtros:{empresa:'PLATINUM',obras:['o1','o2'],perspectiva:'PERIODO',preset:'EJERCICIO',desde:'2026-01-01',hasta:'2026-11-11',contratistas:['MG'],cuadrillas:[],periodicidades:[],periodos:[],conceptos:[],medios:[],comparar:'PERIODO_ANTERIOR'},
-  catalogos:{empresas:[{valor:'PLATINUM',etiqueta:'PLATINUM'},{valor:'JIRE',etiqueta:'JIRE'}],
-   obras:[{id:'o1',nombre:'CENTRO NORTE'},{id:'o2',nombre:'CENTRO SUR'},{id:'o3',nombre:'CENTRO PONIENTE'},{id:'o4',nombre:'CENTRO ORIENTE'}],
-   contratistas:['MG','ARACELI',XSS],cuadrillas:[{valor:'q1',etiqueta:'CUADRILLA UNO'}],periodicidades:[{valor:'SEMANAL',etiqueta:'Semanal'},{valor:'QUINCENAL',etiqueta:'Quincenal'}],
-   periodos:[{valor:'o1:S45',etiqueta:'S45',grupo:'CENTRO NORTE',desde:'2026-11-02',hasta:'2026-11-08'},{valor:'o2:S45',etiqueta:'S45',grupo:'CENTRO SUR',desde:'2026-11-04',hasta:'2026-11-10'}],
-   conceptos:[{valor:'NOMINA',etiqueta:'Nómina'},{valor:'FINIQUITO',etiqueta:'Finiquito'}],medios:[{valor:'TRANSFERENCIA',etiqueta:'Transferencia'},{valor:'CHEQUE',etiqueta:'Cheque'},{valor:'POR DEFINIR',etiqueta:'Por definir'}]},
-  resumen:{
+  filtros:{empresa:'PLATINUM',obras:['o1','o2'],perspectiva:'PERIODO',tipo_periodo:'ACUMULADO',desde:'2026-01-01',hasta:'2026-11-11',contratistas:['MG'],cuadrillas:[],periodicidades:[],periodos:[],conceptos:[],medios:[],comparar:'ANTERIOR'},
+  catalogos:{empresas:['JIRE','PLATINUM'],
+   obras:[{id:'o1',nombre:'CENTRO NORTE',empresa:'PLATINUM',fecha_inicio:'2026-03-30'},{id:'o2',nombre:'CENTRO SUR',empresa:'PLATINUM',fecha_inicio:'2026-05-27'},{id:'o3',nombre:'CENTRO PONIENTE',empresa:'PLATINUM',fecha_inicio:'2026-03-30'},{id:'o4',nombre:'CENTRO ORIENTE',empresa:'PLATINUM',fecha_inicio:'2026-03-30'},{id:'j1',nombre:'OBRA JIRE',empresa:'JIRE',fecha_inicio:'2026-03-30'}],
+   contratistas:[{clave:'ARACELI',etiqueta:'ARACELI'},{clave:'MG',etiqueta:'MG'},{clave:'__PENDIENTE__',etiqueta:'Adscripción histórica pendiente'},{clave:XSS,etiqueta:XSS}],
+   cuadrillas:[{clave:'q1',etiqueta:'CUADRILLA UNO'},{clave:'__SIN_CUADRILLA__',etiqueta:'Sin cuadrilla'}],periodicidades:['QUINCENAL','SEMANAL'],periodos:[44,45],
+   conceptos:['FINIQUITO','NOMINA'],medios:['TRANSFERENCIA','CHEQUE','EFECTIVO'],comparaciones:['ANTERIOR','ANIO_ANTERIOR']},
+  resumen:{version:'TABLERO_2026_11_V1',accion:'RESUMEN',hoy:'2026-11-11',provisional:true,huella:'v1|ficticia',actualizado_en:'2026-11-11T16:30:00Z',
+   alcance:{perspectiva:'PERIODO',desde:'2026-01-01',hasta:'2026-11-11',hasta_efectivo:'2026-11-11',empresa:'PLATINUM',obras:['o1','o2'],contratistas:['MG'],cuadrillas:[],periodicidades:[],periodos:[],conceptos:[],medios:[],comparar:'ANTERIOR',tipo_periodo:'ACUMULADO',restringido:{prevision_social:false,obras_no_autorizadas:0,datos_internos:false}},
    medidas:{
-    neto_conciliado:{valor:1250000.5,variacion:{absoluta:50000,porcentaje:0.0417}},
-    pagado_registrado:{valor:1190000,variacion:{absoluta:20000,porcentaje:0.0171}},
-    pagado_conciliado:{valor:1180000.25,variacion:{absoluta:-10000,porcentaje:-0.0084,incompleto:true}},
-    saldo_por_cubrir:{valor:70000.25,provisional:true,variacion:{absoluta:60000,porcentaje:6}},
-    excedentes:{valor:0,variacion:{absoluta:0,porcentaje:null}},
-    cobertura:{valor:0.944,variacion:{absoluta:-0.012,porcentaje:-0.0126}},
-    pendiente_conciliacion:{importe:10000,operaciones:3,por_motivo:[{motivo:'SIN_ASIGNAR',etiqueta:'Pago sin asignar',importe:6000,operaciones:2},{motivo:'DIFERENCIA',etiqueta:XSS,importe:4000,operaciones:1}]},
-    trabajadores_con_pago:{valor:212,variacion:{absoluta:5,porcentaje:0.024}},
-    promedio_pagado_trabajador:{valor:5566.04},mediana_pagado_trabajador:{valor:5200},trabajadores_pago_parcial:{valor:4},concentracion_contratista:{valor:0.62},bruto:{valor:1400000},
-    costo_patronal:{valor:null,motivo:'Sin base de cálculo explícita registrada.'}
+    neto_conciliado:M(1250000.5,{provisional:true,perspectiva_aplicada:'PERIODO',variacion:{absoluta:50000,porcentaje:4.17,incompleto:false}}),
+    pagado_registrado:M(1190000,{variacion:{absoluta:20000,porcentaje:1.71,incompleto:false},desglose:{por_medio:{TRANSFERENCIA:1100000,CHEQUE:90000,EFECTIVO:0}}}),
+    pagado_conciliado:M(1180000.25,{variacion:{absoluta:-10000,porcentaje:-0.84,incompleto:true}}),
+    saldo_por_cubrir:M(70000.25,{provisional:true,variacion:{absoluta:60000,porcentaje:600,incompleto:false}}),
+    excedentes:M(0,{variacion:{absoluta:0,porcentaje:null,incompleto:false}}),
+    sin_asignar:M(2500,{desglose:{operaciones:1}}),
+    cobertura:M(94.4,{unidad:'PORCENTAJE',variacion:{absoluta:-1.2,porcentaje:null,incompleto:false}}),
+    pendiente_conciliacion:M(10000,{desglose:{operaciones:3,por_motivo:[{motivo:'POR_VINCULAR',descripcion:'Operación registrada sin aplicar a su obligación',importe:6000,operaciones:2},{motivo:'OPERACION_ANULADA',descripcion:XSS,importe:4000,operaciones:1}]}}),
+    trabajadores_con_pago:M(212,{unidad:'PERSONAS',variacion:{absoluta:5,porcentaje:2.4,incompleto:false}}),
+    promedio_pagado_trabajador:M(5566.04),mediana_pagado_trabajador:M(5200),trabajadores_pago_parcial:M(4,{unidad:'PERSONAS'}),concentracion_contratista:M(62,{unidad:'PORCENTAJE'}),bruto:M(1400000),
+    costo_patronal:M(null,{disponible:false,motivo_no_disponible:'No disponible: no hay base de cálculo explícita de cuotas patronales en la plataforma'}),
+    saldo_por_antiguedad:M(70000.25,{desglose:{por_vencer:1000,'0_7':39000,'8_14':15000,'15_30':7000.25,'31_60':3000,mas_60:5000}}),
+    cheques_por_estado:M(45,{unidad:'CHEQUES',desglose:{PENDIENTE:{cantidad:10,importe:20000},EXPEDIDO:{cantidad:0,importe:0},ENTREGADO:{cantidad:30,importe:60000},CANCELADO:{cantidad:5,importe:10000},reposiciones:2,cobro:'No registrado en la plataforma'}})
    },
-   comparable:{desde:'2025-01-01',hasta:'2025-11-11',incompleto:false},
-   calidad:[{obra_id:'o1',obra:'CENTRO NORTE',estado:'COMPLETO'},{obra_id:'o2',obra:'CENTRO SUR',estado:'CERO_CONFIRMADO'}],
-   provisional:true,periodos_abiertos:['S45'],adscripcion_pendiente:3,actualizado_en:'2026-11-11T16:30:00Z',huella:'H-FICTICIA'
-  },
-  tendencia:{serie:semanas,por_centro:[{obra:'CENTRO NORTE',periodo:'S45',etiqueta:'S45',desde:'2026-11-02',hasta:'2026-11-08',neto_conciliado:70000,pagado_conciliado:40000,saldo_por_cubrir:30000},
-   {obra:'CENTRO SUR',periodo:'S45',etiqueta:'S45',desde:'2026-11-04',hasta:'2026-11-10',neto_conciliado:57500,pagado_conciliado:20000,saldo_por_cubrir:37500}]},
-  comparativos:{panorama_general:true,
-   por_centro:[{clave:'o1',etiqueta:'CENTRO NORTE',periodos:'S1–S45',desde:'2026-01-05',hasta:'2026-11-08',neto_conciliado:700000,pagado_conciliado:660000,saldo_por_cubrir:40000,seleccionado:true},
-    {clave:'o2',etiqueta:'CENTRO SUR',periodos:'S1–S45',desde:'2026-01-07',hasta:'2026-11-10',neto_conciliado:550000.5,pagado_conciliado:520000.25,saldo_por_cubrir:30000.25,seleccionado:true},
-    {clave:'o3',etiqueta:'CENTRO PONIENTE',periodos:'S1–S30',desde:'2026-03-30',hasta:'2026-10-25',neto_conciliado:300000,pagado_conciliado:300000,saldo_por_cubrir:0,seleccionado:false},
-    {clave:'o4',etiqueta:XSS,neto_conciliado:0,pagado_conciliado:0,saldo_por_cubrir:0,seleccionado:false}],
-   por_contratista:[{clave:'MG',etiqueta:'MG',neto_conciliado:800000,pagado_conciliado:760000,saldo_por_cubrir:40000},{clave:'ARACELI',etiqueta:'ARACELI',neto_conciliado:450000.5,pagado_conciliado:420000.25,saldo_por_cubrir:30000.25}],
-   por_medio:[{clave:'TRANSFERENCIA',importe:1100000,operaciones:2100},{clave:'CHEQUE',importe:90000,operaciones:45}],
-   cheques_por_estado:[{estado:'ENTREGADO',cantidad:30,importe:60000},{estado:'PENDIENTE',cantidad:10,importe:20000},{estado:'CANCELADO',cantidad:5,importe:10000}],
-   saldo_por_antiguedad:[{tramo:'>60',importe:5000,obligaciones:2},{tramo:'0-7',importe:40000,obligaciones:20},{tramo:'8-14',importe:15000,obligaciones:6},{tramo:'15-30',importe:7000.25,obligaciones:3},{tramo:'31-60',importe:3000,obligaciones:1}]},
-  excepciones:{filas:[{clave:'exc-1',severidad:'CRITICO',tipo:'EXCEDENTE',tipo_texto:'Excedente',motivo:'Pago mayor a la obligación',obra:'CENTRO NORTE',trabajador_id:'w1',numero:12,nombre:'PERSONA FICTICIA UNO',periodo:'S44',periodo_desde:'2026-10-26',periodo_hasta:'2026-11-01',importe:1500,obligacion_id:'ob1',pago_id:'p9'},
-   {clave:'exc-2',severidad:'ATENCION',tipo:'SIN_ASIGNAR',tipo_texto:'Pago sin asignar',motivo:XSS,obra:'CENTRO SUR',fecha:'2026-11-07',importe:6000,pago_id:'p10'}],total:3,pagina:1,por_pagina:2},
-  detalle:{grano:'OBLIGACION',total:120,pagina:1,por_pagina:2,filas:[
-   {clave:'det-1',obra:'CENTRO NORTE',periodo:'S45',periodo_desde:'2026-11-02',periodo_hasta:'2026-11-08',provisional:true,trabajador_id:'w1',numero:12,nombre:'PERSONA FICTICIA UNO',contratista:'MG',cuadrilla:'CUADRILLA UNO',concepto:'NOMINA',medio:'TRANSFERENCIA',neto_conciliado:3000,pagado_conciliado:3000,saldo_por_cubrir:0,estado:'Pagada',obligacion_id:'ob1',cierre_id:'c1',pago_id:'p1',evidencia_id:'e1'},
-   {clave:'det-2',obra:'CENTRO SUR',periodo:'S44',periodo_desde:'2026-10-28',periodo_hasta:'2026-11-03',trabajador_id:'w2',numero:7,nombre:XSS,contratista:'MG',cuadrilla:null,cuadrilla_pendiente:true,concepto:'FINIQUITO',medio:'CHEQUE',neto_conciliado:5000,pagado_conciliado:2500,saldo_por_cubrir:2500,estado:'Pago parcial',obligacion_id:'ob2',cierre_id:'c2',cheque_id:'ch2',evidencia_id:'e2',evidencia_autorizada:false}]},
-  plantilla:{medidas:{plantilla_actual:{valor:230,etiqueta_alcance:'Padrón al 11/11/2026'},altas:{valor:18,variacion:{absoluta:3,porcentaje:0.2}},bajas:{valor:9},reingresos:{valor:2},rotacion:{valor:0.039}},
-   tendencia:semanas.map((s,i)=>({periodo:s.periodo,etiqueta:s.etiqueta,desde:s.desde,hasta:s.hasta,altas:i%3,bajas:i%2,reingresos:i===5?1:0,plantilla:220+i})),
-   por_centro:[{clave:'o1',etiqueta:'CENTRO NORTE',plantilla:130,altas:10,bajas:5,reingresos:1},{clave:'o2',etiqueta:'CENTRO SUR',plantilla:100,altas:8,bajas:4,reingresos:1}]}
+   comparable:{desde:'2025-01-01',hasta:'2025-11-11',modo:'ANTERIOR',incompleto:false,motivos:[]},
+   calidad:[{obra_id:'o1',obra:'CENTRO NORTE',empresa:'PLATINUM',estado:'COMPLETO',periodos_esperados:32,periodos_autorizados:32,periodos_provisionales:0,periodos_faltantes:[],errores:[]},
+    {obra_id:'o2',obra:'CENTRO SUR',empresa:'PLATINUM',estado:'CERO_CONFIRMADO',periodos_esperados:24,periodos_autorizados:24,periodos_provisionales:0,periodos_faltantes:[],errores:[]}],
+   adscripcion_pendiente:3},
+  tendencia:{accion:'TENDENCIA',filas},
+  comparativos:{accion:'COMPARATIVOS',panorama_general:true,
+   por_centro:[{clave:'o1',etiqueta:'CENTRO NORTE',neto_conciliado:700000,pagado_registrado:680000,pagado_conciliado:660000,pendiente_conciliacion:20000,saldo_por_cubrir:20000,excedentes:0,sin_asignar:0,cobertura:94.29,trabajadores_con_pago:120,seleccionado:true},
+    {clave:'o2',etiqueta:'CENTRO SUR',neto_conciliado:550000.5,pagado_registrado:530000,pagado_conciliado:520000.25,pendiente_conciliacion:10000,saldo_por_cubrir:20000.25,excedentes:0,sin_asignar:0,cobertura:94.55,trabajadores_con_pago:92,seleccionado:true},
+    {clave:'o3',etiqueta:'CENTRO PONIENTE',neto_conciliado:300000,pagado_conciliado:300000,pendiente_conciliacion:0,saldo_por_cubrir:0,cobertura:100,seleccionado:false},
+    {clave:'o4',etiqueta:XSS,neto_conciliado:0,pagado_conciliado:0,saldo_por_cubrir:0,cobertura:null,seleccionado:false}],
+   por_contratista:[{clave:'MG',etiqueta:'MG',neto_conciliado:800000,pagado_conciliado:760000,pendiente_conciliacion:20000,saldo_por_cubrir:20000,cobertura:95},{clave:'__PENDIENTE__',etiqueta:'Adscripción histórica pendiente',neto_conciliado:450000.5,pagado_conciliado:420000.25,pendiente_conciliacion:10000,saldo_por_cubrir:20000.25,cobertura:93.33}],
+   por_medio:[{clave:'CHEQUE',etiqueta:'CHEQUE',neto_conciliado:100000,pagado_registrado:90000},{clave:'TRANSFERENCIA',etiqueta:'TRANSFERENCIA',neto_conciliado:1150000.5,pagado_registrado:1100000}]},
+  excepciones:{accion:'EXCEPCIONES',total:3,pagina:1,por_pagina:2,filas:[
+   {tipo:'EXCEDENTE_APLICADO',severidad:'ROJO',obra_id:'o1',obra:'CENTRO NORTE',trabajador_id:'w1',numero:12,nombre:'PERSONA FICTICIA UNO',semana:44,fecha:'2026-10-30',importe:1500,descripcion:'Aplicado por encima del importe exigible',llaves:{obligacion_id:'ob1',cierre_id:'c1',pago_id:null,cheque_id:null,evidencia_id:null,aplicacion_id:null,operacion_id:null}},
+   {tipo:'SIN_ASIGNAR',severidad:'AMBAR',obra_id:'o2',obra:'CENTRO SUR',trabajador_id:null,numero:null,nombre:'',semana:null,fecha:'2026-11-07',importe:6000,descripcion:XSS,llaves:{obligacion_id:null,cierre_id:null,pago_id:'p10',cheque_id:null,evidencia_id:'e10',aplicacion_id:null,operacion_id:'EVD:e10'}}]},
+  detalle:{accion:'DETALLE',grano:'OBLIGACION',total:120,pagina:1,por_pagina:2,filas:[
+   {obligacion_id:'ob1',cierre_id:'c1',version_id:'v1',obra_id:'o1',obra:'CENTRO NORTE',empresa:'PLATINUM',trabajador_id:'w1',numero:12,nombre:'PERSONA FICTICIA UNO',contratista:'MG',fuente_adscripcion:'OBLIGACION',cuadrilla:'CUADRILLA UNO',periodicidad:'SEMANAL',semana:32,periodo_desde:'2026-11-02',periodo_hasta:'2026-11-08',fecha_pago:'2026-11-06',concepto:'NOMINA',metodo:'TRANSFERENCIA',estado_cierre:'AUTORIZADO',exigible:true,provisional:true,importe:3000,pagado_conciliado:3000,pendiente_conciliacion:0,pagado_registrado:3000,saldo:0,excedente:0,estado_pago:'CONCILIADO',respaldo_fiscal:'COINCIDE',operaciones:['EVD:e1'],pago_id:'p1',evidencia_id:'e1'},
+   {obligacion_id:'ob2',cierre_id:'c2',version_id:'v2',obra_id:'o2',obra:'CENTRO SUR',empresa:'PLATINUM',trabajador_id:'w2',numero:7,nombre:XSS,contratista:'Adscripción histórica pendiente',fuente_adscripcion:'PENDIENTE',cuadrilla:'Adscripción histórica pendiente',periodicidad:'SEMANAL',semana:23,periodo_desde:'2026-10-28',periodo_hasta:'2026-11-03',fecha_pago:'2026-11-01',concepto:'FINIQUITO',metodo:'CHEQUE',estado_cierre:'AUTORIZADO',exigible:true,provisional:false,importe:5000,pagado_conciliado:2500,pendiente_conciliacion:0,pagado_registrado:2500,saldo:2500,excedente:0,estado_pago:'PARCIAL',respaldo_fiscal:null,operaciones:['EVD:e2'],cheque_id:'ch2',evidencia_id:'e2',evidencia_autorizada:false}]},
+  plantilla:{accion:'PLANTILLA',medidas:{plantilla_actual:M(230,{unidad:'PERSONAS',desglose:{etiqueta:'Padrón actual al 2026-11-11; no depende del rango',fecha_corte:'2026-11-11'}}),altas:M(18,{unidad:'EVENTOS',variacion:{absoluta:3,porcentaje:20,incompleto:false}}),bajas:M(9,{unidad:'EVENTOS'}),reingresos:M(2,{unidad:'EVENTOS'}),
+    rotacion:M(3.9,{unidad:'PORCENTAJE',desglose:{bajas:9,activos_inicio:225,activos_cierre:230,formula_visible:'9 ÷ ((225 + 230) ÷ 2) × 100'}})},
+   eventos:{filas:[{tipo:'ALTA',fecha:'2026-11-03',obra_id:'o1',trabajador_id:'w9',origen:'FICHA'},{tipo:'REINGRESO',fecha:'2026-11-04',obra_id:'o2',trabajador_id:'w8',origen:'HISTORIAL'}],total:29,pagina:1,por_pagina:2},
+   tendencia:filas.filter(f=>f.obra_id==='o1').map((f,i)=>({periodo:'S'+f.semanas[0],etiqueta:'S'+f.semanas[0],desde:f.periodo_desde,hasta:f.periodo_hasta,altas:i%3,bajas:i%2,reingresos:i===5?1:0,plantilla:220+i})),
+   por_centro:[{obra_id:'o1',plantilla:130,altas:10,bajas:5,reingresos:1},{obra_id:'o2',plantilla:100,altas:8,bajas:4,reingresos:1}]}
  };
 }
 module.exports={estadoCompleto,XSS};
@@ -65,8 +75,9 @@ if(require.main!==module)return;
 const fuente=fs.readFileSync(RUTA,'utf8');
 const ast=acorn.parse(fuente,{ecmaVersion:'latest'});
 ok(ast.body.length===1&&ast.body[0].type==='ExpressionStatement'&&ast.body[0].expression.type==='CallExpression','el módulo es una sola IIFE sin declaraciones globales');
-ok(!/\bfetch\s*\(|XMLHttpRequest|WebSocket|EventSource|\bsb\s*\.|supabase|localStorage|sessionStorage|indexedDB|sendBeacon|\bimport\s*\(/i.test(fuente),'sin red, Supabase ni almacenamiento');
-ok(!/\beval\s*\(|new Function/.test(fuente),'sin eval');
+const codigo=fuente.replace(/\/\*[\s\S]*?\*\//g,'');
+ok(!/\bfetch\s*\(|XMLHttpRequest|WebSocket|EventSource|\bsb\s*\.|supabase|localStorage|sessionStorage|indexedDB|sendBeacon|\bimport\s*\(/i.test(codigo),'sin red, Supabase ni almacenamiento');
+ok(!/\beval\s*\(|new Function/.test(codigo),'sin eval');
 const css=fs.readFileSync(CSS,'utf8');
 ok(/@media print/.test(css)&&/prefers-reduced-motion/.test(css)&&/prefers-color-scheme:dark/.test(css)&&/\[data-theme="dark"\]/.test(css),'CSS con impresión, movimiento reducido y modo oscuro');
 ok(/var\(--card/.test(css)&&/var\(--navy/.test(css)&&/var\(--accent/.test(css),'CSS usa las variables de identidad PLATINUM');
@@ -79,6 +90,7 @@ function contexto(conEsc){
  const box={document,console,Date,Math,JSON,Number,String,Array,Object,Set,Map,WeakMap,Promise,Error,RegExp,Symbol,Intl,setTimeout,print:()=>impresiones.push(1)};
  box.window=box;box.globalThis=box;vm.createContext(box);
  if(conEsc)vm.runInContext(`const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));`,box);
+ if(conEsc&&fs.existsSync(MODELO))vm.runInContext(fs.readFileSync(MODELO,'utf8'),box,{filename:'76-tablero-modelo.js'});
  vm.runInContext(fuente,box,{filename:'77-tablero-vista.js'});
  return {box,window,document,V:box.PLATINUM_TABLERO_VISTA,impresiones};
 }
@@ -98,16 +110,19 @@ const refsAria=(raizEl)=>{let malos=[];for(const el of raizEl.querySelectorAll('
 
 /* ---------- 2. API y catálogos ---------- */
 ok(typeof V.render==='function'&&typeof V.pintarDetalle==='function'&&typeof V.formatos==='object'&&V.css==='assets/platinum-tablero.css','API expuesta en window.PLATINUM_TABLERO_VISTA');
-for(const k of ['neto_conciliado','pagado_registrado','pagado_conciliado','saldo_por_cubrir','excedentes','cobertura','pendiente_conciliacion','variacion','trabajadores_con_pago','promedio_pagado_trabajador','mediana_pagado_trabajador','saldo_por_antiguedad','cheques_por_estado','trabajadores_pago_parcial','concentracion_contratista','percepciones_retenciones','bruto','costo_patronal','plantilla_actual','altas','bajas','reingresos','rotacion'])
+for(const k of ['neto_conciliado','pagado_registrado','pagado_conciliado','saldo_por_cubrir','excedentes','cobertura','pendiente_conciliacion','variacion','trabajadores_con_pago','promedio_pagado_trabajador','mediana_pagado_trabajador','saldo_por_antiguedad','cheques_por_estado','trabajadores_pago_parcial','concentracion_contratista','percepciones_retenciones','bruto','costo_patronal','sin_asignar','respaldo_fiscal','plantilla_actual','altas','bajas','reingresos','rotacion'])
  ok(V.MEDIDAS[k]&&V.MEDIDAS[k].etiqueta&&V.MEDIDAS[k].definicion&&V.MEDIDAS[k].formula,'medida con etiqueta, definición y fórmula: '+k);
 eq(V.VISTAS.map(v=>v.clave),['GENERAL','NOMINA_PAGOS','CONCILIACION','PLANTILLA'],'cuatro vistas agrupadas');
 for(const v of V.VISTAS)ok(v.kpis.length>=6&&v.kpis.length<=8,'6 a 8 indicadores en '+v.clave);
+const MOD=box.PLATINUM_TABLERO_MODELO;
+if(MOD){for(const k of Object.keys(MOD.DEFINICIONES))ok(V.MEDIDAS[k]&&V.MEDIDAS[k].etiqueta,'cada medida del modelo tiene etiqueta en la vista: '+k);
+ eq(V.definicion('neto_conciliado').definicion,MOD.DEFINICIONES.neto_conciliado[0],'la definición viene del modelo (76)');eq(V.ADSCRIPCION_PENDIENTE,MOD.ADSCRIPCION_PENDIENTE,'misma etiqueta de adscripción pendiente que el modelo');}
 eq(Object.keys(V.CALIDAD).filter(k=>k!=='COMPLETO'),['CERO_CONFIRMADO','SIN_REGISTROS','INCOMPLETO','ERROR_LECTURA'],'estados de calidad del contrato');
 
 /* ---------- 3. Formatos ---------- */
 const F=V.formatos;
 eq(F.mxn(1234.5),'$1,234.50','MXN');eq(F.mxn(-5),'-$5.00','MXN negativo');eq(F.mxn(-0.001),'$0.00','sin -0');eq(F.mxn(null),'—','MXN nulo');
-eq(F.mxnFirmado(50000),'+$50,000.00','MXN con signo');eq(F.pct(0.853),'85.3%','porcentaje');eq(F.pctFirmado(-0.0084),'-0.8%','porcentaje con signo');eq(F.pp(-0.012),'-1.2 pp','puntos porcentuales');
+eq(F.mxnFirmado(50000),'+$50,000.00','MXN con signo');eq(F.pct(85.3),'85.3%','porcentaje en escala 0–100 como el modelo');eq(F.pctFirmado(-0.84),'-0.8%','porcentaje con signo');eq(F.pp(-1.2),'-1.2 pp','puntos porcentuales');eq(F.razon(0.5),'50.0%','razón');
 eq(F.fecha('2026-11-11'),'11/11/2026','fecha');eq(F.rango('2026-11-02','2026-11-08'),'02/11/2026 – 08/11/2026','rango');eq(F.fechaHora('2026-11-11T16:30:00Z'),'11/11/2026 10:30','fecha y hora CDMX');
 eq(F.mxnCompacto(1250000),'$1.25 M','compacto');eq(F.entero(2100),'2,100','entero');
 
@@ -137,7 +152,9 @@ ok(/% no disponible/.test(texto(kp('excedentes'))),'variación % con comparable 
 ok(/Provisional/.test(texto(q('.tb-kpi-cab',kp('saldo_por_cubrir')))),'marca Provisional por medida');
 ok(/Con saldo por cubrir/.test(texto(kp('saldo_por_cubrir')))&&/Sin excedentes/.test(texto(kp('excedentes'))),'estado de negocio en texto');
 ok(/3 operaciones/.test(texto(kp('pendiente_conciliacion')))&&texto(q('.tb-kpi-valor',kp('pendiente_conciliacion')))==='$10,000.00','pendiente: importe y operaciones');
-ok(/pagado conciliado ÷ neto conciliado/.test(texto(kp('cobertura'))),'fórmula visible en cobertura');
+ok(/pagado.conciliado ÷ neto.conciliado/.test(texto(kp('cobertura'))),'fórmula visible en cobertura');
+ok(/-1\.2 pp/.test(texto(q('.tb-kpi-var',kp('cobertura')))),'variación de porcentaje en puntos');
+if(MOD)ok(texto(q('.tb-def',kp('neto_conciliado'))).includes(MOD.DEFINICIONES.neto_conciliado[0]),'definición del modelo en el indicador');
 ok(/Cobertura parcial/.test(texto(kp('cobertura')))&&texto(q('.tb-kpi-valor',kp('cobertura')))==='94.4%','cobertura en %');
 
 /* ---------- 5. Accesibilidad estructural ---------- */
@@ -167,25 +184,25 @@ const pc=q('[data-graf-id="por_centro"]');
 ok(/Panorama general/.test(texto(q('.tb-insignia--pan',pc)))&&/Fuera de la selección/.test(texto(q('.tb-graf-desc',pc))),'panorama general identificado y explicado');
 const fuera=qa('.tb-barra--fuera',pc);eq(fuera.length,2,'centros fuera de la selección atenuados');
 ok(fuera.every(b=>/Fuera de la selección/.test(texto(b))),'fuera de la selección dicho con texto');
-ok(/S1–S45 · 05\/01\/2026 – 08\/11\/2026/.test(texto(pc))&&/07\/01\/2026 – 10\/11\/2026/.test(texto(pc)),'comparación entre centros con fechas reales de cada periodo');
+ok(/Semanas 21–32 · 24\/08\/2026 – 15\/11\/2026/.test(texto(pc))&&/Semanas 12–23 · 26\/08\/2026 – 17\/11\/2026/.test(texto(pc)),'comparación entre centros con fechas reales de cada periodo');
 const tend=q('[data-graf-id="tendencia"]');
 ok(/02\/11\/2026 – 08\/11\/2026/.test(texto(tend))&&/04\/11\/2026 – 10\/11\/2026/.test(texto(tend))&&/Fechas reales de cada periodo por centro/.test(texto(tend)),'tendencia con fechas reales por centro');
 ok(/Provisional \(periodo abierto\)/.test(texto(tend)),'tabla de tendencia indica periodo abierto');
-const antig=qa('[data-graf-id="saldo_antiguedad"] .tb-barra-nom').map(texto);eq(antig,['0–7 días','8–14 días','15–30 días','31–60 días','Más de 60 días'],'tramos de antigüedad en orden');
+const antig=qa('[data-graf-id="saldo_antiguedad"] .tb-barra-nom').map(texto);eq(antig,['Por vencer','0–7 días','8–14 días','15–30 días','31–60 días','Más de 60 días'],'tramos de antigüedad en orden');
 ok(/Total/.test(texto(q('[data-graf-id="por_medio"] tfoot')))&&/\$1,190,000\.00/.test(texto(q('[data-graf-id="por_medio"] tfoot'))),'tabla de medios con total');
 ok(/Adscripción histórica pendiente/.test(texto(q('.tb-pend')))&&/3 obligaciones con «Adscripción histórica pendiente»/.test(texto(q('.tb-avisos'))),'adscripción histórica pendiente en fila y aviso');
 ok(q('tr.tb-fila-prov')&&/Provisional/.test(texto(q('tr.tb-fila-prov'))),'fila provisional marcada con texto');
-ok(/Incluye periodos abiertos \(S45\)/.test(texto(q('.tb-avisos'))),'aviso de periodos abiertos');
+ok(/Incluye periodos abiertos/.test(texto(q('.tb-avisos'))),'aviso de periodos abiertos');
 const filasDet=qa('[aria-labelledby$="-det-t"] tbody tr');eq(filasDet.length,2,'filas de detalle paginadas');
 ok(q('[data-accion="evidencia"][data-id="e1"]',filasDet[0])&&!q('[data-accion="evidencia"]',filasDet[1])&&/Evidencia restringida/.test(texto(filasDet[1])),'evidencia sólo autorizada');
 ok(/Página 1 de 60 · filas 1–2 de 120/.test(texto(q('nav[aria-label="Paginación de detalle"]'))),'paginación del detalle');
 ok(/Página 1 de 2/.test(texto(q('nav[aria-label="Paginación de excepciones"]'))),'paginación de excepciones');
 ok(q('th.tb-num')&&qa('td.tb-num').length>5,'cifras alineadas a la derecha');
-ok(/Alcance aplicado/.test(texto(q('.tb-alcance')))&&/Centros: CENTRO NORTE, CENTRO SUR/.test(texto(q('.tb-alcance-txt')))&&/Periodo de nómina: Ejercicio actual 01\/01\/2026 – 11\/11\/2026/.test(texto(q('.tb-alcance-txt')))&&/Contratista: MG/.test(texto(q('.tb-alcance-txt'))),'resumen visible del alcance aplicado');
+ok(/Alcance aplicado/.test(texto(q('.tb-alcance')))&&/Centros: CENTRO NORTE, CENTRO SUR/.test(texto(q('.tb-alcance-txt')))&&/Periodo de nómina: Ejercicio a la fecha 01\/01\/2026 – 11\/11\/2026/.test(texto(q('.tb-alcance-txt')))&&/Contratista: MG/.test(texto(q('.tb-alcance-txt'))),'resumen visible del alcance aplicado');
 ok(/Actualizado: 11\/11\/2026 10:30/.test(texto(q('.tb-actualizado'))),'fecha de actualización visible');
 ok(/Toma las obligaciones cuyo periodo de nómina/.test(texto(q('.tb-persp')))&&qa('.tb-persp .tb-sr').length===2,'ambas perspectivas explicadas');
 const defs=texto(q('.tb-defs-imp'));
-ok(V.VISTAS[0].kpis.every(k=>defs.includes(V.MEDIDAS[k].definicion))&&/Fecha efectiva de pago/.test(defs)&&/Error de lectura/.test(defs),'definiciones para impresión');
+ok(V.VISTAS[0].kpis.every(k=>defs.includes(V.definicion(k).definicion))&&/Fecha efectiva de pago/.test(defs)&&/Error de lectura/.test(defs),'definiciones para impresión');
 
 /* ---------- 7. Escape de texto ---------- */
 ok(!qa('img,script,u').length&&!qa('[onerror]').length,'ningún texto se interpreta como HTML');
@@ -197,9 +214,11 @@ eq([ultima().nombre,ultima().args[0],ultima().args[1].origen,ultima().args[1].vi
 click(q('[data-accion="detalle"][data-valor="o1"]',pc));
 eq([ultima().args[0],ultima().args[1].dimension,ultima().args[1].valor],['neto_conciliado','obra','o1'],'barra por centro abre detalle');
 click(q('[data-graf-id="saldo_antiguedad"] [data-accion="detalle"]'));eq([ultima().args[0],ultima().args[1].dimension],['saldo_por_antiguedad','tramo'],'barra de antigüedad abre detalle');
-click(q('[data-accion="detalle"][data-clave="tendencia"][data-valor="S34"]'));eq([ultima().args[0],ultima().args[1].valor],['tendencia','S34'],'periodo de la tabla de tendencia abre detalle');
-click(q('[data-accion="detalle"]',filasDet[0]));eq([ultima().nombre,ultima().args[0],ultima().args[1].fila.obligacion_id],['abrirDetalle','det-1','ob1'],'fila de detalle abre su detalle');
-click(q('[data-accion="detalle"][data-fuente="excepciones"]'));eq(ultima().args[0],'exc-1','fila de excepción abre su detalle');
+click(q('[data-accion="detalle"][data-clave="tendencia"][data-valor="2026-08-24"]'));eq([ultima().args[0],ultima().args[1].valor],['tendencia','2026-08-24'],'periodo de la tabla de tendencia abre detalle');
+click(q('[data-accion="detalle"]',filasDet[0]));eq([ultima().nombre,ultima().args[0],ultima().args[1].fila.obligacion_id],['abrirDetalle','ob1','ob1'],'fila de detalle abre su detalle');
+click(q('[data-accion="detalle"][data-fuente="excepciones"]'));ok(ultima().args[0].startsWith('EXCEDENTE_APLICADO:ob1:c1'),'fila de excepción abre su detalle con llave estable');
+const exc2=qa('[aria-labelledby$="-exc-t"] tbody tr')[1];click(q('[data-accion="pago"]',exc2));eq(ultima().args[0],'p10','excepción abre pago por sus llaves');click(q('[data-accion="evidencia"]',exc2));eq(ultima().args[0],'e10','excepción abre evidencia');
+ok(/Excedente aplicado/.test(texto(q('[aria-labelledby$="-exc-t"]')))&&/Crítica/.test(texto(q('[aria-labelledby$="-exc-t"]'))),'tipo y severidad del modelo en texto');
 click(q('[data-accion="trabajador"]',filasDet[0]));eq([ultima().nombre,ultima().args[0]],['abrirTrabajador','w1'],'abre trabajador');
 click(q('[data-accion="cierre"]',filasDet[0]));eq([ultima().nombre,ultima().args[0]],['abrirCierre','c1'],'abre cierre');
 click(q('[data-accion="pago"]',filasDet[0]));eq([ultima().nombre,ultima().args[0]],['abrirPago','p1'],'abre pago');
@@ -221,10 +240,11 @@ V.render(host,E0,A);
 /* filtros */
 const sel=(el,v)=>{el.value=v;ev(el,'change');};
 limpiar();sel(q('select[data-filtro="empresa"]'),'JIRE');eq(ultima().args[0],{empresa:'JIRE',obras:[]},'razón social');
-sel(q('select[data-filtro="preset"]'),'MES');eq(ultima().args[0],{preset:'MES'},'preset');
+sel(q('select[data-filtro="tipo_periodo"]'),'MES');eq(ultima().args[0],{tipo_periodo:'MES'},'rango con nombre (tipo_periodo del modelo)');
 sel(q('select[data-filtro="comparar"]'),'ANIO_ANTERIOR');eq(ultima().args[0],{comparar:'ANIO_ANTERIOR'},'comparación');
+sel(q('select[data-filtro="comparar"]'),'NINGUNO');eq(ultima().args[0],{comparar:null},'sin comparación = null');
 const radio=q('input[type="radio"][value="PAGO"]');radio.checked=true;ev(radio,'change');eq(ultima().args[0],{perspectiva:'PAGO'},'perspectiva');
-const desde=q('input[data-filtro="desde"]');desde.value='2026-03-01';ev(desde,'change');eq(ultima().args[0],{preset:'PERSONALIZADO',desde:'2026-03-01'},'fecha personalizada');
+const desde=q('input[data-filtro="desde"]');desde.value='2026-03-01';ev(desde,'change');eq(ultima().args[0],{tipo_periodo:'PERSONALIZADO',desde:'2026-03-01'},'fecha personalizada');
 limpiar();const desde2=q('input[data-filtro="desde"]');desde2.value='2026-12-31';ev(desde2,'change');eq(llamadas.length,0,'rango inválido no emite');
 ok(/no puede ser posterior/.test(texto(q('.tb-error-campo')))&&q('input[data-filtro="desde"]').getAttribute('aria-invalid')==='true','error de rango visible y asociado');
 eq(refsAria(host),[],'aria válido con error de fecha');
@@ -236,7 +256,8 @@ ok(!panel.hasAttribute('hidden')&&q('[data-accion="ms-abrir"][data-filtro="obras
 ok(q('input[type="search"][aria-label="Buscar en Centros de trabajo"]',panel),'búsqueda etiquetada');
 eq(qa('input[type="checkbox"]',panel).filter(i=>i.hasAttribute('checked')).map(i=>i.value),['o1','o2'],'selección actual marcada');
 const busca=q('input[type="search"]',panel);busca.value='poni';ev(busca,'input');
-eq(qa('li[data-texto]',panel).filter(li=>!li.hasAttribute('hidden')).map(li=>texto(li)),['CENTRO PONIENTE'],'la búsqueda filtra opciones');
+eq(qa('li[data-texto]',panel).length,4,'centros filtrados por razón social');
+eq(qa('li[data-texto]',panel).filter(li=>!li.hasAttribute('hidden')).map(li=>q('input',li).value),['o3'],'la búsqueda filtra opciones');
 busca.value='zzz';ev(busca,'input');ok(!q('.tb-ms-vacio',panel).hasAttribute('hidden'),'sin coincidencias explicado');
 busca.value='poni';ev(busca,'input');
 click(q('[data-accion="ms-todos"]',panel));panel=q('.tb-ms--abierto');
@@ -249,7 +270,7 @@ click(q('[data-accion="ms-abrir"][data-filtro="obras"]'));tecla(q('.tb-ms--abier
 click(q('[data-accion="ms-abrir"][data-filtro="obras"]'));click(q('.tb-ms--abierto [data-accion="ms-ninguno"]'));limpiar();click(q('.tb-ms--abierto [data-accion="ms-aplicar"]'));eq(ultima().args[0],{obras:[]},'sin marcas = todos');
 click(q('[data-accion="mas-filtros"]'));ok(!q('.tb-filtros-mas').hasAttribute('hidden')||q('[data-accion="mas-filtros"]').getAttribute('aria-expanded')==='false','más filtros alterna');
 ok(['contratistas','cuadrillas','periodicidades','periodos','conceptos','medios'].every(k=>q(`[data-accion="ms-abrir"][data-filtro="${k}"]`)),'filtros de contratista, cuadrilla, periodicidad, semana, concepto y medio');
-click(q('[data-accion="ms-abrir"][data-filtro="periodos"]'));ok(qa('.tb-ms--abierto .tb-ms-grupo').map(texto).join('|')==='CENTRO NORTE|CENTRO SUR'&&/02\/11\/2026 – 08\/11\/2026/.test(texto(q('.tb-ms--abierto'))),'semanas agrupadas por centro con fechas reales');
+click(q('[data-accion="ms-abrir"][data-filtro="periodos"]'));eq(qa('.tb-ms--abierto .tb-ms-op').map(texto),['Semana 44','Semana 45'],'semanas internas etiquetadas');
 click(q('.tb-ms--abierto [data-accion="ms-cancelar"]'));
 
 /* definiciones, tablas alternativas y modo tabla */
@@ -269,10 +290,10 @@ tecla(q('[role="tab"][data-vista="PLANTILLA"]'),'ArrowRight');eq(ultima().args[0
 click(q('[role="tab"][data-vista="CONCILIACION"]'));eq(ultima().args[0],'CONCILIACION','clic en pestaña');
 V.render(host,E0,A);
 const lienzo=q('.tb-lienzo[data-graf="tendencia"]');tecla(lienzo,'ArrowRight');
-ok(!q('.tb-tip',lienzo).hasAttribute('hidden')&&/S34 · 17\/08\/2026 – 23\/08\/2026/.test(texto(q('.tb-tip',lienzo)))&&/\$100,000\.00/.test(texto(q('.tb-tip',lienzo))),'flechas muestran el valor del periodo');
+ok(!q('.tb-tip',lienzo).hasAttribute('hidden')&&/Semana del 24\/08\/2026 · 24\/08\/2026 – 30\/08\/2026/.test(texto(q('.tb-tip',lienzo)))&&/\$100,000\.00/.test(texto(q('.tb-tip',lienzo))),'flechas muestran el valor del periodo');
 ok(q('.tb-cruz',lienzo).getAttribute('visibility')==='visible','línea guía visible');
-tecla(lienzo,'End');ok(/S45 · .*Provisional/.test(texto(q('.tb-tip',lienzo))),'último periodo provisional');
-limpiar();tecla(lienzo,'Enter');eq([ultima().args[0],ultima().args[1].dimension,ultima().args[1].valor],['tendencia','periodo','S45'],'Enter abre el detalle del periodo');
+tecla(lienzo,'End');ok(/Semana del 09\/11\/2026 · .*Provisional/.test(texto(q('.tb-tip',lienzo))),'último periodo provisional');
+limpiar();tecla(lienzo,'Enter');eq([ultima().args[0],ultima().args[1].dimension,ultima().args[1].valor],['tendencia','periodo','2026-11-09'],'Enter abre el detalle del periodo');
 tecla(lienzo,'Escape');ok(q('.tb-tip',lienzo).hasAttribute('hidden'),'Escape oculta el valor');
 
 /* ---------- 9. Todas las vistas ---------- */
@@ -284,11 +305,16 @@ for(const v of V.VISTAS){
  ok(!qa('img,script,u').length,'escape en '+v.clave);
 }
 V.render(host,{...E0,vista:'NOMINA_PAGOS'},A);eq(qa('figure.tb-graf').map(f=>f.getAttribute('data-graf-id')),['tendencia','por_contratista','por_medio','cheques_estado'],'gráficas de Nómina y pagos');
-eq(qa('[data-graf-id="cheques_estado"] .tb-barra-nom').map(texto),['Pendiente','Entregado','Cancelado'],'cheques por estado en orden de proceso');
-V.render(host,{...E0,vista:'CONCILIACION'},A);ok(q('[data-graf-id="pendiente_motivo"]')&&/Pago sin asignar/.test(texto(q('[data-graf-id="pendiente_motivo"]'))),'pendiente por motivo');
+ok(/Reposiciones: 2/.test(texto(q('[data-graf-id="cheques_estado"]'))),'reposiciones y cobro explicados');
+eq(qa('[data-graf-id="cheques_estado"] .tb-barra-nom').map(texto),['Pendiente','Expedido','Entregado','Cancelado'],'cheques por estado en orden de proceso');
+V.render(host,{...E0,vista:'CONCILIACION'},A);ok(q('[data-graf-id="pendiente_motivo"]')&&/Operación registrada sin aplicar/.test(texto(q('[data-graf-id="pendiente_motivo"]'))),'pendiente por motivo');
 V.render(host,{...E0,vista:'PLANTILLA'},A);
-ok(/Padrón al 11\/11\/2026/.test(texto(kp('plantilla_actual')))&&/bajas ÷/.test(texto(kp('rotacion'))),'plantilla con etiqueta de alcance y rotación con fórmula visible');
-ok(q('[data-graf-id="plantilla_tendencia"] svg[role="img"]')&&q('[aria-labelledby$="-cal-t"] table'),'movimientos y calidad por centro');
+ok(/Padrón actual al 2026-11-11/.test(texto(kp('plantilla_actual')))&&/bajas ÷/.test(texto(kp('rotacion')))&&/Cálculo: 9 ÷ \(\(225 \+ 230\) ÷ 2\) × 100/.test(texto(kp('rotacion'))),'plantilla con etiqueta de alcance y rotación con fórmula visible');
+ok(q('[data-graf-id="plantilla_tendencia"] svg[role="img"]')&&q('[aria-labelledby$="-cal-t"] table')&&/32 de 32/.test(texto(q('[aria-labelledby$="-cal-t"]'))),'movimientos y calidad por centro');
+ok(/Detalle de movimientos de personal/.test(texto(host))&&/Reingreso/.test(texto(q('[aria-labelledby$="-det-t"]')))&&/Bitácora de movimientos/.test(texto(q('[aria-labelledby$="-det-t"]')))&&/CENTRO SUR/.test(texto(q('[aria-labelledby$="-det-t"]'))),'detalle de eventos de plantilla');
+click(q('[aria-labelledby$="-det-t"] [data-accion="trabajador"]'));eq(ultima().args[0],'w9','evento abre trabajador');
+click(q('[aria-labelledby$="-det-t"] [data-accion="pagina"][data-pagina="2"]'));eq(ultima().args,['plantilla',2],'paginación de eventos');
+V.render(host,{...E0,vista:'NOMINA_PAGOS'},A);ok(qa('[data-graf-id="por_contratista"] .tb-pend').length>=2,'contratista con adscripción pendiente marcado');
 
 /* ---------- 10. Estados: carga, refresco, error, vacío, no disponible, calidad, desactualizado ---------- */
 V.render(host,{filtros:E0.filtros,catalogos:E0.catalogos,cargando:true},A);
@@ -307,7 +333,7 @@ click(q('[data-foco="reintentar-todo"]'));eq(ultima().args[0],'todo','reintentar
 const vacio=estadoCompleto();vacio.resumen.vacio=true;vacio.detalle={grano:'OBLIGACION',filas:[],total:0,pagina:1,por_pagina:50};vacio.excepciones={filas:[],total:0};vacio.tendencia={serie:[]};vacio.comparativos={};
 V.render(host,vacio,A);
 ok(/No hay registros para este alcance/.test(texto(q('.tb-avisos'))),'vacío general explicado');
-ok(/No hay obligaciones cuyo periodo de nómina caiga en el rango.*Fecha efectiva de pago/.test(texto(q('[aria-labelledby$="-det-t"]'))),'detalle vacío explica la perspectiva');
+ok(/No hay obligaciones cuyo periodo de nómina se pague en el rango.*Fecha efectiva de pago/.test(texto(q('[aria-labelledby$="-det-t"]'))),'detalle vacío explica la perspectiva');
 ok(/Sin excepciones/.test(texto(q('[aria-labelledby$="-exc-t"]')))&&/Sin periodos para graficar/.test(texto(q('[data-graf-id="tendencia"]'))),'excepciones y gráficas vacías explicadas');
 limpiar();click(q('[aria-labelledby$="-det-t"] [data-accion="restablecer"]'));eq(ultima().nombre,'restablecer','vacío ofrece restablecer');
 vacio.filtros={...vacio.filtros,perspectiva:'PAGO'};V.render(host,vacio,A);ok(/No hay operaciones con fecha efectiva de pago/.test(texto(q('[aria-labelledby$="-det-t"]'))),'vacío según perspectiva de pago');
@@ -318,7 +344,7 @@ ok(/No disponible/.test(texto(q('.tb-kpi-estado',kp('cobertura')))),'estado text
 ok(texto(q('.tb-kpi-valor',kp('excedentes')))==='No disponible'&&/no entrega esta medida/.test(texto(kp('excedentes'))),'medida ausente: no disponible');
 ok(texto(q('.tb-kpi-valor',kp('neto_conciliado')))==='$0.00','cero se distingue de no disponible');
 V.render(host,{...nd,indicadores:{GENERAL:['neto_conciliado','costo_patronal','cobertura','saldo_por_cubrir','excedentes','pagado_registrado']}},A);
-ok(/Sin base de cálculo/.test(texto(kp('costo_patronal'))),'costo patronal sin fuente');eq(qa('.tb-kpi').length,6,'indicadores configurables por vista');
+ok(/no hay base de cálculo/.test(texto(kp('costo_patronal'))),'costo patronal sin fuente');eq(qa('.tb-kpi').length,6,'indicadores configurables por vista');
 const cal=estadoCompleto();cal.vista='PLANTILLA';cal.resumen.calidad=[{obra_id:'o1',obra:'CENTRO NORTE',estado:'CERO_CONFIRMADO'},{obra_id:'o2',obra:'CENTRO SUR',estado:'SIN_REGISTROS'},{obra_id:'o3',obra:'CENTRO PONIENTE',estado:'INCOMPLETO'},{obra_id:'o4',obra:XSS,estado:'ERROR_LECTURA'}];
 V.render(host,cal,A);
 const tCal=texto(q('[aria-labelledby$="-cal-t"] table'));
@@ -332,10 +358,14 @@ ok(/puede estar desactualizado/.test(texto(q('.tb-actualizado')))&&/posiblemente
 limpiar();click(q('[data-foco="actualizar-aviso"]'));eq([ultima().nombre,ultima().args[0]],['reintentar','todo'],'actualizar desde el aviso');
 V.render(host,{...E0,ahora:'2026-11-11T17:30:00Z',vigencia_minutos:30},A);ok(/posiblemente desactualizados/.test(texto(q('.tb-avisos'))),'vigencia calculada con hora inyectada');
 V.render(host,{...E0,filtros:{...E0.filtros,comparar:'NINGUNO'}},A);ok(qa('.tb-kpi-var').every(v=>/Comparación desactivada/.test(texto(v))),'comparación desactivada explicada');
+const cp=estadoCompleto();cp.resumen.comparable={...cp.resumen.comparable,incompleto:true,motivos:['PERIODO_EN_CURSO','CALIDAD_ACTUAL_INCOMPLETA']};cp.resumen.alcance.restringido={prevision_social:true,obras_no_autorizadas:1,datos_internos:true};
+V.render(host,cp,A);ok(/Comparación parcial contra 01\/01\/2025 – 11\/11\/2025: el periodo sigue en curso/.test(texto(q('.tb-avisos'))),'motivos de comparación parcial');ok(/Vista limitada por permisos.*1 centros solicitados/.test(texto(q('.tb-avisos'))),'usuario restringido explicado');
+const pg=estadoCompleto();pg.filtros.perspectiva='PAGO';V.render(host,pg,A);eq(qa('[data-graf-id="tendencia"] .tb-leyenda li').map(texto),['Pagado registrado','Pagado conciliado (aplicado)','Pendiente de conciliación'],'series según la perspectiva de pago');
+ok(/Calculado por periodo de nómina/.test(texto(kp('neto_conciliado'))),'medida calculada en otra perspectiva lo indica');
 
 /* ---------- 11. Detalle reutilizable, impresión de respaldo y escape sin `esc` ---------- */
 const det=document.getElementById('det');limpiar();
-V.pintarDetalle(det,{titulo:'Obligación ficticia',fila:E0.detalle.filas[1],campos:[{clave:'nombre',etiqueta:'Trabajador'},{clave:'cuadrilla',etiqueta:'Cuadrilla'},{clave:'neto_conciliado',etiqueta:'Neto conciliado',tipo:'MXN'}]},A);
+V.pintarDetalle(det,{titulo:'Obligación ficticia',fila:E0.detalle.filas[1],campos:[{clave:'nombre',etiqueta:'Trabajador'},{clave:'cuadrilla',etiqueta:'Cuadrilla'},{clave:'importe',etiqueta:'Neto conciliado',tipo:'MXN'}]},A);
 ok(/Adscripción histórica pendiente/.test(texto(det))&&/\$5,000\.00/.test(texto(det))&&!qa('img,script,u',det).length,'panel de detalle con escape y adscripción');
 click(q('[data-accion="trabajador"]',det));eq([ultima().nombre,ultima().args[0]],['abrirTrabajador','w2'],'detalle abre trabajador');
 click(q('[data-accion="cierre"]',det));eq(ultima().args[0],'c2','detalle abre cierre');
