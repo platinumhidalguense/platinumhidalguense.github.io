@@ -41,3 +41,5 @@ supabase/.temp/
 
 # Importación bancaria histórica: migración operativa privada.
 supabase/migrations/*_pagos_historicos_conciliados.sql
+
+supabase/migrations/*_pagos_historicos_ciclo_documentado.sql

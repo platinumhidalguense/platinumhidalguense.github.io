@@ -32,6 +32,8 @@ let n=0;const eq=(a,b,m)=>{assert.deepEqual(a,b,m);n++;};
  for(const d of JSON.parse(fs.readFileSync(path.join(work,'consumidores_antes.json'))))await db.exec(d.definicion);
  const file=fs.readdirSync('supabase/migrations').find(x=>x.endsWith('_pagos_historicos_conciliados.sql'));
  await db.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));
+ const ciclo=fs.readdirSync('supabase/migrations').find(x=>x.endsWith('_pagos_historicos_ciclo_documentado.sql'));
+ if(ciclo)await db.exec(fs.readFileSync('supabase/migrations/'+ciclo,'utf8'));
  const call=async(rol,acc,j)=>{await actor(db,rol);try{return(await db.query('select public.control_importacion_bancaria($1,$2) r',[acc,JSON.stringify(j)])).rows[0].r;}finally{await db.exec('reset role');}};
  const ctx={empresa_codigo:'PLATINUM',anio:2026,periodicidad:'SEMANAL',semana:26,concepto:'FINIQUITO'};
  const cid=crypto.randomUUID(),vid=crypto.randomUUID(),oid=crypto.randomUUID(),qid=crypto.randomUUID();
@@ -200,6 +202,15 @@ let n=0;const eq=(a,b,m)=>{assert.deepEqual(a,b,m);n++;};
  const concurrentes=await Promise.all([call('admin','CONFIRMAR',{archivo_id:b.id,revision:b.revision,confirmado:true,confirmaciones:[{fila:1}]}),call('admin','CONFIRMAR',{archivo_id:b.id,revision:b.revision,confirmado:true,confirmaciones:[{fila:1}]})]);
  eq(concurrentes.map(x=>x.repetido),[true,true],'solicitudes concurrentes idempotentes');
  eq(Number((await owner(db,'select sum(importe) n from control_pago_aplicaciones where obligacion_id=$1 and retirado_en is null',[rr.resultados[0].obligacion_id])).rows[0].n),300,'saldo íntegro tras doble solicitud');
+ // La fotografía real antigua puede omitir las fichas del modelo: el ciclo
+ // se recupera del cálculo ya aplicado, no del reingreso actual.
+ await owner(db,"update control_cierre_versiones set snapshot=jsonb_set(snapshot,'{modelo,filas}','[]') where id=$1",[sinConfirmar.v]);
+ const bajaHistorica=(await owner(db,"select snapshot->>'desde' d from control_cierre_versiones where id=$1",[sinConfirmar.v])).rows[0].d;
+ await owner(db,"insert into auditoria_calculos_nomina(id,obra_id,trabajador_id,empresa_codigo,formula_version,actor_id,huella_sha256,tipo_calculo,periodo,entradas,monto_aplicado)values(gen_random_uuid(),$1,$2,'PLATINUM','PRUEBA',$3,'HUELLA-CICLO-FICTICIA','FINIQUITO_APLICADO',$4,jsonb_build_object('fecha_calculo',$4::text,'fecha_antiguedad','2026-01-01'),500)",[ids.obra,sinConfirmar.w,ids.admin,bajaHistorica]);
+ b=await call('admin','ABRIR',{archivo_id:b.id});
+ const fHist=(await owner(db,"select platinum_internal.banco_fuentes($1,2026,'SEMANAL') f",[ids.obra])).rows[0].f.find(f=>f.obligacion_id===sinConfirmar.ob);
+ eq(fHist.fecha_baja,bajaHistorica,'baja desde auditoría aplicada cuando falta en fotografía');eq(fHist.ciclo_desde,'2026-01-01','ciclo original, no reingreso posterior');
+ const bancoCiclo=await archivo([sinConfirmar.row],sinConfirmar.contexto);rr=await confirmar(bancoCiclo,'CANCELAR');eq(rr.resultados[0].estado,'CHEQUE_CANCELADO','recupera y concluye el finiquito histórico sin ficha dentro del snapshot');
  console.log('PASS banco histórico PostgreSQL: '+n+' comprobaciones.');
 }finally{await db.close();}})().catch(e=>{console.error(e.message,e.detail||'',String(e.where||'').slice(0,900),e.stack?.split('\n').slice(1,3).join('\n'));process.exitCode=1;});
 
