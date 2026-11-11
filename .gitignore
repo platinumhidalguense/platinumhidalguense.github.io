@@ -34,3 +34,7 @@ supabase/migrations/*_firmantes_contratos_empresas.sql
 
 # Aguinaldo aplicado a nómina y faltas históricas: SQL operativo privado.
 supabase/migrations/*_aguinaldo_faltas_historicas.sql
+
+# Tablero ejecutivo y respaldo integral: SQL operativo privado.
+supabase/migrations/*_tablero_indicadores.sql
+supabase/migrations/*_respaldo_marcas.sql
