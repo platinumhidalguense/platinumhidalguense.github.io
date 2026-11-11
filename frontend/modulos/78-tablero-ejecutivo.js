@@ -342,7 +342,7 @@
   if(!clave&&!ctx.grano)return null;
   const medida=clave==='tendencia'||!clave?'neto_conciliado':clave,grano=ctx.grano||granoDe(medida),ajuste=ajusteDimension(ctx.dimension,ctx.valor);
   const titulo=[ctx.titulo||etiqueta(medida),ctx.etiqueta||(ctx.valor&&ctx.dimension?String(ctx.valor):'')].filter(Boolean).join(' · ');
-  S.detalle={spec:{medida,grano,dimension:ctx.dimension||null,valor:ctx.valor??null,ajuste,titulo,origen:ctx.origen||null},pagina:1,por_pagina:CFG.por_pagina,busqueda:'',focoOrigen:S.ultimoFoco};
+  S.detalle={spec:{medida,grano,dimension:ctx.dimension||null,valor:ctx.valor??null,ajuste,titulo,origen:ctx.origen||null},pagina:1,por_pagina:CFG.por_pagina,busqueda:'',focoOrigen:claveFoco()||S.ultimoFoco||(ctx.origen==='indicador'?'kpi-'+medida:null)};
   S.enfocarDetalle=true;delete S.datos.detalle;
   return cargarDetalle();
  }
@@ -540,7 +540,7 @@
  const tipoFila=f=>f&&f.tipo&&f.descripcion!==undefined?'EXCEPCION':f&&f.operacion_id&&!f.obligacion_id||f&&f.fecha_efectiva!==undefined?'OPERACION':'OBLIGACION';
  function panel(titulo,fila,tipo){
   if(typeof modal2!=='function'){avisar(titulo,'');return null;}
-  S.focoPanel={clave:S.ultimoFoco,el:S.ultimoEl};
+  const a=doc().activeElement,dentro=a&&a!==doc().body&&S.raiz&&S.raiz.contains(a);S.focoPanel={clave:dentro?claveFoco():S.ultimoFoco,el:dentro?a:S.ultimoEl};
   const campos=CAMPOS[tipo].filter(([k])=>fila&&fila[k]!==undefined&&fila[k]!==null&&fila[k]!=='').map(([clave,etq,t])=>({clave,etiqueta:etq,tipo:t}));
   modal2(`<div class="m-head"><h2 id="tablero-panel-t" tabindex="-1">${E(titulo)}</h2><button type="button" class="x" data-tablero-panel="cerrar" aria-label="Cerrar ${E(titulo)}">×</button></div><div class="m-body" id="tablero-panel"></div>`,'md');
   const ovs=$id('modals').querySelectorAll('.overlay'),ov=ovs[ovs.length-1],cont=ov.querySelector('#tablero-panel');
@@ -572,6 +572,7 @@
  /* ---------------- Navegación al detalle operativo ---------------- */
  const confirmar=m=>typeof G.confirm==='function'?!!G.confirm(m):false;
  function elementoOrigen(){
+  const d=doc(),a=d&&d.activeElement;if(a&&a!==d.body&&S.raiz&&S.raiz.contains(a))return a;
   const el=S.ultimoEl;if(el&&el.isConnected)return el;
   const k=S.ultimoFoco;return k&&S.raiz?S.raiz.ownerDocument.querySelector(`[data-foco="${css(k)}"],[data-tablero-foco="${css(k)}"]`):null;
  }

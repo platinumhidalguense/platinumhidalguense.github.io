@@ -90,7 +90,7 @@ Object.assign(box,{toast:(s,t)=>toasts.push({s,t}),esVip:()=>box.USER.id==='u-ad
  PLATINUM_CONCILIADOR:{archivoBancario:async ruta=>{archivos.push({ruta});}}});
 box.OBRA_LECTURA_VERIFICADA={obra:'O1',sesion:'u-admin:true'};
 const T=box.PLATINUM_TABLERO,P=T._pruebas,S=P.S,$=i=>document.getElementById(i),q=s=>document.querySelector(s),qa=s=>[...document.querySelectorAll(s)];
-const click=el=>{assert(el,'elemento inexistente');el.dispatchEvent(new window.Event('click',{bubbles:true}));};
+const click=el=>{assert(el,'elemento inexistente');if(el.tagName==='BUTTON')el.focus();el.dispatchEvent(new window.Event('click',{bubbles:true}));};
 const tecla=(el,key)=>el.dispatchEvent(Object.assign(new window.Event('keydown',{bubbles:true,cancelable:true}),{key}));
 const desdeIdx=e=>eventos.indexOf(e);
 const tiempos={};
@@ -164,7 +164,7 @@ const tiempos={};
  antes=llamadas.length;for(const t of ['F','FI','FIC','FICT','FICTICIA'])T.acciones.buscarDetalle(t);await espera(40);await tick(10);
  const busq=llamadas.slice(antes).filter(c=>c.accion==='DETALLE');eq([busq.length,busq[0]&&busq[0].datos.busqueda,busq[0]&&busq[0].datos.pagina],[1,'FICTICIA',1],'búsqueda con debounce: una sola consulta');
  tecla(q('section[aria-labelledby$="-det-t"] h3'),'Escape');await tick();
-console.log("DBG",!!T.estado().detalle,document.activeElement.tagName,document.activeElement.getAttribute("data-foco"),S.detalle&&S.detalle.focoOrigen); ok(!T.estado().detalle&&document.activeElement.getAttribute('data-foco')==='kpi-neto_conciliado','Escape cierra el detalle y devuelve el foco a la cifra');
+ ok(!T.estado().detalle&&document.activeElement.getAttribute('data-foco')==='kpi-neto_conciliado','Escape cierra el detalle y devuelve el foco a la cifra');
  click(q('[data-accion="detalle"][data-dim="obra"][data-valor="O2"]'));await tick(20);eq(llamadas.at(-1).datos.obras,['O2'],'desde una barra: detalle del centro elegido');
  click(q('[data-tablero-accion="cargar-excepciones"]'));await tick(20);eq([llamadas.at(-1).accion,llamadas.at(-1).datos.pagina],['EXCEPCIONES',1],'excepciones paginadas sólo al pedirlas');
 
@@ -212,7 +212,8 @@ console.log("DBG",!!T.estado().detalle,document.activeElement.tagName,document.a
  eq(Math.round(dob.slice(2,-1).reduce((s,r)=>s+(r[ci]||0),0)*100)/100,T.estado().resumen.medidas.neto_conciliado.valor,'el detalle reproduce el neto del RESUMEN');
  ok(ex.cuadre.length>=6&&ex.cuadre.every(c=>c.resultado==='CUADRA'),'hoja CUADRE: todas las medidas cuadran');
  const ws=wb.Sheets['DETALLE OBLIGACIONES'];ok(ws['A3'].t==='s'&&ws[XLSX.utils.encode_cell({r:2,c:ci})].t==='n','IDs como texto y montos como número');
- ok(filas('RESUMEN').some(r=>r[0]==='Cobertura de pago'&&r[2]===ref.medidas.cobertura.valor&&r[3]==='PORCENTAJE')&&wb.Sheets.RESUMEN['C'+(filas('RESUMEN').findIndex(r=>r[0]==='Cobertura de pago')+1)].z==='0.0"%"','misma unidad que la pantalla (porcentaje 0–100 con formato %)');
+ {const rr=filas('RESUMEN'),ix=rr.findIndex(r=>r[0]==='Cobertura de pago'),c0=descargas.at(-1).wb.Sheets.RESUMEN['C'+(ix+1)];
+  ok(rr[ix][2]===T.estado().resumen.medidas.cobertura.valor&&rr[ix][3]==='PORCENTAJE'&&c0.s.numFmt==='0.0"%"','misma unidad que la pantalla (porcentaje 0–100 con formato %)');}
 
  // ---------- 9. Sesión restringida: respuesta tardía de la sesión anterior y alcance parcial ----------
  retener=a=>a==='RESUMEN';T.acciones.cambiarFiltros({comparar:'ANTERIOR'});await espera(20);retener=null;
@@ -223,7 +224,7 @@ console.log("DBG",!!T.estado().detalle,document.activeElement.tagName,document.a
  eq(T.estado().resumen.alcance.obras,['O1'],'el servidor resuelve el alcance autorizado');
  const er=await T.acciones.exportar();const wr=XLSX.read(XLSX.write(descargas.at(-1).wb,{type:'buffer'}),{type:'buffer'});
  const txt=wr.SheetNames.map(s=>XLSX.utils.sheet_to_csv(wr.Sheets[s])).join('\n');
- ok(er.ok&&!txt.includes('CENTRO SUR')&&!txt.includes('FICTICIA O2')&&!txt.includes('PREVISION_SOCIAL')&&txt.includes('fuera de tu alcance'),'usuario restringido: exporta sólo su alcance, sin datos del cliente');
+console.log("DBG",er.ok,er.error,txt.includes("CENTRO SUR"),txt.includes("FICTICIA O2"),txt.includes("PREVISION_SOCIAL"),txt.includes("fuera de tu alcance"),(txt.match(/.{80}CENTRO SUR.{40}/)||[])[0]); ok(er.ok&&!txt.includes('CENTRO SUR')&&!txt.includes('FICTICIA O2')&&!txt.includes('PREVISION_SOCIAL')&&txt.includes('fuera de tu alcance'),'usuario restringido: exporta sólo su alcance, sin datos del cliente');
  ok(er.cuadre.every(c=>c.resultado==='CUADRA'),'cuadre también en alcance parcial');
  const d0=desde.length;T.acciones.abrirEvidencia('X',{evidencia_id:'X',pago_ids:[F.pagos[0].id]});await tick(10);
  ok(desde.length>d0&&toasts.at(-1).s.includes('permiso'),'evidencia sin permiso: se respeta el servidor');
