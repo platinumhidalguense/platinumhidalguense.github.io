@@ -114,8 +114,14 @@ const aguinaldoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith(
 suites.push('test_aguinaldo_nucleo','test_aguinaldo_ui');
 if(aguinaldoPrivate)suites.push('test_aguinaldo_pg');
 else console.log('ALCANCE PÚBLICO AGUINALDO: núcleo e interfaz se prueban; las comprobaciones PostgreSQL de faltas históricas y aplicación requieren la migración privada.');
+const tableroPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_tablero_indicadores.sql'));
+const respaldoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_respaldo_marcas.sql'))&&fs.existsSync('work/respaldo_20261111/generar_prod_base.cjs');
+suites.push('test_tablero_modelo','test_tablero_vista','test_tablero_ui','test_respaldo_integral');
+if(tableroPrivate)suites.push('test_tablero_pg');
+if(respaldoPrivate)suites.push('test_respaldo_pg');
+if(!tableroPrivate||!respaldoPrivate)console.log('ALCANCE PÚBLICO TABLERO/RESPALDO: modelo, vista, interfaz y exportación se prueban; las comprobaciones PostgreSQL requieren las migraciones privadas y no se cuentan.');
 for(const file of suites){
  const r=spawnSync(process.execPath,['scripts/'+file+'.cjs'],{encoding:'utf8',maxBuffer:4e6});
  process.stdout.write(r.stdout||'');process.stderr.write(r.stderr||'');if(r.status!==0)process.exit(r.status||1);
 }
-console.log('PASS '+suites.length+' suites reproducibles; incluyen '+((privateMigration?95:68)+(rrhhPrivate?66:0)+(pagosPrivate?50:0)+(chequesPrivate?12:0)+(rendimientoPrivate?30:0)+(revisionPrivate?28:0)+(visorPrivate?49:0)+(recibosPrivate?32:0)+(actividadPrivate?27:0)+(netoPrivate?37:0)+(identidadPrivate?16:0)+(cerosPrivate?49:0)+(aguinaldoPrivate?60:0))+' comprobaciones PostgreSQL, contratos de UI, paginación y conservación de motores. Sin aceptación visual de navegador.');
+console.log('PASS '+suites.length+' suites reproducibles; incluyen '+((privateMigration?95:68)+(rrhhPrivate?66:0)+(pagosPrivate?50:0)+(chequesPrivate?12:0)+(rendimientoPrivate?30:0)+(revisionPrivate?28:0)+(visorPrivate?49:0)+(recibosPrivate?32:0)+(actividadPrivate?27:0)+(netoPrivate?37:0)+(identidadPrivate?16:0)+(cerosPrivate?49:0)+(aguinaldoPrivate?60:0)+(respaldoPrivate?468:0)+(tableroPrivate?0:0))+' comprobaciones PostgreSQL, contratos de UI, paginación y conservación de motores. Sin aceptación visual de navegador.');

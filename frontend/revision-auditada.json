@@ -197,5 +197,7 @@
   "openContratistas": "Mantiene su lectura propia y descarta el resultado si otra acción o contexto reemplazó al original.",
   "pcDatosFrescos": "Aguinaldo 2026-11-10: además de las cinco fuentes de la razón social, lee las aplicaciones vigentes de aguinaldo de sus centros; sin la migración devuelve una lista vacía y cualquier otro error detiene la proyección.",
   "rrhhVistaActual": "Aguinaldo 2026-11-10: la vista actual del trabajador aplica su aguinaldo vigente del periodo y lo informa por separado; neto fiscal coherente con NOI.",
-  "openAguinaldo": "Aguinaldo 2026-11-10: abre la corrida de cuatro pasos del módulo 74; el cálculo simple anterior queda como consulta en agAbrirSimple sin cambios de fórmula."
+  "openAguinaldo": "Aguinaldo 2026-11-10: abre la corrida de cuatro pasos del módulo 74; el cálculo simple anterior queda como consulta en agAbrirSimple sin cambios de fórmula.",
+  "openDashboard": "Delega en el tablero ejecutivo (módulo 78) con modelo común de cierre, obligación, pago, evidencia y aplicación; conserva el cálculo anterior sólo como respaldo si el módulo no cargó. Pruebas de modelo, vista, interfaz y SQL.",
+  "exportRespaldo": "Delega en el respaldo integral (módulo 79) con matriz de cobertura, manifiesto, diccionario, control, paginación completa y marcas del servidor; conserva el respaldo anterior como respaldo si el módulo no cargó. Pruebas VM, PostgreSQL y lector independiente."
 }

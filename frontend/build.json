@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-10.2",
-  "entry": "assets/platinum-app.e7c70960c989ebda.js",
-  "sha256": "e7c70960c989ebda7c15b90ab99d024795c0abd872edf36ca80e5079b5ef5d44",
-  "integrity": "sha384-chArsl0vMFHi/1vRhT7KfGwrT+C0JWiVDRijQJjzxDUNwlNRIWOCMwPH0vmRnkqc",
+  "version": "2026-11-11.1",
+  "entry": "assets/platinum-app.7fe955c6aad33571.js",
+  "sha256": "7fe955c6aad3357158281a4311a3b565fe62cb4d2bd246edbeb9b0d50a961b8b",
+  "integrity": "sha384-t2ew4tqii7NSBSfOHoJVlSc62d9ruVBkqUF159rfil1wNzMHSha3fWiD1hkEHETu",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "b96c75a8e024666b120ccc5ad9e266d3237ecda84b823507efa910a4063adcc5"
+      "sha256": "ab6a08073aacd1c532360ce5cf43a40eb5c5f1dfc2ca44eab274d5ffa67a3951"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -142,7 +142,7 @@
     },
     {
       "path": "frontend/modulos/34-dashboard-respaldos.js",
-      "sha256": "d0b88b93cc76401787455aa8d190654ecee1c45199782dccbd1a657fe3d895de"
+      "sha256": "47deb16117b39afad6983ea880ff5a94389a69aed6e1114462deaf15e00cba81"
     },
     {
       "path": "frontend/modulos/35-centro-control.js",
@@ -307,6 +307,22 @@
     {
       "path": "frontend/modulos/75-faltas-historicas.js",
       "sha256": "0af4678777962011a3d004cba9870b2c44ecece457c2dff5d0a0604908775ec8"
+    },
+    {
+      "path": "frontend/modulos/76-tablero-modelo.js",
+      "sha256": "1a48da87694fcacbab92fc2770f59671d961b9b559ebf3e0a783da1edb2fcd46"
+    },
+    {
+      "path": "frontend/modulos/77-tablero-vista.js",
+      "sha256": "488772882454e37fdc453a6dac8bc30d8a359ff0447b896938fe9aa217f88984"
+    },
+    {
+      "path": "frontend/modulos/78-tablero-ejecutivo.js",
+      "sha256": "af4d1bcf8d56fd21a9be15e355fdf73917e8b01b52eb2f7e347b9d86cae9816d"
+    },
+    {
+      "path": "frontend/modulos/79-respaldo-integral.js",
+      "sha256": "953cc00b2863ef46ac9c640ee07196a3645cb20795b18f4e3f73835c04786e80"
     }
   ]
 }

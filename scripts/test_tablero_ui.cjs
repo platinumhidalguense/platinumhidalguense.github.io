@@ -17,7 +17,7 @@ const obras=[{id:'O1',nombre:'CENTRO NORTE',fecha_inicio:'2026-03-30',empresa_co
 const F={ahora:'2026-11-11T18:00:00Z',obras,trabajadores:[],cierres:[],versiones:[],obligaciones:[],pagos:[],evidencias:[],aplicaciones:[],cheques:[],historial:[],cuadrillas:[],flujo:[]};
 const POR=220,SEM={O1:[25,32],O2:[25,31],O3:[25,32]};let k=0;const id=p=>p+String(++k).padStart(6,'0');
 for(const o of obras){
- for(let i=1;i<=POR;i++)F.trabajadores.push({id:`${o.id}-W${String(i).padStart(3,'0')}`,obra_id:o.id,no_trab:i,nombres:'PERSONA '+i,primer_apellido:'FICTICIA '+o.id,estatus:'ACTIVO',periodo_pago:'SEMANAL',fecha_alta:'2026-04-01',eliminado:false,contratista:i%3?'CONTRATISTA A':'CONTRATISTA B'});
+ for(let i=1;i<=POR;i++)F.trabajadores.push({id:`${o.id}-W${String(i).padStart(3,'0')}`,obra_id:o.id,no_trab:i,nombres:'PERSONA '+i,primer_apellido:'FICTICIA '+o.id,estatus:i%40===0?'BAJA':'ACTIVO',periodo_pago:'SEMANAL',fecha_alta:i%25===0?'2026-10-05':'2026-04-01',fecha_baja:i%40===0?'2026-10-20':null,eliminado:false,contratista:i%3?'CONTRATISTA A':'CONTRATISTA B'});
  for(let s=SEM[o.id][0];s<=SEM[o.id][1];s++){
   const c={id:`C-${o.id}-${s}`,obra_id:o.id,semana:s,periodo:'SEMANAL',estado:'AUTORIZADO',snapshot:{}},v={id:`V-${o.id}-${s}`,cierre_id:c.id,snapshot:{}};F.cierres.push(c);F.versiones.push(v);
   const viernes=MOD.calendario.periodo(o,s,'SEMANAL').fecha_pago;
@@ -215,6 +215,11 @@ const tiempos={};
  {const rr=filas('RESUMEN'),ix=rr.findIndex(r=>r[0]==='Cobertura de pago'),c0=descargas.at(-1).wb.Sheets.RESUMEN['C'+(ix+1)];
   ok(rr[ix][2]===T.estado().resumen.medidas.cobertura.valor&&rr[ix][3]==='PORCENTAJE'&&c0.s.numFmt==='0.0"%"','misma unidad que la pantalla (porcentaje 0–100 con formato %)');}
 
+ // Vista de plantilla: eventos leídos bajo demanda (todas las páginas) y mostrados por páginas.
+ antes=llamadas.length;await T.acciones.cambiarVista('PLANTILLA');await tick(20);
+ const pl=llamadas.slice(antes).filter(c=>c.accion==='PLANTILLA'),ep=T.estado().plantilla;
+ ok(pl.length>=1&&pl.every(c=>c.datos.por_pagina===500)&&ep.eventos.filas.length===Math.min(50,ep.eventos.total)&&ep.tendencia.length>0&&ep.por_centro.length===2,'plantilla bajo demanda: serie y centros a partir de los eventos, tabla paginada');
+ await T.acciones.cambiarVista('GENERAL');
  // ---------- 9. Sesión restringida: respuesta tardía de la sesión anterior y alcance parcial ----------
  retener=a=>a==='RESUMEN';T.acciones.cambiarFiltros({comparar:'ANTERIOR'});await espera(20);retener=null;
  box.USER=USUARIOS.rest;P.vigilar();await tick(40);retenidas.splice(0).forEach(r=>r());await tick(30);
@@ -224,7 +229,7 @@ const tiempos={};
  eq(T.estado().resumen.alcance.obras,['O1'],'el servidor resuelve el alcance autorizado');
  const er=await T.acciones.exportar();const wr=XLSX.read(XLSX.write(descargas.at(-1).wb,{type:'buffer'}),{type:'buffer'});
  const txt=wr.SheetNames.map(s=>XLSX.utils.sheet_to_csv(wr.Sheets[s])).join('\n');
-console.log("DBG",er.ok,er.error,txt.includes("CENTRO SUR"),txt.includes("FICTICIA O2"),txt.includes("PREVISION_SOCIAL"),txt.includes("fuera de tu alcance"),txt.split("\n").filter(l=>l.includes("CENTRO SUR")).join(" // ").slice(0,300)); ok(er.ok&&!txt.includes('CENTRO SUR')&&!txt.includes('FICTICIA O2')&&!txt.includes('PREVISION_SOCIAL')&&txt.includes('fuera de tu alcance'),'usuario restringido: exporta sólo su alcance, sin datos del cliente');
+ ok(er.ok&&!txt.includes('CENTRO SUR')&&!txt.includes('FICTICIA O2')&&!txt.includes('PREVISION_SOCIAL')&&txt.includes('fuera de tu alcance'),'usuario restringido: exporta sólo su alcance, sin datos del cliente');
  ok(er.cuadre.every(c=>c.resultado==='CUADRA'),'cuadre también en alcance parcial');
  const d0=desde.length;T.acciones.abrirEvidencia('X',{evidencia_id:'X',pago_ids:[F.pagos[0].id]});await tick(10);
  ok(desde.length>d0&&toasts.at(-1).s.includes('permiso'),'evidencia sin permiso: se respeta el servidor');

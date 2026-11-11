@@ -5,6 +5,7 @@ function _paletaObras(n){
   const out=[];for(let i=0;i<n;i++)out.push(base[i%base.length]);return out;
 }
 async function openDashboard(){
+  if(window.PLATINUM_TABLERO)return window.PLATINUM_TABLERO.abrir();
   toast('Calculando indicadores...');
   const [{data:tw,error:eTw},{data:ch},{data:ds}]=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('eliminado',false)),fetchAllRows(()=>sb.from('cheques').select('*')),fetchAllRows(()=>sb.from('descuentos').select('*').eq('activo',true))]);
@@ -423,6 +424,7 @@ function exportReporteEjecutivo(){
 /* ---------- RESPALDO COMPLETO ---------- */
 const BK_COLS=[['contratista','CONTRATISTA'],['estatus','ESTATUS'],['no_trab','NO. TRAB.'],['fecha_alta','FECHA ALTA'],['fecha_baja','FECHA BAJA'],['monto_finiquito','MONTO FINIQUITO'],['semana_ingreso','SEMANA DE INGRESO'],['periodo_pago','PERIODO DE PAGO'],['primer_apellido','PRIMER APELLIDO'],['segundo_apellido','SEGUNDO APELLIDO'],['nombres','NOMBRE(S)'],['estado_civil','ESTADO CIVIL'],['escolaridad','ESCOLARIDAD'],['funciones','FUNCIONES'],['puesto','PUESTO'],['beneficiario','BENEFICIARIO'],['sd','SD'],['sdi','SDI'],['sal_semanal','SAL. PERIODO'],['rfc','RFC'],['curp','CURP'],['nacionalidad','NACIONALIDAD'],['fecha_nacimiento','FECHA DE NACIMIENTO'],['nss','NSS'],['cuenta','CUENTA'],['clabe','CUENTA CLABE'],['banco','BANCO'],['edo_nacimiento','EDO. NACIMIENTO'],['direccion','DIRECCION'],['cp','C.P.'],['telefono','TELEFONO'],['correo','CORREO ELECTRONICO'],['genero','GENERO'],['turno','TURNO'],['forma_pago','FORMA DE PAGO'],['observaciones','OBSERVACIONES'],['drive_link','CARPETA DRIVE']];
 async function exportRespaldo(porCorreo){
+  if(window.PLATINUM_RESPALDO)return window.PLATINUM_RESPALDO.abrir({porCorreo:!!porCorreo});
   toast('Generando respaldo completo...');
   const [{data,error},{data:chqAll}]=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('eliminado',false)),

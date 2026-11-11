@@ -63,7 +63,7 @@ function startRealtime(){
     onReconnect:()=>chequearVersionEnVivo(),
     canRefresh:()=>!NAV_BUSY&&!OBRA_APERTURA_HERRAMIENTAS&&!$('modals').innerHTML,
     refresh:cambio=>softRefresh(false,cambio),
-    onDeferred:()=>{window._pendingRT=true;window.PLATINUM_FLOWS?.avisarCambio();window.PLATINUM_RRHH?.avisarCambio();window.PLATINUM_PAGOS_SABADO?.avisarCambio();},
+    onDeferred:()=>{window._pendingRT=true;window.PLATINUM_FLOWS?.avisarCambio();window.PLATINUM_RRHH?.avisarCambio();window.PLATINUM_PAGOS_SABADO?.avisarCambio();window.PLATINUM_TABLERO?.avisarCambio();},
     onStatus:({transport,dataState,online})=>{
       const el=$('rt-status');if(!el)return;
       el.textContent=dataState==='pending'?'Cambios pendientes':dataState==='error'?'Sin actualizar':dataState==='loading'?'Actualizando…':transport==='connected'?`${online||1} en línea`:transport==='offline'?'Sin conexión en vivo':'Conectando…';
@@ -525,7 +525,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-11-10.2';
+const APP_VERSION='2026-11-11.1';
 window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){

@@ -789,7 +789,7 @@
   const rest=alc.restringido||{};
   const filtrosRows=[['TABLERO EJECUTIVO · EXPORTACIÓN FILTRADA',''],['Exportación del alcance filtrado del tablero; no sustituye al respaldo integral.',''],['Concepto','Valor'],
    ['Razón social',nombreEmpresa(fr.empresa)],['Centros en el alcance (resuelto por el servidor)',obrasAlc.map(o=>o.nombre).join(', ')||'Ninguno'],
-   lista('Centros solicitados',fr.obras,nombreObra),['Perspectiva de fecha',`${(P[fr.perspectiva]||{}).etiqueta||fr.perspectiva}: ${(P[fr.perspectiva]||{}).texto||''}`],
+   lista('Centros solicitados',fr.obras,id=>obrasAlc.some(o=>o.id===id)?nombreObra(id):'Centro fuera de tu alcance'),['Perspectiva de fecha',`${(P[fr.perspectiva]||{}).etiqueta||fr.perspectiva}: ${(P[fr.perspectiva]||{}).texto||''}`],
    ['Rango de fechas',`${fmtFecha(alc.desde||fr.desde)} – ${fmtFecha(alc.hasta||fr.hasta)}`],['Rango con nombre',pr[1]],...cal,
    ['Comparar contra',cmp&&cmp.desde?`${cmp.modo==='ANIO_ANTERIOR'?'Mismo periodo del año anterior':'Periodo anterior equivalente'}: ${fmtFecha(cmp.desde)} – ${fmtFecha(cmp.hasta)}${cmp.incompleto?' · incompleto ('+arr(cmp.motivos).join(', ')+')':''}`:'Sin comparación'],
    lista('Contratistas',fr.contratistas),lista('Cuadrillas',fr.cuadrillas),lista('Periodicidades',fr.periodicidades),lista('Semanas internas',fr.periodos),lista('Conceptos',fr.conceptos),lista('Medios de pago',fr.medios),
