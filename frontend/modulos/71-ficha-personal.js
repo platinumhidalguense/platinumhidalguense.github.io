@@ -55,6 +55,7 @@
    s.w=w;s.confirmado=true;
    $('ficha-personal-estado').innerHTML=estadoTrabajador(w);
    $('ficha-editar').disabled=!puedeEditarTrabajador();
+   accionBaja(w);
    if(seccion==='incidencias'){
     cuerpo.innerHTML='<section id="cal-contenido" data-worker-id="'+esc(w.id)+'" aria-label="Calendario de incidencias"></section><section id="ficha-incidencias-datos"></section>';
     window.PLATINUM_CALENDARIO?.montar(w.id,s.mes);
@@ -106,7 +107,7 @@
   const c=api().contexto(),origen=navegacion?.origen??(visible(activa||{})?activa.origen:document.activeElement);
   const ids=[...new Set(navegacion?.ids||navTrabajadores())].filter(x=>WORKERS.some(z=>z.id===x&&z.obra_id===OBRA.id));
   if(!ids.includes(id))ids.splice(0,ids.length,id);
-  const pos=ids.indexOf(id),seccion=mes?'incidencias':'resumen';
+  const pos=ids.indexOf(id),seccion=secciones[navegacion?.seccion]?navegacion.seccion:mes?'incidencias':'resumen';
   const meta=api().medir('abrir-ficha',OBRA_CARGA_COMPLETA?'centro-completo':'padron-ligero');
   const misma=activa&&visible(activa)?activa:null;
   const anidada=misma?.anidada||(!navegacion?.origen&&!!$('modals')?.querySelector('.overlay'));
@@ -117,6 +118,7 @@
       <div class="ficha-nav"><button type="button" class="btn" id="ficha-anterior" aria-label="Trabajador anterior" ${pos<=0?'disabled':''}>‹</button>
       <span class="pos">${pos+1} / ${ids.length}</span><button type="button" class="btn" id="ficha-siguiente" aria-label="Trabajador siguiente" ${pos===ids.length-1?'disabled':''}>›</button></div>
       <button class="btn dark" type="button" id="ficha-editar" ${puedeEditarTrabajador()?'disabled':'hidden'}>✎ Modificar</button>
+      <button class="btn danger ficha-baja" type="button" id="ficha-baja" disabled hidden>Dar de baja</button>
     </div>
     <div class="ficha-personal-cuerpo">
       <nav aria-label="Secciones del trabajador" class="ficha-personal-nav">${Object.entries(secciones).map(([k,n])=>`<button type="button" class="btn" data-ficha-seccion="${k}" aria-controls="ficha-personal-panel">${n}</button>`).join('')}</nav>
@@ -132,11 +134,27 @@
   s.host.querySelector('.ficha-personal-nav').onclick=e=>{const b=e.target.closest('[data-ficha-seccion]');if(b)mostrar(s,b.dataset.fichaSeccion,true);};
   $('ficha-seccion-select').onchange=e=>mostrar(s,e.target.value,false);
   $('ficha-editar').onclick=()=>openForm(id);
+  $('ficha-baja').onclick=()=>openBaja(id);
   const vecino=i=>{if(visible(s)&&ids[i])abrir(ids[i],undefined,{ids,origen});};
   $('ficha-anterior').onclick=()=>vecino(pos-1);
   $('ficha-siguiente').onclick=()=>vecino(pos+1);
   $('ficha-personal-titulo').focus({preventScroll:true});
   return mostrar(s,seccion).finally(()=>{meta.fin(visible(s)&&s.confirmado?'ok':'descartada');s.meta=null;});
  }
- window.PLATINUM_FICHA=Object.freeze({abrir,actual,antesCerrar});
+ function accionBaja(w){
+  const b=$('ficha-baja');if(!b)return;
+  b.hidden=w.estatus!=='BAJA'&&(!puedeEditarTrabajador()||!['ACTIVO','PENDIENTE'].includes(w.estatus));
+  b.disabled=w.obra_id!==OBRA?.id||w.eliminado===true;
+  b.textContent=w.estatus==='BAJA'?'Ver baja y finiquito':'Dar de baja';
+  b.onclick=()=>openBaja(w.id);
+ }
+ function actualizar(w){
+  const s=activa;
+  if(!s||!visible(s)||s.id!==w.id||w.obra_id!==OBRA?.id)return;
+  s.w=w;s.pendiente=Promise.resolve(w);
+  $('ficha-personal-estado').innerHTML=estadoTrabajador(w);
+  accionBaja(w);
+  mostrar(s,s.seccion);
+ }
+ window.PLATINUM_FICHA=Object.freeze({abrir,actual,antesCerrar,actualizar});
 })();

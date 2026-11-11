@@ -223,3 +223,16 @@
   #cs-gestion .gq-acciones-fila .btn{width:44px;min-height:44px;padding:3px;font-size:17px}
   #cs-gestion .gq-trabajador{min-height:44px}
 }
+/* Baja y finiquito conserva una acción visible en cada sección de la ficha. */
+.ficha-baja{margin-inline-start:12px}
+.bf-grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.bf-etapas{display:flex;gap:10px;flex-wrap:wrap;padding:0;list-style-position:inside}
+.bf-etapas li{padding:8px;border:1px solid var(--border);border-radius:7px}
+.bf-etapas li[aria-current="step"]{border-color:var(--blue);font-weight:700}
+.bf-resumen{display:grid;grid-template-columns:minmax(110px,.6fr) 1.4fr;gap:7px;margin-block:12px}
+.bf-resumen dt{font-weight:700}
+.bf-resumen dd{margin:0;overflow-wrap:anywhere}
+.bf-papel{padding:12px;border:1px solid var(--border);border-radius:8px;margin-top:12px}
+.bf-check{display:flex;gap:8px;align-items:center}
+.bf-check input{width:auto}
+@media(max-width:650px){.ficha-baja{margin:6px 0;min-height:40px}.baja-finiquito .grid{grid-template-columns:1fr 1fr}.bf-resumen{grid-template-columns:1fr}.bf-resumen dd{margin-bottom:7px}}

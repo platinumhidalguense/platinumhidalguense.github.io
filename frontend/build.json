@@ -1,16 +1,16 @@
 {
-  "version": "2026-11-10.2",
-  "entry": "assets/platinum-app.e7c70960c989ebda.js",
-  "sha256": "e7c70960c989ebda7c15b90ab99d024795c0abd872edf36ca80e5079b5ef5d44",
-  "integrity": "sha384-chArsl0vMFHi/1vRhT7KfGwrT+C0JWiVDRijQJjzxDUNwlNRIWOCMwPH0vmRnkqc",
+  "version": "2026-11-10.3",
+  "entry": "assets/platinum-app.96cd8096b4d72539.js",
+  "sha256": "96cd8096b4d72539d27923e32eeb0c94436eca8e5bc82d82caecbe1d9fc743bb",
+  "integrity": "sha384-5G6ve0zKBx7KFbpv+MlxE36qOlc6Gw0PKrrW/ysZkvKgYugjliDe0CM4061uL6Zi",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
-      "sha256": "c5fa351603c2e8d9a48ccd4a0e15d1a8a0139af194402812f56210d5e423ce21"
+      "sha256": "045d313fb6606b327e41f2dbc7419a01cb67da93a709adb5a107f04b7e51d70f"
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "b96c75a8e024666b120ccc5ad9e266d3237ecda84b823507efa910a4063adcc5"
+      "sha256": "9822ece741a3040596444d4f16c4de3c838a69a3a0124b8355ac71d2e1b247c9"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -22,7 +22,7 @@
     },
     {
       "path": "frontend/modulos/04-padron-expedientes.js",
-      "sha256": "4004c9162423d4629fc44dfe14fe05ffccc1e32a5a182f81fe79993db51d7ec4"
+      "sha256": "64c0d88216b96efc383f3bc726a7c9d7b14dd01f134b24a5fd0f19cef39e317a"
     },
     {
       "path": "frontend/modulos/05-alta-edicion.js",
@@ -122,7 +122,7 @@
     },
     {
       "path": "frontend/modulos/29-bajas-creditos-motor.js",
-      "sha256": "5cfb06ee88bbeb7c987dba3de62775351478e7cabe38de8616ac6e439081f796"
+      "sha256": "efe1255df7e9f65366ccbc65942a796efe178fc3e4715ed96ea549b476c22bb5"
     },
     {
       "path": "frontend/modulos/30-contratistas-alertas.js",
@@ -138,7 +138,7 @@
     },
     {
       "path": "frontend/modulos/33-finiquitos.js",
-      "sha256": "86ba9369aaeb475c17d80c62472f9c8c5b006736ca88e1bda72cc340fdcde1d7"
+      "sha256": "fabfe5db08e61835fa661c0b5dcd67604ccb5ddb2f0482c55e2664beb2d003e2"
     },
     {
       "path": "frontend/modulos/34-dashboard-respaldos.js",
@@ -190,7 +190,7 @@
     },
     {
       "path": "frontend/modulos/46-papeles-prestaciones.js",
-      "sha256": "039ce9bc6de2d0f2ec992f124d44e6477955175ee5890dc35ae0add95bdfb9ce"
+      "sha256": "7de42216eeceebc50e9f418a51ef7c26dda964597c509f0c37f29b8fd71c1424"
     },
     {
       "path": "frontend/modulos/47-contexto-historico-nomina.js",
@@ -290,7 +290,7 @@
     },
     {
       "path": "frontend/modulos/71-ficha-personal.js",
-      "sha256": "b8a9f4787f1002e1faa9e41e7c5022b4b87afcaa27815441638ecd1a7a3839d9"
+      "sha256": "c48a26c0adda75b1778a323a8beba404c90cd8e8d7e2910ed41cf16a879b7229"
     },
     {
       "path": "frontend/modulos/72-aguinaldo-nucleo.js",
@@ -306,7 +306,11 @@
     },
     {
       "path": "frontend/modulos/75-faltas-historicas.js",
-      "sha256": "0af4678777962011a3d004cba9870b2c44ecece457c2dff5d0a0604908775ec8"
+      "sha256": "6cb58287ebf46171e3861527ac1718bcb269b20618f2bf8d7d55e64ca0c4d992"
+    },
+    {
+      "path": "frontend/modulos/76-baja-finiquito.js",
+      "sha256": "a88acd170fedce95246e9aa8dcd3d34eda864414e2c9f67e8bba65797b21dd0b"
     }
   ]
 }

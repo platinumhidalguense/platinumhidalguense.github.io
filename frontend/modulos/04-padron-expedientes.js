@@ -277,8 +277,7 @@ ${kv('Cuadrilla',esc(CUADS.find(c=>c.id===w.id_cuadrilla)?.nombre))}
       ${w.estatus==='ACTIVO'?`<button class="btn" style="color:#8a6d1a;border-color:#ecd9a0" onclick="openPendiente('${w.id}')">⏸ Pasar a PENDIENTE</button>
       <button class="btn" onclick="openTransferencia('${w.id}')">🔁 Transferir de obra</button>`:''}
       ${w.estatus!=='BAJA'
-        ?`<button class="btn" onclick="openSeparacionDoc('${w.id}')">📄 Documento de separación</button>
-           <button class="btn danger" onclick="openBaja('${w.id}')">Dar de BAJA</button>`
+        ?`<button class="btn" onclick="openSeparacionDoc('${w.id}')">📄 Documento de separación</button>`
         :`<button class="btn" onclick="openRenuncia('${w.id}')">📄 Renuncia y finiquito</button>
            <button class="btn" onclick="doReactivar('${w.id}')">Reactivar (nueva alta)</button>`}
       ${esAdmin()?`<button class="btn danger" style="background:#7a1414;border-color:#7a1414" onclick="openEliminarTrabajador('${w.id}')">🗑 Eliminar (papelera)</button>`:''}</div>`;
@@ -306,7 +305,7 @@ ${kv('Cuadrilla',esc(CUADS.find(c=>c.id===w.id_cuadrilla)?.nombre))}
       ${chq.length?`<div class="sect">Cheques de este trabajador (${chq.length})</div>
         ${chq.map(c=>`<div class="kv"><b>${esc(c.semana)} · ${esc(c.tipo_pago)}</b><span>$${money(c.importe)} · ${c.num_cheque?'Cheque '+esc(c.num_cheque):'sin número'} · <span class="badge ${c.estatus}">${c.estatus}</span></span></div>`).join('')}`:''}
 <div class="ficha-section-actions">      ${window.PLATINUM_RRHH?`<button class="btn" onclick="PLATINUM_RRHH.abrir('importe','${w.id}')">🔎 Explicar nómina</button>`:''}      ${window.PLATINUM_RECORRIDO?`<button class="btn" onclick="PLATINUM_RECORRIDO.abrir(null,'${w.id}',null,'${periodoPago(w)}')">Preparación de nómina</button>`:''}</div>`;
-  if(seccion==="incidencias")return `<div class="ficha-section-actions">      <button class="btn" onclick="fichaPrestaciones('${w.id}')">🧮 Prestaciones</button></div>
+  if(seccion==="incidencias")return `<div class="ficha-section-actions"><button class="btn" onclick="openPapelesFiniquito()">Papeles de prestaciones</button><button class="btn" onclick="fichaPrestaciones('${w.id}')">Simular prestaciones para revisión</button></div>
       ${(function(){
         const fijos=DESC.filter(d=>d.trabajador_id===w.id&&d.recurrente&&d.activo);
         const inc=DESC.filter(d=>d.trabajador_id===w.id&&!d.recurrente&&d.activo).sort((a,b)=>String(b.semana).localeCompare(String(a.semana))).slice(0,8);
@@ -342,7 +341,7 @@ ${kv('Cuadrilla',esc(CUADS.find(c=>c.id===w.id_cuadrilla)?.nombre))}
 function openDetail(id,mesCalendario,navegacion){
   return window.PLATINUM_FICHA?.abrir(id,mesCalendario,navegacion);
 }
-function fichaPrestaciones(id){return conCentroCompleto(()=>{if(window.PLATINUM_FICHA?.actual(id))openPrestaciones(id);});}
+function fichaPrestaciones(id){return conCentroCompleto(()=>{if(window.PLATINUM_FICHA?.actual(id))openPrestaciones(id,{consulta:true});});}
 function fichaExportar(id){return conCentroCompleto(()=>{if(window.PLATINUM_FICHA?.actual(id))exportExpediente(id);});}
 /* v20: eliminar = mover a la papelera (eliminado=true). Solo visible/permitido
    para el administrador (esAdmin()). Pide escribir el nombre EXACTO para evitar

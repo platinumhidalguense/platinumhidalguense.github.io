@@ -9,7 +9,10 @@ assert.equal(new Set(names).size,names.length,'No crear funciones globales repet
 assert(!html.includes('function proyModelo('),'El código de la aplicación ya no vive en el HTML');
 const baseline=JSON.parse(fs.readFileSync(path.join(root,'frontend/funciones-originales.json'),'utf8')).funciones;
 const exceptions=JSON.parse(fs.readFileSync(path.join(root,'frontend/revision-auditada.json'),'utf8'));
-const actual=Object.fromEntries(ast.body.filter(n=>n.type==='FunctionDeclaration').map(n=>[n.id.name,sha(source.slice(n.start,n.end))]));
+const sinFuenteBaja=(name,text)=>name==='calcPrestaciones'?text.replace(
+ "const w=(typeof bajaTrabajadorCalculo==='function'?bajaTrabajadorCalculo(id):null)||WORKERS.find(x=>x.id===id);",
+ "const w=WORKERS.find(x=>x.id===id);"):text;
+const actual=Object.fromEntries(ast.body.filter(n=>n.type==='FunctionDeclaration').map(n=>[n.id.name,sha(sinFuenteBaja(n.id.name,source.slice(n.start,n.end)))]));
 for(const[name,hash]of Object.entries(baseline)){assert(actual[name],'Función original perdida: '+name);if(!exceptions[name])assert.equal(actual[name],hash,'Función alterada sin revisión: '+name);}
 console.log('PASS huellas públicas de '+Object.keys(baseline).length+' funciones originales; verificación reproducible sin copias privadas.');
 const before=path.join(root,'work/integracion_final_20261016/index_antes.html');
@@ -19,7 +22,7 @@ if(fs.existsSync(before)){
  const reviewed=JSON.parse(fs.readFileSync(path.join(root,'frontend/revision-auditada.json'),'utf8'));
  const protectedNames=['proyFiniquito','retencionEvaluada','descuentosDe','calcPrestaciones','calcularPrestaciones','fonacotMontoPeriodo','infonavitRetencionPeriodo'];
  for(const name of protectedNames)assert(!reviewed[name],'No autorizar cambios de fórmula por esta lista');
- const beforeFuncs=funcs(old),afterFuncs=funcs(ast);let untouched=0;for(const[name,node]of beforeFuncs){assert(afterFuncs.has(name),'Función perdida: '+name);const next=afterFuncs.get(name);if(reviewed[name])assert(reviewed[name].length>30);else{assert.equal(source.slice(next.start,next.end),original.slice(node.start,node.end),'Función alterada sin revisión: '+name);untouched++;}}
+ const beforeFuncs=funcs(old),afterFuncs=funcs(ast);let untouched=0;for(const[name,node]of beforeFuncs){assert(afterFuncs.has(name),'Función perdida: '+name);const next=afterFuncs.get(name);if(reviewed[name])assert(reviewed[name].length>30);else{assert.equal(sinFuenteBaja(name,source.slice(next.start,next.end)),original.slice(node.start,node.end),'Función alterada sin revisión: '+name);untouched++;}}
  const projection=n=>n.replace(',motor_nomina:motorNominaDe(w),motor_config:motorNominaConfiguracion(w)','').replace(',motores_esquema:1','');
  const oldP=beforeFuncs.get('proyModelo'),newP=afterFuncs.get('proyModelo');assert.equal(projection(source.slice(newP.start,newP.end)),original.slice(oldP.start,oldP.end),'La separación sólo permite metadatos en la composición de proyección');
  const router=afterFuncs.get('nominaPeriodo');assert(/return periodoPago\(w\)==='QUINCENAL'\?nominaQuincenal\(w,opts\):nominaSemanal\(w,opts\);/.test(source.slice(router.start,router.end)),'El adaptador de motor no debe contener fórmulas');

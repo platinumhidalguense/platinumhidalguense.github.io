@@ -112,6 +112,10 @@ else console.log('ALCANCE PÚBLICO RENDIMIENTO: se verifica la UI en dos sesione
 // Aguinaldo y faltas históricas: núcleo e interfaz siempre; PostgreSQL con la migración privada.
 const aguinaldoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_aguinaldo_faltas_historicas.sql'));
 suites.push('test_aguinaldo_nucleo','test_aguinaldo_ui');
+suites.push('test_baja_finiquito_ui');
+if(fs.existsSync('work/baja_finiquito_20261110/funciones_vigentes.json')&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_baja_finiquito_unificado.sql'))){
+ suites.push('test_baja_finiquito_pg');
+}
 if(aguinaldoPrivate)suites.push('test_aguinaldo_pg');
 else console.log('ALCANCE PÚBLICO AGUINALDO: núcleo e interfaz se prueban; las comprobaciones PostgreSQL de faltas históricas y aplicación requieren la migración privada.');
 for(const file of suites){

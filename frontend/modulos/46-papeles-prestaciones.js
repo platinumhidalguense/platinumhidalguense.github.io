@@ -145,7 +145,7 @@ function ppfEditorHTML(){
  <div id="ppfe-out" aria-live="polite"></div>
  <button class="btn" id="ppfe-proponer" onclick="ppfAceptarD001()" ${edit?'':'disabled'}>Usar propuesta D001 (requiere confirmar al guardar)</button>
  <div id="ppfe-estado" class="fhint" style="margin-top:8px"></div><button class="btn" style="margin-top:8px" onclick="ppfVersiones()">Ver trazabilidad y revisiones</button>${ppfTablasHTML()}</div>
- <div class="m-foot"><button class="btn" onclick="openPapelesFiniquito()">Volver</button><button class="btn dark" id="ppfe-guardar" onclick="ppfGuardar()" ${edit?'':'disabled'}>Guardar revisión</button><button class="btn" id="ppfe-ficha" onclick="ppfLlevarFicha()" disabled>Usar D001 en cálculo individual</button></div>`,'lg');ppfPrevisualizar();
+ <div class="m-foot"><button class="btn" onclick="openPapelesFiniquito()">Volver</button><button class="btn dark" id="ppfe-guardar" onclick="ppfGuardar()" ${edit?'':'disabled'}>Guardar revisión</button><button class="btn" id="ppfe-ficha" onclick="ppfLlevarFicha()" ${d.prev&&(edit||w.estatus==='BAJA')?'':'disabled'}>${w.estatus==='BAJA'?'Ver baja y finiquito':'Retomar baja y finiquito'}</button></div>`,'lg');ppfPrevisualizar();
 }
 function ppfLeerEditor(){
  const e={...PPF.editor.e};for(const k of ['fecha_baja','fecha_pago','dias_aguinaldo','dias_vacaciones','tabla_vacaciones','dias_pendientes','credito','exento_ag_usado','exento_pv_usado','isr_precision','d001'])e[k]=$('ppfe-'+k).value;
@@ -186,20 +186,10 @@ async function ppfGuardar(){
  }catch(e){toast('No se guardó: '+e.message,'err');}finally{d.guardando=false;if(PPF.editor===d&&$('ppfe-guardar'))$('ppfe-guardar').disabled=false;}
 }
 async function ppfLlevarFicha(){
- const d=PPF.editor,r=d?.guardado;if(!r||!puedeEditarTrabajador())return;
- // Puente explícito: no modifica trabajadores ni da bajas automáticamente.
- const id=d.w.id;if(!confirm('¿Abrir el cálculo individual con el D001 confirmado?\nLa baja y el pago conservan sus validaciones habituales.'))return;
- openPrestaciones(id);
- const estado=globalThis._PR_NOI_AJUSTE;
- await estado.promesa;
- if(!$('pr-fecha')||globalThis._PR_NOI_AJUSTE!==estado)return;
- if(estado.estado!=='LISTO')return toast('No se cargaron los ajustes de la ficha; no se aplicó el D001.','err');
- $('pr-fecha').value=r.entradas.fecha_baja;$('f-pr-dias').value=r.entradas.dias_pendientes;$('pr-isr-noi').value=r.resultado.d001;
- if($('f-pr-info-dias'))$('f-pr-info-dias').value=r.entradas.dias_infonavit||0;
- calcPrestaciones(id);
- const a=globalThis._PR_AUDIT;
- if(a&&!a.invalido){a.papel_prestaciones_id=r.id;a.papel_prestaciones_huella=r.huella;}
- toast('D001 cargado. Revisa días, créditos y total del cálculo individual antes de aplicar.');
+ const d=PPF.editor,papel=d?.guardado||d?.prev;
+ if(!papel)return;
+ return openBaja(d.w.id,{papel,trabajador:d.w,reemplazar:true,
+  ver:d.w.estatus==='BAJA'||papel.fecha_baja<(iniAntig(d.w)||papel.fecha_baja)});
 }
 async function ppfPrepararSemana(){
  if(!puedeEditarTrabajador()||PPF.obra!==OBRA.id)return;

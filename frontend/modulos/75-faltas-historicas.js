@@ -186,12 +186,13 @@
  /* Finiquito nuevo o abierto: muestra la fuente común sin cambiar la fórmula
     del finiquito (protegida y conciliada con NOI). Si difiere de las faltas
     que el finiquito toma de las incidencias semanales, lo advierte. */
- async function panelFiniquito(host,w,fecha,faltasFiniquito){
+ async function panelFiniquito(host,w,fecha,faltasFiniquito,lectura=null){
   if(!host||!w)return;
   const f=iso.test(fecha||'')?fecha:today(),ej=Number(f.slice(0,4)),turno=(host._turno=(host._turno||0)+1);
   host.innerHTML='<p class="fhint">Consultando faltas históricas y aguinaldo acreditado…</p>';
   try{
-   const r=await resumen(w,ej,f);if(!host.isConnected||turno!==host._turno)return;
+   const r=await (lectura||resumen(w,ej,f));if(!host.isConnected||turno!==host._turno)return;
+   if(!r)throw Error('No se verificaron las fuentes del ejercicio.');
    const d=r.d,c=r.conc,distinto=Number.isFinite(faltasFiniquito)&&faltasFiniquito!==d.faltas_afectan;
    host.innerHTML=`<div class="tbl-card" style="padding:10px 12px"><div class="sect">Aguinaldo del ejercicio ${ej} · fuente común</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">${stat(d.dias_vinculo,'Días base al '+fmtD(f))}${stat(d.faltas_digitales,'Faltas digitales')}${stat(d.faltas_historicas,'Faltas históricas','b')}${stat(d.dias_computables,'Días computables','g')}${stat('$'+money(r2s(c.acreditado+c.reservado)),'Aguinaldo ya acreditado','g')}</div>

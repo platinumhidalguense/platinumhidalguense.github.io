@@ -10,7 +10,7 @@ function faltasAguinaldo(w,fechaCalculo){
   if(isNaN(fin)||!w||!iniAntig(w))return 0;
   const ini=new Date(iniAntig(w)+'T12:00'), enero=new Date(fin.getFullYear(),0,1,12);
   const corte=ini>enero?ini:enero;
-  return (typeof DESC!=='undefined'?DESC:[]).reduce((total,d)=>{
+  return (typeof bajaDescuentos==='function'?bajaDescuentos(w):(typeof DESC!=='undefined'?DESC:[])).reduce((total,d)=>{
     if(d.trabajador_id!==w.id||d.activo===false||d.recurrente||String(d.tipo||'').toUpperCase()!=='FALTA')return total;
     let desde=null,hasta=null;
     const sem=parseInt(String(d.semana||'').replace(/\D/g,''));
@@ -26,7 +26,7 @@ function faltasAguinaldo(w,fechaCalculo){
   },0);
 }
 function creditoInfonavitActivo(w,fecha){
-  const d=(typeof DESC!=='undefined'?DESC:[]).find(d=>d.trabajador_id===w.id&&d.activo===true&&d.recurrente===true&&String(d.tipo||'').toUpperCase()==='INFONAVIT')||null;
+  const d=(typeof bajaDescuentos==='function'?bajaDescuentos(w):(typeof DESC!=='undefined'?DESC:[])).find(d=>d.trabajador_id===w.id&&d.activo===true&&d.recurrente===true&&String(d.tipo||'').toUpperCase()==='INFONAVIT')||null;
   return d?.infonavit_avisos_historial?.length?infonavitCreditoAFecha(d,fecha||today()):d;
 }
 function numeroCreditoInfonavit(d){
@@ -61,18 +61,11 @@ function prAjusteNoiAplicable(w,fecha){
     ||v.fecha_antiguedad!==iniAntig(w)||Number(v.sd)!==Number(w.sd))return null;
   return v;
 }
-function openPrestaciones(id){
-  const w=WORKERS.find(x=>x.id===id); if(!w)return;
-  globalThis._PR_REVISION_ENTRADAS=null;
-  const estadoNoi={trabajador_id:id,estado:'CARGANDO'};
-  globalThis._PR_NOI_AJUSTE=estadoNoi;
-  const infoDesc=creditoInfonavitActivo(w);
-  const numeroCredito=numeroCreditoInfonavit(infoDesc);
-  modal(`
-    <div class="m-head"><h2>🧮 Prestaciones de ley · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
-    <div class="m-body">
+function prFormulario(w,fecha,unificado=false){
+  const id=w.id,infoDesc=creditoInfonavitActivo(w,fecha);
+  return `
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
-        <div><label>Fecha de cálculo / baja</label><input id="pr-fecha" type="date" value="${today()}" oninput="calcPrestaciones('${id}')"></div>
+        <div><label>Fecha de cálculo / baja</label><input id="pr-fecha" type="date" value="${esc(fecha)}" ${unificado?'readonly':''} oninput="calcPrestaciones('${id}')"></div>
         ${fld('pr-dias','Días trabajados sin pagar',0,{type:'number',extra:`oninput="calcPrestaciones('${id}')" min="0"`})}
         ${infoDesc?fld('pr-info-dias','Días INFONAVIT no retenidos','',{type:'number',ph:'Auto: 1 si baja lunes',extra:`oninput="calcPrestaciones('${id}')" min="0" max="31" step="1"`})
           :'<div><label>Crédito INFONAVIT</label><div class="fhint" style="margin-top:5px">No hay crédito activo. No se propone ni aplica retención.</div></div>'}
@@ -119,11 +112,20 @@ function openPrestaciones(id){
       <div id="pr-faltas-hist" style="margin-top:12px"></div>
       ${typeof ppfTablasHTML==='function'?ppfTablasHTML():''}
       <p style="font-size:11.5px;color:var(--mut);margin-top:10px">Cálculo conforme a LFT vigente: aguinaldo 15 días (art. 87), vacaciones desde 12 días (art. 76), prima vacacional 25% (art. 80), indemnización según causal y prima de antigüedad (art. 162). Sólo si la ficha tiene <b>retención INFONAVIT activa</b> se propone un día adicional cuando la baja es lunes, independientemente de salarios pendientes; escribe 0 si ya quedó retenido en otro corte. Confirma el aviso, la cédula SUA y el detalle de NOI antes de pagar: el modelo no sustituye esa conciliación.</p>
-    </div>
+    `;
+}
+function openPrestaciones(id,{consulta=false}={}){
+  const w=WORKERS.find(x=>x.id===id);if(!w)return;
+  globalThis._PR_REVISION_ENTRADAS=null;
+  const estadoNoi={trabajador_id:id,estado:'CARGANDO'};
+  globalThis._PR_NOI_AJUSTE=estadoNoi;
+  modal(`
+    <div class="m-head"><h2>🧮 Prestaciones de ley · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="m-body">${prFormulario(w,w.estatus==='BAJA'&&w.fecha_baja?w.fecha_baja:today())}</div>
     <div class="m-foot">
       <button class="btn" onclick="closeModal()">Cerrar</button>
       <button class="btn" onclick="ppfDesdeFicha('${id}')">Papel semanal · ISR preciso</button>
-      <button class="btn dark" id="pr-usar" onclick="usarEnBaja('${id}')">Usar total como finiquito en BAJA</button>
+      ${!consulta&&w.estatus!=='BAJA'&&puedeEditarTrabajador()?`<button class="btn dark" id="pr-usar" onclick="usarEnBaja('${id}')">Abrir baja y finiquito</button>`:''}
     </div>`,'lg prestaciones-form');
   calcPrestaciones(id);
   estadoNoi.promesa=prCargarAjusteNoi(id,estadoNoi);
@@ -261,7 +263,7 @@ function prProponerIntegracion(id){
   }catch(e){toast(e.message,'err');}
 }
 function calcPrestaciones(id){
-  const w=WORKERS.find(x=>x.id===id);
+  const w=(typeof bajaTrabajadorCalculo==='function'?bajaTrabajadorCalculo(id):null)||WORKERS.find(x=>x.id===id);
   if(!w)return;
   const cargaNoi=globalThis._PR_NOI_AJUSTE;
   if(cargaNoi&&cargaNoi.trabajador_id===id&&cargaNoi.estado!=='LISTO'){
@@ -452,37 +454,6 @@ function calcPrestaciones(id){
     `<div style="font-size:11px;color:var(--mut);margin-top:4px">${isrManual?`ISR ordinario automático $${money(isrCalculado)}; ISR ordinario NOI capturado $${money(isrFin)}. No incluye el ISR de separación, que tiene su campo propio. `:''}${noiV!=null?'Al aplicar se utilizará el <b>neto de NOI</b> capturado arriba; no se expide ningún cheque desde esta simulación.':'Cada percepción ordinaria se redondea a centavos antes de sumarla, como en NOI. Si el detalle emitido por NOI arroja otro ISR o importe, revísalo por concepto antes de aplicar.'}</div>`;
 }
 async function usarEnBaja(id){
-  if(!puedeEditarTrabajador()){toast('No tienes permiso para aplicar cálculos.','err');return;}
-  if(!globalThis._PR_AUDIT||globalThis._PR_AUDIT.invalido||!Number.isFinite(PR_TOTAL)){toast('Revisa los datos del finiquito antes de usarlo.','err');return;}
-  if(globalThis._PR_AUDIT.trabajador_id!==id){toast('El cálculo no corresponde a este trabajador.','err');return;}
-  if(globalThis._PR_AUDIT.requiere_noi_manual){toast('Confirma el importe en NOI antes de usar este finiquito de alta y baja el mismo día.','err');return;}
-  const audit=globalThis._PR_AUDIT,legal=audit.entradas&&audit.entradas.separacion_legal;
-  if(!legal&&typeof ppfGuardarDesdeFicha==='function'){
-    const firma=JSON.stringify(audit),papel=await ppfGuardarDesdeFicha(id,audit);
-    if(!papel)return;
-    if(!$('pr-fecha')||JSON.stringify(globalThis._PR_AUDIT)!==firma){toast('El cálculo cambió; revisa antes de aplicar.','err');return;}
-    audit.papel_prestaciones_id=papel.id;audit.papel_prestaciones_huella=papel.huella;
-  }
-  if(legal){
-    calcPrestaciones(id);
-    if(!esAdmin()||globalThis._PR_AUDIT.invalido||globalThis._PR_AUDIT.requiere_revision_legal||!Number.isFinite(PR_TOTAL)){
-      toast('Sólo el administrador puede aplicar una separación revisada y conciliada con NOI.','err');return;
-    }
-    if(!confirm('¿Aplicar el neto NOI de $'+money(PR_TOTAL)+' a la baja?\n\nSe conservará la referencia y desglose en bitácora. No cambia ningún finiquito ya registrado ni genera pago ahora.'))return;
-    const actual=structuredClone(globalThis._PR_AUDIT);
-    $('pr-usar').disabled=true;
-    let guardado=false;
-    try{guardado=await registrarBitacoraNomina([{...actual,tipo_calculo:'SEPARACION_VALIDADA',monto_aplicado:PR_TOTAL}],{silencioso:false});}
-    catch(e){toast('No se aplicó: no fue posible guardar la validación en bitácora.','err');}
-    if(!guardado){if($('pr-usar'))$('pr-usar').disabled=false;toast('No se aplicó: no fue posible guardar la validación en bitácora.','err');return;}
-    // Si se editó o cerró mientras se guardaba, no aplicar una simulación obsoleta.
-    if(!$('pr-fecha'))return;
-    calcPrestaciones(id);
-    if(JSON.stringify(globalThis._PR_AUDIT)!==JSON.stringify(actual)){toast('Los datos cambiaron; revisa y confirma de nuevo.','err');return;}
-  }
-  const t=PR_TOTAL;
-  const fecha=audit.periodo;
-  closeModal();openBaja(id);
-  setTimeout(()=>{if($('b-finiquito')){$('b-finiquito').value=t;$('b-chq-wrap').style.opacity=1;if(legal){$('b-fecha').value=fecha;$('b-motivo-cat').value=prMotivoSeparacion(legal.escenario);$('b-motivo').value='SEPARACION LFT ['+legal.escenario+'] · '+legal.referencia;bajaCortaPreview(id);}}},100);
+  if(!puedeEditarTrabajador())return toast('No tienes permiso para registrar la baja.','err');
+  return openBaja(id,{fecha:$('pr-fecha')?.value,campos:bajaCamposPrestaciones(),reemplazar:true});
 }
-
