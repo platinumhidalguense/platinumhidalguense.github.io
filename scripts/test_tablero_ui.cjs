@@ -224,7 +224,7 @@ const tiempos={};
  eq(T.estado().resumen.alcance.obras,['O1'],'el servidor resuelve el alcance autorizado');
  const er=await T.acciones.exportar();const wr=XLSX.read(XLSX.write(descargas.at(-1).wb,{type:'buffer'}),{type:'buffer'});
  const txt=wr.SheetNames.map(s=>XLSX.utils.sheet_to_csv(wr.Sheets[s])).join('\n');
-console.log("DBG",er.ok,er.error,txt.includes("CENTRO SUR"),txt.includes("FICTICIA O2"),txt.includes("PREVISION_SOCIAL"),txt.includes("fuera de tu alcance"),(txt.match(/.{80}CENTRO SUR.{40}/)||[])[0]); ok(er.ok&&!txt.includes('CENTRO SUR')&&!txt.includes('FICTICIA O2')&&!txt.includes('PREVISION_SOCIAL')&&txt.includes('fuera de tu alcance'),'usuario restringido: exporta sólo su alcance, sin datos del cliente');
+console.log("DBG",er.ok,er.error,txt.includes("CENTRO SUR"),txt.includes("FICTICIA O2"),txt.includes("PREVISION_SOCIAL"),txt.includes("fuera de tu alcance"),txt.split("\n").filter(l=>l.includes("CENTRO SUR")).join(" // ").slice(0,300)); ok(er.ok&&!txt.includes('CENTRO SUR')&&!txt.includes('FICTICIA O2')&&!txt.includes('PREVISION_SOCIAL')&&txt.includes('fuera de tu alcance'),'usuario restringido: exporta sólo su alcance, sin datos del cliente');
  ok(er.cuadre.every(c=>c.resultado==='CUADRA'),'cuadre también en alcance parcial');
  const d0=desde.length;T.acciones.abrirEvidencia('X',{evidencia_id:'X',pago_ids:[F.pagos[0].id]});await tick(10);
  ok(desde.length>d0&&toasts.at(-1).s.includes('permiso'),'evidencia sin permiso: se respeta el servidor');
