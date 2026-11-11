@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-10.5",
-  "entry": "assets/platinum-app.c8a07cef4521035f.js",
-  "sha256": "c8a07cef4521035f5dffcb7eedcbeb470fec0f6a0121cb1c4d9907288df055b6",
-  "integrity": "sha384-Ty+P5t60zn9HqrfIqsY9/WxE+0ki22FYeMoWyurHlf/ccQwZstANWEqV4IW/Ov+K",
+  "version": "2026-11-11.1",
+  "entry": "assets/platinum-app.6ab539c9d137d008.js",
+  "sha256": "6ab539c9d137d0080ea6a236828d7ea4e80b4055f32205971e24df9f7595ddd6",
+  "integrity": "sha384-oEAj5YU7HCGETX/qpr/NoSUmzTAQkz3BhpBdMfPLNQ5eR2DD75v1liXoTt6dbCbU",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "2223fb9fbfec1a3ca7122836e91b6bd7a007b7d8b04c1528ac379c5cf52f6148"
+      "sha256": "4c4d1c12800a1b40dd97de547ba408877799116b9390ebe7078a30240fe5f345"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -294,7 +294,7 @@
     },
     {
       "path": "frontend/modulos/72-aguinaldo-nucleo.js",
-      "sha256": "d1ae907d4c6c52c4ba4f8fd32f4db1afdc0f08d103d2d348d9d7eed097d16102"
+      "sha256": "4275c1cf439a6a8c5b875ee0e5996034fbddbf897cca6cd4f37214c452a70afa"
     },
     {
       "path": "frontend/modulos/73-aguinaldo-integracion.js",
@@ -302,7 +302,7 @@
     },
     {
       "path": "frontend/modulos/74-aguinaldo-corrida.js",
-      "sha256": "c3a43e7103aecccbef5f41fbdd559376e509dcc04e440875324db43770b024c8"
+      "sha256": "06dc42be2752bfbbd89de067e28d03a069dd70c1dc5fc9fd52d91dd98e89cac7"
     },
     {
       "path": "frontend/modulos/75-faltas-historicas.js",
@@ -311,6 +311,10 @@
     {
       "path": "frontend/modulos/76-baja-finiquito.js",
       "sha256": "788b0ab5d3f519ffd780a77313465358b0c14945b29bee857238f35c1ea10bb5"
+    },
+    {
+      "path": "frontend/modulos/77-aguinaldo-evidencias.js",
+      "sha256": "42ab41f639fc32e476dc5bb0d02e4a313b9c2616bb6820642f0490ab1df42154"
     }
   ]
 }

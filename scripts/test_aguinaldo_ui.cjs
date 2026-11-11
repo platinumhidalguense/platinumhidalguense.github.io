@@ -37,7 +37,7 @@ const fmtD=v=>{if(!v)return'';const[y,m,d]=String(v).slice(0,10).split('-');retu
 const today=()=>'2026-11-10';
 const dmyAiso=v=>{const m=String(v||'').trim().match(/^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})$/);return m?m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'):null;};
 `+code.join('\n'),box);
-for(const m of ['72-aguinaldo-nucleo','74-aguinaldo-corrida','75-faltas-historicas'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
+for(const m of ['72-aguinaldo-nucleo','74-aguinaldo-corrida','75-faltas-historicas','77-aguinaldo-evidencias'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
 Object.assign(box,{toast:(s,t)=>toasts.push({s,t}),puedeEditarTrabajador:()=>editar,razonSocialEmpresa:()=>'RAZÓN FICTICIA',dl:async(wb,name)=>{descargas.push({wb,name});},
  buildSheet:(rows,styles,widths,merges)=>{const ws={_rows:rows,_widths:widths,_merges:merges};rows.forEach((row,r)=>row.forEach((v,c)=>ws[String.fromCharCode(65+c)+(r+1)]={t:typeof v==='number'?'n':'s',v}));return ws;}});
 const A=box.PLATINUM_AGUINALDO,UI=box.PLATINUM_AGUINALDO_UI,FH=box.PLATINUM_FALTAS_HIST,$=id=>document.getElementById(id);
@@ -137,12 +137,15 @@ rpc=servidor;
  click(document.querySelector('[data-agc-paso="1"]'));click(document.querySelector('[data-agc-acc="calcular"]'));await tick(20);
  ok(UI._pruebas.estado().paso===1&&UI._pruebas.estado().filas.length===3&&UI._pruebas.estado().lotes.size===0,'recalcular desde el paso 2 usa los parámetros vigentes');
  click(document.querySelector('[data-agc-paso="3"]'));
- // Conflicto todo-o-nada: no hay aplicación parcial y el reintento conserva el identificador.
- const ops=[];aplicar=d=>{ops.push(d.operacion_id);return {error:{message:'CONFLICTO_AGUINALDO',details:JSON.stringify([{trabajador_id:'w1',motivo:'FUENTES_CAMBIARON'}])}};};
+ // Reintento de transporte conserva el identificador; el conflicto de fuentes exige recálculo.
+ const ops=[];aplicar=d=>{ops.push(d.operacion_id);return {error:{message:'FALLO_DE_TRANSPORTE_FICTICIO'}};};
  click(document.querySelector('[data-agc-acc="aplicar"]'));await tick(20);
  click(document.querySelector('[data-agc-acc="aplicar"]'));await tick(20);
  ok(ops.length===2&&ops[0]===ops[1],'mismo identificador al reintentar sin recalcular');
+ aplicar=()=>({error:{message:'CONFLICTO_AGUINALDO',details:JSON.stringify([{trabajador_id:'w1',motivo:'FUENTES_CAMBIARON'}])}});
+ click(document.querySelector('[data-agc-acc="aplicar"]'));await tick(20);
  ok(toasts.at(-1).s.includes('cambiaron sus fuentes'),'informa qué recalcular');
+ ok(!UI._pruebas.estado().filas.find(f=>f.w.id==='w1').puede_aplicar,'la fuente cambiada queda pendiente hasta recalcular');
  // Historial: retiro sólo mientras la nómina sea editable.
  historial=[{id:'L1',trabajador_id:'w1',estado:'APLICADO',estado_destino:'BORRADOR',version:1,periodicidad:'SEMANAL',periodo_desde:'2026-12-07',periodo_hasta:'2026-12-13',bruto:4356.16,isr:i96.isr,neto:4356.16-i96.isr,created_at:'2026-11-10'},
   {id:'L2',trabajador_id:'w2',estado:'APLICADO',estado_destino:'AUTORIZADO',version:1,periodicidad:'SEMANAL',periodo_desde:'2026-11-30',periodo_hasta:'2026-12-06',bruto:100,isr:0,neto:100,created_at:'2026-11-09'}];
@@ -152,6 +155,70 @@ rpc=servidor;
  const ret=llamadas.find(c=>c.args.p_accion==='RETIRAR');eq([ret.args.p_datos.id,ret.args.p_datos.version],['L1',1],'retira con versión y motivo');
  editar=false;box.PLATINUM_AGUINALDO_UI._pruebas.estado().paso=3;click(document.querySelector('[data-agc-paso="3"]'));
  ok(document.querySelector('[data-agc-acc="aplicar"]').disabled,'consulta: no aplica');editar=true;
+ box.closeModal();
+
+ // Reingreso pendiente seleccionable, resolución por fila, importes indeterminados y paginación.
+ const rev=W('rev',77,{fecha_alta:'2026-04-20',fecha_baja:'2026-05-25',fecha_reingreso:'2026-08-31'});
+ bdd.trabajadores.push(rev);ctx.rev=persona(rev,{movimientos:[
+  {id:'alta',accion:'ALTA',fecha_alta:'2026-04-20',fecha:'2026-04-20T12:00:00Z'},
+  {id:'baja',accion:'BAJA',fecha_baja:'2026-05-25',fecha:'2026-05-25T12:00:00Z'},
+  {id:'reing',accion:'REACTIVACION',fecha_reingreso:'2026-08-31',fecha:'2026-09-01T12:00:00Z'}]});
+ UI.abrir();valor('agc-texto','77');valor('agc-fecha_destino','2026-12-09');
+ click(document.querySelector('[data-agc-acc="calcular"]'));await tick(20);
+ const revision=UI._pruebas.estado(),rv=revision.filas[0];
+ eq([rv.estado_revision,rv.puede_revisar,rv.puede_aplicar],['CONCILIACION_ANTERIOR',true,false],'una baja sin desglose permite revisión y bloquea aplicar');
+ const casilla=document.querySelector('[data-agc-sel="rev"]');
+ ok(casilla&&!casilla.disabled,'casilla del pendiente disponible');
+ casilla.checked=true;casilla.dispatchEvent(new window.Event('change',{bubbles:true}));
+ ok(revision.sel.has('rev'),'selección estable por ID');
+ ok($('agc-cuerpo').textContent.includes('25/05/2026')&&$('agc-cuerpo').textContent.includes('Por confirmar'),'motivo concreto y saldo indeterminado');
+ assert.throws(()=>UI._pruebas.lineaDe(rv),/información pendiente/);n++;
+ click(document.querySelector('[data-agc-acc="analisis"]'));await tick();
+ const analisis=descargas.at(-1).wb.Sheets['ANÁLISIS']._rows[3];
+ ok(analisis[9]>0&&analisis[12]===''&&analisis[15]===''&&analisis[16]==='','análisis exporta bruto calculable y saldo/ISR/neto pendientes vacíos');
+ const descargasAntes=descargas.length;
+ click(document.querySelector('#agc-pie [data-agc-acc="excel"]'));await tick();
+ eq(descargas.length,descargasAntes,'el pendiente no pasa al Excel para firmas');
+ click(document.querySelector('[data-agc-paso="3"]'));
+ ok(document.querySelector('[data-agc-acc="aplicar"]').disabled&&$('agc-cuerpo').textContent.includes('1 pendiente'),'aplicación explica la fila pendiente');
+ click(document.querySelector('[data-agc-paso="1"]'));
+ let panel=null;const apiEvidencia=box.PLATINUM_AGUINALDO_EVIDENCIAS;
+ box.PLATINUM_AGUINALDO_EVIDENCIAS={...apiEvidencia,abrir:async opciones=>{panel=opciones;}};
+ click(document.querySelector('[data-agc-acc="evidencia"]'));await tick();
+ eq([panel.trabajador.id,panel.ejercicio,panel.pendientes.length],['rev',2026,1],'la acción entrega la baja pendiente al visor');
+ box.PLATINUM_AGUINALDO_EVIDENCIAS=apiEvidencia;
+ ctx.rev.evidencias_aguinaldo=[{id:'respaldo-cero',operacion:'BAJA:2026-05-25',origen:'CONCILIACION_VERIFICADA',
+  estado:'CERO_VERIFICADO',importe_bruto:0,exento:0,fecha_pago:'2026-05-25',fecha_baja:'2026-05-25',desglosado:true,
+  acreditacion_confirmada:true,fuentes:[{tipo:'COMPROBANTE',id:'soporte-ficticio'}],lectura_estado:'VERIFICADO',version:1}];
+ ctx.rev.huella_fuentes='H-rev-2';
+ const parametrosAntes=JSON.stringify(revision.p),lecturasAntes=llamadas.length;
+ await panel.alResolver();await tick();
+ ok(revision.sel.has('rev')&&JSON.stringify(revision.p)===parametrosAntes,'resolver conserva selección y filtros');
+ ok(revision.filas[0].puede_aplicar,'cero respaldado resuelve la fila');
+ eq(llamadas.slice(lecturasAntes).filter(c=>c.args.p_accion==='CONTEXTO').map(c=>c.args.p_datos.trabajadores),[['rev']],'se recalcula únicamente la fila afectada');
+ const rpcAntes=rpc;
+ rpc=(fn,a)=>fn==='control_aguinaldo'&&a.p_accion==='CONTEXTO'?{error:{message:'RED_FICTICIA'}}:rpcAntes(fn,a);
+ await assert.rejects(UI.recalcularTrabajador('rev'),/RED_FICTICIA/);n++;
+ ok(!revision.filas[0].puede_aplicar&&$('agc-cuerpo').textContent.includes('Lectura fallida'),'la lectura fallida tiene motivo y pierde aptitud para aplicar');
+ rpc=rpcAntes;await UI.recalcularTrabajador('rev');
+ ok(revision.filas[0].puede_aplicar&&revision.sel.has('rev'),'el reintento recupera la fila conservando selección');
+ click(document.querySelector('[data-agc-paso="0"]'));
+ const textoFiltro=$('agc-texto');textoFiltro.dispatchEvent(new window.Event('change',{bubbles:true}));
+ ok(document.querySelector('[data-agc-paso="3"]').disabled,'cambiar parámetros exige recálculo');
+ click(document.querySelector('[data-agc-acc="calcular"]'));await tick(20);
+ ok(revision.sel.has('rev')&&revision.filas[0].puede_aplicar,'recalcular mantiene la selección por ID');
+ let enviados=0;aplicar=d=>{enviados++;return {data:{lote_id:'REV',lineas:d.lineas.length}};};
+ click(document.querySelector('[data-agc-paso="3"]'));click(document.querySelector('[data-agc-acc="aplicar"]'));await tick(20);
+ eq(enviados,1,'la fila resuelta se aplica una vez');
+ ok(document.querySelector('[data-agc-acc="aplicar"]').disabled,'el lote registrado exige recalcular antes de otra aplicación');
+ revision.filas=Array.from({length:51},(_,i)=>({...f1,w:{...f1.w,id:'pagina-'+i,no_trab:100+i}}));revision.sel=new Set();revision.paso=1;
+ click(document.querySelector('[data-agc-paso="1"]'));
+ eq(document.querySelectorAll('[data-agc-sel]').length,50,'la página limita el DOM a 50 filas');
+ click(document.querySelector('[data-agc-acc="sel-todo"]'));
+ eq(revision.sel.size,51,'Seleccionar todos abarca las páginas');
+ click(document.querySelector('[data-agc-acc="pagina"][data-pagina="1"]'));
+ ok(document.querySelectorAll('[data-agc-sel]').length===1&&document.querySelector('[data-agc-sel]').hasAttribute('checked'),'cambiar página conserva la selección');
+ click(document.querySelector('[data-agc-acc="sel-ninguno"]'));eq(revision.sel.size,0,'quitar selección abarca todas las páginas');
  box.closeModal();
 
  // ---------- 5. Faltas históricas en la ficha ----------
@@ -223,7 +290,7 @@ rpc=servidor;
  eq([ciclo.ciclo.d.faltas_afectan,ciclo.ciclo.conc.pendiente.length],[5,0],'la baja anterior no bloquea el finiquito del reingreso');
  ctx.w6.papeles.push({id:'actual',fecha_baja:'2026-11-04',ejercicio:2026,revision:1,aguinaldo:100});
  let delCiclo=await FH.resumen(reingreso,2026,'2026-11-04','2026-09-21');
- eq([delCiclo.conc.acreditado,delCiclo.ciclo.conc.acreditado],[100,0],'el papel abierto se revisa en el cálculo actual');
+ eq([delCiclo.conc.acreditado,delCiclo.ciclo.conc.acreditado],[0,0],'el papel abierto aporta un cálculo pendiente de vincular');
  ctx.w6.finiquitos.push({id:'futuro',periodo:'2026-11-07',monto_aplicado:150,aguinaldo:null});
  delCiclo=await FH.resumen(reingreso,2026,'2026-11-04','2026-09-21');
  eq(delCiclo.ciclo.conc.pendiente.length,0,'un movimiento posterior al corte queda fuera de la baja');
