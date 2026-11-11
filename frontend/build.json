@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-10.4",
-  "entry": "assets/platinum-app.5b396553b4c4fb57.js",
-  "sha256": "5b396553b4c4fb577fc3cfe683cc72acebe4c163958205912c4f1b912a34baad",
-  "integrity": "sha384-tN5bdgIgvxMKePnCtPw074HNdR555D2asLWS05sXsZLG9xMmd+FJWr1eVDfy/2Cv",
+  "version": "2026-11-10.5",
+  "entry": "assets/platinum-app.c8a07cef4521035f.js",
+  "sha256": "c8a07cef4521035f5dffcb7eedcbeb470fec0f6a0121cb1c4d9907288df055b6",
+  "integrity": "sha384-Ty+P5t60zn9HqrfIqsY9/WxE+0ki22FYeMoWyurHlf/ccQwZstANWEqV4IW/Ov+K",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "bc45ae3b4f9c56e80e3a0eeb973554499c57d5852096fdac8acf85025e38c09d"
+      "sha256": "2223fb9fbfec1a3ca7122836e91b6bd7a007b7d8b04c1528ac379c5cf52f6148"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -306,11 +306,11 @@
     },
     {
       "path": "frontend/modulos/75-faltas-historicas.js",
-      "sha256": "6cb58287ebf46171e3861527ac1718bcb269b20618f2bf8d7d55e64ca0c4d992"
+      "sha256": "713e544af12c5fbd016b6168fa322c664c00300efc56e03a43aa43e0d7a4ebd0"
     },
     {
       "path": "frontend/modulos/76-baja-finiquito.js",
-      "sha256": "4330617440f81ebd7fd897ff60e669e15aaf32b920727c2bcde70fdb7af82b0c"
+      "sha256": "788b0ab5d3f519ffd780a77313465358b0c14945b29bee857238f35c1ea10bb5"
     }
   ]
 }

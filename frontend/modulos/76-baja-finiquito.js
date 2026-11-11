@@ -156,7 +156,7 @@ function bajaDocumento(motivo,escenario){
   actualizarD001(s);
   const panel=el(s,'pr-faltas-hist');
   s.evidencia=null;
-  s.lectura=window.PLATINUM_FALTAS_HIST.resumen(s.w,Number(s.fecha.slice(0,4)),s.fecha)
+  s.lectura=window.PLATINUM_FALTAS_HIST.resumen(s.w,Number(s.fecha.slice(0,4)),s.fecha,s.c.inicio_ciclo)
     .then(r=>{if(vigente(s)&&s.paso===2)s.evidencia=r;return r;})
     .catch(error=>{if(vigente(s)&&s.paso===2)mensaje(s,'Faltas y aguinaldo por verificar. '+error.message);return null;});
   window.PLATINUM_FALTAS_HIST.panelFiniquito(panel,s.w,s.fecha,faltasAguinaldo(s.w,s.fecha),s.lectura);
@@ -244,9 +244,10 @@ function bajaDocumento(motivo,escenario){
     if(!vigente(s)||s.paso!==2)return;
     if(s.edicion!==revision)throw Error('Cambió la captura. Revisa el cálculo actualizado.');
     if(!ev)throw Error('No se verificaron faltas y aguinaldo del ciclo.');
-    const ag=ev.conc.acreditado+ev.conc.reservado, dif=ev.d.ausencias.discrepancias.length;
+    const alcance=ev.ciclo||ev;
+    const ag=alcance.conc.acreditado+alcance.conc.reservado, dif=alcance.d.ausencias.discrepancias.length;
     const v=q.a.entradas.validacion_noi;
-    if((ag>0||dif||ev.conc.pendiente.length)&&(!v||q.a.entradas.noi_manual==null||s.referencia.length<3)){
+    if((ag>0||dif||alcance.conc.pendiente.length)&&(!v||q.a.entradas.noi_manual==null||s.referencia.length<3)){
       throw Error('Hay faltas o aguinaldo por conciliar. Verifica el desglose de esta fecha con NOI y documenta el neto.');
     }
     if(!q.legal&&(q.r.d001!==q.a.resultado.isr||q.r.neto_con_credito!==q.a.monto_modelo)){

@@ -11,6 +11,7 @@ const ppfBase={fecha_alta:'2026-10-01',fecha_baja:fecha,fecha_pago:fecha,sd:'300
 const papel={id:'papel',huella:'huella',revision:2,fecha_baja:fecha,entradas:ppfBase,resultado:{d001:6.02,neto_con_credito:440}};
 const llamadas=[],afirmaciones=[],aplicadas=[];
 let caja,edita=true,respuestaPerdida=false,guardada=null,lecturaBloqueada=null;
+let evidencia={d:{ausencias:{discrepancias:[]}},conc:{acreditado:0,reservado:0,pendiente:[]}};
 function modal(html,clase){$('modals').innerHTML='<div class="overlay"><div class="modal '+clase+'">'+html+'</div></div>';}
 function modal2(html,clase){$('modals').insertAdjacentHTML('beforeend','<div class="overlay"><div class="modal '+clase+'">'+html+'</div></div>');}
 function cerrar(){
@@ -47,7 +48,7 @@ function modelo(e){
   d001_propuesto:6.03,neto_papel:439.99,neto_noi:Math.round((446.02-d001)*100)/100,bruto_noi:446.02};
 }
 Object.assign(window,{PLATINUM_PERSONAL:{aplicarFila:f=>aplicadas.push(f)},PLATINUM_FALTAS_HIST:{
- resumen:async()=>({d:{ausencias:{discrepancias:[]}},conc:{acreditado:0,reservado:0,pendiente:[]}}),
+ resumen:async(_w,_ej,_fecha,inicio)=>{assert.equal(inicio,w.fecha_reingreso);return evidencia;},
  panelFiniquito:()=>{}}});
 caja=vm.createContext({window,document,$,WORKERS:[w],OBRA:{id:'p',nombre:'CENTRO FICTICIO'},USER:{id:'u'},sb:{rpc},
  SOLO_CONTRATOS:false,MOTIVOS_BAJA:['RENUNCIA VOLUNTARIA','OTRO'],today:()=> '2026-11-10',_uuid:()=> 'op-fixture',
@@ -106,6 +107,20 @@ async function click(accion){
  assert.equal(aplicadas.length,1);
  assert($('bf-panel').textContent.includes('Baja registrada'));
  await click('cerrar');assert($('ficha-base'));assert(!$('bf-flujo'));
+ for(const caso of [
+  {conc:{acreditado:0,reservado:0,pendiente:[]},discrepancias:[],permite:true},
+  {conc:{acreditado:80,reservado:0,pendiente:[]},discrepancias:[],permite:false},
+  {conc:{acreditado:0,reservado:0,pendiente:[{id:'sin-desglose'}]},discrepancias:[],permite:false},
+  {conc:{acreditado:0,reservado:0,pendiente:[]},discrepancias:[{id:'diferencia'}],permite:false}
+ ]){
+  evidencia={d:{ausencias:{discrepancias:[]}},conc:{acreditado:90,reservado:0,pendiente:[{id:'baja-anterior'}]},
+   ciclo:{d:{ausencias:{discrepancias:caso.discrepancias}},conc:caso.conc}};
+  await api.abrir(w.id,{fecha});$('bf-causal').value='RENUNCIA VOLUNTARIA';await click('calcular');await click('revisar');
+  assert.equal(!!$('bf-destino'),caso.permite,'El bloqueo debe usar las evidencias del ciclo actual');
+  if(!caso.permite)assert($('bf-aviso').textContent.includes('por conciliar'));
+  await click('cerrar');
+ }
+ evidencia={d:{ausencias:{discrepancias:[]}},conc:{acreditado:0,reservado:0,pendiente:[]}};
  await api.abrir(w.id,{fecha});
  $('bf-causal').value='RENUNCIA VOLUNTARIA';
  await click('calcular');

@@ -4,6 +4,8 @@ const {makeDatabase,ids,actor,owner,snapshot}=require('./soporte_flujo_pg.cjs');
 const directorio='work/baja_finiquito_20261110',archivo=directorio+'/funciones_vigentes.json';
 if(!fs.existsSync(archivo)){console.log('ALCANCE PÚBLICO BAJA: el contrato SQL privado se prueba localmente.');process.exit(0);}
 const defs=JSON.parse(fs.readFileSync(archivo,'utf8'));
+const dependenciasPuesto=directorio+'/triggers_antes_search_path.json';
+const migracionPuesto=fs.readdirSync('supabase/migrations').find(x=>x.endsWith('_baja_trigger_puesto_esquema.sql'));
 let pruebas=0;
 const igual=(a,b,m)=>{assert.deepEqual(a,b,m);pruebas++;};
 (async()=>{
@@ -36,6 +38,12 @@ const igual=(a,b,m)=>{assert.deepEqual(a,b,m);pruebas++;};
   `);
   const nueva=fs.readdirSync('supabase/migrations').find(x=>x.endsWith('_baja_finiquito_unificado.sql'));
   await db.exec(fs.readFileSync('supabase/migrations/'+nueva,'utf8'));
+  if(migracionPuesto){
+   const dependencias=JSON.parse(fs.readFileSync(dependenciasPuesto,'utf8'));
+   await db.exec('create table if not exists public.puesto_sinonimos(variante text primary key,puesto text not null,especialidad text)');
+   for(const f of dependencias.normalizadores)await db.exec(f.definicion);
+   await db.exec('create trigger trg_norm_puesto before insert or update on public.trabajadores for each row execute function public.fn_trg_puesto()');
+  }
   const fecha='2026-11-04';
   const call=async(quien,accion,p)=>{
    await actor(db,quien);
@@ -63,6 +71,33 @@ const igual=(a,b,m)=>{assert.deepEqual(a,b,m);pruebas++;};
   await rechaza('admin','CONTEXTO',datos(ids.w,ids.obra,'2027-01-01'),/ciclo vigente/);
   const prim=await preparar(datos());
   const antes=(await owner(db,'select to_jsonb(w) r from trabajadores w where id=$1',[ids.w])).rows[0].r;
+  if(migracionPuesto){
+   await rechaza('admin','CONFIRMAR',prim,/function fn_norm_puesto\(text\) does not exist/);
+   igual((await owner(db,'select to_jsonb(w) r from trabajadores w where id=$1',[ids.w])).rows[0].r,antes);
+   igual((await owner(db,'select count(*)::int n from prestaciones_papeles')).rows[0].n,0);
+   igual((await owner(db,'select count(*)::int n from historial')).rows[0].n,0);
+   await db.exec(fs.readFileSync('supabase/migrations/'+migracionPuesto,'utf8'));
+   await db.exec(`create table public.puesto_prueba(id int primary key,puesto text,observaciones text);
+    create trigger trg_norm_puesto before insert or update on public.puesto_prueba for each row execute function public.fn_trg_puesto();
+    insert into public.puesto_sinonimos values('AYUDANTE GENERAL','AYUDANTE ALBAÑIL','GENERAL');
+    set search_path='';`);
+   const normalizar=async(id,puesto,observaciones='')=>(await db.query('insert into public.puesto_prueba values($1,$2,$3) returning puesto,observaciones',[id,puesto,observaciones])).rows[0];
+   igual((await normalizar(1,'  oficial albañíl  ')).puesto,'OFICIAL ALBAÑIL');
+   igual((await normalizar(2,'ayudante general')).puesto,'AYUDANTE ALBAÑIL');
+   igual((await normalizar(3,'bloquero')).observaciones,'ESPECIALIDAD: BLOQUERO');
+   igual((await normalizar(4,'pastero','OBSERVACIÓN')).observaciones,'OBSERVACIÓN | ESPECIALIDAD: PASTERO');
+   igual((await normalizar(5,null)).puesto,null);
+   igual((await normalizar(6,'   ')).puesto,null);
+   await db.exec("update public.puesto_prueba set puesto='bloquero' where id=3");
+   igual((await db.query('select observaciones from public.puesto_prueba where id=3')).rows[0].observaciones,'ESPECIALIDAD: BLOQUERO');
+   await db.exec(`create schema sombra;
+    create function sombra.fn_norm_puesto(text) returns text language sql as $$select 'ERRÓNEO'::text$$;
+    create table sombra.puesto_sinonimos(variante text,puesto text,especialidad text);
+    insert into sombra.puesto_sinonimos values('AYUDANTE GENERAL','ERRÓNEO',null);
+    set search_path=sombra,public;`);
+   igual((await normalizar(7,'ayudante general')).puesto,'AYUDANTE ALBAÑIL');
+   await db.exec('set search_path=public');
+  }
   const original=crypto.randomUUID();
   await owner(db,`insert into control_cierres_nomina(id,obra_id,semana,periodo,estado,snapshot,snapshot_sha256,
     formula_version,total_trabajadores,total_neto,creado_por) values($1,$2,20,'SEMANAL','TIMBRADO',$3,'ORIGINAL','TEST',1,2000,$4)`,

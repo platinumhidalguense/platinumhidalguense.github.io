@@ -210,6 +210,33 @@ rpc=servidor;
  ok(fuente71.includes("faltas:'Faltas históricas y acumulado'")&&fuente71.includes('PLATINUM_FALTAS_HIST.montar'),'sección en la ficha');
  ok(fuente33.includes('pr-faltas-hist')&&!/function calcPrestaciones[\s\S]{0,4000}PLATINUM_FALTAS_HIST/.test(fuente33),'panel fuera de calcPrestaciones');
 
+ // Reingreso con cinco faltas: el acumulado anual y el ciclo de la baja tienen alcances propios.
+ const reingreso=W('w6',6,{fecha_alta:'2026-08-10',fecha_baja:'2026-09-07',fecha_reingreso:'2026-09-21'});
+ ctx.w6=persona(reingreso,{movimientos:[{accion:'BAJA',fecha_baja:'2026-09-07'},{accion:'REACTIVACION',fecha_reingreso:'2026-09-22'}],
+  faltas_semana:[
+   {id:'f26',tipo:'FALTA',motivo:'3 FALTAS · NETO NOI -100',periodo:{desde:'2026-09-21',hasta:'2026-09-27'}},
+   {id:'f27',tipo:'FALTA',motivo:'2 FALTAS · NETO NOI -100',periodo:{desde:'2026-09-28',hasta:'2026-10-04'}}],
+  papeles:[{id:'hist',fecha_baja:'2026-09-07',ejercicio:2026,revision:1,aguinaldo:null}]});
+ const ciclo=await FH.resumen(reingreso,2026,'2026-11-04','2026-09-21');
+ eq(ciclo.d.faltas_afectan,5,'el resumen anual reconoce las cinco faltas registradas');
+ eq(ciclo.conc.pendiente.length,1,'el histórico sin desglose sigue visible en el acumulado anual');
+ eq([ciclo.ciclo.d.faltas_afectan,ciclo.ciclo.conc.pendiente.length],[5,0],'la baja anterior no bloquea el finiquito del reingreso');
+ ctx.w6.papeles.push({id:'actual',fecha_baja:'2026-11-04',ejercicio:2026,revision:1,aguinaldo:100});
+ let delCiclo=await FH.resumen(reingreso,2026,'2026-11-04','2026-09-21');
+ eq([delCiclo.conc.acreditado,delCiclo.ciclo.conc.acreditado],[100,0],'el papel abierto se revisa en el cálculo actual');
+ ctx.w6.finiquitos.push({id:'futuro',periodo:'2026-11-07',monto_aplicado:150,aguinaldo:null});
+ delCiclo=await FH.resumen(reingreso,2026,'2026-11-04','2026-09-21');
+ eq(delCiclo.ciclo.conc.pendiente.length,0,'un movimiento posterior al corte queda fuera de la baja');
+ ctx.w6.aplicaciones.push({id:'actual',estado:'APLICADO',estado_destino:'PAGADO',bruto:90,fecha_pago:'2026-10-09',periodo_desde:'2026-10-05',periodo_hasta:'2026-10-11'});
+ delCiclo=await FH.resumen(reingreso,2026,'2026-11-04','2026-09-21');
+ eq(delCiclo.ciclo.conc.acreditado,90,'el aguinaldo aplicado en el ciclo actual conserva su conciliación');
+ ctx.w6.finiquitos.push({id:'vigente',periodo:'2026-10-12',monto_aplicado:150,aguinaldo:null});
+ delCiclo=await FH.resumen(reingreso,2026,'2026-11-04','2026-09-21');
+ eq(delCiclo.ciclo.conc.pendiente.length,1,'un finiquito sin desglose dentro del ciclo sí requiere revisión');
+ ctx.w6.historicas.push({id:'contradictorio',estado:'VIGENTE',modo:'TOTAL_AL_CORTE',rango_desde:'2026-09-21',fecha_corte:'2026-10-04',total_acreditado:4,naturaleza:'FALTA_INJUSTIFICADA'});
+ delCiclo=await FH.resumen(reingreso,2026,'2026-11-04','2026-09-21');
+ eq(delCiclo.ciclo.d.ausencias.discrepancias.length,1,'cinco capturadas contra cuatro acreditadas conserva la discrepancia real');
+
  // ---------- 7. Proyección: post-proceso, Excel, fotografía y auditoría ----------
  const fila=(w,o)=>({w,fin:false,sueldo:3000,incidencias:0,creditos:0,otras:0,prevision:200,costo:3000,neto:3200,items:[],pago:'TRANSFERENCIA',...o});
  const base={sem:'S37',filas:[fila(w1),fila(w2,{prevision:0,neto:3000}),fila(w4,{fin:true,sueldo:5200,prevision:0,costo:5200,neto:5200,pago:'CHEQUE'})],items:[],neto:11400,costo:11200};
