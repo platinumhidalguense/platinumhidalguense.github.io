@@ -164,7 +164,7 @@ const tiempos={};
  antes=llamadas.length;for(const t of ['F','FI','FIC','FICT','FICTICIA'])T.acciones.buscarDetalle(t);await espera(40);await tick(10);
  const busq=llamadas.slice(antes).filter(c=>c.accion==='DETALLE');eq([busq.length,busq[0]&&busq[0].datos.busqueda,busq[0]&&busq[0].datos.pagina],[1,'FICTICIA',1],'búsqueda con debounce: una sola consulta');
  tecla(q('section[aria-labelledby$="-det-t"] h3'),'Escape');await tick();
- ok(!T.estado().detalle&&document.activeElement.getAttribute('data-foco')==='kpi-neto_conciliado','Escape cierra el detalle y devuelve el foco a la cifra');
+console.log("DBG",!!T.estado().detalle,document.activeElement.tagName,document.activeElement.getAttribute("data-foco"),S.detalle&&S.detalle.focoOrigen); ok(!T.estado().detalle&&document.activeElement.getAttribute('data-foco')==='kpi-neto_conciliado','Escape cierra el detalle y devuelve el foco a la cifra');
  click(q('[data-accion="detalle"][data-dim="obra"][data-valor="O2"]'));await tick(20);eq(llamadas.at(-1).datos.obras,['O2'],'desde una barra: detalle del centro elegido');
  click(q('[data-tablero-accion="cargar-excepciones"]'));await tick(20);eq([llamadas.at(-1).accion,llamadas.at(-1).datos.pagina],['EXCEPCIONES',1],'excepciones paginadas sólo al pedirlas');
 
