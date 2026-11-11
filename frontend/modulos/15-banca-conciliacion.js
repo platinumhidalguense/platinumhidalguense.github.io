@@ -163,7 +163,7 @@ function chequeMismaSemana(w,ns){
   return (CHEQUES||[]).filter(c=>!c.eliminado&&c.trabajador_id===w.id&&normSem(c.semana)===ns&&String(c.estatus||'').toUpperCase()!=='CANCELADO'&&(c.importe!=null&&c.importe!==''));
 }
 let PAGOIMP=null;
-function openImportPago(){if(!window.PLATINUM_CONCILIADOR){toast("Actualiza la plataforma para abrir el Conciliador General.","err");return;}return window.PLATINUM_CONCILIADOR.abrir(2);}
+function openImportPago(opciones={}){if(!window.PLATINUM_IMPORTACION_BANCARIA){toast("Actualiza la plataforma para importar pagos bancarios.","err");return;}return window.PLATINUM_IMPORTACION_BANCARIA.abrir(opciones);}
 /* ============================================================
    v36.2 · COMPROBANTES SIN CAPA DE TEXTO (impresos desde el navegador)
    Muchos comprobantes del banco llegan como PDF de IMAGEN: al imprimirlos

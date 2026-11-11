@@ -38,3 +38,6 @@ supabase/migrations/*_aguinaldo_faltas_historicas.sql
 # Revisión de aguinaldo: SQL y metadatos sólo locales.
 supabase/migrations/*_aguinaldo_revision_reingresos.sql
 supabase/.temp/
+
+# Importación bancaria histórica: migración operativa privada.
+supabase/migrations/*_pagos_historicos_conciliados.sql

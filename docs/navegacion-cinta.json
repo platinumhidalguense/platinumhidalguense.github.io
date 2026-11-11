@@ -478,7 +478,7 @@
       "contextuales": []
     },
     {
-      "etiqueta": "Pagos y comprobantes bancarios · Conciliador",
+      "etiqueta": "Importar pagos bancarios",
       "modulo": "Pagos, Bancos y Cheques",
       "grupo": "Pagos y cheques",
       "destino": "sbGo(()=>openImportPago(),this)",

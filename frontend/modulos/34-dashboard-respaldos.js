@@ -461,6 +461,12 @@ async function exportRespaldo(porCorreo){
     dc[0].forEach((_,c)=>{const a=XLSX.utils.encode_cell({r:0,c});if(wsDoc[a])wsDoc[a].s=ST.head;});
     XLSX.utils.book_append_sheet(wb,wsDoc,'EXPEDIENTE DIGITAL');
   }
+  const bancoRespaldo=[['control_importaciones_bancarias','ARCHIVOS BANCARIOS','id,obra_id,empresa_codigo,contexto,nombre,sha256,ruta,tamano,padre_id,paginas,estado,revision,error,creado_por,created_at,updated_at'],['control_banco_resoluciones','CONCILIACION BANCARIA','id,archivo_id,fila,operacion_id,obra_id,trabajador_id,pago_id,obligacion_id,cheque_id,aplicacion_id,estado,revision,resultado,actor_id,created_at,updated_at']];
+  for(const [tabla,nombre,columnas] of bancoRespaldo){
+    const {data:filas,error:bError}=await fetchAllRows(()=>sb.from(tabla).select(columnas));
+    if(bError){toast('No se completó el respaldo de '+nombre+': '+bError.message,'err');return;}
+    const cs=columnas.split(',');XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([cs,...(filas||[]).map(r=>cs.map(c=>typeof r[c]==='object'&&r[c]!==null?JSON.stringify(r[c]):r[c]??''))]),nombre);
+  }
   const {data:hist}=await sb.from('historial').select('fecha,accion,trabajador_nombre,usuario').order('fecha',{ascending:false}).limit(500);
   if(hist)XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['FECHA','ACCION','TRABAJADOR','USUARIO'],...hist.map(h=>[new Date(h.fecha).toLocaleString('es-MX'),h.accion,h.trabajador_nombre,h.usuario])]),'HISTORIAL RECIENTE');
   const f=new Date(),name=`RESPALDO_BASE_TRABAJADORES_${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}-${String(f.getDate()).padStart(2,'0')}.xlsx`;

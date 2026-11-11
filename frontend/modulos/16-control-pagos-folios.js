@@ -44,15 +44,7 @@ function cpRender(){
 }
 function openControlPagos(){return window.PLATINUM_CONCILIADOR_SEMANAL?.abrir();}
 
-async function openFiniquitoTransferenciaAdmin(trabajadorId=''){
-  try{
-    if(!window.PLATINUM_FLOWS)throw Error('Recarga la plataforma para usar el flujo integrado.');
-    const p=await window.PLATINUM_FLOWS.call('PERMISOS');if(!p.transferencia)throw Error('No tienes autorización para esta excepción.');
-    if(trabajadorId){const w=WORKERS.find(x=>x.id===trabajadorId);if(!w)throw Error('Trabajador no encontrado.');return window.PLATINUM_FLOWS.transferencia(w.id,isoWeekDe(OBRA,new Date(w.fecha_baja+'T12:00')));}
-    const bajas=WORKERS.filter(w=>w.estatus==='BAJA'&&w.fecha_baja&&Number(w.monto_finiquito)>0).sort((a,b)=>Number(a.no_trab)-Number(b.no_trab));
-    modal(ctrlNav('Finiquito por transferencia autorizada')+`<div class="m-body"><p>Selecciona el finiquito. El servidor comprobará el permiso específico, NOI y la transferencia importada.</p><select id="ft-elegir">${bajas.map(w=>`<option value="${w.id}">#${esc(w.no_trab)} · ${esc(fullName(w))}</option>`).join('')}</select></div><div class="m-foot"><button class="btn dark" onclick="openFiniquitoTransferenciaAdmin($('ft-elegir').value)">Continuar</button></div>`,'md');
-  }catch(e){toast(e.message,'err');}
-}
+async function openFiniquitoTransferenciaAdmin(trabajadorId=''){return openImportPago({obra_id:OBRA?.id,concepto:'FINIQUITO',trabajador_id:trabajadorId});}
 function finTransActualizarFormulario(){
   const w=WORKERS.find(x=>x.id===$('ft-trab')?.value);if(!w)return;
   const sem=isoWeekDe(OBRA,new Date(w.fecha_baja+'T12:00'));

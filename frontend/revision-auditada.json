@@ -154,7 +154,7 @@
   "openCtrlNuevoCierre": "Conciliador General: entrada única por periodo, cuatro etapas persistidas. Conserva servicios financieros y lectores originales; procedencia opcional de archivos y alcance privado. Pruebas DOM/contratos y PostgreSQL aislado.",
   "openCtrlConciliacionSelector": "Conciliador General: entrada única por periodo, cuatro etapas persistidas. Conserva servicios financieros y lectores originales; procedencia opcional de archivos y alcance privado. Pruebas DOM/contratos y PostgreSQL aislado.",
   "ctrlGuardarNOI": "Conciliador General: entrada única por periodo, cuatro etapas persistidas. Conserva servicios financieros y lectores originales; procedencia opcional de archivos y alcance privado. Pruebas DOM/contratos y PostgreSQL aislado.",
-  "openImportPago": "Conciliador General: entrada única por periodo, cuatro etapas persistidas. Conserva servicios financieros y lectores originales; procedencia opcional de archivos y alcance privado. Pruebas DOM/contratos y PostgreSQL aislado.",
+  "openImportPago": "Entrada única para evidencia bancaria actual e histórica, independiente de fotografía. Parsers tradicionales conservados. Archivo privado, vista previa y confirmación por operación mediante nuevo servicio.",
   "openCfdiImport": "Acceso compatible al archivo documental PDF y XML por cierre, independiente de la etapa financiera.",
   "openPdfImport": "Importador de acuses IMSS exclusivo. Separa su acceso del archivo documental de nómina.",
   "vpVerPdf": "Conciliador General: entrada única por periodo, cuatro etapas persistidas. Conserva servicios financieros y lectores originales; procedencia opcional de archivos y alcance privado. Pruebas DOM/contratos y PostgreSQL aislado.",
@@ -201,5 +201,7 @@
   "openContratistas": "Mantiene su lectura propia y descarta el resultado si otra acción o contexto reemplazó al original.",
   "pcDatosFrescos": "Aguinaldo 2026-11-10: además de las cinco fuentes de la razón social, lee las aplicaciones vigentes de aguinaldo de sus centros; sin la migración devuelve una lista vacía y cualquier otro error detiene la proyección.",
   "rrhhVistaActual": "Aguinaldo 2026-11-10: la vista actual del trabajador aplica su aguinaldo vigente del periodo y lo informa por separado; neto fiscal coherente con NOI.",
-  "openAguinaldo": "Aguinaldo 2026-11-10: abre la corrida de cuatro pasos del módulo 74; el cálculo simple anterior queda como consulta en agAbrirSimple sin cambios de fórmula."
+  "openAguinaldo": "Aguinaldo 2026-11-10: abre la corrida de cuatro pasos del módulo 74; el cálculo simple anterior queda como consulta en agAbrirSimple sin cambios de fórmula.",
+  "openFiniquitoTransferenciaAdmin": "Delegación al importador bancario único por concepto FINIQUITO, sin depender de la baja actual de la ficha; validación histórica en servidor y confirmación específica de cheques físicos.",
+  "exportRespaldo": "Incluye metadatos de originales bancarios y relaciones de resolución, pagos, obligaciones, aplicaciones y cheques; paginado/RLS, sin imágenes ni texto OCR duplicados. Si falla la lectura no declara respaldo completo."
 }

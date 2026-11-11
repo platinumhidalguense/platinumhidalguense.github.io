@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-11.1",
-  "entry": "assets/platinum-app.6ab539c9d137d008.js",
-  "sha256": "6ab539c9d137d0080ea6a236828d7ea4e80b4055f32205971e24df9f7595ddd6",
-  "integrity": "sha384-oEAj5YU7HCGETX/qpr/NoSUmzTAQkz3BhpBdMfPLNQ5eR2DD75v1liXoTt6dbCbU",
+  "version": "2026-11-11.2",
+  "entry": "assets/platinum-app.ce7102d61fdcb9ca.js",
+  "sha256": "ce7102d61fdcb9caeceb9054f8c0378ff214ea44e71da4f6ab8535f4126ed12a",
+  "integrity": "sha384-qHNhGdRQh4qeYkjk9+eMblw7j0Rk2qIgjE1FvdOM1ux8WN6mdU5CEAusBOGl855z",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "4c4d1c12800a1b40dd97de547ba408877799116b9390ebe7078a30240fe5f345"
+      "sha256": "441eb160d272a88567f1455b4fc043e239231cadee93ea9b14af6721c2ee281a"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -66,11 +66,11 @@
     },
     {
       "path": "frontend/modulos/15-banca-conciliacion.js",
-      "sha256": "4e2a687f0727749eef490425d8338098e01b4b3ef3daf28a473b95b3aa6231c5"
+      "sha256": "3db3d2c56a60a9d9c004324b239add32cfc4e870e9efa6c4df1a16d92e8339b9"
     },
     {
       "path": "frontend/modulos/16-control-pagos-folios.js",
-      "sha256": "d0ca0ff005c9b2d07d144bd43cfe8558fa410c9fed3d7172f18a4047a4d2fd78"
+      "sha256": "bead1c01b87a1c52405bf7adc695bf316f383efa17dff60f3a76d5e19f8a9198"
     },
     {
       "path": "frontend/modulos/17-recepcion-papeles.js",
@@ -142,7 +142,7 @@
     },
     {
       "path": "frontend/modulos/34-dashboard-respaldos.js",
-      "sha256": "d0b88b93cc76401787455aa8d190654ecee1c45199782dccbd1a657fe3d895de"
+      "sha256": "17551f39d905f8099fff4899414a16bcff85eed00c327cc5bfc012f55149e345"
     },
     {
       "path": "frontend/modulos/35-centro-control.js",
@@ -170,7 +170,7 @@
     },
     {
       "path": "frontend/modulos/41-visor-semanal-pagos.js",
-      "sha256": "132772484d5878f0b0ea09ce411a0c9da20fdf4a8b6961ac44f9a79bc9710e7e"
+      "sha256": "9dba80e8e6d1b231993df12040dcc2a6d584a1249b8401be247562ccf8cdabd7"
     },
     {
       "path": "frontend/modulos/42-recibos-lectura-ia.js",
@@ -246,7 +246,7 @@
     },
     {
       "path": "frontend/modulos/60-conciliador-general-stepper.js",
-      "sha256": "b84cb9a491377717c245fe88ae17e17ed5c59f23a0b31efefa40bd7f44083bd1"
+      "sha256": "c23a69380ec572aae66ba8b97922a2462472927e483ab10b9b5751b8314c6b4a"
     },
     {
       "path": "frontend/modulos/61-conciliacion-semanal.js",
@@ -254,7 +254,7 @@
     },
     {
       "path": "frontend/modulos/62-conciliador-semanal-interfaz.js",
-      "sha256": "1e6e44a9396d4c86e03d6d107697e24811bc51b431458e4eea743396c051ac56"
+      "sha256": "ba79746835baf0be2e38f681faf17a5c810ba5e42b4e817b681b23998dadd7a6"
     },
     {
       "path": "frontend/modulos/63-gestion-cheques.js",
@@ -315,6 +315,14 @@
     {
       "path": "frontend/modulos/77-aguinaldo-evidencias.js",
       "sha256": "42ab41f639fc32e476dc5bb0d02e4a313b9c2616bb6820642f0490ab1df42154"
+    },
+    {
+      "path": "frontend/modulos/78-banco-historico-servicio.js",
+      "sha256": "0f8fa6e69b9752cde004df1639e863062e0e0041914af77b81b3f0af67f765ed"
+    },
+    {
+      "path": "frontend/modulos/79-importacion-bancaria-interfaz.js",
+      "sha256": "5ded0919922a13b68580af96da5158c6e18b73ecad6067add9189bfb1ff4cc1f"
     }
   ]
 }
