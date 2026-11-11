@@ -646,7 +646,7 @@
     const ws=T.filas.filter(w=>w.obra_id===id&&!w.eliminado).sort((a,b)=>(a.no_trab??9e9)-(b.no_trab??9e9));
     const filas=ws.map(w=>lc.map(c=>{
      if(c.campo==='docs_entregados'){const dd=w.docs||{};return (am.docs.length?am.docs.filter(k=>dd[k]==='ENTREGADO').length:0)+'/'+totalDocs;}
-     const v=valorLogico(w[c.campo],c.tipo);return v===null?'':v;
+     const v=valorLogico(w[c.campo],c.tipo);if(typeof v==='string'&&v.length>LIM_CELDA)return registraLargo(o.nombre,w.id,c.campo,v);return v===null?'':v;
     }));
     logica(o.nombre,'PADRON','(compatibilidad V0)',lc,filas,{legado:true,obra_id:id,desc:'Vista de compatibilidad V0 del padrón del centro (sin papelera).'});
    }
