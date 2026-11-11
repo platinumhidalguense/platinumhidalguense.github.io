@@ -486,18 +486,21 @@
   };
   await leer(activas);
   // Consistencia: cada tabla debe coincidir con la última marca; se relee lo que cambió.
-  let ultima=M,valida=new Map(activas.map(f=>[f.clave,0]));
+  let ultima=M;
   if(M){
    for(let ciclo=1;;ciclo++){
     ctx.marcaActual=ciclo;
-    const N=await marcas(am,ctx,activas.map(f=>f.clave),false);R.marcas.push(N);
-    const relee=[];
+    let N;
+    try{N=await marcas(am,ctx,activas.map(f=>f.clave),false);}
+    catch(e){motivo('SIN_MARCA_FINAL');R.errores.push(['(marcas)','No se pudo tomar la marca final: '+errTexto(e)]);ultima=null;break;}
+    R.marcas.push(N);
+    const relee=[],cambiadas=new Set();
     for(const f of activas){
      const d=datos.get(f.clave),a=ultima.marcas[f.clave],b=N.marcas[f.clave];
      if(d.error){relee.push(f);continue;}
-     const igual=firma(a)===firma(b);
-     if(!igual||(b&&Number(b.filas)!==d.filas.length&&!(f.clave==='control_pago_aplicaciones'&&!ctx.permisos.vip))){relee.push(f);valida.set(f.clave,-1);}
-     else valida.set(f.clave,ciclo);
+     // Válida sólo si no cambió entre la marca anterior y ésta y el conteo coincide con el servidor.
+     if(firma(a)!==firma(b))cambiadas.add(f.clave);
+     if(cambiadas.has(f.clave)||!b||Number(b.filas)!==d.filas.length)relee.push(f);
     }
     ultima=N;
     if(!relee.length)break;
@@ -506,7 +509,7 @@
       const d=datos.get(f.clave);
       if(d.error)continue;
       const b=N.marcas[f.clave];
-      d.inconsistente=Number(b&&b.filas)!==d.filas.length?'CONTEO_DIFERENTE':'CAMBIO_CONCURRENTE';
+      d.inconsistente=cambiadas.has(f.clave)?'CAMBIO_CONCURRENTE':'CONTEO_DIFERENTE';
      }
      break;
     }
@@ -531,7 +534,7 @@
   const fecha=am.reloj(),sello=fecha.getFullYear()+'-'+String(fecha.getMonth()+1).padStart(2,'0')+'-'+String(fecha.getDate()).padStart(2,'0')+'_'+String(fecha.getHours()).padStart(2,'0')+String(fecha.getMinutes()).padStart(2,'0');
   const base=FORMATO+'_'+empresa+'_'+sello+(R.estado==='INCOMPLETO'?'_INCOMPLETO':'');
   partes.forEach((p,i)=>{p.nombre=base+(partes.length>1?'_parte'+(i+1)+'de'+partes.length:'')+'.xlsx';});
-  R.duracion_lectura_ms=Date.now()-t0;
+  R.duracion_preparacion_ms=Date.now()-t0;
   for(let i=0;i<partes.length;i++){
    const man=manifiesto(am,ctx,R,libro,partes,i);
    const bytes=await escribir(am,ctx,[man,...partes[i].hojas]);
@@ -550,7 +553,7 @@
  }
 
  /* ---------- armado de hojas lógicas ---------- */
- async function armar(am,ctx,R,activas,datos,columnas){
+ async function armarHojas(am,ctx,R,activas,datos,columnas){
   const obrasMap=new Map(am.obras.map(o=>[o.id,o]));
   const cent=datos.get('obras');if(cent&&!cent.error)for(const o of cent.filas)obrasMap.set(o.id,{...obrasMap.get(o.id),...o});
   const nombreCentro=id=>id&&obrasMap.get(id)?obrasMap.get(id).nombre:null;
@@ -570,7 +573,11 @@
    for(const [c,m] of Object.entries(f.omitidos||{})){R.omitidos.push([f.hoja,c,m]);campos=campos.filter(x=>x!==c);}
    if(f.clave==='infonavit_avisos_archivos'||f.clave==='prestaciones_fuentes_historicas'||f.clave==='app_usuarios')campos=campos.filter(c=>f.select.split(',').includes(c));
    campos=campos.filter(c=>!omit.includes(c)&&tipoBD.get(c)!=='bytea');
-   if(f.clave==='config'){hojas.push(hojaConfig(ctx,f,filas));continue;}
+   if(f.clave==='config'){
+    const hc=hojaConfig(ctx,f,filas),reg=R.fuentes[f.clave];hojas.push(hc);
+    control.push([f.dominio,f.hoja,f.clave,'(TOTAL)',null,filas.length,reg.filas_servidor,hc.filas.length,reg.filas_servidor==null?'SIN_MARCA':(reg.filas_servidor===filas.length?'SI':'NO'),null,null,null,'Una fila por clave leída; la hoja tiene una fila por campo autorizado.']);
+    continue;
+   }
    const cols=[];
    for(const c of campos){
     const muestra=filas.find(x=>x[c]!=null);
@@ -703,6 +710,7 @@
  }
  /* Cuadre con el tablero: si el modelo del tablero está cargado, calcula sus
     medidas sobre las mismas fuentes exportadas para compararlas al centavo. */
+ const CUADRE_DESDE='2000-01-01',CUADRE_HASTA='2099-12-31';
  function cuadreTablero(ctx,datos){
   const g=k=>{const d=datos.get(k);return d&&!d.error?d.filas:null;};
   const ob=g('control_obligaciones_pago'),ev=g('control_evidencias_pago'),ap=g('control_pago_aplicaciones');
@@ -715,15 +723,22 @@
   if(!M||typeof M.calcular!=='function'){add('modelo_tablero','NO_DISPONIBLE',null,'PLATINUM_TABLERO_MODELO no estaba cargado al exportar; compare con el tablero usando las sumas anteriores.');return {disponible:false,filas};}
   if(!ob||!ev||!ap){add('modelo_tablero','INCOMPLETO',null,'Faltan obligaciones, evidencias o aplicaciones completas para cuadrar.');return {disponible:true,filas};}
   try{
-   const fuentes={obligaciones:ob,evidencias:ev,aplicaciones:ap,pagos:g('pagos')||[],cheques:g('cheques')||[],cierres:g('control_cierres_nomina')||[],versiones:g('control_cierre_versiones')||[],
-    flujo:g('control_flujo_cierres')||[],trabajadores:g('trabajadores')||[],obras:g('obras')||[],historial:g('historial')||[]};
-   const r=M.calcular(fuentes,{empresa:ctx.empresa,obras:ctx.obras.slice(),perspectiva:'PERIODO',desde:null,hasta:null,vip:ctx.permisos.vip});
-   const medidas=r&&(r.medidas||r)||{};
-   for(const k of ['neto_conciliado','pagado_registrado','pagado_conciliado','saldo_por_cubrir','excedentes']){
-    const m=medidas[k];const v=m==null?null:typeof m==='number'?m:(m.importe??m.valor??null);
-    add(k,'PLATINUM_TABLERO_MODELO',v==null?null:Math.round(Number(v)*100),m&&m.definicion?String(m.definicion).slice(0,500):'Medida del modelo del tablero sobre las hojas exportadas.');
+   // Mismas filas exportadas, con la forma de fuentes de PLATINUM_TABLERO_MODELO.calcular (A1).
+   const fuentes={ahora:ctx.inicio.toISOString(),obras:g('obras')||[],cierres:g('control_cierres_nomina')||[],versiones:g('control_cierre_versiones')||[],flujo:g('control_flujo_cierres')||[],
+    trabajadores:g('trabajadores')||[],cuadrillas:g('cuadrillas')||[],obligaciones:ob,evidencias:ev,aplicaciones:ap,pagos:g('pagos')||[],cheques:g('cheques')||[],historial:g('historial')||[],
+    finiquitos_transferencia:g('control_finiquitos_transferencia')||[],desglose_noi:g('control_desglose_noi')||[],entregas:g('reunion_cheques_entrega')||[],cfdi:[],efectivo_autorizado:[],errores:[],
+    permisos:{vip:!!ctx.permisos.vip,obras:ctx.obras.slice(),empresas:[ctx.empresa]}};
+   const res={};
+   for(const persp of ['PERIODO','PAGO']){
+    const r=M.calcular(fuentes,{empresa:ctx.empresa,obras:ctx.obras.slice(),perspectiva:persp,desde:CUADRE_DESDE,hasta:CUADRE_HASTA});
+    res[persp]=r;const medidas=r&&r.medidas||{};
+    for(const k of ['neto_conciliado','pagado_registrado','pagado_conciliado','saldo_por_cubrir','excedentes','sin_asignar','pendiente_conciliacion']){
+     const m=medidas[k];if(!m)continue;const v=typeof m==='number'?m:m.valor;
+     add(k,'PLATINUM_TABLERO_MODELO · '+persp,v==null?null:Math.round(Number(v)*100),'Rango '+CUADRE_DESDE+' a '+CUADRE_HASTA+'. '+(m.formula?String(m.formula).slice(0,400):''));
+    }
+    filas.push(['CUADRE_TABLERO','huella_tablero','PLATINUM_TABLERO_MODELO · '+persp,'(TOTAL)',null,null,null,null,null,null,null,null,(r&&r.version||'')+' '+(r&&r.huella||'')]);
    }
-   return {disponible:true,filas,resultado:r};
+   return {disponible:true,filas,resultado:res};
   }catch(e){add('modelo_tablero','ERROR',null,'El modelo del tablero no pudo calcular: '+errTexto(e));return {disponible:true,filas,error:errTexto(e)};}
  }
 
@@ -794,7 +809,7 @@
   add('GENERAL','permisos','VIP='+sn(ctx.permisos.vip)+' · SALUD='+sn(ctx.permisos.salud)+' · ADMIN='+sn(ctx.permisos.admin));
   add('GENERAL','configuracion',sn(ctx.incluirConfiguracion),'Sólo claves y campos explícitos; nunca credenciales.');
   add('GENERAL','originales','Storage privado','Los archivos originales no se incrustan ni se enlazan con URLs firmadas; DOCUMENTOS lleva ruta lógica privada y huella.');
-  add('GENERAL','duracion_lectura_ms',R.duracion_lectura_ms??null);
+  add('GENERAL','duracion_preparacion_ms',R.duracion_preparacion_ms??null,'Lectura, verificación y armado (sin escritura).');
   add('GENERAL','urls_firmadas_saneadas',libro.cont.urls);
   for(const id of ctx.obras){const o=libro.obrasMap.get(id)||{};add('CENTRO',id,o.nombre||null,o.activa===false?'INACTIVO':'ACTIVO');}
   for(const [obj,m] of R.excluidas)add('CENTRO_EXCLUIDO',obj,null,m);
@@ -863,16 +878,15 @@
  }
 
  /* Integra hojas de control y hashes de textos largos antes de planificar. */
- const armarBase=armar;
- armar=async function(am,ctx,R,activas,datos,columnas){
-  const libro=await armarBase(am,ctx,R,activas,datos,columnas);
+ async function armar(am,ctx,R,activas,datos,columnas){
+  const libro=await armarHojas(am,ctx,R,activas,datos,columnas);
   for(const x of libro.largos)x.sha256=await sha256(x.partes.join(''));
   const ctl=hojasControl(ctx,R,libro);
   // Orden: CONTROL y DICCIONARIO al inicio; TEXTOS_LARGOS al final.
   const largos=ctl.filter(h=>h.nombre==='TEXTOS_LARGOS');
   libro.hojas=[...ctl.filter(h=>h.nombre!=='TEXTOS_LARGOS'),...libro.hojas,...largos];
   return libro;
- };
+ }
 
  /* ---------- interfaz ---------- */
  function abrir(op={}){
@@ -901,13 +915,13 @@
    try{
     const r=await exportar(opciones);
     const err=r.errores.map(x=>'<li>'+e(x[0])+': '+e(x[1])+'</li>').join('');
-    estado.innerHTML='<div class="'+(r.estado==='COMPLETO'?'ok':'bad')+'" style="font-weight:700">Respaldo '+e(r.estado)+(r.motivos.length?' · '+e(r.motivos.join(', ')):'')+'</div>'+
+    estado.innerHTML='<div style="font-weight:700;color:'+(r.estado==='COMPLETO'?'var(--green)':'var(--red)')+'">Respaldo '+e(r.estado)+(r.motivos.length?' · '+e(r.motivos.join(', ')):'')+'</div>'+
      '<div>'+r.archivos.map(a=>e(a.nombre)).join('<br>')+'</div><div style="color:var(--mut)">'+Math.round(r.duracion_ms/100)/10+' s</div>'+(err?'<ul>'+err+'</ul>':'')+
      (r.estado!=='COMPLETO'?'<button class="btn" type="button" id="rsi-reintentar">Reintentar respaldo</button>':'');
     const re=$$('rsi-reintentar');if(re)re.addEventListener('click',()=>{re.remove();generar();});
     if(typeof toast==='function')toast('Respaldo '+r.estado.toLowerCase()+': '+r.archivos.length+' archivo(s).',r.estado==='COMPLETO'?'ok':'err');
     if(op.porCorreo)setTimeout(()=>correo(r),800);
-   }catch(x){estado.innerHTML='<div class="bad">No se generó el respaldo: '+e(errTexto(x))+'</div><button class="btn" type="button" id="rsi-reintentar">Reintentar</button>';
+   }catch(x){estado.innerHTML='<div style="color:var(--red)">No se generó el respaldo: '+e(errTexto(x))+'</div><button class="btn" type="button" id="rsi-reintentar">Reintentar</button>';
     const re=$$('rsi-reintentar');if(re)re.addEventListener('click',()=>{re.remove();generar();});}
    finally{boton.disabled=false;}
   };

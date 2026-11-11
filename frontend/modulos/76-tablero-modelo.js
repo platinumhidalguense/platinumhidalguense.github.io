@@ -90,7 +90,7 @@
   let h;
   if(!trunc){
    if(modo==='ANIO_ANTERIOR')h=restarAnio(hasta);
-   else{const k=mesesCompletos(desde,hasta);if(k){const f=restarMeses(desde,k-1),[y,m]=f.split('-').map(Number);h=`${y}-${String(m).padStart(2,'0')}-${String(ultimoDia(y,m)).padStart(2,'0')}`;}else h=sumar(desde,-1);}
+   else{const k=mesesCompletos(desde,hasta);if(k){const f=restarMeses(hasta.slice(0,8)+'01',k),[y,m]=f.split('-').map(Number);h=`${y}-${String(m).padStart(2,'0')}-${String(ultimoDia(y,m)).padStart(2,'0')}`;}else h=sumar(desde,-1);}
   }else h=sumar(d,trans);
   return {desde:d,hasta:h,modo,truncado:trunc,futuro:false};
  }
@@ -246,10 +246,12 @@
    (conAp.length?sinAp:sinAp.slice(1)).forEach(o=>{o.duplicado=true;o.duplicado_de=(conAp[0]||sinAp[0]).id;});
   }
   /* Efectivo autorizado (finiquito con excepción expresa; sin comprobante bancario). */
+  const efectivoPorOblig=new Map();
   for(const x of f.efectivo_autorizado||[]){
-   const o=obligPorId.get(x.obligacion_id);if(!o)continue;
-   nuevoOp({id:'EFE:'+o.id,medio:'EFECTIVO',obra_id:o.obra_id,trabajador_id:o.trabajador_id,semana:o.semana,importe:mic(x.importe),fecha:x.fecha?String(x.fecha).slice(0,10):null,
+   const o=obligPorId.get(x.obligacion_id);if(!o||efectivoPorOblig.has(o.id))continue;
+   const efe=nuevoOp({id:'EFE:'+o.id,medio:'EFECTIVO',obra_id:o.obra_id,trabajador_id:o.trabajador_id,semana:o.semana,importe:mic(x.importe),fecha:x.fecha?String(x.fecha).slice(0,10):null,
     fuente_fecha:x.fecha?'DECLARADA':'SIN_FECHA',evidencia_id:null,cheque_id:null,efectivo_obligacion:o.id,created_at:x.fecha||''});
+   efectivoPorOblig.set(o.id,efe);
   }
   const opPorId=new Map(ops.map(o=>[o.id,o]));
 
@@ -261,7 +263,7 @@
    const aps=(apsPorOblig.get(o.id)||[]).slice().sort(cmpTs);
    if(!o.exigible){for(const a of aps){const op=opPorEvid.get(a.evidencia_id);pieza('APLICADA_NO_EXIGIBLE',op,o,mic(a.importe),{aplicacion_id:a.id});}continue;}
    let acum=0n;
-   const efe=ops.find(x=>x.efectivo_obligacion===o.id);
+   const efe=efectivoPorOblig.get(o.id);
    if(efe){const c=minB(efe.importe,o.importe);pieza('EFECTIVO',efe,o,c);if(efe.importe>c)pieza('EXCEDENTE_APLICADO',efe,o,efe.importe-c);o.efectivo=c;acum+=c;}
    for(const a of aps){
     const op=opPorEvid.get(a.evidencia_id),imp=mic(a.importe),c=minB(imp,maxB(o.importe-acum,0n));
@@ -324,14 +326,16 @@
    fiscales.push({uuid:k,obra_id:r.obra_id,trabajador_id:r.trabajador_id,desde:r.desde,hasta:r.hasta,neto:mic(r.neto),tipo:tipos.length===1?tipos[0]:null,
     contradictorio:netos.length>1||tipos.length>1||new Set(reps.map(x=>x.trabajador_id)).size>1,representaciones:reps.length,formatos:[...new Set(reps.map(x=>up(x.formato)))].sort(),documentos:reps.map(x=>x.documento_id).sort()});
   }
+  const fiscPorPersona=grupoBy(fiscales,x=>x.obra_id+'|'+x.trabajador_id);
   for(const o of obligs){
    if(!o.exigible||o.concepto==='PREVISION_SOCIAL'){o.fiscal=null;continue;}
-   const fs=fiscales.filter(x=>x.obra_id===o.obra_id&&x.trabajador_id===o.trabajador_id&&x.tipo===o.concepto&&x.desde&&x.hasta&&x.desde<=o.periodo_hasta&&x.hasta>=o.periodo_desde);
+   const fs=(fiscPorPersona.get(o.obra_id+'|'+o.trabajador_id)||[]).filter(x=>x.tipo===o.concepto&&x.desde&&x.hasta&&x.desde<=o.periodo_hasta&&x.hasta>=o.periodo_desde);
    const contra=fs.some(x=>x.contradictorio),neto=sum(fs.filter(x=>!x.contradictorio),x=>x.neto);
    o.fiscal={uuids:fs.map(x=>x.uuid).sort(),neto,estado:!fs.length?'SIN_CFDI':contra?'CONTRADICTORIO':neto===o.importe?'COINCIDE':'DIFERENCIA'};
   }
 
-  const base={f,hoy,obras,cierres,flujo,trab,permisos,obraVisible,empresaDe,obligs,obligPorId,ops,opPorId,piezas,chequesInfo,rechazos,pendBanco,fiscales,cuadrillas,historico,cuadrillaEn,contratistaHist};
+  const obligPorClave=new Map(exigibles.map(o=>[[o.obra_id,o.trabajador_id,o.semana,o.concepto].join('|'),o]));
+  const base={f,hoy,obligPorClave,obras,cierres,flujo,trab,permisos,obraVisible,empresaDe,obligs,obligPorId,ops,opPorId,piezas,chequesInfo,rechazos,pendBanco,fiscales,cuadrillas,historico,cuadrillaEn,contratistaHist};
   if(f&&typeof f==='object')cache.set(f,base);
   return base;
  }
@@ -517,7 +521,7 @@
   for(const c of b.chequesInfo){
    if(c.eliminado)continue;const q=c.q;if(!a.obras.includes(q.obra_id)||!b.obraVisible(q.obra_id))continue;
    const sem=normSemana(q.semana),w=q.trabajador_id?b.trab.get(q.trabajador_id):null,obra=b.obras.get(q.obra_id);
-   const o=b.obligs.find(x=>x.exigible&&x.obra_id===q.obra_id&&x.trabajador_id===q.trabajador_id&&x.semana===sem&&x.concepto===conceptoCheque(q.tipo_pago));
+   const o=b.obligPorClave.get([q.obra_id,q.trabajador_id,sem,conceptoCheque(q.tipo_pago)].join('|'));
    const per=o?o.periodicidad:normPeriodicidad(w&&w.periodo_pago),p=sem?periodo(obra,sem,per):null;
    const fecha=a.perspectiva==='PERIODO'?(p&&p.fecha_pago):(c.estatus==='CANCELADO'?c.eventos.cancelacion:['EXPEDIDO','ENTREGADO'].includes(c.estatus)?(c.eventos.emision||c.eventos.registro):c.eventos.registro);
    if(!enRango(fecha,a))continue;
@@ -714,7 +718,8 @@
   const sel=seleccionar(b,a),hoy=b.hoy,out=[];
   const obraN=id=>(b.obras.get(id)||{}).nombre||'';
   const nombreDe=tid=>{const w=tid&&b.trab.get(tid);return w?[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolean).join(' ')||w.nombre||'':'';};
-  const ex=(tipo,sev,x,imp,desc,llaves)=>out.push({tipo,severidad:sev,obra_id:x.obra_id,obra:obraN(x.obra_id),trabajador_id:x.trabajador_id||null,numero:x.numero??null,nombre:x.nombre||nombreDe(x.trabajador_id),
+  const numeroDe=tid=>{const w=tid&&b.trab.get(tid);return w&&w.no_trab!==undefined?w.no_trab:null;};
+  const ex=(tipo,sev,x,imp,desc,llaves)=>out.push({tipo,severidad:sev,obra_id:x.obra_id,obra:obraN(x.obra_id),trabajador_id:x.trabajador_id||null,numero:x.numero??numeroDe(x.trabajador_id),nombre:x.nombre||nombreDe(x.trabajador_id),
    semana:x.semana??null,fecha:x.fecha||null,importe:imp===null?null:centavos(imp),descripcion:desc,llaves:{obligacion_id:null,cierre_id:null,pago_id:null,cheque_id:null,evidencia_id:null,aplicacion_id:null,operacion_id:null,...llaves}});
   for(const o of sel.obligs){
    const ll={obligacion_id:o.id,cierre_id:o.cierre_id},base={...o,fecha:o.fecha_pago};
@@ -780,9 +785,11 @@
   for(const cal of calidadCentros(b,a,seleccionar(b,{...a,perspectiva:'PERIODO'})))
    for(const p of cal.periodos_faltantes)out.push({tipo:'PERIODO_SIN_CIERRE',severidad:'AMBAR',obra_id:cal.obra_id,obra:cal.obra,trabajador_id:null,numero:null,nombre:'',semana:p.semana,fecha:p.fecha_pago,importe:null,
     descripcion:`Periodo ${p.periodicidad.toLowerCase()} sin cierre: no se certifica como pagado`,llaves:{obligacion_id:null,cierre_id:null,pago_id:null,cheque_id:null,evidencia_id:null,aplicacion_id:null,operacion_id:null}});
-  out.sort((x,y)=>SEVERIDAD[x.severidad]-SEVERIDAD[y.severidad]||cmp(x.obra,y.obra)||cmp(String(x.obra_id),String(y.obra_id))||(x.semana??0)-(y.semana??0)||(x.numero??1e9)-(y.numero??1e9)||cmp(x.tipo,y.tipo)||cmp(canonico(x.llaves),canonico(y.llaves))||(y.importe??0)-(x.importe??0));
+  out.sort((x,y)=>SEVERIDAD[x.severidad]-SEVERIDAD[y.severidad]||cmp(x.obra,y.obra)||cmp(String(x.obra_id),String(y.obra_id))||(x.semana??0)-(y.semana??0)||(x.numero??1e9)-(y.numero??1e9)||cmp(x.tipo,y.tipo)||cmp(referencia(x),referencia(y))||(y.importe??0)-(x.importe??0));
   return out;
  }
+ /* Desempate estable: primera llave no nula en este orden (texto, orden binario). */
+ const referencia=x=>{const l=x.llaves;return String(l.obligacion_id||l.operacion_id||l.pago_id||l.cheque_id||l.aplicacion_id||l.evidencia_id||'');};
  function excepciones(fuentes,filtros,opciones){
   const b=construir(fuentes),a=resolverAlcance(b,filtros);let filas=excepcionesTodas(b,a);
   const tipos=opciones&&Array.isArray(opciones.tipos)?opciones.tipos:null;if(tipos)filas=filas.filter(x=>tipos.includes(x.tipo));
