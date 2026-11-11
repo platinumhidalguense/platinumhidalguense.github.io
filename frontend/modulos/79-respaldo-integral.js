@@ -691,7 +691,7 @@
     serv==null?'SIN_MARCA':(serv===lista.length?'SI':'NO'),campo,tot==null?null:tot/100,tot==null?null:String(tot),reg.estado];
   };
   const campos=(f.totales||[]).filter(c=>h.cols.some(x=>x.campo===c));
-  for(const [o,lista] of [...grupos].sort()){
+  for(const [o,lista] of conObra?[...grupos].sort():[]){
    if(!campos.length)out.push(fila(o,lista,null));
    for(const c of campos)out.push(fila(o,lista,c));
   }
