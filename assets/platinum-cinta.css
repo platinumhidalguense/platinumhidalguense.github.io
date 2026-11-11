@@ -225,6 +225,10 @@
 }
 /* Baja y finiquito conserva una acción visible en cada sección de la ficha. */
 .ficha-baja{margin-inline-start:12px}
+.modal.baja-finiquito-form{min-height:0}
+.baja-finiquito-form>#bf-flujo{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;min-width:0;overflow:hidden}
+.baja-finiquito-form #bf-flujo>.m-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.baja-finiquito-form #bf-flujo>.m-head,.baja-finiquito-form #bf-flujo>.m-foot{flex:0 0 auto;position:static}
 .bf-grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
 .bf-etapas{display:flex;gap:10px;flex-wrap:wrap;padding:0;list-style-position:inside}
 .bf-etapas li{padding:8px;border:1px solid var(--border);border-radius:7px}

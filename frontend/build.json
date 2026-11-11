@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-10.3",
-  "entry": "assets/platinum-app.96cd8096b4d72539.js",
-  "sha256": "96cd8096b4d72539d27923e32eeb0c94436eca8e5bc82d82caecbe1d9fc743bb",
-  "integrity": "sha384-5G6ve0zKBx7KFbpv+MlxE36qOlc6Gw0PKrrW/ysZkvKgYugjliDe0CM4061uL6Zi",
+  "version": "2026-11-10.4",
+  "entry": "assets/platinum-app.5b396553b4c4fb57.js",
+  "sha256": "5b396553b4c4fb577fc3cfe683cc72acebe4c163958205912c4f1b912a34baad",
+  "integrity": "sha384-tN5bdgIgvxMKePnCtPw074HNdR555D2asLWS05sXsZLG9xMmd+FJWr1eVDfy/2Cv",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "9822ece741a3040596444d4f16c4de3c838a69a3a0124b8355ac71d2e1b247c9"
+      "sha256": "bc45ae3b4f9c56e80e3a0eeb973554499c57d5852096fdac8acf85025e38c09d"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -310,7 +310,7 @@
     },
     {
       "path": "frontend/modulos/76-baja-finiquito.js",
-      "sha256": "a88acd170fedce95246e9aa8dcd3d34eda864414e2c9f67e8bba65797b21dd0b"
+      "sha256": "4330617440f81ebd7fd897ff60e669e15aaf32b920727c2bcde70fdb7af82b0c"
     }
   ]
 }

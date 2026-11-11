@@ -69,6 +69,7 @@ function bajaDocumento(motivo,escenario){
  function mensaje(s,txt){el(s,'bf-aviso').textContent=txt;}
  function etapa(s,n){
   s.paso=n;
+  s.host.querySelector('.m-body').scrollTop=0;
   [...s.host.querySelectorAll('.bf-etapas li')].forEach((l,i)=>l.setAttribute('aria-current',i===n-1?'step':'false'));
   mensaje(s,'');
  }
@@ -140,13 +141,19 @@ function bajaDocumento(motivo,escenario){
         <div><label for="bf-referencia">Referencia NOI o del soporte cuando hay ajuste</label><input id="bf-referencia" maxlength="300" value="${esc(s.referencia)}"></div>
       </div><div id="bf-comparacion" class="fhint" aria-live="polite"></div>
       <button type="button" class="btn" data-bf="comparar">Comparar con el papel</button>
-      <button type="button" class="btn" data-bf="d001">Usar D001 propuesto</button>
     </section>`;
+  el(s,'pr-out').insertAdjacentHTML('beforebegin',`<section class="bf-papel bf-d001" aria-labelledby="bf-d001-titulo">
+    <h4 id="bf-d001-titulo">Ajuste de redondeo D001 recomendado para NOI</h4>
+    <div id="bf-d001-vista" aria-live="polite"></div>
+    <p class="fhint">La propuesta conserva el neto redondeado del papel al sumar los conceptos de NOI a centavos. Requiere confirmación al continuar.</p>
+    <button type="button" class="btn" id="bf-d001-aplicar" data-bf="d001" disabled>Usar D001 recomendado</button>
+  </section>`);
   acciones(s,'<button type="button" class="btn" data-bf="volver">Regresar</button><button type="button" class="btn dark" id="pr-usar" data-bf="revisar">Continuar a revisión</button>');
   for(const [k,v] of s.campos){const n=el(s,k);if(n){if(n.type==='checkbox')n.checked=v;else n.value=v;}}
   if(el(s,'pr-validado-legal')?.checked)globalThis._PR_REVISION_ENTRADAS=prHuellaRevision();
   if(s.papelEntrada&&s.papelEntrada.id===p?.id&&s.papelEntrada.huella===p.huella)cargarPapel(s);
   else calcPrestaciones(s.w.id);
+  actualizarD001(s);
   const panel=el(s,'pr-faltas-hist');
   s.evidencia=null;
   s.lectura=window.PLATINUM_FALTAS_HIST.resumen(s.w,Number(s.fecha.slice(0,4)),s.fecha)
@@ -200,6 +207,25 @@ function bajaDocumento(motivo,escenario){
   }
   const r=ppfModelo(e),p=s.c.papel, reutiliza=bajaPapelCompatible(p,e);
   return {a,e:reutiliza?p.entradas:e,r,reutiliza,legal};
+ }
+ function actualizarD001(s){
+  const vista=el(s,'bf-d001-vista'),boton=el(s,'bf-d001-aplicar');
+  if(!vista||s.paso!==2)return;
+  boton.disabled=true;
+  try{
+    const q=propuesta(s);
+    if(q.legal){vista.textContent='Confirma el ISR ordinario con el respaldo de separación.';return;}
+    const r=q.r,ajuste=redondearCentavos(r.d001_propuesto-r.d001);
+    vista.innerHTML=`<dl class="bf-resumen">
+      <dt>ISR matemático</dt><dd>$${esc(r.isr_calculado.toFixed(8))}</dd>
+      <dt>ISR del papel con precisión completa</dt><dd>$${esc(r.isr_precision)}</dd>
+      <dt>D001 actual</dt><dd>$${money(r.d001)}</dd>
+      <dt>D001 recomendado para NOI</dt><dd><strong>$${money(r.d001_propuesto)}</strong></dd>
+      <dt>Ajuste de redondeo</dt><dd>${ajuste>0?'+':ajuste<0?'−':''}$${money(Math.abs(ajuste))}</dd>
+      <dt>Neto del papel antes de créditos</dt><dd>$${money(r.neto_papel)}</dd>
+      <dt>Neto NOI actual antes de créditos</dt><dd>$${money(r.neto_noi)}</dd></dl>`;
+    boton.disabled=!Number.isFinite(r.d001_propuesto)||r.d001_propuesto<0||r.d001_propuesto>r.bruto_noi;
+  }catch(error){vista.textContent=error.message;}
  }
  function comparar(s,q){
   const p=s.c.papel;
@@ -335,23 +361,23 @@ function bajaDocumento(motivo,escenario){
     motivo:'',detalle:'',referencia:'',fonacot:'',precision:'',campos:o.campos||[],papelEntrada:o.papel,op:_uuid(),edicion:0};
   const html='<div id="bf-flujo">'+encabezado(w,ver)+'</div>';
   s.anidado=!o.reemplazar&&!!$('modals').querySelector('.overlay');
-  if(s.anidado)modal2(html,'lg prestaciones-form');else modal(html,'lg prestaciones-form');
+  if(s.anidado)modal2(html,'lg prestaciones-form baja-finiquito-form');else modal(html,'lg prestaciones-form baja-finiquito-form');
   s.host=$('bf-flujo');BAJA_FLUJO=s;
   const cerrar=()=>s.anidado?closeModal2():closeModal();
-  s.host.oninput=()=>{if(!s.resultado&&!ver){s.cambios=true;s.edicion++;}};
+  s.host.oninput=()=>{if(!s.resultado&&!ver){s.cambios=true;s.edicion++;if(s.paso===2)actualizarD001(s);}};
   s.host.onclick=async e=>{
     const accion=e.target.closest('[data-bf]')?.dataset.bf;
     if(!accion||s.enviando||!vigente(s))return;
     try{
       if(accion==='cerrar')return cerrar();
       if(accion==='calcular')return await cargarCalculo(s);
-      if(accion==='papel')return cargarPapel(s);
+      if(accion==='papel'){cargarPapel(s);actualizarD001(s);return;}
       if(accion==='comparar')return comparar(s,propuesta(s));
       if(accion==='d001'){
         const q=propuesta(s);
         if(q.legal)throw Error('Confirma el ISR ordinario con el respaldo de separación.');
         el(s,'pr-isr-noi').value=q.r.d001_propuesto.toFixed(2);
-        s.cambios=true;s.edicion++;calcPrestaciones(s.w.id);
+        s.cambios=true;s.edicion++;actualizarD001(s);
         return mensaje(s,'D001 propuesto capturado. Se pedirá confirmación al continuar.');
       }
       if(accion==='revisar')return await revisar(s);

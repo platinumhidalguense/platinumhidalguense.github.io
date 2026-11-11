@@ -11,8 +11,8 @@ const ppfBase={fecha_alta:'2026-10-01',fecha_baja:fecha,fecha_pago:fecha,sd:'300
 const papel={id:'papel',huella:'huella',revision:2,fecha_baja:fecha,entradas:ppfBase,resultado:{d001:6.02,neto_con_credito:440}};
 const llamadas=[],afirmaciones=[],aplicadas=[];
 let caja,edita=true,respuestaPerdida=false,guardada=null,lecturaBloqueada=null;
-function modal(html){$('modals').innerHTML='<div class="overlay">'+html+'</div>';}
-function modal2(html){$('modals').insertAdjacentHTML('beforeend','<div class="overlay">'+html+'</div>');}
+function modal(html,clase){$('modals').innerHTML='<div class="overlay"><div class="modal '+clase+'">'+html+'</div></div>';}
+function modal2(html,clase){$('modals').insertAdjacentHTML('beforeend','<div class="overlay"><div class="modal '+clase+'">'+html+'</div></div>');}
 function cerrar(){
  const a=$('modals').querySelectorAll('.overlay'),ultimo=a[a.length-1];
  if(window.PLATINUM_BAJA.antesCerrar(ultimo))ultimo.remove();
@@ -35,9 +35,16 @@ const rpc=async(_,{p_accion:a,p})=>{
  throw Error(a);
 };
 function calcular(){
- const d=$('pr-fecha').value,ajuste=$('pr-noi').value;
- caja._PR_AUDIT={trabajador_id:w.id,obra_id:w.obra_id,periodo:d,monto_modelo:440,monto_aplicado:ajuste===''?440:Number(ajuste),
-  entradas:{escenario_separacion:'NO',noi_manual:ajuste===''?null:Number(ajuste),fecha_calculo:d},resultado:{infonavit:0,isr:6.02}};
+ const d=$('pr-fecha').value,ajuste=$('pr-noi').value,isrRaw=$('pr-isr-noi').value,isr=isrRaw===''?6.02:Number(isrRaw);
+ if(!Number.isFinite(isr)||isr<0){caja._PR_AUDIT={invalido:true};return;}
+ const monto=Math.round((446.02-isr)*100)/100;
+ caja._PR_AUDIT={trabajador_id:w.id,obra_id:w.obra_id,periodo:d,monto_modelo:monto,monto_aplicado:ajuste===''?monto:Number(ajuste),
+  entradas:{escenario_separacion:'NO',noi_manual:ajuste===''?null:Number(ajuste),fecha_calculo:d,isr_noi_manual:isrRaw===''?null:isr},resultado:{infonavit:0,isr}};
+}
+function modelo(e){
+ const d001=e.d001===''?6.02:Number(e.d001);
+ return {d001,neto_con_credito:Math.round((446.02-d001)*100)/100,isr_calculado:6.0224,isr_precision:6.0224,
+  d001_propuesto:6.03,neto_papel:439.99,neto_noi:Math.round((446.02-d001)*100)/100,bruto_noi:446.02};
 }
 Object.assign(window,{PLATINUM_PERSONAL:{aplicarFila:f=>aplicadas.push(f)},PLATINUM_FALTAS_HIST:{
  resumen:async()=>({d:{ausencias:{discrepancias:[]}},conc:{acreditado:0,reservado:0,pendiente:[]}}),
@@ -51,7 +58,7 @@ caja=vm.createContext({window,document,$,WORKERS:[w],OBRA:{id:'p',nombre:'CENTRO
  prMotivoSeparacion:()=> 'OTRO',modal,modal2,closeModal:cerrar,closeModal2:cerrar,
  calcPrestaciones:calcular,faltasAguinaldo:()=>0,confirm:m=>{afirmaciones.push(m);return true;},structuredClone,
  redondearCentavos:v=>Math.round(v*100)/100,money:v=>Number(v).toFixed(2),
- ppfEntradas:(_w,d)=>({...ppfBase,fecha_baja:d,fecha_pago:d}),ppfModelo:()=>({d001:6.02,neto_con_credito:440,isr_calculado:6.0224,d001_propuesto:6.03}),
+ ppfEntradas:(_w,d,a)=>({...ppfBase,fecha_baja:d,fecha_pago:d,d001:a.entradas.isr_noi_manual==null?'':String(a.entradas.isr_noi_manual)}),ppfModelo:modelo,
  prFormulario:(_w,d)=>'<input readonly id="pr-fecha" type="date" value="'+d+'"><input id="f-pr-dias" value="0">'+
   '<input id="pr-isr-noi" value=""><input id="pr-noi" value=""><div id="pr-out"></div><div id="pr-faltas-hist"></div>'});
 vm.runInContext(fs.readFileSync('frontend/modulos/76-baja-finiquito.js','utf8'),caja);
@@ -67,9 +74,19 @@ async function click(accion){
  assert(!secciones.includes("onclick=\"openBaja("));
  edita=false;await api.abrir(w.id);assert(!$('bf-flujo'));edita=true;
  await api.abrir(w.id,{papel});
+ assert($('bf-flujo').parentElement.classList.contains('baja-finiquito-form'));
+ assert.equal($('bf-flujo').querySelector('.m-body').parentElement,$('bf-flujo'));
+ assert.equal($('bf-acciones').parentElement,$('bf-flujo'));
+ const css=fs.readFileSync('assets/platinum-cinta.css','utf8');
+ assert(css.includes('.baja-finiquito-form>#bf-flujo{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;'));
+ assert(css.includes('.baja-finiquito-form #bf-flujo>.m-body{min-height:0;overflow-y:auto;'));
+ assert(css.includes('.baja-finiquito-form #bf-flujo>.m-head,.baja-finiquito-form #bf-flujo>.m-foot{flex:0 0 auto;position:static}'));
  assert.equal($('bf-fecha').value,fecha);assert($('ficha-base'));
  $('bf-causal').value='RENUNCIA VOLUNTARIA';
  await click('calcular');
+ assert($('bf-d001-vista').textContent.includes('6.03'));
+ assert($('bf-d001-vista').textContent.includes('+'));
+ assert.equal($('bf-d001-aplicar').disabled,false);
  assert.equal($('pr-fecha').value,fecha);assert.equal($('pr-isr-noi').value,'6.02');
  await click('volver');
  assert.equal($('bf-fecha').value,fecha);
@@ -89,6 +106,40 @@ async function click(accion){
  assert.equal(aplicadas.length,1);
  assert($('bf-panel').textContent.includes('Baja registrada'));
  await click('cerrar');assert($('ficha-base'));assert(!$('bf-flujo'));
+ await api.abrir(w.id,{fecha});
+ $('bf-causal').value='RENUNCIA VOLUNTARIA';
+ await click('calcular');
+ const antesD001=llamadas.filter(x=>x.a==='CONFIRMAR').length;
+ const confirmacionesAntes=afirmaciones.length;
+ await click('d001');
+ assert.equal($('pr-isr-noi').value,'6.03');
+ assert.equal(afirmaciones.length,confirmacionesAntes,'La propuesta se confirma al continuar');
+ assert($('bf-d001-vista').textContent.includes('ISR del papel'));
+ await click('revisar');
+ assert(afirmaciones.at(-1).includes('6.03'));
+ assert.equal(llamadas.filter(x=>x.a==='CONFIRMAR').length,antesD001);
+ await click('volver');
+ assert.equal($('pr-isr-noi').value,'6.03');
+ assert.equal($('pr-fecha').value,fecha);
+ $('pr-isr-noi').value='-1';$('bf-flujo').oninput();
+ assert.equal($('bf-d001-aplicar').disabled,true,'No ofrecer una recomendación obsoleta tras una entrada inválida');
+ assert(!$('bf-d001-vista').textContent.includes('D001 recomendado para NOI'));
+ await click('cerrar');
+ const calculoReal=vm.createContext({});
+ vm.runInContext(fs.readFileSync('frontend/modulos/46-papeles-prestaciones.js','utf8'),calculoReal);
+ calculoReal.e={...ppfBase,fecha_alta:'2026-08-24',fecha_baja:'2026-09-21',fecha_pago:'2026-09-21',sd:'329',dias_aguinaldo:'28',dias_vacaciones:'29'};
+ const real=vm.runInContext('ppfModelo(e)',calculoReal);
+ assert.equal(real.d001,6.02);assert.equal(real.d001_propuesto,6.03);assert.equal(real.neto_papel,764.65);
+ caja.ppfEntradas=()=>({...calculoReal.e});
+ caja.ppfModelo=e=>{calculoReal.e=e;return vm.runInContext('ppfModelo(e)',calculoReal);};
+ await api.abrir(w.id,{fecha});
+ $('bf-causal').value='RENUNCIA VOLUNTARIA';await click('calcular');
+ assert($('bf-d001-vista').textContent.includes(real.isr_calculado.toFixed(8)));
+ assert($('bf-d001-vista').textContent.includes('764.65'));
+ assert($('bf-d001-vista').textContent.includes('+'));
+ assert.equal($('pr-isr-noi').value,'','La recomendación no debe aplicarse por abrir el cálculo');
+ await click('d001');assert.equal($('pr-isr-noi').value,'6.03');
+ await click('cerrar');
  await api.abrir(w.id);
  $('bf-flujo').oninput();
  await click('cerrar');assert(afirmaciones.at(-1).includes('cambios sin guardar'));
@@ -100,5 +151,5 @@ async function click(accion){
  liberar();await anterior;
  assert(!$('pr-fecha'));
  assert.equal(llamadas.filter(x=>x.a==='CONFIRMAR').length,1);
- console.log('PASS baja y finiquito UI: cabecera, fecha y papel, borrador, revisión, doble clic, recuperación y respuesta descartada al cambiar de centro.');
+ console.log('PASS baja y finiquito UI: contenedor flexible y pie accesible, D001 real 6.02 → 6.03 sin autoaplicar, confirmación y borrador, revisión, doble clic, recuperación y respuesta descartada al cambiar de centro.');
 })().catch(error=>{console.error(error.stack);process.exitCode=1;});
