@@ -78,7 +78,7 @@ function exportReporteDocs(){
       else if(v==='NO APLICA'){cels.push('NO APLICA');est.push(stNA);}
       else{cels.push('FALTANTE');est.push(stFalta);}});
     if(ent===nDoc)tOk++; tTot++;
-    rows.push([w.no_trab??'',fullName(w),w.contratista||'',w.puesto||'',s!=null?('S'+s):'—',...cels,`${ent}/${nDoc}`,Math.round(ent/nDoc*100)/100]);
+    rows.push([w.no_trab??'',fullName(w),w.contratista||'',puestoNombre(w)||'',s!=null?('S'+s):'—',...cels,`${ent}/${nDoc}`,Math.round(ent/nDoc*100)/100]);
     styles.push([ST.cellC,ST.cell,ST.cell,ST.cell,ST.cellC,...est,ST.cellC,{...ST.cellC,numFmt:'0%'}]);
   };
   const seccion=txt=>{merges.push({s:{r:rows.length,c:0},e:{r:rows.length,c:lastCol}});rows.push([txt]);styles.push(ST.sect);};

@@ -6,24 +6,10 @@ function diasVacaciones(anios){if(anios<1)return 0;if(anios<=5)return 12+2*(anio
    de la obra es la fuente principal; created_at queda como respaldo para datos
    antiguos sin semana. */
 function faltasAguinaldo(w,fechaCalculo){
-  const fin=fechaCalculo instanceof Date?new Date(fechaCalculo):new Date(String(fechaCalculo).slice(0,10)+'T12:00');
-  if(isNaN(fin)||!w||!iniAntig(w))return 0;
-  const ini=new Date(iniAntig(w)+'T12:00'), enero=new Date(fin.getFullYear(),0,1,12);
-  const corte=ini>enero?ini:enero;
-  return (typeof bajaDescuentos==='function'?bajaDescuentos(w):(typeof DESC!=='undefined'?DESC:[])).reduce((total,d)=>{
-    if(d.trabajador_id!==w.id||d.activo===false||d.recurrente||String(d.tipo||'').toUpperCase()!=='FALTA')return total;
-    let desde=null,hasta=null;
-    const sem=parseInt(String(d.semana||'').replace(/\D/g,''));
-    if(sem>0&&typeof semRange==='function'){
-      const r=semRange(sem);desde=new Date(r[0]+'T12:00');hasta=new Date(r[1]+'T12:00');
-    }else if(d.created_at){
-      desde=hasta=new Date(String(d.created_at).slice(0,10)+'T12:00');
-    }
-    if(!desde||isNaN(desde)||hasta<corte||desde>fin)return total;
-    const m=String(d.motivo||'').match(/(\d+(?:[.,]\d+)?)\s*FALTA/i);
-    const dias=m?Number(m[1].replace(',','.')):1;
-    return total+Math.max(0,Math.round(dias||0));
-  },0);
+  const f=fechaCalculo instanceof Date?fechaCalculo.toISOString().slice(0,10):String(fechaCalculo).slice(0,10);
+  const fuente=window.PLATINUM_PRESTACIONES_FUENTES?.obtener(w,f);
+  if(!fuente)throw Error('Espera la lectura de faltas y aguinaldo de esta fecha.');
+  return Number(fuente.faltas);
 }
 function creditoInfonavitActivo(w,fecha){
   const d=(typeof bajaDescuentos==='function'?bajaDescuentos(w):(typeof DESC!=='undefined'?DESC:[])).find(d=>d.trabajador_id===w.id&&d.activo===true&&d.recurrente===true&&String(d.tipo||'').toUpperCase()==='INFONAVIT')||null;
@@ -127,13 +113,10 @@ function openPrestaciones(id,{consulta=false}={}){
       <button class="btn" onclick="ppfDesdeFicha('${id}')">Papel semanal · ISR preciso</button>
       ${!consulta&&w.estatus!=='BAJA'&&puedeEditarTrabajador()?`<button class="btn dark" id="pr-usar" onclick="usarEnBaja('${id}')">Abrir baja y finiquito</button>`:''}
     </div>`,'lg prestaciones-form');
+  window.PLATINUM_PRESTACIONES_FUENTES?.invalidar(w,$('pr-fecha').value);
   calcPrestaciones(id);
   estadoNoi.promesa=prCargarAjusteNoi(id,estadoNoi);
-  // Fuente común (faltas históricas y aguinaldo acreditado): informativa, no altera la fórmula del finiquito.
-  if(window.PLATINUM_FALTAS_HIST&&$('pr-faltas-hist')){
-    const panel=()=>{const f=$('pr-fecha')?.value||today();window.PLATINUM_FALTAS_HIST.panelFiniquito($('pr-faltas-hist'),w,f,faltasAguinaldo(w,f));};
-    panel();$('pr-fecha')?.addEventListener('change',panel);
-  }
+
 }
 let PR_TOTAL=0;
 function prMotivoSeparacion(escenario){
@@ -274,6 +257,17 @@ function calcPrestaciones(id){
       :'<div class="fhint">Verificando ajustes NOI del trabajador…</div>';
     return;
   }
+  const fechaFuente=$('pr-fecha')?.value;
+  const fuente=window.PLATINUM_PRESTACIONES_FUENTES?.obtener(w,fechaFuente);
+  if(!fuente){
+    globalThis._PR_AUDIT={invalido:true};PR_TOTAL=NaN;
+    if($('pr-usar'))$('pr-usar').disabled=true;
+    const salida=$('pr-out');salida.textContent='Leyendo faltas y aguinaldo del ciclo…';
+    window.PLATINUM_PRESTACIONES_FUENTES?.cargar(w,fechaFuente).then(d=>{
+      if(salida.isConnected&&$('pr-out')===salida&&$('pr-fecha')?.value===fechaFuente){calcPrestaciones(id);if($('pr-faltas-hist'))$('pr-faltas-hist').innerHTML=window.PLATINUM_PRESTACIONES_FUENTES.panel(d);}
+    }).catch(e=>{if(salida.isConnected&&$('pr-out')===salida&&$('pr-fecha')?.value===fechaFuente)salida.textContent=e.message;});
+    return;
+  }
   const escenario=$('pr-despido').value;
   const conSeparacion=escenario!=='NO';
   if(conSeparacion&&$('pr-validado-legal').checked&&globalThis._PR_REVISION_ENTRADAS!==prHuellaRevision()){
@@ -312,7 +306,9 @@ function calcPrestaciones(id){
   const diasAgAnio=usaDiasNoi?Number(diasAgValidos):diasAgAutomaticos;
   // NOI presenta y suma cada percepción del finiquito a centavos. Conservar
   // precisión interna hasta el TOTAL cambia selectivamente el neto ±$0.01.
-  const aguinaldoRaw=sd*15*(diasAgAnio/365);
+  const aguinaldoCausadoRaw=sd*15*(diasAgAnio/365);
+  const aguinaldoAcreditado=Number(fuente.aguinaldo_acreditado)||0;
+  const aguinaldoRaw=Math.max(0,aguinaldoCausadoRaw-aguinaldoAcreditado);
   const aguinaldo=redondearCentavos(aguinaldoRaw);
   const diasVacAct=diasVacaciones(anios+1);
   const vacPropRaw=sd*diasVacAct*(diasAnio/365);
@@ -321,6 +317,7 @@ function calcPrestaciones(id){
   let rows=[
     ['Antigüedad',`${anios} año(s) y ${diasAnio} día(s)`],
     ['Salarios pendientes',`$${money(salarioPend)} (${diasPend} días × $${money(sd)})`],
+    ...(aguinaldoAcreditado?[["Aguinaldo acreditado del ciclo",`−$${money(aguinaldoAcreditado)} · ${esc(fuente.referencias.map(r=>r.id).join(', '))}`]]:[]),
     ...(faltasAg?[['Faltas que reducen aguinaldo',`−${faltasAg} día(s) (incidencias activas del periodo laborado)`]]:[]),
     ...(usaDiasNoi?[['Días de aguinaldo confirmados',`${diasAgAnio} días · ${esc(validacionNoi.motivo||'Validación NOI')} · cálculo automático ${diasAgAutomaticos} días; no crea ni altera incidencias`]]:[]),
     ['Aguinaldo proporcional',`$${money(aguinaldo)} (15 días × ${diasAgAnio}/365 · ${usaDiasNoi?'días validados con NOI':`sin día de baja${faltasAg?` ni ${faltasAg} falta(s)`:''}`})`],
@@ -356,7 +353,7 @@ function calcPrestaciones(id){
   }
   // ISR del finiquito (método contadoras: aguinaldo exento hasta 30 UMA, prima vac. exenta hasta 15 UMA, vacaciones gravadas, tarifa MENSUAL Anexo 8)
   const f26=FISC();
-  const exAg=Math.min(aguinaldo,30*f26.uma), exPV=Math.min(primaVac,15*f26.uma);
+  const exAg=Math.min(aguinaldo,Math.max(0,30*f26.uma-Number(fuente.exento_ag_usado||0))), exPV=Math.min(primaVac,15*f26.uma);
   const gravado=Math.max(0,(aguinaldo-exAg)+(primaVac-exPV)+vacProp);
   const isrCalculado=isrMensual(gravado);
   const isrRaw=$('pr-isr-noi')?$('pr-isr-noi').value:'';
@@ -436,7 +433,7 @@ function calcPrestaciones(id){
     trabajador_nombre:(typeof fullName==='function'?fullName(w):[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolean).join(' ')),
     tipo_calculo:'FINIQUITO_CALCULADO',periodo:f,
     ...(conSeparacion?{formula_version:'SEPARACION_LFT_2026_V1'}:{}),
-    entradas:{fecha_antiguedad:iniAntig(w),fecha_calculo:f,sd,sdi,dias_inclusivos:dias,anios,dias_anio:diasAnio,dias_aguinaldo_base:Math.max(0,diasEsteAnio-1),faltas_aguinaldo:faltasAg,dias_aguinaldo:diasAgAnio,
+    entradas:{fuente_prestaciones:fuente,aguinaldo_acreditado:aguinaldoAcreditado,fecha_antiguedad:iniAntig(w),fecha_calculo:f,sd,sdi,dias_inclusivos:dias,anios,dias_anio:diasAnio,dias_aguinaldo_base:Math.max(0,diasEsteAnio-1),faltas_aguinaldo:faltasAg,dias_aguinaldo:diasAgAnio,
       dias_vacaciones_tabla:diasVacAct,dias_salario_pendiente:diasPend,dias_infonavit_no_retenidos:diasInfo,dias_infonavit_captura_manual:!!infoManual,
       credito_infonavit_id:infoDesc?infoDesc.id:null,numero_credito_infonavit:numeroCreditoInfonavit(infoDesc)||null,
       factor_infonavit:infoDesc?Number(infoDesc.factor)||null:null,origen_infonavit:infoOrigen,
@@ -446,6 +443,7 @@ function calcPrestaciones(id){
       isr_calculado:isrCalculado,isr_separacion:separacion?separacion.isr:0,separacion_legal:separacion,infonavit:infoAplicado,indemnizacion,modelo_total:modeloTotal,aplicado:PR_TOTAL},
     monto_modelo:modeloTotal,monto_aplicado:PR_TOTAL,ajuste_noi:dif,requiere_noi_manual:requiereNoiManual,requiere_revision_legal:requiereRevisionLegal
   };
+  if($('pr-faltas-hist'))$('pr-faltas-hist').innerHTML=window.PLATINUM_PRESTACIONES_FUENTES.panel(fuente);
   $('pr-out').innerHTML=(altaYBajaMismoDia?`<div class="fhint" style="color:var(--amber);margin-bottom:8px">⚠ Alta y baja administrativa el mismo día, sin salario pendiente. Confirma si laboró: NOI puede registrar $0. Captura el importe validado por NOI para habilitar el uso del finiquito; no se generará un cheque por prestaciones estimadas sin esa confirmación.</div>`:'')+
     rows.map(r=>`<div class="kv"><b>${r[0]}</b><span>${r[1]}</span></div>`).join('')+
     `<div class="kv franja-total"><b>${separacion&&separacion.isr==null?'MODELO INCOMPLETO · ISR PENDIENTE':conSeparacion?'NETO MODELO · POR CONCILIAR':'TOTAL'} ${noiV!=null?'(modelo)':''}</b><span>$${money(modeloTotal)}</span></div>`+

@@ -1,6 +1,6 @@
 /* Recorrido de baja. Sólo Confirmar envía la transacción de escritura. */
 const BAJA_PAPELES_CAMPOS=['fecha_alta','fecha_baja','fecha_pago','sd','dias_aguinaldo','dias_vacaciones','tabla_vacaciones',
-  'dias_pendientes','credito','dias_infonavit','numero_credito','exento_ag_usado','exento_pv_usado','isr_precision','d001'];
+  'aguinaldo_acreditado','dias_pendientes','credito','dias_infonavit','numero_credito','exento_ag_usado','exento_pv_usado','isr_precision','d001'];
 let BAJA_FLUJO=null;
 
 function bajaCamposPrestaciones(){
@@ -19,7 +19,7 @@ function bajaDescuentos(w){
 }
 function bajaPapelCompatible(p,e){
   const texto=new Set(['fecha_alta','fecha_baja','fecha_pago','numero_credito']);
-  return !!p?.id&&BAJA_PAPELES_CAMPOS.every(k=>{
+  return !!p?.id&&JSON.stringify(p.entradas?.fuente_prestaciones??null)===JSON.stringify(e.fuente_prestaciones??null)&&BAJA_PAPELES_CAMPOS.every(k=>{
     const a=p.entradas?.[k]??'',b=e[k]??'';
     if(texto.has(k)||a===''||b==='')return String(a)===String(b);
     return Number(a)===Number(b);
@@ -117,6 +117,7 @@ function bajaDocumento(motivo,escenario){
     if(c.trabajador.id!==s.w.id||c.obra_id!==s.obra||c.fecha!==s.fecha)throw Error('La respuesta no corresponde a esta baja.');
     if(s.c?.firma&&s.c.firma!==c.firma){s.campos=[];s.papelEntrada=null;s.precision='';s.fonacot='';s.referencia='';}
     s.c=c;s.w=c.trabajador;
+    window.PLATINUM_PRESTACIONES_FUENTES.registrar(s.w,s.fecha,c.prestaciones_fuente);
     periodo(s,c);
     if(c.protegido||c.conflicto_caso||c.aguinaldo_periodo)throw Error(c.protegido?'Periodo protegido. Usa el flujo vigente de reapertura.':
       c.conflicto_caso?'Hay otro caso de servicio en esta semana. Revísalo antes de continuar.':'Hay aguinaldo aplicado a este periodo. Concilia la aplicación antes de continuar.');
@@ -155,11 +156,10 @@ function bajaDocumento(motivo,escenario){
   else calcPrestaciones(s.w.id);
   actualizarD001(s);
   const panel=el(s,'pr-faltas-hist');
-  s.evidencia=null;
-  s.lectura=window.PLATINUM_FALTAS_HIST.resumen(s.w,Number(s.fecha.slice(0,4)),s.fecha,s.c.inicio_ciclo)
-    .then(r=>{if(vigente(s)&&s.paso===2)s.evidencia=r;return r;})
-    .catch(error=>{if(vigente(s)&&s.paso===2)mensaje(s,'Faltas y aguinaldo por verificar. '+error.message);return null;});
-  window.PLATINUM_FALTAS_HIST.panelFiniquito(panel,s.w,s.fecha,faltasAguinaldo(s.w,s.fecha),s.lectura);
+  s.evidencia=s.c.prestaciones_fuente;
+  s.lectura=Promise.resolve(s.evidencia);
+  panel.innerHTML=window.PLATINUM_PRESTACIONES_FUENTES.panel(s.evidencia);
+
  }
  function cargarPapel(s){
   const p=s.c.papel,e=p?.entradas;
@@ -244,12 +244,7 @@ function bajaDocumento(motivo,escenario){
     if(!vigente(s)||s.paso!==2)return;
     if(s.edicion!==revision)throw Error('Cambió la captura. Revisa el cálculo actualizado.');
     if(!ev)throw Error('No se verificaron faltas y aguinaldo del ciclo.');
-    const alcance=ev.ciclo||ev;
-    const ag=alcance.conc.acreditado+alcance.conc.reservado, dif=alcance.d.ausencias.discrepancias.length;
-    const v=q.a.entradas.validacion_noi;
-    if((ag>0||dif||alcance.conc.pendiente.length)&&(!v||q.a.entradas.noi_manual==null||s.referencia.length<3)){
-      throw Error('Hay faltas o aguinaldo por conciliar. Verifica el desglose de esta fecha con NOI y documenta el neto.');
-    }
+    window.PLATINUM_PRESTACIONES_FUENTES.decision(ev);
     if(!q.legal&&(q.r.d001!==q.a.resultado.isr||q.r.neto_con_credito!==q.a.monto_modelo)){
       throw Error('El papel y el cálculo individual difieren. Revisa el D001, los créditos y el neto antes de continuar.');
     }

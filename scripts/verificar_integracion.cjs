@@ -120,6 +120,7 @@ if(fs.existsSync('work/baja_finiquito_20261110/funciones_vigentes.json')&&fs.rea
 }
 if(aguinaldoPrivate)suites.push('test_aguinaldo_pg');
 else console.log('ALCANCE PÚBLICO AGUINALDO: núcleo e interfaz se prueban; las comprobaciones PostgreSQL de faltas históricas y aplicación requieren la migración privada.');
+suites.push('test_puestos_prestaciones');
 for(const file of suites){
  const r=spawnSync(process.execPath,['scripts/'+file+'.cjs'],{encoding:'utf8',maxBuffer:4e6});
  process.stdout.write(r.stdout||'');process.stderr.write(r.stderr||'');if(r.status!==0)process.exit(r.status||1);

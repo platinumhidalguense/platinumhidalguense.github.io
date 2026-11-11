@@ -408,7 +408,7 @@ function openAltasNOI(){
         <div><label>Altas del día</label><input id="na-d1" type="date" value="${d1}" oninput="naLista()"></div>
         <div><label>al día</label><input id="na-d2" type="date" value="${d2}" oninput="naLista()"></div>
       </div>
-      <div class="fhint">Las claves elegidas aquí sólo se usan al exportar; no modifican la ficha del trabajador.</div>
+      <div class="fhint">Las equivalencias provienen del catálogo central; no modifican el puesto original. <button type="button" class="btn" onclick="abrirCatalogoPuestos()">Catálogo y equivalencias</button></div>
       <div id="na-lista" style="margin-top:12px"></div>
     </div>
     <div class="m-foot">
@@ -425,14 +425,12 @@ function naLista(){
   window._NA=ws;
   $('na-lista').innerHTML=ws.length?`<div class="sect">${ws.length} alta(s) en el rango — desmarca las que no quieras incluir</div>`+
     ws.map((w,i)=>{
-      const falta=['nss','rfc','curp'].filter(k=>!w[k]),sinSdi=!(Number(w.sdi)>0),clave=noiPuestoClave(w.puesto);
+      const falta=['nss','rfc','curp'].filter(k=>!w[k]),sinSdi=!(Number(w.sdi)>0),resolucion=puestoResolver(w),clave=resolucion.clave;
       return `<div style="padding:8px 2px;border-bottom:1px solid var(--border)">
       <label style="display:block;font-size:12.5px${(falta.length||sinSdi)?';color:var(--red)':''}">
       <input type="checkbox" id="na-${i}" ${falta.length?'':'checked'}> #${w.no_trab??'—'} ${esc(fullName(w))} · ${esc(w.puesto||'sin puesto')} · alta ${fmtD(w.fecha_alta)} · SDI $${money(w.sdi||0)}${falta.length?` ⚠ falta ${falta.join(', ').toUpperCase()}`:''}${sinSdi?' ⚠ SIN SDI':''}${w.estatus==='PENDIENTE'?' · PENDIENTE':''}</label>
-      ${clave?`<div class="fhint">Puesto NOI: ${clave} · ${esc(NOI_PUESTOS_ALTAS[clave-1])}</div>`:
-        `<div class="fhint" style="color:var(--amber)">Sin equivalencia automática. Elige la clave para el Excel:</div>
-        <select id="na-puesto-${i}" aria-label="Clave de puesto NOI para trabajador ${w.no_trab??i+1}">
-        <option value="">Seleccionar puesto NOI…</option>${NOI_PUESTOS_ALTAS.map((p,k)=>`<option value="${k+1}">${k+1} · ${esc(p)}</option>`).join('')}</select>`}
+      ${clave?`<div class="fhint">${esc(w.puesto)} → ${clave} · ${esc(resolucion.descripcion)}</div>`:
+        `<div class="fhint" style="color:var(--amber)">${esc(w.puesto)} → Sin equivalencia respaldada. Configúrala una sola vez en el catálogo central.</div>`}
       </div>`;
     }).join('')
     :'<p style="color:var(--mut)">No hay altas en ese rango de fechas.</p>';

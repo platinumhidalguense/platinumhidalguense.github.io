@@ -59,7 +59,7 @@ function dibujarFormularioTrabajador(id){
           <select id="f-puesto" onchange="tabAssist()">
             <option value=""></option>
             ${catalogoPuestos().map(pu=>`<option ${(w&&w.puesto)===pu?'selected':''}>${esc(pu)}</option>`).join('')}
-            ${(w&&w.puesto&&!catalogoPuestos().includes(w.puesto))?`<option selected value="${esc(w.puesto)}">${esc(w.puesto)} ⚠ (FUERA DE CATÁLOGO — elige el correcto)</option>`:''}
+            ${(w&&w.puesto&&!catalogoPuestos().includes(w.puesto))?`<option selected value="${esc(w.puesto)}">${esc(w.puesto)} (registro original conservado)</option>`:''}
           </select><div class="fhint" id="h-puesto">Catálogo cerrado para no fragmentar puestos. Al elegir uno del tabulador, el salario se llena solo.</div></div>
         <div><label>Turno</label><select id="f-turno">${['DIURNO','NOCTURNO','MIXTO'].map(t=>`<option ${((w&&w.turno)||'DIURNO')===t?'selected':''}>${t}</option>`).join('')}</select></div>
         ${fld('funciones','Funciones',w?w.funciones:'',{cls:'c4'})}

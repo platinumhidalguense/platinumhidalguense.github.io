@@ -117,10 +117,10 @@ function exportMovimientos(){
   rows.push(['MOVIMIENTO','NO. TRAB.','NOMBRE COMPLETO','CONTRATISTA','PUESTO','FECHA','ESTATUS ACTUAL','FINIQUITO']); styles.push(ST.head);
   const rA=[ST.cellC,ST.cellC,ST.cell,ST.cellC,ST.cell,ST.cellC,ST.cellC,ST.money];
   const rB=[ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.fin,ST.finMoney];
-  altas.forEach(w=>{rows.push(['ALTA',w.no_trab??'',fullName(w),w.contratista,w.puesto,fmtD(w.fecha_alta),w.estatus,'']);styles.push(rA);});
-  reingresos.forEach(w=>{rows.push(['REINGRESO',w.no_trab??'',fullName(w),w.contratista,w.puesto,fmtD(w.fecha_reingreso),w.estatus,'']);styles.push(rA);});
-  pend.forEach(w=>{rows.push(['PENDIENTE',w.no_trab??'',fullName(w),w.contratista,w.puesto,fmtD(w.fecha_alta),w.estatus,'']);styles.push(rA);});
-  bajas.forEach(w=>{rows.push(['BAJA',w.no_trab??'',fullName(w),w.contratista,w.puesto,fmtD(w.fecha_baja),w.estatus,Number(w.monto_finiquito)||'']);styles.push(rB);});
+  altas.forEach(w=>{rows.push(['ALTA',w.no_trab??'',fullName(w),w.contratista,puestoNombre(w),fmtD(w.fecha_alta),w.estatus,'']);styles.push(rA);});
+  reingresos.forEach(w=>{rows.push(['REINGRESO',w.no_trab??'',fullName(w),w.contratista,puestoNombre(w),fmtD(w.fecha_reingreso),w.estatus,'']);styles.push(rA);});
+  pend.forEach(w=>{rows.push(['PENDIENTE',w.no_trab??'',fullName(w),w.contratista,puestoNombre(w),fmtD(w.fecha_alta),w.estatus,'']);styles.push(rA);});
+  bajas.forEach(w=>{rows.push(['BAJA',w.no_trab??'',fullName(w),w.contratista,puestoNombre(w),fmtD(w.fecha_baja),w.estatus,Number(w.monto_finiquito)||'']);styles.push(rB);});
   const neto=altas.length+reingresos.length-bajas.length;
   rows.push([`TOTALES: ${altas.length} ALTAS NUEVAS · ${reingresos.length} REINGRESOS · ${bajas.length} BAJAS · ${pend.length} PENDIENTES (APARTE) · NETO ${neto>=0?'+':''}${neto}`]); styles.push(ST.total);
   const ws=buildSheet(rows,styles,[13,10,36,15,24,12,15,12],[{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:7}}],[{hpt:26},{hpt:24}]);
@@ -138,7 +138,7 @@ function movimientosPDFHTML(mov,contratista=''){
   const filas=secciones.filter(([,gente])=>gente.length).map(([titulo,gente,fecha])=>
     `<tr class="grupo"><td colspan="6">${titulo} · ${gente.length}</td></tr>`+
     gente.map(w=>`<tr><td class="numero">${esc(w.no_trab??'—')}</td><td class="nombre">${esc(fullName(w))}</td>`+
-      `<td>${esc(w.puesto||'—')}</td><td>${esc(w.contratista||'—')}</td><td>${esc(cuadNombre(w)||'—')}</td><td class="fecha">${esc(fmtD(w[fecha]))}</td></tr>`).join('')).join('');
+      `<td>${esc(puestoNombre(w)||'—')}</td><td>${esc(w.contratista||'—')}</td><td>${esc(cuadNombre(w)||'—')}</td><td class="fecha">${esc(fmtD(w[fecha]))}</td></tr>`).join('')).join('');
   const neto=altas.length+reingresos.length-bajas.length;
   const membrete=`<tr><td class="membrete" colspan="6"><div class="membrete-box"><img src="${logoEmpresa(codigo)}" alt="${esc(codigo)}"><div class="empresa"><b>${esc(razon)}</b><br>RFC ${esc(empresa.rfc||'—')}<br>${esc(empresa.domicilio||'')}</div></div></td></tr>`;
   const contexto=`<tr><td class="contexto" colspan="6"><b>Centro:</b> ${esc(OBRA.nombre)} &nbsp; <b>Periodo:</b> ${esc(fmtD(d1))} al ${esc(fmtD(d2))}${contratista?` &nbsp; <b>Contratista:</b> ${esc(contratista)}`:''}</td></tr>`;
@@ -148,7 +148,7 @@ function movimientosPDFHTML(mov,contratista=''){
       <tr><td class="resumen" colspan="6">${incidencias.length} registro(s) · ${new Set(incidencias.map(({d})=>d.trabajador_id)).size} trabajador(es) · Descuentos registrados, sin recalcular.</td></tr>
       <tr class="columnas"><th>NO.</th><th>NOMBRE / PUESTO</th><th>CONTRATISTA</th><th>TIPO</th><th>DETALLE</th><th>DESCUENTO</th></tr></thead>
     <tbody>${incidencias.map(({d,w})=>`<tr><td class="numero">${esc(w?.no_trab??'—')}</td>
-      <td><div class="nombre">${esc(w?fullName(w):'Trabajador no disponible; revisar referencia')}</div><div class="puesto">${esc(w?.puesto||'—')}</div></td>
+      <td><div class="nombre">${esc(w?fullName(w):'Trabajador no disponible; revisar referencia')}</div><div class="puesto">${esc((w?puestoNombre(w):'')||'—')}</div></td>
       <td>${esc(w?.contratista||'—')}</td><td>${d.tipo==='FALTA'?'Falta':'Incidencia'}</td>
       <td class="detalle">${esc(d.motivo||'Sin detalle registrado')}</td><td class="importe">$${money(Number(d.monto)||0)}</td></tr>`).join('')}</tbody></table></section>`:'';
   return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Movimientos semana ${n} · ${esc(OBRA.nombre)}</title>
@@ -263,7 +263,7 @@ function exportAltasSemana(){
       sec(`◆  SEMANA ${s}  —  ${g.length} alta(s)`, ST.sect);
       g.forEach(w=>{
         total++;
-        rows.push([w.no_trab??'',fullName(w),w.contratista||'',w.puesto||'',fmtD(w.fecha_alta),w.estatus]);
+        rows.push([w.no_trab??'',fullName(w),w.contratista||'',puestoNombre(w)||'',fmtD(w.fecha_alta),w.estatus]);
         styles.push([ST.cellC,ST.cell,ST.cell,ST.cell,ST.cellC,ST.cellC]);
       });
     });

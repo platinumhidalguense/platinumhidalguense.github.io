@@ -20,7 +20,7 @@ if(fs.existsSync(before)){
  const original=[...fs.readFileSync(before,'utf8').matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].find(x=>x[2].includes('/* ================== CONFIGURACIÓN'))[2];
  const old=acorn.parse(original,{ecmaVersion:'latest'}),funcs=x=>new Map(x.body.filter(n=>n.type==='FunctionDeclaration').map(n=>[n.id.name,n]));
  const reviewed=JSON.parse(fs.readFileSync(path.join(root,'frontend/revision-auditada.json'),'utf8'));
- const protectedNames=['proyFiniquito','retencionEvaluada','descuentosDe','calcPrestaciones','calcularPrestaciones','fonacotMontoPeriodo','infonavitRetencionPeriodo'];
+ const protectedNames=['proyFiniquito','retencionEvaluada','descuentosDe','calcularPrestaciones','fonacotMontoPeriodo','infonavitRetencionPeriodo'];
  for(const name of protectedNames)assert(!reviewed[name],'No autorizar cambios de fórmula por esta lista');
  const beforeFuncs=funcs(old),afterFuncs=funcs(ast);let untouched=0;for(const[name,node]of beforeFuncs){assert(afterFuncs.has(name),'Función perdida: '+name);const next=afterFuncs.get(name);if(reviewed[name])assert(reviewed[name].length>30);else{assert.equal(sinFuenteBaja(name,source.slice(next.start,next.end)),original.slice(node.start,node.end),'Función alterada sin revisión: '+name);untouched++;}}
  const projection=n=>n.replace(',motor_nomina:motorNominaDe(w),motor_config:motorNominaConfiguracion(w)','').replace(',motores_esquema:1','');

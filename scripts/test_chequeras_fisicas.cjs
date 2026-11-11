@@ -26,6 +26,7 @@ const box={window:{PDFLib:lib,JSZip},OBRA:obra,OBRAS:[obra],SEMANA1:'2026-03-30'
  sb:{from:table=>{const q={table,tests:[],select(){return this;},eq(k,v){this.tests.push(x=>x[k]===v);return this;},in(k,vs){this.tests.push(x=>vs.includes(x[k]));return this;},or(){return this;}};return q;},
  storage:{from:bucket=>({download:async archivo=>{equal(bucket,'expedientes','Bucket privado');return failDownload?{error:Error('503 simulado')}:{data:new Blob([receipts.get(archivo)])};}})}},
  registrarExportacion:async()=>{},pfCargarPDF:async()=>lib};
+require('./soporte_puestos_vistas.cjs').instalar(box);
 function load(file,names){const text=fs.readFileSync(file,'utf8'),ast=acorn.parse(text,{ecmaVersion:'latest'});
  for(const f of ast.body.filter(n=>n.type==='FunctionDeclaration'&&(!names||names.includes(n.id.name))))box[f.id.name]=new Function('box','with(box){return ('+text.slice(f.start,f.end)+');}')(box);}
 load(modulePath);load('frontend/modulos/31-documentos-laborales.js',['numLetras','cartaCfg','renunciaPagesHTML','renunciaOpts']);

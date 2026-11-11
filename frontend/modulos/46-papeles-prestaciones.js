@@ -32,15 +32,19 @@ function ppfModelo(e){
  if(baja<alta||pago.getUTCFullYear()!==2026)throw Error('Revisa fechas. Tarifa disponible: 2026');
  const sd=ppfNumero(e.sd,'SD',1e6),da=ppfNumero(e.dias_aguinaldo,'Días aguinaldo',366),dv=ppfNumero(e.dias_vacaciones,'Días vacaciones',366),tv=ppfNumero(e.tabla_vacaciones,'Tabla vacaciones',100),dp=ppfNumero(e.dias_pendientes,'Días pendientes',366);
  if(sd<=0||tv<12)throw Error('SD o tabla de vacaciones inválidos');
- const ag=sd*15*da/365,vac=sd*tv*dv/365,pv=vac*.25,sp=sd*dp,uma=e.fecha_pago<'2026-02-01'?113.14:117.31;
+ const acreditado=ppfNumero(e.aguinaldo_acreditado??'0','Aguinaldo acreditado'),causado=sd*15*da/365;
+ if(acreditado>ppfRed(causado))throw Error('El aguinaldo acreditado supera al causado del ciclo');
+ const ag=Math.max(0,causado-acreditado),vac=sd*tv*dv/365,pv=vac*.25,sp=sd*dp,uma=e.fecha_pago<'2026-02-01'?113.14:117.31;
  const exag=Math.min(ag,Math.max(0,30*uma-ppfNumero(e.exento_ag_usado,'Exención aguinaldo usada'))),expv=Math.min(pv,Math.max(0,15*uma-ppfNumero(e.exento_pv_usado,'Exención prima usada'))),grav=sp+vac+ag-exag+pv-expv;
  const t=[...PPF_TARIFA_2026].reverse().find(t=>ppfRed(grav)>=t[0])||[0,0,0,0];
  const isr=Math.max(0,(grav-t[0])*t[3]/100+t[2]),aplicado=e.isr_precision===''?isr:ppfNumero(e.isr_precision,'ISR');
  const bruto=ag+vac+pv+sp,brutoNOI=ppfRed(ag)+ppfRed(vac)+ppfRed(pv)+ppfRed(sp),neto=ppfRed(bruto-aplicado),d001=e.d001===''?ppfRed(aplicado):ppfNumero(e.d001,'D001'),credito=ppfNumero(e.credito,'Créditos');
  if(aplicado>bruto||d001>brutoNOI||Math.abs(ppfRed(d001)-d001)>1e-8)throw Error('ISR mayor al bruto o D001 con más de dos decimales');
- return {version:'PAPEL_2026_V1',aguinaldo_raw:ag,vacaciones_raw:vac,prima_raw:pv,aguinaldo:ppfRed(ag),vacaciones:ppfRed(vac),prima:ppfRed(pv),salarios:ppfRed(sp),uma,exento_ag:exag,exento_pv:expv,gravado:grav,limite_inferior:t[0],tasa:t[3],cuota_fija:t[2],isr_calculado:isr,isr_precision:aplicado,d001,d001_propuesto:ppfRed(brutoNOI-neto),bruto,bruto_noi:ppfRed(brutoNOI),neto_papel:neto,neto_noi:ppfRed(brutoNOI-d001),credito,neto_con_credito:Math.max(0,ppfRed(brutoNOI-d001-credito))};
+ return {version:'PAPEL_2026_V1',aguinaldo_causado_raw:causado,aguinaldo_acreditado:acreditado,aguinaldo_raw:ag,vacaciones_raw:vac,prima_raw:pv,aguinaldo:ppfRed(ag),vacaciones:ppfRed(vac),prima:ppfRed(pv),salarios:ppfRed(sp),uma,exento_ag:exag,exento_pv:expv,gravado:grav,limite_inferior:t[0],tasa:t[3],cuota_fija:t[2],isr_calculado:isr,isr_precision:aplicado,d001,d001_propuesto:ppfRed(brutoNOI-neto),bruto,bruto_noi:ppfRed(brutoNOI),neto_papel:neto,neto_noi:ppfRed(brutoNOI-d001),credito,neto_con_credito:Math.max(0,ppfRed(brutoNOI-d001-credito))};
 }
 function ppfEntradas(w,fecha,audit=null,validacion=null){
+ const fuente=window.PLATINUM_PRESTACIONES_FUENTES?.obtener(w,fecha);
+ if(!fuente)throw Error('Espera la fuente común de prestaciones de esta fecha');
  const alta=iniAntig(w),dias=Math.round((ppfDia(fecha)-ppfDia(alta))/86400000)+1;
  if(dias<1)throw Error('El reingreso es posterior al cálculo; consulta el papel histórico de la baja anterior');
  const anios=Math.floor(dias/365.25),desde=Math.max(+ppfDia(alta),+ppfDia(fecha.slice(0,4)+'-01-01'));
@@ -53,12 +57,12 @@ function ppfEntradas(w,fecha,audit=null,validacion=null){
    const periodo=perDe(w);info=exacta==null?montoDescuento(credito,periodo)/periodo.dias*infoDias:exacta;
    if(!Number.isFinite(info))throw Error('No se pudo calcular el crédito activo; abre la ficha para revisarlo');
  }}
- return {fecha_alta:alta,fecha_baja:fecha,fecha_pago:fecha,sd:String(w.sd),nss:String(w.nss||''),
+ return {fuente_prestaciones:fuente,aguinaldo_acreditado:String(fuente.aguinaldo_acreditado||0),fecha_alta:alta,fecha_baja:fecha,fecha_pago:fecha,sd:String(w.sd),nss:String(w.nss||''),
  dias_aguinaldo:String(a.dias_aguinaldo??val?.dias_aguinaldo??Math.max(0,diasAgBase-faltas)),
  dias_vacaciones:String(a.dias_anio??Math.round(dias-anios*365.25)),tabla_vacaciones:String(a.dias_vacaciones_tabla??diasVacaciones(anios+1)),
  dias_pendientes:String(a.dias_salario_pendiente??0),faltas_aguinaldo:faltas,
  credito:String(r.infonavit??(val?.credito_infonavit_id===credito?.id&&Number(val?.dias_infonavit)===infoDias&&Number(val?.factor_infonavit)===Number(credito?.factor)?val?.infonavit:null)??ppfRed(info)),dias_infonavit:a.dias_infonavit_no_retenidos??infoDias,numero_credito:numeroCreditoInfonavit(credito),
- exento_ag_usado:'0',exento_pv_usado:'0',isr_precision:'',d001:a.isr_noi_manual!=null?String(a.isr_noi_manual):val?.isr!=null?String(val.isr):'',
+ exento_ag_usado:String(fuente.exento_ag_usado||0),exento_pv_usado:'0',isr_precision:'',d001:a.isr_noi_manual!=null?String(a.isr_noi_manual):val?.isr!=null?String(val.isr):'',
  origen_dias:audit?'Cálculo individual':val?'Días confirmados con NOI':'Motor vigente · revisar antes de aplicar',
  aviso_antiguedad:anios>=1?'Revisa vacaciones acumuladas/disfrutadas y continuidad; este papel sólo calcula el proporcional del año en curso.':''};
 }
@@ -124,7 +128,10 @@ async function ppfAbrirEditor(id,fecha,papel=null,audit=null){
    sb.from('historial').select('datos_despues').eq('obra_id',obra).eq('trabajador_id',id).eq('accion','AJUSTE_FINIQUITO_NOI').order('fecha',{ascending:false}).order('id',{ascending:false}).limit(1).maybeSingle()
   ]);
   if(OBRA.id!==obra)return;if(wr.error||prev.error||aj.error)throw Error((wr.error||prev.error||aj.error).message);
-  const w=wr.data,v=aj.data?.datos_despues,validacion=v?.periodo===fecha?v.validacion_noi:null;
+  const w=wr.data;
+  await window.PLATINUM_PRESTACIONES_FUENTES.cargar(w,fecha,{actualizar:true});
+  if(OBRA.id!==obra)return;
+  const v=aj.data?.datos_despues,validacion=v?.periodo===fecha?v.validacion_noi:null;
   // Una revisión guardada es la base; no sobrescribirla silenciosamente con una ficha.
   const e=prev.data?structuredClone(prev.data.entradas):ppfEntradas(w,fecha,audit,validacion);
   if(audit&&w.updated_at!==WORKERS.find(x=>x.id===id)?.updated_at)throw Error('La ficha cambió; vuelve a abrir Prestaciones antes de guardar');
@@ -141,6 +148,7 @@ function ppfEditorHTML(){
  ${campo('credito','Retención de créditos ($)')}${campo('exento_ag_usado','Exención aguinaldo ya usada ($)')}${campo('exento_pv_usado','Exención prima ya usada ($)')}
  ${campo('isr_precision','ISR del papel · precisión completa (opcional)')}${campo('d001','ISR D001 a centavos (opcional)')}</div>
  <p class="fhint">El campo vacío conserva el cálculo automático. Retención precargada: ${esc(e.numero_credito||'sin crédito identificado')} · ${e.dias_infonavit||0} día(s) INFONAVIT. Revisa retenciones pendientes de otras semanas y FONACOT; el monto no altera la ficha ni el crédito.</p>
+ ${e.fuente_prestaciones?window.PLATINUM_PRESTACIONES_FUENTES.panel(e.fuente_prestaciones):''}
  ${e.aviso_antiguedad?'<p class="fhint" style="color:var(--amber)">'+esc(e.aviso_antiguedad)+'</p>':''}
  <div id="ppfe-out" aria-live="polite"></div>
  <button class="btn" id="ppfe-proponer" onclick="ppfAceptarD001()" ${edit?'':'disabled'}>Usar propuesta D001 (requiere confirmar al guardar)</button>
@@ -155,7 +163,18 @@ function ppfPrevisualizar(){
  const d=PPF.editor;if(!d||!$('ppfe-out'))return;
  $('ppfe-ficha').disabled=true;d.guardado=null;
  try{
-  const e=ppfLeerEditor(),r=ppfModelo(e);d.e=e;d.r=r;
+  const e=ppfLeerEditor();
+  if(e.fuente_prestaciones&&e.fuente_prestaciones.corte!==e.fecha_baja){
+    $('ppfe-guardar').disabled=true;$('ppfe-proponer').disabled=true;$('ppfe-out').textContent='Actualizando faltas y aguinaldo para la nueva fecha…';
+    const fecha=e.fecha_baja;
+    window.PLATINUM_PRESTACIONES_FUENTES.cargar(d.w,fecha,{actualizar:true}).then(f=>{
+      if(PPF.editor!==d||!$('ppfe-fecha_baja')||$('ppfe-fecha_baja').value!==fecha)return;
+      const nuevas=ppfEntradas(d.w,fecha);d.e={...e,fuente_prestaciones:f,aguinaldo_acreditado:String(f.aguinaldo_acreditado),exento_ag_usado:String(f.exento_ag_usado)};
+      for(const k of ['dias_aguinaldo','dias_vacaciones','tabla_vacaciones'])$('ppfe-'+k).value=nuevas[k];
+      ppfPrevisualizar();
+    }).catch(err=>{if(PPF.editor===d&&$('ppfe-fecha_baja')?.value===fecha)$('ppfe-out').textContent=err.message;});return;
+  }
+  const r=ppfModelo(e);d.e=e;d.r=r;
   $('ppfe-out').innerHTML=ctrlTabla(['Concepto','Precisión interna','NOI a centavos'],[
    ['Aguinaldo',r.aguinaldo_raw,r.aguinaldo],['Vacaciones',r.vacaciones_raw,r.vacaciones],['Prima vacacional',r.prima_raw,r.prima],['Salarios pendientes',r.salarios,r.salarios],['ISR matemático',r.isr_calculado,ppfRed(r.isr_calculado)],['ISR del papel / D001',r.isr_precision,r.d001]
   ].map(x=>`<tr><td>${x[0]}</td><td>${Number(x[1]).toFixed(8)}</td><td>$${money(x[2])}</td></tr>`))+
@@ -265,7 +284,7 @@ function ppfConstruirLibro(papeles){
   put(raw('B',7),'SUELDO SEMANAL');formula(raw('C',7),`C${n(6)}*7`,Number(e.sd)*7);
   put(raw('B',8),'DÍAS LABORADOS');formula(raw('C',8),`C${n(5)}-C${n(4)}+1`,Math.round((ppfDia(e.fecha_baja)-ppfDia(e.fecha_alta))/86400000)+1);
   ['DÍAS POR LEY','DÍAS LABORADOS','DÍAS DEL AÑO','SUELDO DIARIO','PARTE PROPORCIONAL'].forEach((h,i)=>put(raw(String.fromCharCode(67+i),10),h,{...bold,alignment:{wrapText:true,vertical:'center'}}));
-  put(raw('B',11),'AGUINALDO');put(raw('C',11),15);put(raw('D',11),Number(e.dias_aguinaldo));put(raw('E',11),365);formula(raw('F',11),`C${n(6)}`,Number(e.sd));formula(raw('G',11),`C${n(11)}*D${n(11)}/E${n(11)}*F${n(11)}`,Number(r.aguinaldo_raw));
+  put(raw('B',11),'AGUINALDO');put(raw('C',11),15);put(raw('D',11),Number(e.dias_aguinaldo));put(raw('E',11),365);formula(raw('F',11),`C${n(6)}`,Number(e.sd));formula(raw('G',11),`MAX(0,C${n(11)}*D${n(11)}/E${n(11)}*F${n(11)}-${Number(e.aguinaldo_acreditado)||0})`,Number(r.aguinaldo_raw));
   put(raw('B',12),'VACACIONES');put(raw('C',12),Number(e.tabla_vacaciones));put(raw('D',12),Number(e.dias_vacaciones));put(raw('E',12),365);formula(raw('F',12),`C${n(6)}`,Number(e.sd));formula(raw('G',12),`C${n(12)}*D${n(12)}/E${n(12)}*F${n(12)}`,Number(r.vacaciones_raw));
   put(raw('B',13),'PRIMA VACACIONAL');put(raw('C',13),.25,{numFmt:'0%'});formula(raw('G',13),`G${n(12)}*C${n(13)}`,Number(r.prima_raw));
   put(raw('B',14),'RETENCIÓN DE ISR');merge(raw('B',14),raw('F',14));

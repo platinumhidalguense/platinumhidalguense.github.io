@@ -303,7 +303,7 @@ function exportDirectorio(){
 const DIR_SIN_CUADRILLA='Sin cuadrilla';
 function dirFilas(lista){
   return asPaginas(asGruposCuadrilla(lista)).flatMap(p=>p.gente.map(w=>({
-    w,nombre:fullName(w),no:w.no_trab,puesto:w.puesto||'',
+    w,nombre:fullName(w),no:w.no_trab,puesto:puestoNombre(w)||'',
     contratista:p.grupo.contratista,
     cuadrilla:p.grupo.cuadrilla||DIR_SIN_CUADRILLA,hoja:p.numero
   }))).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base'}));

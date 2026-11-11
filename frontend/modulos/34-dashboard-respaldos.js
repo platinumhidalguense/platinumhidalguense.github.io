@@ -73,7 +73,7 @@ async function renderDash(obraId){
   });
 
   // distribución por puesto (top 7 + otros), sobre activos filtrados
-  const puestoMap={}; a.forEach(w=>{const k=w.puesto||'(SIN PUESTO)';puestoMap[k]=(puestoMap[k]||0)+1;});
+  const puestoMap={}; a.forEach(w=>{const k=puestoNombre(w)||'(SIN PUESTO)';puestoMap[k]=(puestoMap[k]||0)+1;});
   const puestoArr=Object.entries(puestoMap).sort((x,y)=>y[1]-x[1]);
   const puestoTop=puestoArr.slice(0,7); const puestoResto=puestoArr.slice(7).reduce((s,x)=>s+x[1],0);
   if(puestoResto>0)puestoTop.push(['Otros',puestoResto]);
@@ -311,7 +311,7 @@ function exportReporteEjecutivo(){
   const sbz=[ST.head];
   tw.forEach((w,i)=>{
     const o=OBRAS.find(x=>x.id===w.obra_id); const r=i+2; const alt=i%2===1;
-    rb.push([o?o.nombre:'',w.estatus,w.puesto||'',w.periodo_pago||'SEMANAL',Number(w.sal_semanal)||0,
+    rb.push([o?o.nombre:'',w.estatus,puestoNombre(w)||'',w.periodo_pago||'SEMANAL',Number(w.sal_semanal)||0,
       w.fecha_alta?new Date(w.fecha_alta+'T12:00'):'', w.fecha_baja?new Date(w.fecha_baja+'T12:00'):'', w.fecha_nacimiento?new Date(w.fecha_nacimiento+'T12:00'):'',
       {t:'n',f:`IF(H${r}="","",DATEDIF(H${r},TODAY(),"y"))`,z:'0'},
       {t:'n',f:`IF(F${r}="","",ROUND((TODAY()-F${r})/365,2))`,z:'0.0'},
@@ -367,7 +367,7 @@ function exportReporteEjecutivo(){
   const rp=[],sp=[];
   rp.push(['DISTRIBUCIÓN DE PUESTOS — TRABAJADORES ACTIVOS','','']); sp.push([ST.title,ST.title,ST.title]);
   rp.push(['PUESTO','ACTIVOS','SALARIO PROMEDIO (PERIODO)']); sp.push([ST.head,ST.head,ST.head]);
-  const puestos=[...new Set(tw.map(w=>w.puesto||'(SIN PUESTO)'))].sort();
+  const puestos=[...new Set(tw.map(w=>puestoNombre(w)||'(SIN PUESTO)'))].sort();
   const puestoStart=rp.length+1;
   puestos.forEach(p=>{
     const pq=p.replace(/"/g,'""');
@@ -460,6 +460,11 @@ async function exportRespaldo(porCorreo){
     const wsDoc=XLSX.utils.aoa_to_sheet(dc);
     dc[0].forEach((_,c)=>{const a=XLSX.utils.encode_cell({r:0,c});if(wsDoc[a])wsDoc[a].s=ST.head;});
     XLSX.utils.book_append_sheet(wb,wsDoc,'EXPEDIENTE DIGITAL');
+  }
+  const puestosSnapshot=puestoDatosCentral();
+  if(puestosSnapshot){
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['CLAVE','DESCRIPCION','ACTIVO','REFERENCIA'],...puestosSnapshot.catalogo.map(c=>[c.clave,c.descripcion,c.activo,c.referencia])]),'CATALOGO PUESTOS');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['EMPRESA','ORIGINAL','ESPECIALIDAD','CLAVE NOI','REFERENCIA'],...puestosSnapshot.equivalencias.map(c=>[c.empresa,c.variante,c.especialidad,c.clave,c.referencia])]),'EQUIVALENCIAS PUESTOS');
   }
   const bancoRespaldo=[['control_importaciones_bancarias','ARCHIVOS BANCARIOS','id,obra_id,empresa_codigo,contexto,nombre,sha256,ruta,tamano,padre_id,paginas,estado,revision,error,creado_por,created_at,updated_at'],['control_banco_resoluciones','CONCILIACION BANCARIA','id,archivo_id,fila,operacion_id,obra_id,trabajador_id,pago_id,obligacion_id,cheque_id,aplicacion_id,estado,revision,resultado,actor_id,created_at,updated_at']];
   for(const [tabla,nombre,columnas] of bancoRespaldo){

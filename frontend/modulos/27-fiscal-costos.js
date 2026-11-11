@@ -2,10 +2,7 @@
 function FISC(){const f=CFGEMP['fiscal']||{};return {anio:Number(f.anio)||new Date().getFullYear(),sm:f.sm||315.04,uma:f.uma||117.31,umi:f.umi||100.81,isn:(f.isn!=null?f.isn:3.0),seg:(f.seguro_danos_bim!=null?f.seguro_danos_bim:15),ceav:f.ceav||[[1,3.150],[1.5,3.68],[2.0,4.85],[2.5,5.56],[3.0,6.03],[3.5,6.36],[4.0,6.61],[99,7.51]]};}
 function redondearCentavos(v){return Math.round((Number(v)||0)*100+Number.EPSILON)/100;}
 function catalogoPuestos(){
-  const c=CFGEMP['catalogo_puestos'];
-  // v13: LISTA CERRADA — los puestos con typo ya NO se cuelan al selector.
-  const base=Array.isArray(c)?c:['OFICIAL ALBAÑIL','OFICIAL FIERRERO','OFICIAL CARPINTERO','OFICIAL MOLDERO','OFICIAL YESERO','OFICIAL PINTOR','OFICIAL PLOMERO','OFICIAL ELECTRICISTA','OFICIAL COLOCADOR DE PISO','CABO DE OFICIOS','AYUDANTE ALBAÑIL','AYUDANTE FIERRERO','AYUDANTE YESERO','AYUDANTE GENERAL','RESIDENTE DE OBRA','OPERADOR DE RETROEXCAVADORA','OPERADOR DE EXCAVADORA','OPERADOR DE TRACTOR','OPERADOR DE VIBROCOMPACTADOR','OPERADOR DE MOTOCONFORMADORA','OPERADOR DE MAQUINARIA','INSTALADOR DE PUERTAS Y VENTANAS','APLICADOR DE IMPERMEABILIZANTE','CHOFER DE OBRA','ALMACENISTA','VIGILANTE','PERSONAL DE LIMPIEZA','AUXILIAR ADMINISTRATIVO','ADMINISTRATIVO','CONTADOR','ABOGADA','ARQUITECTO','SUBGERENTE','VENTAS'];
-  return [...base].sort();
+  return (puestoDatosCentral()?.catalogo||[]).filter(p=>p.activo).sort((a,b)=>a.clave-b.clave).map(p=>p.descripcion);
 }
 /* --- ISR 2026 (Anexo 8 RMF, DOF 28/12/2025) --- */
 const ISR_M=[[0.01,844.59,0,1.92],[844.60,7168.51,16.22,6.40],[7168.52,12598.02,420.95,10.88],[12598.03,14644.64,1011.68,16.00],[14644.65,17533.64,1339.14,17.92],[17533.65,35362.83,1856.84,21.36],[35362.84,55736.68,5665.16,23.52],[55736.69,106410.50,10457.09,30.00],[106410.51,141880.66,25659.23,32.00],[141880.67,425641.99,37009.69,34.00],[425642.00,1e12,133488.54,35.00]];

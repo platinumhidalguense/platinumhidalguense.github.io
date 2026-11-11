@@ -13,14 +13,15 @@ const box={console,XLSX,window:{},OBRA:{id:'o1',registro_patronal:'B6918617105'}
  fullName:w=>[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolean).join(' '),empresaDeObra:()=> 'PLATINUM',
  esc:s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),fmtD:s=>s,money:n=>Number(n).toFixed(2),
  dl:async(wb,name)=>box.downloads.push({wb,name}),weekBounds:()=>['2026-10-19','2026-10-25'],modal:s=>{box.modalHtml=s;}};
-vm.createContext(box);
+box.CFGEMP={puestos_central:JSON.parse(fs.readFileSync('scripts/fixtures/puestos-noi.json','utf8'))};
+vm.createContext(box);vm.runInContext(fs.readFileSync('frontend/modulos/80-puestos-central.js','utf8'),box);
 const start=legacy.indexOf('const EDO_CURP='),end=legacy.indexOf('/* ---------- v11: PENDIENTE MANUAL',start);
 vm.runInContext(legacy.slice(start,end)+'\n'+code,box);
 box.dlText=(text,name)=>box.texts.push({text,name});
 const good={id:'ficticio',obra_id:'o1',no_trab:7,primer_apellido:'GARCIA',segundo_apellido:'PEREZ',nombres:'JUAN',
  puesto:'OFICIAL ALBAÑIL',sd:362,sdi:379.85,nss:'00123456789',curp:'GAPJ900101HHGRRN01',rfc:'GAPJ900101AB1',
  fecha_nacimiento:'1990-01-01',fecha_alta:'2026-10-19',genero:'MASCULINO',cp:'01234',telefono:'0123456789',correo:'prueba@example.invalid',estatus:'ACTIVO'};
-const catalogo=['AYUDANTE ALBAÑIL','RESIDENTE DE OBRA','OPERADOR DE EXCAVADORA','OFICIAL ALBAÑIL','OFICIAL FIERRERO','OFICIAL CARPINTERO','CABO DE OFICIOS','OPERADOR DE PIPA DE AGUA','OPERADOR DE VIBROCOMPACTADOR','OPERADOR DE MOTOCONFORMADORA','OPERADOR DE TRANSPORTE','OFICIAL PLOMERO','ALMACENISTA','PERSONAL DE LIMPIEZA','OFICIAL ELECTRICISTA','YESERO','AYUDANTE GENERAL','OPERADOR DE MANIPULADOR'];
+const catalogo=box.CFGEMP.puestos_central.catalogo.map(c=>c.descripcion);
 catalogo.forEach((p,i)=>assert.equal(box.noiPuestoClave(p),i+1));
 assert.equal(box.noiPuestoClave('  oficial  albanil '),4);assert.equal(box.noiPuestoClave('AYUDANTE DE ALBAÑIL'),1);
 for(const p of ['OPERADOR DE RETROEXCAVADORA','AYUDANTE DE CARPINTERO','JEFE DE OBRA','20',''])assert.equal(box.noiPuestoClave(p),0,'No inventar equivalencias: '+p);
@@ -47,8 +48,9 @@ for(const [k,v] of [['nss','1234567890'],['rfc',''],['curp',''],['sdi',0],['sd',
 const desconocido={...good,id:'desconocido',puesto:'OTRO PUESTO'};
 preparar([desconocido]);assert(box.noiProblemasAlta(desconocido,true).includes('seleccionar clave de puesto NOI'));
 assert(!box.noiProblemasAlta(desconocido,false).length,'Puesto NOI no es requisito del TXT');
-els['na-puesto-0']={value:'17'};assert.equal(box.noiPuestoSeleccionado(desconocido),17);assert(!box.noiProblemasAlta(desconocido,true).length);
-els['na-puesto-0'].value='99';assert.equal(box.noiPuestoSeleccionado(desconocido),0);
+els['na-puesto-0']={value:'17'};assert.equal(box.noiPuestoSeleccionado(desconocido),0,'Una elección efímera no configura equivalencia central');
+ box.CFGEMP.puestos_central.equivalencias.push({empresa:'*',variante:'OTRO PUESTO',especialidad:'',clave:17});assert.equal(box.noiPuestoSeleccionado(desconocido),17);
+ box.CFGEMP.puestos_central.equivalencias.pop();
 preparar([good,{...good,id:'futuro',no_trab:8,fecha_alta:'2026-10-26'},{...good,id:'baja',no_trab:9,estatus:'BAJA'}]);
 assert.deepEqual(Array.from(box.window._NA,w=>w.id),['ficticio']);
 box.window._NA_OBRA='otra';assert.equal(box.noiPrepararAltas(true),null);
@@ -69,5 +71,5 @@ const download=box.dl;
  preparar([{...good,nss:'123'}]);box.exportAltasSUATxt();assert.equal(box.texts.length,2);
  const many=Array.from({length:1205},(_,i)=>({...good,id:'n'+i,no_trab:i+1,nss:String(i+10000000000)}));
  preparar(many);const selected=box.noiPrepararAltas(true);assert.equal(selected.length,1205);assert.equal(box.noiLibroAltas(selected).Sheets['Trabajadores NUEVOS']['!ref'],'A1:BF1206');
- console.log('PASS altas NOI: 18 claves, 58 columnas, una hoja, constantes confirmadas, ceros iniciales, fechas, contexto, TXT CRLF, selección manual sin escrituras, errores/doble clic y 1205 altas.');
+ console.log('PASS altas NOI: 20 claves, 58 columnas, una hoja, constantes confirmadas, ceros iniciales, fechas, contexto, TXT CRLF, equivalencia central sin escrituras de trabajadores, errores/doble clic y 1205 altas.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

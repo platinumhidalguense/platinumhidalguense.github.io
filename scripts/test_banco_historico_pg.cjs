@@ -1,7 +1,7 @@
 const fs=require('fs'),path=require('path'),assert=require('assert/strict'),crypto=require('crypto');
 const {makeDatabase,ids,owner,actor,snapshot}=require('./soporte_flujo_pg.cjs');
 const work=path.resolve(__dirname,'../..'),schema=path.join(work,'esquema_antes.json');
-if(!fs.existsSync(schema)){console.log('ALCANCE PRIVADO: contratos SQL bancarios históricos no disponibles.');process.exit(0);}
+if(!fs.existsSync(schema)||!fs.existsSync(path.join(work,'funciones_antes.json'))||!fs.existsSync(path.join(work,'contratos_extra.json'))){console.log('ALCANCE PRIVADO: contratos SQL bancarios históricos no disponibles.');process.exit(0);}
 let n=0;const eq=(a,b,m)=>{assert.deepEqual(a,b,m);n++;};
 (async()=>{const db=await makeDatabase();try{
  const defs=JSON.parse(fs.readFileSync(path.join(work,'funciones_antes.json'))),extra=JSON.parse(fs.readFileSync(path.join(work,'contratos_extra.json')));

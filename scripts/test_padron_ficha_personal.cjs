@@ -59,7 +59,7 @@ function cargar(nombre,seleccion){
  const codigo=ast.filter(n=>n.type==='FunctionDeclaration'&&seleccion.includes(n.id.name)||n.type==='VariableDeclaration'&&n.declarations.some(d=>seleccion.includes(d.id.name))).map(n=>js.slice(n.start,n.end)).join('\n');
  vm.runInContext(codigo,c);
 }
-vm.createContext(c);
+vm.createContext(require('./soporte_puestos_vistas.cjs').instalar(c)||c);
 cargar('00-configuracion-utilidades.js',['RX','isoADMY','dmyAiso','edad','fetchAllRows']);
 cargar('01-sesion-centros-sincronizacion.js',['conCentroCompleto']);
 cargar('03-navegacion-presentacion.js',['sbGo']);

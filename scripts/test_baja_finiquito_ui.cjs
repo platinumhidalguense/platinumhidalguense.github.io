@@ -12,6 +12,7 @@ const papel={id:'papel',huella:'huella',revision:2,fecha_baja:fecha,entradas:ppf
 const llamadas=[],afirmaciones=[],aplicadas=[];
 let caja,edita=true,respuestaPerdida=false,guardada=null,lecturaBloqueada=null;
 let evidencia={d:{ausencias:{discrepancias:[]}},conc:{acreditado:0,reservado:0,pendiente:[]}};
+function fuente(f){const q=evidencia.ciclo?.conc||evidencia.conc;return {firma:'fuente-prestaciones',trabajador_id:w.id,obra_id:w.obra_id,inicio_ciclo:w.fecha_reingreso,desde:w.fecha_reingreso,corte:f,dias_base:33,faltas:0,dias_aguinaldo:33,etiqueta:'Cálculo con faltas registradas disponibles',aguinaldo_acreditado:q.acreditado||0,exento_ag_usado:q.acreditado||0,referencias:[],reservas:q.reservado?[{id:'reserva',importe:q.reservado}]:[],informativos:q.pendiente||[],detalle:[],limitaciones:[]};}
 function modal(html,clase){$('modals').innerHTML='<div class="overlay"><div class="modal '+clase+'">'+html+'</div></div>';}
 function modal2(html,clase){$('modals').insertAdjacentHTML('beforeend','<div class="overlay"><div class="modal '+clase+'">'+html+'</div></div>');}
 function cerrar(){
@@ -23,7 +24,7 @@ const rpc=async(_,{p_accion:a,p})=>{
  if(a==='CONTEXTO'){
   if(lecturaBloqueada)await lecturaBloqueada;
   return {data:{obra_id:w.obra_id,fecha:p.fecha,inicio_ciclo:w.fecha_reingreso,trabajador:{...w},periodicidad:'SEMANAL',
-    periodo:{desde:'2026-11-02',hasta:'2026-11-08'},semana_fecha:32,firma:'fuente',descuentos:[],noi:null,papel:p.fecha===fecha?papel:null}};
+    periodo:{desde:'2026-11-02',hasta:'2026-11-08'},semana_fecha:32,firma:'fuente',prestaciones_fuente:fuente(p.fecha),descuentos:[],noi:null,papel:p.fecha===fecha?papel:null}};
  }
  if(a==='ESTADO')return {data:guardada||{estado:'NO_REGISTRADA'}};
  if(a==='VER')return {data:{trabajador:{...w,estatus:'BAJA',fecha_baja:fecha},operacion:guardada}};
@@ -62,6 +63,7 @@ caja=vm.createContext({window,document,$,WORKERS:[w],OBRA:{id:'p',nombre:'CENTRO
  ppfEntradas:(_w,d,a)=>({...ppfBase,fecha_baja:d,fecha_pago:d,d001:a.entradas.isr_noi_manual==null?'':String(a.entradas.isr_noi_manual)}),ppfModelo:modelo,
  prFormulario:(_w,d)=>'<input readonly id="pr-fecha" type="date" value="'+d+'"><input id="f-pr-dias" value="0">'+
   '<input id="pr-isr-noi" value=""><input id="pr-noi" value=""><div id="pr-out"></div><div id="pr-faltas-hist"></div>'});
+caja.ctrlTabla=()=>'';vm.runInContext(fs.readFileSync('frontend/modulos/81-prestaciones-fuentes.js','utf8'),caja);
 vm.runInContext(fs.readFileSync('frontend/modulos/76-baja-finiquito.js','utf8'),caja);
 const api=window.PLATINUM_BAJA;
 async function click(accion){
@@ -109,15 +111,16 @@ async function click(accion){
  await click('cerrar');assert($('ficha-base'));assert(!$('bf-flujo'));
  for(const caso of [
   {conc:{acreditado:0,reservado:0,pendiente:[]},discrepancias:[],permite:true},
-  {conc:{acreditado:80,reservado:0,pendiente:[]},discrepancias:[],permite:false},
-  {conc:{acreditado:0,reservado:0,pendiente:[{id:'sin-desglose'}]},discrepancias:[],permite:false},
-  {conc:{acreditado:0,reservado:0,pendiente:[]},discrepancias:[{id:'diferencia'}],permite:false}
+  {conc:{acreditado:80,reservado:0,pendiente:[]},discrepancias:[],permite:true},
+  {conc:{acreditado:0,reservado:80,pendiente:[]},discrepancias:[],permite:false},
+  {conc:{acreditado:0,reservado:0,pendiente:[{id:'sin-desglose'}]},discrepancias:[],permite:true},
+  {conc:{acreditado:0,reservado:0,pendiente:[]},discrepancias:[{id:'diferencia'}],permite:true}
  ]){
   evidencia={d:{ausencias:{discrepancias:[]}},conc:{acreditado:90,reservado:0,pendiente:[{id:'baja-anterior'}]},
    ciclo:{d:{ausencias:{discrepancias:caso.discrepancias}},conc:caso.conc}};
   await api.abrir(w.id,{fecha});$('bf-causal').value='RENUNCIA VOLUNTARIA';await click('calcular');await click('revisar');
   assert.equal(!!$('bf-destino'),caso.permite,'El bloqueo debe usar las evidencias del ciclo actual');
-  if(!caso.permite)assert($('bf-aviso').textContent.includes('por conciliar'));
+  if(!caso.permite)assert($('bf-aviso').textContent.includes('reservado'));
   await click('cerrar');
  }
  evidencia={d:{ausencias:{discrepancias:[]}},conc:{acreditado:0,reservado:0,pendiente:[]}};
