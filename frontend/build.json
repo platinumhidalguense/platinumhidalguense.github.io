@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-12.5",
-  "entry": "assets/platinum-app.6b316ab81283896a.js",
-  "sha256": "6b316ab81283896a9128675cd0b32a278e2c3c64068cf40c88558873c5b251b9",
-  "integrity": "sha384-QEUPUYzlK8MkQ15O1LWYZUIrOtGsIiMgpGvYJIapnriGcgp7FU7FufeQiEKPhd8f",
+  "version": "2026-11-12.6",
+  "entry": "assets/platinum-app.a8eeb31e7b5290fd.js",
+  "sha256": "a8eeb31e7b5290fdc0e5ca0ebdcdba417656ca35e8e737492a8ba550e3b1d109",
+  "integrity": "sha384-zzMbCW/Jtd4XlpwaAPSeHZ1vNRkLRhcOl/Y7A2gqflxJSNS8RsSwKGkP1/f1zgaE",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "0a53c2204fa0f11343b7f9f0857b9f5a5bc35bc81c19bf858eb0d38cdfda8932"
+      "sha256": "926e68b2fc6777eaf30b076832e4e5424af4042a6ffa8805ac9a9a0c9104c901"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -202,7 +202,7 @@
     },
     {
       "path": "frontend/modulos/49-chequeras-fisicas.js",
-      "sha256": "767f8d311ca9718ee11365a43bee6f35fcfc42766f8310b2ac2ddd7b58925cc9"
+      "sha256": "ce94211830a20e78d33bcba7e6c8fe91ffc465adc82d09c41e8a2805c3083cee"
     },
     {
       "path": "frontend/modulos/50-cheques-importes.js",
