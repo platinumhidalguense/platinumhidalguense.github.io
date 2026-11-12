@@ -116,7 +116,7 @@ if(aguinaldoPrivate)suites.push('test_aguinaldo_pg');
 else console.log('ALCANCE PÚBLICO AGUINALDO: núcleo e interfaz se prueban; las comprobaciones PostgreSQL de faltas históricas y aplicación requieren la migración privada.');
 const tableroPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_tablero_indicadores.sql'));
 const respaldoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_respaldo_marcas.sql'))&&fs.existsSync('work/respaldo_20261111/generar_prod_base.cjs');
-suites.push('test_tablero_modelo','test_tablero_vista','test_tablero_ui','test_respaldo_integral');
+suites.push('test_tablero_modelo','test_tablero_vista','test_tablero_ui','test_respaldo_integral','test_revision_tablero_respaldo');
 if(tableroPrivate)suites.push('test_tablero_pg');
 if(respaldoPrivate)suites.push('test_respaldo_pg');
 if(!tableroPrivate||!respaldoPrivate)console.log('ALCANCE PÚBLICO TABLERO/RESPALDO: modelo, vista, interfaz y exportación se prueban; las comprobaciones PostgreSQL requieren las migraciones privadas y no se cuentan.');

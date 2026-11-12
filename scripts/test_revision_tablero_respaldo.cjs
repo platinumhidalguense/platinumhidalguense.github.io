@@ -1,15 +1,17 @@
 // Revisión independiente (A6) del tablero ejecutivo (76 modelo, 77 vista, 78 controlador) y del
 // respaldo integral (79). Fixtures propios, resultados calculados a mano (no reutiliza los esperados
 // de scripts/fixtures/tablero/casos.json). Datos ficticios; sin red.
-// Las comprobaciones (ok/eq) deben pasar. Los «hallazgos» documentan comportamientos que la revisión
-// considera defectos o riesgos: se reproducen y se informan sin detener la prueba.
+// Todas las comprobaciones deben pasar. Los hallazgos H1–H10 de la revisión (work/…/A6_revision.md) quedaron
+// como aserciones de regresión: fallan con el código anterior a las correcciones y pasan con el corregido.
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),crypto=require('node:crypto'),assert=require('node:assert/strict');
 const acorn=require('acorn'),{parseHTML}=require('linkedom'),XLSX=require('xlsx-js-style');
 const root=path.resolve(__dirname,'..');process.chdir(root);
 const M=require('../frontend/modulos/76-tablero-modelo.js');
-let n=0;const ok=(c,m)=>{assert.ok(c,m);n++;},eq=(a,b,m)=>{const j=x=>x===undefined?null:JSON.parse(JSON.stringify(x));assert.deepStrictEqual(j(a),j(b),m);n++;};
-const hallazgos=[];const hallazgo=(id,reproduce,texto)=>hallazgos.push({id,reproduce:!!reproduce,texto});
+// A6_SONDA=1: modo diagnóstico (no se detiene; informa qué regresiones fallan) para comprobar que fallan con el código anterior.
+const SONDA=process.env.A6_SONDA==='1',fallas=[];
+let n=0;const ok=(c,m)=>{if(SONDA){if(!c)fallas.push(m);n++;return;}assert.ok(c,m);n++;},eq=(a,b,m)=>{const j=x=>x===undefined?null:JSON.parse(JSON.stringify(x));if(SONDA){try{assert.deepStrictEqual(j(a),j(b),m);}catch(e){fallas.push(m);}n++;return;}assert.deepStrictEqual(j(a),j(b),m);n++;};
+const regresion=new Set();const reg=(id,cond,m)=>{ok(cond,id+' (regresión): '+m);regresion.add(id);};
 const c=v=>Math.round(Number(v)*100); // centavos de un valor ya redondeado
 const clon=x=>JSON.parse(JSON.stringify(x));
 
@@ -22,16 +24,18 @@ function fuentesBase(){
  const I={};let k=100;const nid=t=>(I[t]=U(k++));
  const obras=[{id:X1,nombre:'CENTRO UNO',empresa_codigo:'PLATINUM',fecha_inicio:'2026-01-05',activa:true},{id:X2,nombre:'CENTRO DOS',empresa_codigo:'PLATINUM',fecha_inicio:'2026-01-05',activa:true}];
  const trabajadores=[];for(let i=1;i<=10;i++)trabajadores.push({id:W(i),obra_id:i===9?X2:X1,no_trab:i,nombres:'PERSONA '+i,primer_apellido:'FICTICIA',estatus:'ACTIVO',eliminado:false,periodo_pago:'SEMANAL',fecha_alta:'2026-01-05',contratista:'CONTR A'});
- const C1=nid('C1'),C2=nid('C2'),V1=nid('V1'),V2=nid('V2'),H64='0'.repeat(64);
+ const C1=nid('C1'),C2=nid('C2'),V1=nid('V1'),V2=nid('V2'),C3=nid('C3'),V3=nid('V3'),H64='0'.repeat(64);
  const cierres=[{id:C1,obra_id:X1,semana:10,periodo:'SEMANAL',estado:'AUTORIZADO',snapshot:{},snapshot_sha256:H64,formula_version:'PRUEBA',creado_por:ACTOR,created_at:'2026-03-12T12:00:00Z'},
-  {id:C2,obra_id:X2,semana:10,periodo:'SEMANAL',estado:'AUTORIZADO',snapshot:{},snapshot_sha256:H64,formula_version:'PRUEBA',creado_por:ACTOR,created_at:'2026-03-12T12:00:00Z'}];
+  {id:C2,obra_id:X2,semana:10,periodo:'SEMANAL',estado:'AUTORIZADO',snapshot:{},snapshot_sha256:H64,formula_version:'PRUEBA',creado_por:ACTOR,created_at:'2026-03-12T12:00:00Z'},
+  {id:C3,obra_id:X1,semana:3,periodo:'SEMANAL',estado:'AUTORIZADO',snapshot:{},snapshot_sha256:H64,formula_version:'PRUEBA',creado_por:ACTOR,created_at:'2026-01-22T12:00:00Z'}];
  const ver=(id,cid,oid)=>({id,cierre_id:cid,cierre_origen:cid,obra_id:oid,version:1,estado_origen:'AUTORIZADO',semana:10,snapshot:{},snapshot_sha256:H64,fuente_sha256:H64,actor_id:ACTOR,created_at:'2026-03-12T12:00:00Z'});
- const versiones=[ver(V1,C1,X1),ver(V2,C2,X2)];
+ const versiones=[ver(V1,C1,X1),ver(V2,C2,X2),ver(V3,C3,X1)];
  const obligaciones=[];
  const ob=(t,i,tipo,importe,metodo='TRANSFERENCIA')=>obligaciones.push({id:nid(t),cierre_origen:i===9?C2:C1,cierre_id:i===9?C2:C1,version_id:i===9?V2:V1,obra_id:i===9?X2:X1,trabajador_id:W(i),semana:10,tipo,numero:i,
   nombre:'FICTICIA PERSONA '+i,contratista:'CONTR A',importe,metodo,vigente:true,created_at:'2026-03-12T12:00:00Z'});
  ob('O1n',1,'NOMINA','1000.00');ob('O1f',1,'FINIQUITO','500.00');ob('O1p',1,'PREVISION_SOCIAL','300.00');ob('O2',2,'NOMINA','800.00');ob('O3',3,'NOMINA','700.00','CHEQUE');
  ob('O4',4,'NOMINA','600.00','CHEQUE');ob('O5',5,'NOMINA','900.00');ob('O6',6,'NOMINA','1000.00');ob('O8',8,'NOMINA','200.00');ob('O9',9,'NOMINA','5000.00');
+ ob('O10b',10,'NOMINA','100.00');ob('O10a',10,'NOMINA','100.00');Object.assign(obligaciones[obligaciones.length-1],{semana:3,cierre_id:C3,cierre_origen:C3,version_id:V3}); // semana 3 y semana 10
  const pagos=[];
  const pg=(t,i,importe,banco,folio,fecha,origen,estado='EXITOSO',hora='10:00:00')=>pagos.push({id:nid(t),obra_id:i===9?X2:X1,trabajador_id:i?W(i):null,semana:'S10',medio:'TRANSFERENCIA',banco,importe,estado,
   fecha_pago:fecha,folio_lote:folio,origen,created_at:fecha+'T'+hora+'Z'});
@@ -47,20 +51,21 @@ function fuentesBase(){
  pg('P7',7,'300.00','BBVA','F007','2026-03-13','GLOBAL');                       // persona sin obligación
  pg('P8',0,'50.00','BBVA','F008','2026-03-13','GLOBAL');                        // sin trabajador
  pg('P9',8,'260.00','BBVA','F009','2026-03-20','GLOBAL');                       // 200 por vincular + 60 excedente
+ pg('P10',10,'250.00','BBVA','F010','2026-01-23','GLOBAL');pagos[pagos.length-1].semana='S3'; // comprobante de semana 3 aplicado a semanas 3 y 10
  const cheques=[];
  const ch=(t,i,importe,estatus,num,extra={})=>cheques.push({id:nid(t),obra_id:X1,trabajador_id:W(i),nombre:'FICTICIA PERSONA '+i,semana:'S10',tipo_pago:'CHEQUE',estatus,eliminado:false,importe,num_cheque:num,
   created_at:'2026-03-13T16:00:00Z',updated_at:'2026-03-13T16:00:00Z',...extra});
  ch('Q3a',3,'700.00','CANCELADO','0001');ch('Q3b',3,'700.00','EXPEDIDO','0002',{reemplaza_cheque_id:I.Q3a});ch('Q4',4,'600.00','ENTREGADO','0003');
  const evidencias=[];
  const ev=(t,i,importe,ref)=>evidencias.push({id:nid(t),obra_id:X1,trabajador_id:W(i),semana:10,clave:'CLAVE-'+t,importe,pago_id:ref.startsWith('P')?I[ref]:null,cheque_id:ref.startsWith('Q')?I[ref]:null,created_at:'2026-03-13T12:00:00Z'});
- ev('E1',1,'1800.00','P1');ev('E2',2,'800.00','P2a');ev('E3a',3,'700.00','Q3a');ev('E3b',3,'700.00','Q3b');ev('E4',4,'600.00','P4');ev('E4q',4,'600.00','Q4');ev('E5',5,'900.00','P5');ev('E6',6,'500.00','P6');
+ ev('E10',10,'250.00','P10');evidencias[evidencias.length-1].semana=3;ev('E1',1,'1800.00','P1');ev('E2',2,'800.00','P2a');ev('E3a',3,'700.00','Q3a');ev('E3b',3,'700.00','Q3b');ev('E4',4,'600.00','P4');ev('E4q',4,'600.00','Q4');ev('E5',5,'900.00','P5');ev('E6',6,'500.00','P6');
  const aplicaciones=[];
  const ap=(t,o,e,importe,ts,ret=null)=>{const id=nid(t);aplicaciones.push({id,obra_id:X1,obligacion_id:I[o],evidencia_id:I[e],version_id:V1,importe,created_at:ts,retirado_en:ret,retirado_por:ret?ACTOR:null,motivo_retiro:ret?'Retiro ficticio de prueba':null,actor_id:ACTOR,clave_idempotencia:id,motivo:'Aplicación ficticia de prueba'});};
  ap('A1n','O1n','E1','1000.00','2026-03-13T12:00:01Z');ap('A1f','O1f','E1','500.00','2026-03-13T12:00:02Z');ap('A1p','O1p','E1','300.00','2026-03-13T12:00:03Z');
  ap('A2','O2','E2','800.00','2026-03-13T12:00:04Z');
  ap('A3a','O3','E3a','700.00','2026-03-13T16:05:00Z','2026-03-14T10:00:00Z');ap('A3b','O3','E3b','700.00','2026-03-14T11:00:00Z');
  ap('A4','O4','E4','600.00','2026-03-13T12:00:05Z');ap('A4q','O4','E4q','600.00','2026-03-14T12:00:00Z'); // doble pago (transferencia + cheque)
- ap('A5','O5','E5','900.00','2026-03-13T12:00:06Z');
+ ap('A5','O5','E5','900.00','2026-03-13T12:00:06Z');ap('A10a','O10a','E10','100.00','2026-01-23T12:00:00Z');ap('A10b','O10b','E10','100.00','2026-03-13T12:00:09Z');
  ap('A6r','O6','E6','100.00','2026-03-13T12:00:07Z','2026-03-13T13:00:00Z');ap('A6','O6','E6','400.00','2026-03-13T14:00:00Z');
  const cfdi=[{documento_id:nid('D1x'),obra_id:X1,trabajador_id:W(1),uuid:'abc-0001',neto:'1000.00',desde:'2026-03-09',hasta:'2026-03-15',tipo:'NOMINA',formato:'XML',anulado:false},
   {documento_id:nid('D1p'),obra_id:X1,trabajador_id:W(1),uuid:'ABC-0001',neto:'1000.00',desde:'2026-03-09',hasta:'2026-03-15',tipo:'NOMINA',formato:'PDF',anulado:false},
@@ -76,11 +81,11 @@ const val=(r,k)=>r.medidas[k].valor;
 const CLAVES=['neto_conciliado','pagado_registrado','pagado_conciliado','pendiente_conciliacion','saldo_por_cubrir','excedentes','sin_asignar','cobertura','trabajadores_con_pago'];
 const resumen=r=>Object.fromEntries(CLAVES.map(k=>[k,val(r,k)]));
 // Esperados calculados a mano (ver informe A6 §Cálculos).
-const ESPERADO={
- VIP_PERIODO:{neto_conciliado:6000,pagado_registrado:5750,pagado_conciliado:4300,pendiente_conciliacion:1450,saldo_por_cubrir:250,excedentes:660,sin_asignar:350,cobertura:71.67,trabajadores_con_pago:7},
- VIP_PAGO:{neto_conciliado:6000,pagado_registrado:6500,pagado_conciliado:4300,pendiente_conciliacion:1250,saldo_por_cubrir:250,excedentes:600,sin_asignar:350,cobertura:71.67,trabajadores_con_pago:7},
- REST_PERIODO:{neto_conciliado:5700,pagado_registrado:5450,pagado_conciliado:4000,pendiente_conciliacion:1450,saldo_por_cubrir:250,excedentes:660,sin_asignar:350,cobertura:70.18,trabajadores_con_pago:7},
- REST_PAGO:{neto_conciliado:5700,pagado_registrado:6200,pagado_conciliado:4000,pendiente_conciliacion:1250,saldo_por_cubrir:250,excedentes:600,sin_asignar:350,cobertura:70.18,trabajadores_con_pago:7}};
+const ESPERADO={ // incluye W10: obligación de semana 10 (100) cubierta con un comprobante de semana 3 (fecha 23/01)
+ VIP_PERIODO:{neto_conciliado:6100,pagado_registrado:5850,pagado_conciliado:4400,pendiente_conciliacion:1450,saldo_por_cubrir:250,excedentes:660,sin_asignar:350,cobertura:72.13,trabajadores_con_pago:8},
+ VIP_PAGO:{neto_conciliado:6100,pagado_registrado:6500,pagado_conciliado:4300,pendiente_conciliacion:1250,saldo_por_cubrir:250,excedentes:600,sin_asignar:350,cobertura:72.13,trabajadores_con_pago:7},
+ REST_PERIODO:{neto_conciliado:5800,pagado_registrado:5550,pagado_conciliado:4100,pendiente_conciliacion:1450,saldo_por_cubrir:250,excedentes:660,sin_asignar:350,cobertura:70.69,trabajadores_con_pago:8},
+ REST_PAGO:{neto_conciliado:5800,pagado_registrado:6200,pagado_conciliado:4000,pendiente_conciliacion:1250,saldo_por_cubrir:250,excedentes:600,sin_asignar:350,cobertura:70.69,trabajadores_con_pago:7}};
 
 function seccionModelo(){
  const {I,f}=fuentesBase(),fv=conPermisos(f,VIP),fr=conPermisos(f,REST);
@@ -98,14 +103,14 @@ function seccionModelo(){
  // PAGO = cada operación real del rango una sola vez: P1 1800 + P2 800 + Q3b 700 + P4 600 + Q4 600 + P5 900 + P6 500 + P6b 250 + P7 300 + P8 50.
  ok(c(val(rG,'pagado_registrado'))===c(1800+800+700+600+600+900+500+250+300+50),'PAGO: global+individual, cheque cancelado y duplicado no multiplican');
  eq(rP.medidas.pendiente_conciliacion.desglose.por_motivo.map(x=>[x.motivo,x.importe,x.operaciones]),[['POR_VINCULAR',550,3],['OPERACION_ANULADA',900,1]],'pendiente por motivo (reverso con aplicación vigente)');
- eq([rP.medidas.trabajadores_pago_parcial.valor,rP.medidas.pagado_registrado.desglose.operaciones],[1,8],'pago parcial (W6) y operaciones únicas del registrado PERIODO');
+ eq([rP.medidas.trabajadores_pago_parcial.valor,rP.medidas.pagado_registrado.desglose.operaciones],[1,9],'pago parcial (W6) y operaciones únicas del registrado PERIODO');
  eq(rP.medidas.cheques_por_estado.desglose.CANCELADO,{cantidad:1,importe:700},'cheque cancelado contado como cheque, no como pago');
  eq([rP.medidas.cheques_por_estado.valor,rP.medidas.cheques_por_estado.desglose.reposiciones],[3,1],'cheques del alcance y reposición');
- eq([rP.medidas.respaldo_fiscal.valor,rP.medidas.respaldo_fiscal.desglose.obligaciones],[1000,{COINCIDE:1,DIFERENCIA:0,SIN_CFDI:6,CONTRADICTORIO:1}],'CFDI+PDF del mismo UUID cuentan una vez; UUID con netos distintos no suma');
+ eq([rP.medidas.respaldo_fiscal.valor,rP.medidas.respaldo_fiscal.desglose.obligaciones],[1000,{COINCIDE:1,DIFERENCIA:0,SIN_CFDI:7,CONTRADICTORIO:1}],'CFDI+PDF del mismo UUID cuentan una vez; UUID con netos distintos no suma');
  eq(rP.calidad.map(x=>x.estado),['COMPLETO'],'calidad del centro');
  // Detalle por operación: P2 global + individual = una operación con dos representaciones.
  const op=M.detalle(fv,{...MARZO,perspectiva:'PERIODO'},{grano:'OPERACION',por_pagina:500});
- eq(op.total,11,'11 operaciones con piezas en el alcance');
+ eq(op.total,12,'12 operaciones con piezas en el alcance (incluye el comprobante de otra semana)');
  const p2=op.filas.find(x=>x.operacion_id==='TRF:'+I.P2a);eq([p2.representaciones,p2.origenes,p2.importe],[2,['GLOBAL','INDIVIDUAL'],800],'global e individual unificados');
  ok(!op.filas.some(x=>x.operacion_id==='TRF:'+I.P1d||x.operacion_id==='TRF:'+I.P2b||x.operacion_id==='CHQ:'+I.Q3a),'duplicado, segunda representación y cheque cancelado no son operaciones');
  const opR=M.detalle(fr,{...MARZO,perspectiva:'PERIODO'},{grano:'OPERACION',por_pagina:500}).filas.find(x=>x.operacion_id==='TRF:'+I.P1);
@@ -115,7 +120,8 @@ function seccionModelo(){
  eq(tipos,{PAGO_PARCIAL:1,EXCEDENTE_APLICADO:1,CFDI_CONTRADICTORIO:1,POR_VINCULAR:3,EXCEDENTE_NO_APLICADO:1,SIN_ASIGNAR:2,OPERACION_ANULADA:1,POSIBLE_DUPLICADO:1,REPRESENTACIONES_UNIFICADAS:1,CHEQUE_POR_ENTREGAR:1,APLICACION_RETIRADA:2},'excepciones por tipo');
  // Previsión social: el importe completo de la operación sí llega al restringido por excepciones.
  const exR=M.excepciones(fr,{...MARZO,perspectiva:'PERIODO'},{por_pagina:500}).filas.find(x=>x.tipo==='POSIBLE_DUPLICADO');
- hallazgo('H5',exR&&exR.importe===1800,'Restringido (sin VIP) ve en EXCEPCIONES/desglose el importe total de una operación que incluye previsión social (1800) aunque DETALLE oculta importe_operacion (null) y su parte visible es 1500.');
+ reg('H5',exR&&exR.importe===1500&&M.calcular(fr,{...MARZO}).medidas.pagado_registrado.desglose.excluidos.posibles_duplicados.importe===1500,'sin VIP, el posible duplicado muestra sólo la parte visible (1500), no el total con previsión (1800)');
+ eq(M.excepciones(fv,{...MARZO},{por_pagina:500}).filas.find(x=>x.tipo==='POSIBLE_DUPLICADO').importe,1800,'con VIP, el posible duplicado muestra el total');
  // Cobertura: denominador nulo vs cero.
  const vacio=M.calcular(fv,{...MARZO,desde:'2026-05-04',hasta:'2026-05-10'});
  eq([vacio.medidas.cobertura.valor,vacio.medidas.cobertura.disponible,/No disponible/.test(vacio.medidas.cobertura.motivo_no_disponible),vacio.medidas.promedio_pagado_trabajador.valor],[null,false,true,null],'denominador cero: cobertura y promedio «No disponible»');
@@ -141,11 +147,15 @@ function seccionModelo(){
  // Pago con importe mayor que sus aplicaciones (no lo permite aplicar_pago; defensa en profundidad).
  const sob=clon(fv);sob.aplicaciones.find(a=>a.id===I.A1p).importe='300.00';sob.evidencias.find(e=>e.id===I.E1).importe='1500.00';sob.pagos.find(p=>p.id===I.P1).importe='1500.00';sob.pagos.find(p=>p.id===I.P1d).importe='1500.00';
  const rs=M.calcular(sob,{...MARZO,perspectiva:'PAGO'});
- hallazgo('H6',c(val(rs,'pagado_registrado'))===c(6500),'Operación sobreaplicada (Σ aplicaciones 1800 > importe 1500): en PAGO el registrado suma 1800 por esa operación; sólo se marca la excepción OPERACION_SOBREAPLICADA.');
+ reg('H6',c(val(rs,'pagado_registrado'))===c(6500-300),'operación sobreaplicada: PAGO no cuenta más que el importe de la operación');
+ eq(M.excepciones(sob,{...MARZO,perspectiva:'PAGO'},{por_pagina:500}).filas.filter(x=>x.tipo==='OPERACION_SOBREAPLICADA').map(x=>x.importe),[300],'el exceso (300) queda como excepción');
+ const sobP=M.calcular(sob,{...MARZO});ok(c(val(sobP,'neto_conciliado'))===c(val(sobP,'pagado_registrado'))+c(val(sobP,'saldo_por_cubrir')),'sobreaplicada: identidad PERIODO se conserva');
  // Medio de pago: COMPARATIVOS.por_medio agrupa el neto por método planeado y lo pagado por medio real.
  const pm=M.comparativos(fv,{...MARZO}).por_medio,cheque=pm.find(x=>x.clave==='CHEQUE');
- hallazgo('H7',cheque&&cheque.cobertura!==M.util.pct(BigInt(c(cheque.pagado_conciliado)),BigInt(c(cheque.neto_conciliado))),
-  `COMPARATIVOS.por_medio mezcla ejes: fila CHEQUE con neto ${cheque&&cheque.neto_conciliado} (método planeado), conciliado ${cheque&&cheque.pagado_conciliado} (medio real) y cobertura ${cheque&&cheque.cobertura}% (conciliado por método planeado); la fila no es autoconsistente.`);
+ reg('H7',cheque&&cheque.cobertura===M.util.pct(BigInt(c(cheque.pagado_conciliado)),BigInt(c(cheque.neto_conciliado))),'COMPARATIVOS.por_medio PERIODO autoconsistente (método planeado): neto '+(cheque&&cheque.neto_conciliado)+', conciliado '+(cheque&&cheque.pagado_conciliado)+', cobertura '+(cheque&&cheque.cobertura));
+ const cpPago=M.comparativos(fv,{...MARZO,perspectiva:'PAGO'});
+ ok(cpPago.por_medio.every(x=>x.neto_conciliado===null&&x.cobertura===null)&&cpPago.por_medio.reduce((a,x)=>a+c(x.pagado_registrado),0)===c(6500),'por_medio PAGO: medio real, sin neto ni cobertura, Σ = registrado PAGO');
+ ok(M.comparativos(fv,{...MARZO}).por_medio.reduce((a,x)=>a+c(x.pagado_conciliado),0)===c(4400),'por_medio PERIODO: Σ conciliado = resumen');
  return {I,f};
 }
 
@@ -237,8 +247,8 @@ async function seccionControlador(base){
  const code=[];
  for(const p of JSON.parse(fs.readFileSync('frontend/modulos.json','utf8')).modules){if(/7[6-9]-/.test(p))continue;const s=fs.readFileSync(p,'utf8');
   for(const node of acorn.parse(s,{ecmaVersion:'latest'}).body)if(node.type==='FunctionDeclaration'||node.type==='VariableDeclaration'&&node.declarations.every(x=>x.init&&['ST','BORD'].includes(x.id.name)))code.push(s.slice(node.start,node.end));}
- const descargas=[];
- box={window:null,document,console,Date,Math,JSON,Number,String,Array,Object,Set,Map,WeakMap,Promise,Error,RegExp,Symbol,Intl,BigInt,TextEncoder,setImmediate,setTimeout,clearTimeout,setInterval,clearInterval,
+ const descargas=[],errVista=[];
+ box={window:null,document,console:{...console,error:(...a)=>errVista.push(a.map(String).join(' '))},Date,Math,JSON,Number,String,Array,Object,Set,Map,WeakMap,Promise,Error,RegExp,Symbol,Intl,BigInt,TextEncoder,setImmediate,setTimeout,clearTimeout,setInterval,clearInterval,
   performance:require('node:perf_hooks').performance,MutationObserver:window.MutationObserver,HTMLElement:window.HTMLElement,sb,USER:{id:'u-admin',email:'revisor@ejemplo.test'},
   OBRA:base.f.obras[0],OBRAS:base.f.obras,WORKERS:[],EMPRESA_ACTIVA:'PLATINUM',EMPRESAS:{PLATINUM:{nombre:'PLATINUM'}},CFGEMP:{},DOCSX:[],XLSX,confirm:()=>true,scrollTo:()=>{},open:()=>{}};
  box.window=box;box.globalThis=box;vm.createContext(box);
@@ -250,13 +260,13 @@ async function seccionControlador(base){
  T.configurar({hoy:'2026-06-01',debounce_filtros_ms:1,debounce_busqueda_ms:1,vigilancia_ms:0});
  const neto=()=>{const e=T.estado();return e&&e.resumen&&e.resumen.medidas.neto_conciliado.valor;};
  await T.abrir({obras:[X1],desde:'2026-03-09',hasta:'2026-03-15',preset:'PERSONALIZADO',comparar:'NINGUNO'});await tick();
- eq(neto(),6000,'controlador: resumen del servidor pintado');
+ eq(neto(),6100,'controlador: resumen del servidor pintado');
  // 3.1 Respuesta tardía de filtros anteriores: se descarta.
  retener=a=>a==='RESUMEN';
  const p1=T.acciones.cambiarFiltros({desde:'2026-03-02',hasta:'2026-03-08'});await new Promise(r=>setTimeout(r,5));await tick();
  const p2=T.acciones.cambiarFiltros({desde:'2026-03-09',hasta:'2026-03-15'});await new Promise(r=>setTimeout(r,5));await tick();
  while(retenidas.length)retenidas.shift()();await Promise.all([p1,p2]);await tick(30);
- eq([T.estado().filtros.desde,neto()],['2026-03-09',6000],'respuesta tardía del rango anterior descartada');
+ eq([T.estado().filtros.desde,neto()],['2026-03-09',6100],'respuesta tardía del rango anterior descartada');
  // 3.2 Aviso de cambio compartido mientras una lectura está en vuelo, seguido de «Actualizar».
  const antes=llamadas.filter(x=>x==='RESUMEN').length;
  retener=a=>a==='RESUMEN';
@@ -266,11 +276,14 @@ async function seccionControlador(base){
  const r2=T.acciones.reintentar('todo');await tick();
  while(retenidas.length)retenidas.shift()();await Promise.all([r1,r2]);await tick(30);
  const despues=llamadas.filter(x=>x==='RESUMEN').length-antes;
- hallazgo('H1',neto()===6000&&T.estado().desactualizado===false,`Tras avisarCambio(), «Actualizar» reutiliza la lectura en vuelo previa al cambio (S.enVuelo no se limpia): ${despues} RESUMEN nuevo(s), neto mostrado ${neto()} (vigente 6100) y la marca «desactualizado» queda en falso.`);
- const cacheVieja=[...S.cache.values()].some(e=>e.data&&e.data.accion==='RESUMEN'&&e.data.medidas.neto_conciliado.valor===6000);
- hallazgo('H1b',cacheVieja,'La respuesta en vuelo previa a avisarCambio() se guarda en caché después de vaciarla (TTL 3 min): una apertura posterior la sirve como vigente.');
- await T.acciones.reintentar('todo');await tick(30);
- eq(neto(),6100,'un segundo «Actualizar» ya trae el dato vigente');
+ reg('H1',neto()===6200&&despues>=2,`tras avisarCambio(), «Actualizar» pide una lectura nueva y muestra el dato vigente (neto ${neto()}, ${despues} RESUMEN)`);
+ const cacheVieja=[...S.cache.values()].some(e=>e.data&&e.data.accion==='RESUMEN'&&e.data.medidas.neto_conciliado.valor===6100);
+ reg('H1b',!cacheVieja,'la respuesta en vuelo previa a avisarCambio() no entra a la caché');
+ // Aviso con una lectura normal (no forzada) en vuelo: los datos que llegan quedan marcados como desactualizados.
+ retener=a=>a==='RESUMEN';const r3=T.acciones.cambiarFiltros({desde:'2026-03-02',hasta:'2026-03-15'});await new Promise(r=>setTimeout(r,5));await tick();
+ T.avisarCambio();while(retenidas.length)retenidas.shift()();await r3;await tick(30);
+ ok(T.estado().desactualizado===true,'lectura que cruza un aviso de cambio queda marcada «desactualizado»');
+ await T.acciones.cambiarFiltros({desde:'2026-03-09',hasta:'2026-03-15'});await tick(30);
  fuentesServidor=clon(base.f);T._pruebas.limpiarCache();await T.acciones.reintentar('todo');await tick(30);
  // 3.3 Exportación filtrada: cuadre al centavo, hojas, textos, anti-fórmula, división.
  T.configurar({limite_filas_hoja:4});
@@ -281,21 +294,22 @@ async function seccionControlador(base){
  eq(ex.cuadre.map(x=>x.resultado),ex.cuadre.map(()=>'CUADRA'),'CUADRE de la exportación: todo cuadra');
  const wb=ex.wb,nombres=wb.SheetNames;
  ok(nombres.every(x=>x.length<=31)&&new Set(nombres.map(x=>x.toLowerCase())).size===nombres.length,'hojas ≤31 caracteres y únicas: '+nombres.join(' | '));
- ok(nombres.filter(x=>x.startsWith('DETALLE OBLIGACIONES')).length===3,'detalle dividido por el límite configurado de filas por hoja (9 → 3 hojas de 4)');
+ ok(nombres.filter(x=>x.startsWith('DETALLE OBLIGACIONES')).length===3,'detalle dividido por el límite configurado de filas por hoja (10 → 3 hojas de 4)');
  const filasHoja=nombre=>XLSX.utils.sheet_to_json(wb.Sheets[nombre],{header:1,raw:true});
  const partes=nombres.filter(x=>x.startsWith('DETALLE OBLIGACIONES')).map(filasHoja);
  const encab=partes[0][1],iImp=encab.findIndex(h=>/^Neto/.test(h)),iId=encab.indexOf('ID obligación');
  const datos=partes.flatMap((p,i)=>p.slice(2,i===partes.length-1?-1:undefined));
- eq([datos.length,Math.round(datos.reduce((s,r)=>s+r[iImp],0)*100)],[9,600000],'Σ neto de las hojas de detalle = 6,000.00 del resumen');
- const pie=partes[partes.length-1].slice(-1)[0];ok(Math.round(pie[iImp]*100)===600000,'el TOTAL de la última parte suma todas las partes');
+ eq([datos.length,Math.round(datos.reduce((s,r)=>s+r[iImp],0)*100)],[10,610000],'Σ neto de las hojas de detalle = 6,100.00 del resumen');
+ const pie=partes[partes.length-1].slice(-1)[0];ok(Math.round(pie[iImp]*100)===610000,'el TOTAL de la última parte suma todas las partes');
  const sh=wb.Sheets[nombres.find(x=>x.startsWith('DETALLE OBLIGACIONES'))],celdaId=sh[XLSX.utils.encode_cell({r:2,c:iId})];
  eq([celdaId.t,celdaId.z],['s','@'],'IDs como texto con formato @');
  const todasCeldas=nombres.flatMap(nm=>Object.entries(wb.Sheets[nm]).filter(([k])=>k[0]!=='!').map(([,v])=>v));
  ok(todasCeldas.every(x=>!x.f),'ninguna celda es fórmula');
  const releido=XLSX.read(XLSX.write(wb,{type:'buffer',bookType:'xlsx'}),{type:'buffer',cellFormula:true});
  ok(Object.values(releido.Sheets).every(s=>Object.entries(s).every(([k,v])=>k[0]==='!'||!v.f)),'releído: sin fórmulas');
- const crudos=todasCeldas.filter(x=>typeof x.v==='string'&&/^[=+\-@]/.test(x.v)&&/HYPERLINK|SUMA/.test(x.v));
- hallazgo('H8',crudos.length>0,`La exportación del tablero (78) escribe textos que empiezan con = + - @ sin neutralizar (${crudos.length} celdas); son t:'s' en XLSX (no se evalúan), pero el contrato §8 pide anti-fórmula y un «Guardar como CSV» los convertiría en fórmulas.`);
+ const hostiles=todasCeldas.filter(x=>typeof x.v==='string'&&/^'?(=HYPERLINK|\+SUMA)/.test(x.v));
+ reg('H8',hostiles.length>=2&&hostiles.every(x=>x.v.startsWith("'")),`textos que empiezan con = + - @ se neutralizan con apóstrofo (${hostiles.length} celdas)`);
+ ok(todasCeldas.every(x=>typeof x.v!=='string'||!/^[=+\-@]/.test(x.v)),'ninguna cadena del libro empieza con = + - @');
  T.configurar({limite_filas_hoja:1000000});
  // 3.4 Usuario restringido: exportación sólo de su alcance.
  box.USER={id:'u-rest',email:'consulta@ejemplo.test'};T._pruebas.vigilar();await tick(40);
@@ -314,6 +328,9 @@ async function seccionControlador(base){
  await T.abrir({obras:[X1],desde:'2026-03-09',hasta:'2026-03-15',preset:'PERSONALIZADO'});await tick(40);
  await T.acciones.abrirDetalle('neto_conciliado',{origen:'indicador'});await T.acciones.cargarExcepciones();await T.acciones.cambiarVista('CONCILIACION');await tick(40);
  ok(document.querySelector('#tablero-host')&&!document.querySelector('img[onerror],#inyectado,svg[onload]')&&document.body.innerHTML.includes('&lt;b id='),'vista: nombres de centro, contratista y trabajador escapados');
+ await T.acciones.cambiarVista('GENERAL');await T.acciones.cambiarFiltros({perspectiva:'PAGO'});await tick(40);
+ ok(errVista.length===0&&T.estado().comparativos.por_medio.every(x=>x.neto_conciliado===null),'vista: comparativos por medio real (neto nulo) en PAGO sin errores de pintura');
+ const exP=await T.acciones.exportar('xlsx');ok(exP.ok&&exP.cuadre.every(x=>['CUADRA','NO APLICA'].includes(x.resultado)),'exportación en PAGO cuadra');
  T.cerrar();
 }
 
@@ -329,8 +346,8 @@ function seccionRespaldo(){
  eq([P.nombreHoja('History',new Set()),P.nombreHoja('manifiesto',new Set(['manifiesto'])),P.nombreHoja("'x'",new Set())],['History_','manifiesto (2)','x'],'nombres reservados');
  for(const v of ['=1+1','+52 771','-5','@SUMA(A1)','012345678901234567','XEXX010101HNEXXXA4','12345678901']){const cel=P.celda(P.valorLogico(v,'TEXTO'),'TEXTO');ok(cel.t==='s'&&cel.v===v&&cel.s.numFmt==='@'&&!cel.f,'texto literal sin fórmula: '+v);}
  eq([P.celda(null,'TEXTO').v,P.celda('','TEXTO'),P.celda(0,'IMPORTE').v,P.celda(0,'IMPORTE').t,P.celda('∅x','TEXTO').v],[R.NULO,null,0,'n','∅∅x'],'nulo ≠ vacío ≠ cero; ∅ real escapado');
- eq([P.valorLogico(12345678901,'ID'),P.tipoDe('clabe','text'),P.tipoDe('nss',undefined,'12345678901'),P.tipoDe('importe','numeric(14,2)'),P.tipoDe('cuenta',undefined,123)],['12345678901','TEXTO','TEXTO','IMPORTE','NUMERO'],'tipos: IDs/CLABE/NSS texto, importes numéricos');
- hallazgo('H9',P.tipoDe('cuenta',undefined,123)==='NUMERO'&&P.tipoDe('clabe',undefined,12345678901234567)==='NUMERO','tipoDe sin metadato de columna (respaldo sin RPC de marcas) infiere NUMERO para CUENTA/CLABE/NSS numéricos: perdería ceros a la izquierda si la base los entregara como número (hoy son text en producción).');
+ eq([P.valorLogico(12345678901,'ID'),P.tipoDe('clabe','text'),P.tipoDe('nss',undefined,'12345678901'),P.tipoDe('importe','numeric(14,2)'),P.tipoDe('cuenta',undefined,123)],['12345678901','TEXTO','TEXTO','IMPORTE','TEXTO'],'tipos: IDs/CLABE/NSS texto, importes numéricos');
+ reg('H9',P.tipoDe('clabe',undefined,12345678901234567)==='TEXTO'&&P.tipoDe('nss','integer')==='TEXTO'&&P.tipoDe('folio_lote',undefined,7)==='TEXTO'&&P.tipoDe('importe',undefined,7)==='IMPORTE','CUENTA/CLABE/NSS/folios son texto aun sin metadatos; importes siguen numéricos');
  const largo='a'.repeat(29999)+'😀'+'b'.repeat(40000),tro=P.partirTexto(largo);
  ok(tro.join('')===largo&&tro.every(x=>x.length<=30000)&&tro.every(x=>!/[\uD800-\uDBFF]$/.test(x)),'texto largo en partes ≤30,000 sin partir pares sustitutos');
  const L={nombre:'HOJA LOGICA CON NOMBRE DE MAS DE VEINTISEIS',fuente:'x',dominio:'D',cols:[{campo:'a'}],filas:Array.from({length:23},(_,i)=>['fila '+i])};
@@ -340,14 +357,39 @@ function seccionRespaldo(){
  ok(nombresH.every(x=>x.length<=31)&&new Set(nombresH.map(x=>x.toLowerCase())).size===nombresH.length,'división: nombres únicos ≤31 entre partes y hojas lógicas homónimas');
  eq(hojas.filter(h=>h.L===L).flatMap(h=>h.filas),L.filas,'división: filas completas, en orden y sin repetir');
  ok(hojas.every(h=>h.filas.length<=5)&&partes.length>1,'división: respeta filas por hoja (límite − encabezado) y presupuesto por archivo');
- // Cuadre del CONTROL contra el tablero: el respaldo no entrega efectivo autorizado al modelo.
- const cuerpo=src.slice(src.indexOf('function cuadreTablero'),src.indexOf('/* ---------- partes y hojas'));
- const sinEfectivo=/efectivo_autorizado:\[\]/.test(cuerpo);
- const b=fuentesBase().f,o=b.obligaciones.find(x=>x.tipo==='FINIQUITO');
- const con=M.calcular({...b,permisos:VIP,efectivo_autorizado:[{obligacion_id:o.id,importe:'0',fecha:null}],aplicaciones:b.aplicaciones.filter(a=>a.obligacion_id!==o.id)},MARZO);
- const efe=M.calcular({...b,permisos:VIP,efectivo_autorizado:[{obligacion_id:o.id,importe:'500.00',fecha:'2026-03-13'}],aplicaciones:b.aplicaciones.filter(a=>a.obligacion_id!==o.id)},MARZO);
- hallazgo('H3',sinEfectivo&&con.huella!==efe.huella,`El CONTROL del respaldo calcula el cuadre con efectivo_autorizado:[] y cfdi:[]: con un finiquito en efectivo autorizado (existe en producción) sus medidas difieren del tablero (pendiente ${val(con,'pendiente_conciliacion')} vs ${val(efe,'pendiente_conciliacion')}; excedentes ${val(con,'excedentes')} vs ${val(efe,'excedentes')}).`);
  ok(/precision/.test(src)&&/LIM_CELDA=32767/.test(src)&&/LIM_FILAS_EXCEL=1048576/.test(src),'límites de Excel declarados (celda 32,767; filas 1,048,576)');
+}
+
+/* Respaldo de punta a punta con un servidor simulado: marcas con tiempo agotado (H2) y cuadre con efectivo (H3). */
+async function seccionRespaldoExportar(){
+ const box={console,Date,Math,JSON,Number,String,Array,Object,Set,Map,WeakMap,Promise,Error,RegExp,Symbol,Intl,BigInt,TextEncoder,Uint8Array,setTimeout,clearTimeout,crypto:require('node:crypto').webcrypto};box.window=box;box.globalThis=box;vm.createContext(box);
+ for(const m of ['76-tablero-modelo','79-respaldo-integral'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
+ const {I,f}=fuentesBase(),oF=f.obligaciones.find(o=>o.id===I.O1f);
+ const exc={id:U(800),cierre_id:oF.cierre_id,trabajador_id:oF.trabajador_id,finiquito_efectivo:'500.00',neto_original:'1500.00',nomina_transferencia:'1000.00',registrado_en:'2026-03-13T18:00:00Z'};
+ const tablas={obras:f.obras,trabajadores:f.trabajadores,control_cierres_nomina:f.cierres,control_cierre_versiones:f.versiones,control_obligaciones_pago:f.obligaciones,
+  control_evidencias_pago:f.evidencias,control_pago_aplicaciones:f.aplicaciones,pagos:f.pagos,cheques:f.cheques},internas={excepciones_noi_individuales:[exc]};
+ const filasDe=k=>tablas[k]||internas[k]||[],TAB=Object.fromEntries(box.PLATINUM_RESPALDO.fuentes().map(x=>[x.tabla,x.clave]));
+ let lento=true;const marca=k=>({filas:filasDe(k).length,max_actualizado:null,max_creado:null,huella:'h'+filasDe(k).length,por_obra:{}});
+ const sb={rpc:async(fn,a)=>{
+   if(fn==='control_puede_ver_salud')return {data:false,error:null};const d=a.p_datos;
+   if(a.p_accion==='MARCAS'){if(lento&&(d.fuentes.length>8||d.fuentes.includes('historial')))return {data:null,error:{code:'57014',message:'canceling statement due to statement timeout'}};
+    return {data:{version:'RESPALDO_MARCAS_V1',generado_en:'2026-06-01T18:00:00Z',empresa:'PLATINUM',obras:[X1,X2],obras_rechazadas:[],permisos:{registrado:true,vip:true,salud:false,admin:true},
+     marcas:Object.fromEntries(d.fuentes.map(k=>[k,marca(k)])),columnas:d.columnas?{}:null},error:null};}
+   if(a.p_accion==='LEER')return {data:{fuente:d.fuente,filas:d.despues?[]:filasDe(d.fuente),siguiente:null},error:null};
+   return {data:null,error:{message:'no simulado'}};},
+  from:t=>{const q=new Proxy({},{get:(_,k)=>k==='range'?((a,b)=>Promise.resolve({data:filasDe(TAB[t]||t).slice(a,b+1),error:null})):k==='then'?undefined:()=>q});return q;}};
+ const ahora=new Date('2026-06-01T18:00:00Z');let r=null,err=null;
+ try{r=await box.PLATINUM_RESPALDO.exportar({sb,XLSX,JSZip:null,obrasCatalogo:f.obras,empresa:'PLATINUM',espera:0,marca:false,registrar:false,descargar:async()=>{},reloj:()=>ahora});}catch(e){err=e;}
+ reg('H2',r&&r.estado==='INCOMPLETO'&&r.motivos.includes('SIN_MARCA_TABLA')&&r.fuentes.historial.estado==='LEIDA_SIN_MARCA'&&r.fuentes.control_obligaciones_pago.estado==='LEIDA',
+  'MARCAS con tiempo agotado en una tabla: el respaldo se genera INCOMPLETO en lugar de abortar'+(err?' ('+err.message+')':''));
+ // H3 con marcas normales (independiente de H2).
+ lento=false;const r2=await box.PLATINUM_RESPALDO.exportar({sb,XLSX,JSZip:null,obrasCatalogo:f.obras,empresa:'PLATINUM',espera:0,marca:false,registrar:false,descargar:async()=>{},reloj:()=>ahora});
+ ok(r2.estado==='COMPLETO','respaldo con marcas normales: COMPLETO ('+r2.motivos.join(',')+')');
+ const fila=(k,p)=>(r2.cuadre.filas.find(x=>x[1]===k&&x[2]==='PLATINUM_TABLERO_MODELO · '+p)||[])[11];
+ const base={...f,ahora:ahora.toISOString(),cfdi:[],permisos:{vip:true,obras:[X1,X2],empresas:['PLATINUM']}},rango={empresa:'PLATINUM',obras:[X1,X2],desde:'2000-01-01',hasta:'2099-12-31'};
+ const conE=M.calcular({...base,efectivo_autorizado:[{obligacion_id:oF.id,importe:'500.00',fecha:'2026-03-13'}]},rango),sinE=M.calcular({...base,efectivo_autorizado:[]},rango);
+ reg('H3',conE.huella!==sinE.huella&&['pendiente_conciliacion','excedentes','saldo_por_cubrir','pagado_registrado'].every(k=>fila(k,'PERIODO')===String(c(val(conE,k)))),
+  'CONTROL del respaldo cuadra con el tablero incluyendo el finiquito en efectivo autorizado (pendiente '+fila('pendiente_conciliacion','PERIODO')+' centavos)');
 }
 
 /* =====================================================================
@@ -392,7 +434,7 @@ function seccionRegresiones(){
   const bundle=lista.find(x=>/^assets\/platinum-app\.[0-9a-f]+\.js$/.test(x)&&fs.existsSync(x)&&fs.readFileSync('index.html','utf8').includes(path.basename(x)));
   if(bundle){const s=fs.readFileSync(bundle,'utf8');ok(s.includes('PLATINUM_TABLERO_MODELO')&&s.includes('PLATINUM_RESPALDO')&&!/control_tablero\(p_accion text|create or replace function public\.control_respaldo/.test(s),'bundle publicado: módulos nuevos sin SQL privado');
    const internas=[...new Set((s.match(/platinum_internal\.[a-z_]+/g)||[]))];
-   hallazgo('H10',internas.length>5,`El bundle público ahora enumera ${internas.length} tablas internas (platinum_internal.*) y nombra las claves de configuración con credenciales (correo_creados, admin_papelera); hoy sin GRANT a authenticated/anon, pero es información de superficie que antes no se publicaba.`);}
+   reg('H10',internas.every(x=>x==='platinum_internal.calendario_motor_quincenal')&&!/correo_creados, admin_papelera/.test(s),'el bundle no enumera tablas internas ni las claves de credenciales ('+internas.join(', ')+')');}
  }
 }
 
@@ -418,7 +460,7 @@ async function seccionPG(base,sqls){
  if(!sqls.tablero||!bases.every(f=>fs.existsSync(f))){console.log('ALCANCE PÚBLICO: comparación SQL del tablero omitida (requiere el paquete privado).');return {omitido:true};}
  const {makeDatabase}=require('./soporte_flujo_pg.cjs');const db=await makeDatabase();
  for(const f of bases)await db.exec(fs.readFileSync(f,'utf8'));
- try{await db.exec(sqls.tablero);}catch(e){hallazgo('H0',true,'La migración del tablero no carga en PGlite: '+e.message);return {error:true};}
+ await db.exec(sqls.tablero);await db.exec(sqls.tablero);ok(true,'migración del tablero carga y es reaplicable');
  const def=(await db.query("select p.proname,p.prosecdef,p.proconfig,has_function_privilege('anon',p.oid,'EXECUTE') anon,has_function_privilege('authenticated',p.oid,'EXECUTE') auth from pg_proc p join pg_namespace n on n.oid=p.pronamespace where (n.nspname='public' and p.proname='control_tablero') or (n.nspname='platinum_internal' and p.proname='tablero_rpc')")).rows;
  const ct=def.find(x=>x.proname==='control_tablero'),tr=def.find(x=>x.proname==='tablero_rpc');
  eq([ct.prosecdef,ct.proconfig,ct.anon,ct.auth],[true,['search_path=""'],false,true],'control_tablero: SECURITY DEFINER, search_path vacío, sin anon');
@@ -464,7 +506,21 @@ async function seccionPG(base,sqls){
  let iny=null;try{iny=await llamarInt(uV,'RESUMEN',{...MARZO,obras:["x') or true --"],contratistas:["'; drop table public.obras; --"]});}catch(e){iny=e;}
  ok(!(iny instanceof Error)||!/syntax/i.test(iny.message),'SQL: filtros con comillas no alteran la consulta');
  ok((await db.query('select count(*)::int n from public.obras')).rows[0].n===nObras&&nObras>=2,'SQL: tablas intactas tras filtros hostiles');
- if(dif.length)hallazgo('H11',true,'SQL (A3) difiere de los esperados a mano: '+dif.slice(0,6).join(' · '));
+ eq(dif,[],'SQL (A3) = valores calculados a mano y totales del modelo');
+ // SQL = modelo en todas las acciones y rangos (incluye la poda por periodo de H4 con un comprobante de otra semana).
+ const leidas={};for(const [k,t] of Object.entries(T))leidas[k]=(await db.query(`select coalesce(jsonb_agg(to_jsonb(x)),'[]') j from public.${t} x`)).rows[0].j;
+ const canon=v=>Array.isArray(v)?'['+v.map(canon).join(',')+']':v&&typeof v==='object'?'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}':JSON.stringify(v===undefined?null:v);
+ const primera=(a,b,p='$')=>{if(canon(a)===canon(b))return null;if(a&&b&&typeof a==='object'&&typeof b==='object'){for(const k of new Set([...Object.keys(a),...Object.keys(b)])){const d=primera(a[k],b[k],p+'.'+k);if(d)return d;}}return p+': SQL '+JSON.stringify(a)?.slice(0,160)+' ≠ JS '+JSON.stringify(b)?.slice(0,160);};
+ const FN={RESUMEN:'calcular',TENDENCIA:'tendencia',COMPARATIVOS:'comparativos',EXCEPCIONES:'excepciones',DETALLE:'detalle'};
+ const rangos=[[ '2026-03-09','2026-03-15'],['2026-03-16','2026-03-22'],['2026-01-19','2026-03-31'],['2026-03-01','2026-03-31']];
+ const difs=[];
+ for(const [d,h] of rangos)for(const persp of ['PERIODO','PAGO'])for(const [uid,p] of [[uV,VIP],[uR,REST]])for(const [acc,op] of [['RESUMEN',{}],['TENDENCIA',{}],['COMPARATIVOS',{}],['EXCEPCIONES',{por_pagina:500}],['DETALLE',{grano:'OBLIGACION',por_pagina:500}],['DETALLE',{grano:'OPERACION',por_pagina:500}]]){
+  const fl={empresa:'PLATINUM',desde:d,hasta:h,perspectiva:persp,comparar:acc==='RESUMEN'?'ANTERIOR':null};
+  const sq=await llamarInt(uid,acc,{filtros:fl,opciones:op});
+  const js=clon(M[FN[acc]]({...base.f,...leidas,ahora:sq.actualizado_en||base.f.ahora,permisos:p},fl,op));
+  const df=primera(clon(sq),js);if(df)difs.push(`${acc} ${op.grano||''} ${persp} ${d}…${h} ${p.vip?'VIP':'REST'}: ${df}`);n++;
+ }
+ eq(difs.slice(0,3),[],'SQL = modelo JS al centavo en 96 consultas (4 rangos × 2 perspectivas × 2 perfiles × 6 acciones)');
  return {dif};
 }
 
@@ -474,11 +530,10 @@ async function seccionPG(base,sqls){
  seccionAleatoria();
  await seccionControlador(base);
  seccionRespaldo();
+ await seccionRespaldoExportar();
  seccionRegresiones();
  const sqls=estaticoSQL();
  const pg=await seccionPG(fuentesBase(),sqls);
- const rep=hallazgos.filter(h=>h.reproduce);
- for(const h of rep)console.log('HALLAZGO '+h.id+': '+h.texto);
- for(const h of hallazgos.filter(h=>!h.reproduce))console.log('NO REPRODUCIDO '+h.id);
- console.log(`PASS revisión tablero/respaldo: ${n} comprobaciones · ${rep.length} hallazgos reproducidos (${rep.map(h=>h.id).join(', ')||'ninguno'}) · SQL ${pg.omitido?'omitido (paquete privado ausente)':pg.error?'no cargó':'comparado'} · ${((Date.now()-t0)/1000).toFixed(1)} s`);
+ if(SONDA){console.log('SONDA: '+fallas.length+' comprobaciones fallan');for(const m of fallas)console.log(' - '+m.slice(0,160));return;}
+ console.log(`PASS revisión tablero/respaldo: ${n} comprobaciones · regresiones cerradas ${[...regresion].sort().join(', ')} · SQL ${pg.omitido?'omitido (paquete privado ausente)':'= modelo y = cálculo a mano'} · ${((Date.now()-t0)/1000).toFixed(1)} s`);
 })().catch(e=>{console.error(e);process.exit(1);});
