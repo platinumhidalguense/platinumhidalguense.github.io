@@ -54,7 +54,7 @@ function estadoCompleto(){
     {clave:'o3',etiqueta:'CENTRO PONIENTE',neto_conciliado:300000,pagado_conciliado:300000,pendiente_conciliacion:0,saldo_por_cubrir:0,cobertura:100,seleccionado:false},
     {clave:'o4',etiqueta:XSS,neto_conciliado:0,pagado_conciliado:0,saldo_por_cubrir:0,cobertura:null,seleccionado:false}],
    por_contratista:[{clave:'MG',etiqueta:'MG',neto_conciliado:800000,pagado_conciliado:760000,pendiente_conciliacion:20000,saldo_por_cubrir:20000,cobertura:95},{clave:'__PENDIENTE__',etiqueta:'Adscripción histórica pendiente',neto_conciliado:450000.5,pagado_conciliado:420000.25,pendiente_conciliacion:10000,saldo_por_cubrir:20000.25,cobertura:93.33}],
-   por_medio:[{clave:'CHEQUE',etiqueta:'CHEQUE',neto_conciliado:100000,pagado_registrado:90000},{clave:'TRANSFERENCIA',etiqueta:'TRANSFERENCIA',neto_conciliado:1150000.5,pagado_registrado:1100000}]},
+   por_medio_criterio:'METODO_PLANEADO',por_medio:[{clave:'SIN_OBLIGACION',etiqueta:'SIN_OBLIGACION',neto_conciliado:0,pagado_registrado:0,sin_asignar:350},{clave:'CHEQUE',etiqueta:'CHEQUE',neto_conciliado:100000,pagado_registrado:90000},{clave:'TRANSFERENCIA',etiqueta:'TRANSFERENCIA',neto_conciliado:1150000.5,pagado_registrado:1100000}]},
   excepciones:{accion:'EXCEPCIONES',total:3,pagina:1,por_pagina:2,filas:[
    {tipo:'EXCEDENTE_APLICADO',severidad:'ROJO',obra_id:'o1',obra:'CENTRO NORTE',trabajador_id:'w1',numero:12,nombre:'PERSONA FICTICIA UNO',semana:44,fecha:'2026-10-30',importe:1500,descripcion:'Aplicado por encima del importe exigible',llaves:{obligacion_id:'ob1',cierre_id:'c1',pago_id:null,cheque_id:null,evidencia_id:null,aplicacion_id:null,operacion_id:null}},
    {tipo:'SIN_ASIGNAR',severidad:'AMBAR',obra_id:'o2',obra:'CENTRO SUR',trabajador_id:null,numero:null,nombre:'',semana:null,fecha:'2026-11-07',importe:6000,descripcion:XSS,llaves:{obligacion_id:null,cierre_id:null,pago_id:'p10',cheque_id:null,evidencia_id:'e10',aplicacion_id:null,operacion_id:'EVD:e10'}}]},
@@ -280,6 +280,21 @@ V.render(host,E0,A);def=q('[data-accion="definicion"][data-clave="cobertura"]');
 let alt=q('[data-accion="alt"][data-graf="por_medio"]');click(alt);ok(alt.getAttribute('aria-expanded')==='true'&&!q('#'+alt.getAttribute('aria-controls')).hasAttribute('hidden')&&/Ocultar/.test(texto(alt)),'tabla alternativa se muestra');
 click(q('[data-accion="modo-tabla"]'));ok(q('[data-accion="modo-tabla"]').getAttribute('aria-pressed')==='true'&&qa('.tb-alt-cuerpo').every(c=>!c.hasAttribute('hidden')),'ver todas las gráficas como tablas');
 click(q('[data-accion="modo-tabla"]'));ok(qa('.tb-alt-cuerpo').every(c=>c.hasAttribute('hidden')),'modo tabla se desactiva');
+
+/* N2/N1: medio de pago según `por_medio_criterio`; la fila SIN_OBLIGACION no navega */
+V.render(host,E0,A);
+const pm=q('[data-graf-id="por_medio"]');
+ok(/Pagado registrado por método de pago planeado/.test(texto(q('.tb-graf-t',pm)))&&/método planeado de cada obligación/.test(texto(q('.tb-graf-desc',pm)))&&/Método de pago planeado/.test(texto(q('thead',pm))),'PERIODO: título, nota y columna por método planeado');
+const sinOb=qa('.tb-barra',pm).find(b=>/Pagos sin obligación/.test(texto(b)));
+ok(sinOb&&sinOb.tagName==='DIV'&&!sinOb.hasAttribute('data-accion')&&/Sin obligación asociada/.test(texto(sinOb)),'fila «Pagos sin obligación» legible y sin acción de detalle');
+limpiar();click(sinOb);eq(llamadas.length,0,'la fila sin obligación no emite abrirDetalle');
+ok(!host.textContent.includes('SIN_OBLIGACION'),'sin claves técnicas visibles');
+click(q('[data-accion="detalle"][data-valor="CHEQUE"]',pm));eq([ultima().args[0],ultima().args[1].dimension],['pagado_registrado','metodo_planeado'],'método planeado abre detalle con su dimensión');
+{const pr=estadoCompleto();pr.filtros.perspectiva='PAGO';pr.comparativos.por_medio_criterio='MEDIO_REAL';pr.comparativos.por_medio=[{clave:'TRANSFERENCIA',pagado_registrado:1100000},{clave:'CHEQUE',pagado_registrado:90000}];
+ V.render(host,pr,A);const pm2=q('[data-graf-id="por_medio"]');
+ ok(/Pagado registrado por medio de pago real/.test(texto(q('.tb-graf-t',pm2)))&&/No aplica saldo ni cobertura/.test(texto(pm2))&&!/Cobertura|Saldo por cubrir/.test(texto(q('table',pm2))),'PAGO: medio real sin saldo ni cobertura');
+ click(q('[data-accion="detalle"][data-valor="CHEQUE"]',pm2));eq(ultima().args[1].dimension,'medio','medio real abre detalle por medio');}
+V.render(host,E0,A);
 
 /* teclado: pestañas y recorrido de la gráfica */
 limpiar();tecla(q('[role="tab"][data-vista="GENERAL"]'),'ArrowRight');

@@ -1,8 +1,8 @@
 {
   "version": "2026-11-11.1",
-  "entry": "assets/platinum-app.ecf3f4024d1313ef.js",
-  "sha256": "ecf3f4024d1313efb725c1a0ff9c3eaced0aacc6127dfaa96070566557172e37",
-  "integrity": "sha384-R5yYsBAXoIDlg6je1m7PyIA8GiU0jOaM8jKGmb1DJvbJUFATHYniRIDOeYrMZzi+",
+  "entry": "assets/platinum-app.bb411afb7298ad67.js",
+  "sha256": "bb411afb7298ad67f4cbd305b48ecc31874898fc43a13715890af9ac23e163c4",
+  "integrity": "sha384-dfK/s4zPyjjqtUACxESLMktURhNGnJmC0nRBYk2izDDhf9C8jWeAb/FYnR3nquyr",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -314,7 +314,7 @@
     },
     {
       "path": "frontend/modulos/77-tablero-vista.js",
-      "sha256": "488772882454e37fdc453a6dac8bc30d8a359ff0447b896938fe9aa217f88984"
+      "sha256": "161ac8f5eb65e1aa71011f46a0075f9e132f33c3e5ccfdf74d20932166d04d26"
     },
     {
       "path": "frontend/modulos/78-tablero-ejecutivo.js",

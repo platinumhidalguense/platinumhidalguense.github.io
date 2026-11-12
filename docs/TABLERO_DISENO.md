@@ -67,6 +67,12 @@ detalle hacia abajo; una sola barra de filtros que gobierna todo lo de abajo.
 - **Barras horizontales (HTML)**: cada barra es un botón con nombre accesible
   completo; valores alineados a la derecha. Por centro/contratista: barra
   apilada conciliado + pendiente + saldo = neto, con cobertura y saldo en texto.
+- **Pagado registrado por medio** según `comparativos.por_medio_criterio` del modelo:
+  `METODO_PLANEADO` (perspectiva periodo) se titula «por método de pago planeado» y
+  explica que puede diferir del medio real; `MEDIO_REAL` (perspectiva pago) se titula
+  «por medio de pago real» sin saldo ni cobertura. La fila `SIN_OBLIGACION` se
+  muestra como «Pagos sin obligación», sin acción de detalle (se revisa en «Pago sin
+  asignar» y excepciones). La dimensión emitida es `metodo_planeado` o `medio`.
 - **Tabla alternativa** en cada gráfica (`<caption>`, `th scope`), plegable o
   todas a la vez con «Ver gráficas como tablas»; se imprimen desplegadas.
 - **Tablas de excepciones y detalle**: cifras en columnas MXN alineadas,
