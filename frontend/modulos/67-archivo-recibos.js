@@ -343,5 +343,5 @@
     !s.periodos.length?'No hay cierres para este centro.':semana?'Selecciona el cierre correspondiente a S'+semana+'.':'Elige el cierre de destino.';
   });
  }
- root.PLATINUM_ARCHIVO_RECIBOS=Object.freeze({abrir,cotejar,abrirCheque});
+ root.PLATINUM_ARCHIVO_RECIBOS=Object.freeze({abrir:ctx=>root.PLATINUM_ARCHIVO_LIBRE?root.PLATINUM_ARCHIVO_LIBRE.abrir(ctx):abrir(ctx),abrirPorCierre:abrir,leerArchivo:leer,actualizarDatos:datosArchivo,cotejar,abrirCheque});
 })(window);

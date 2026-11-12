@@ -88,3 +88,13 @@ La excepción histórica solicitada permite a RRHH con escritura y alcance corre
 
 Pruebas: `test_gestion_cheques_tabs_ui.cjs` y `test_cheques_folios_cerrados_pg.cjs`. La prueba SQL usa el paquete privado local. No se publican SQL operativo, expedientes ni comprobantes reales. Las pruebas DOM son sintéticas, sin navegador ni aceptación visual.
 
+# Archivo documental sin fotografía
+
+La entrada «Importar recibos PDF y XML» utiliza el archivo por empresa, centro, año y semana/quincena. Conserva primero el original privado; después lee con el lector fiscal compartido, presenta identidad/periodo/concepto y exige confirmar su registro. Una lectura incompleta conserva el original y el motivo para reanudar. Gemini se limita al campo aislado que no pudo leerse.
+
+Los módulos 83/84 orquestan este recorrido mediante `control_archivo_recibos`; el módulo 67 conserva el lector y el archivo por fotografía para compatibilidad. El cierre es opcional. Un documento registrado no equivale a timbrado verificado, conciliación, obligación o pago. PDF/XML compatibles del mismo UUID comparten la evidencia canónica y conservan sus originales. No se duplican importes.
+
+Al existir después una fotografía compatible, el periodo ofrece revisar y confirmar el vínculo documental. No cambia la fotografía ni sus importes. Los pagos bancarios mantienen el importador independiente 78/79 y sus confirmaciones financieras. El archivo documental no sustituye esas confirmaciones.
+
+Pruebas locales: servicio asíncrono, descarte de respuestas tardías, archivo previo a lectura, reanudación y DOM sintético. Las comprobaciones de PostgreSQL del paquete privado prueban aislamiento, deduplicación y vínculo posterior; no son pruebas visuales ni una importación operativa en producción.
+

@@ -25,7 +25,7 @@ const box={window:null,document,console,Date,Number,String,Array,Object,Set,Map,
    vinculos++;return{data:{id:'RESOLUCION',version:1}};},
   from:tabla=>{eq(tabla,'prestaciones_fuentes_historicas','original bajo demanda');const q={select(){return q;},eq(){return q;},async single(){return{data:{contenido_base64:bytes.toString('base64'),sha256:lecturaMala?'INCORRECTA':sha,archivo:'ORIGINAL_FICTICIO.xlsx'}};}};return q;}}};
 box.window=box;vm.createContext(box);vm.runInContext(fs.readFileSync('frontend/modulos/77-aguinaldo-evidencias.js','utf8'),box);
-const sel=q=>document.querySelector(q),click=async q=>{sel(q).click();await tick();},cambiar=(q,v)=>{sel(q).value=v;sel(q).dispatchEvent(new window.Event('change',{bubbles:true}));};
+const sel=q=>document.querySelector(q),click=async q=>{sel(q).click();await tick();const limite=Date.now()+3000;while(document.querySelector('[data-ae="original"]')?.disabled){if(Date.now()>limite)throw Error('No termino la operacion del panel');await new Promise(r=>setTimeout(r,5));}},cambiar=(q,v)=>{sel(q).value=v;sel(q).dispatchEvent(new window.Event('change',{bubbles:true}));};
 (async()=>{
  await box.PLATINUM_AGUINALDO_EVIDENCIAS.abrir({trabajador:{id:'W',no_trab:1,obra_id:'O'},ejercicio:2026,alResolver:()=>recalculados++});
  ok(sel('[data-ae-fuente]'),'selector disponible');eq(sel('[data-ae-exento]').value,'','no inventa exención');

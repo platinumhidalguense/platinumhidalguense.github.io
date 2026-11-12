@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-12.2",
-  "entry": "assets/platinum-app.4fce63992bf62a02.js",
-  "sha256": "4fce63992bf62a02f4e5a4b7cf0e6a45d17eb80792f6abdff5decbcbbae98a0f",
-  "integrity": "sha384-cmqVhWYiNhtdExZDHNLbhcwJkIDzxKnFPI00bufdYkoK5Oi6Hy5fKU9MhmDooP9o",
+  "version": "2026-11-12.3",
+  "entry": "assets/platinum-app.936f7b4fb0162d12.js",
+  "sha256": "936f7b4fb0162d1270f75acafdf5ea4855a5f6610f58fc346ef83f8a887aa27a",
+  "integrity": "sha384-2tl9eQYET9Ooz7nyD5NyGpCB3rQY118mVRkidIFf7I1zivmFVmawrr5bMRR/QptT",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "44202c6e8066780faca9839cb3aec16cf6a19c1e06330ae8fcf1bf2de07c2d1a"
+      "sha256": "0f925c1390fb7c80f0e517f44d61de67c930a24ec6db67c0b51c978709e65817"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -274,7 +274,7 @@
     },
     {
       "path": "frontend/modulos/67-archivo-recibos.js",
-      "sha256": "92cdb90e327aa17b4d375fed8195b70c7258b4c0ae8a043a2adb9e081a669e7c"
+      "sha256": "0ec6a8de6e69db7a0dffccda1ef34be05fea2f6a40e981ef845ac03f2653ee97"
     },
     {
       "path": "frontend/modulos/68-lectura-contextual-recibos.js",
@@ -322,7 +322,7 @@
     },
     {
       "path": "frontend/modulos/79-importacion-bancaria-interfaz.js",
-      "sha256": "5ded0919922a13b68580af96da5158c6e18b73ecad6067add9189bfb1ff4cc1f"
+      "sha256": "ff254bf71100aab6e0b7b446bcb5b732ebbee97c91cad68b459e29f4c802152d"
     },
     {
       "path": "frontend/modulos/80-puestos-central.js",
@@ -335,6 +335,14 @@
     {
       "path": "frontend/modulos/82-reversion-bajas.js",
       "sha256": "bfc74db7bdcac35ce1f448a488e3f443c1b162c7e596262151deb3fdc08baa47"
+    },
+    {
+      "path": "frontend/modulos/83-recibos-contexto-servicio.js",
+      "sha256": "b14cf75991182d9f5a8eb45ef9101353251fd12c03631e7ca149200fdef444eb"
+    },
+    {
+      "path": "frontend/modulos/84-recibos-contexto-interfaz.js",
+      "sha256": "8f5e9e53ee77732495ff3756fcaea64c7bbb00252ffff04c780cf387a2bb2c48"
     }
   ]
 }
