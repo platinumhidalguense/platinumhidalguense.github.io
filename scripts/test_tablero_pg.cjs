@@ -30,6 +30,7 @@ const TABLAS={obras:'obras',trabajadores:'trabajadores',cuadrillas:'cuadrillas',
  const sqlMig=fs.readFileSync(path.join(dir,mig),'utf8');
  await db.exec(sqlMig);await db.exec(sqlMig);ok(true,'la migración es reaplicable');
  // Definiciones idénticas al modelo.
+ ok((await db.query("select to_regclass('public.documentos_fiscales') r")).rows[0].r===null,'la vista fiscal existe sólo en platinum_internal (como en producción)');
  eq((await db.query('select platinum_internal.tablero_def() d')).rows[0].d,plano(M.DEFINICIONES),'definiciones y fórmulas idénticas al modelo');
  const cols={};
  for(const t of [...Object.values(TABLAS),'documentos'])cols[t]=(await db.query(`select column_name c,data_type t,is_nullable='NO' and column_default is null and is_generated='NEVER' and identity_generation is null req
@@ -58,7 +59,7 @@ const TABLAS={obras:'obras',trabajadores:'trabajadores',cuadrillas:'cuadrillas',
   f.cfdi=(await db.query(`select coalesce(jsonb_agg(jsonb_build_object('documento_id',d.id,'obra_id',d.obra_id,'trabajador_id',d.trabajador_id,'uuid',d.cfdi_uuid,
    'neto',case when d.categoria='CFDI_NOMINA' then d.cfdi_total else coalesce(d.nomina_neto,d.cfdi_total) end,'desde',d.periodo_inicio,'hasta',d.periodo_fin,'tipo',d.nomina_tipo,
    'formato',case when d.categoria='CFDI_NOMINA' then 'XML' else 'PDF' end,'anulado',coalesce(d.anulado,false)) order by d.id),'[]') j
-   from public.documentos_fiscales d where d.categoria in('CFDI_NOMINA','RECIBO_NOMINA') and nullif(btrim(d.cfdi_uuid),'') is not null`)).rows[0].j;
+   from platinum_internal.documentos_fiscales d where d.categoria in('CFDI_NOMINA','RECIBO_NOMINA') and nullif(btrim(d.cfdi_uuid),'') is not null`)).rows[0].j;
   f.efectivo_autorizado=(await db.query(`select coalesce(jsonb_agg(jsonb_build_object('obligacion_id',o.id,'importe',(e->>'finiquito_efectivo')::numeric,
    'fecha',((e->>'registrado_en')::timestamptz at time zone 'America/Mexico_City')::date)),'[]') j from public.control_obligaciones_pago o
    cross join lateral(select platinum_internal.excepcion_noi(o.cierre_id,o.trabajador_id) e) x where o.tipo='FINIQUITO' and e is not null and o.importe=(e->>'finiquito_efectivo')::numeric`)).rows[0].j;
@@ -119,6 +120,75 @@ const TABLAS={obras:'obras',trabajadores:'trabajadores',cuadrillas:'cuadrillas',
  await actor(db,'consulta');let e=null;try{await db.query("select platinum_internal.tablero_rpc('RESUMEN','{}',now())");}catch(x){e=x;}await db.exec('reset role');
  ok(e&&/permission|denied/i.test(e.message),'la función interna no es invocable por el cliente');
 
+
+ // ---------- Volumen real de producción (work/equipo_20261111/volumen_produccion.md) ----------
+ // ≈40k filas de historial con la mezcla de acciones y tamaños JSON reales, 980 trabajadores, 2,343 obligaciones,
+ // ≈4.3k pagos, ≈1k cheques; cada acción, centro-mes y todos-año, en ambas perspectivas, como authenticated con 8 s.
+ await db.exec('reset role');await db.exec('set session_replication_role=replica');
+ await db.exec(`truncate ${[...Object.values(TABLAS),'documentos'].map(t=>'public.'+t).join(',')} cascade`);
+ await db.exec(`
+ insert into public.obras(id,nombre,empresa_codigo,fecha_inicio) values('a2000000-0000-4000-8000-000000000001','REAL UNO','PLATINUM','2026-03-30'),
+  ('a2000000-0000-4000-8000-000000000002','REAL DOS','PLATINUM','2026-06-15'),('a2000000-0000-4000-8000-000000000003','REAL TRES','JIRE','2026-07-27');
+ insert into public.trabajadores(id,obra_id,no_trab,nombres,primer_apellido,estatus,periodo_pago,contratista,fecha_alta,fecha_baja)
+  select ('b2000000-0000-4000-8000-'||lpad(t::text,12,'0'))::uuid,('a2000000-0000-4000-8000-00000000000'||case when t<=800 then 1 when t<=900 then 2 else 3 end)::uuid,t,'PERSONA '||t,'FICTICIA',
+   case when t%9=0 then 'BAJA' else 'ACTIVO' end,case when t%25=0 then 'QUINCENAL' else 'SEMANAL' end,'C'||(t%9),'2026-04-06',case when t%9=0 then date '2026-09-01'+(t%40) end from generate_series(1,980) t;
+ insert into public.control_cierres_nomina(id,obra_id,semana,periodo,estado,formula_version,snapshot,snapshot_sha256,creado_por)
+  select ('c2000000-0000-4000-8000-'||lpad(s::text,12,'0'))::uuid,'a2000000-0000-4000-8000-000000000001',s,'SEMANAL',case when s=30 then 'BORRADOR' else 'TIMBRADO' end,'V',
+   jsonb_build_object('semana',s,'modelo',jsonb_build_object('filas',(select jsonb_agg(jsonb_build_object('w',jsonb_build_object('id',w.id,'contratista',w.contratista,'periodo_pago',w.periodo_pago,
+    'obra_id',w.obra_id,'relleno',repeat('x',400)),'neto',1000,'items',jsonb_build_array(repeat('y',300))) order by w.no_trab) from public.trabajadores w where w.no_trab<=115))),'x','10000000-0000-4000-8000-000000000001'
+  from generate_series(11,30) s
+  union all select 'c2000000-0000-4000-8000-000000000999','a2000000-0000-4000-8000-000000000002',20,'SEMANAL','AUTORIZADO','V','{}','x','10000000-0000-4000-8000-000000000001';
+ insert into public.control_cierre_versiones(id,cierre_origen,obra_id,version,estado_origen,snapshot,snapshot_sha256,fuente_sha256,actor_id) select id,id,obra_id,1,'AUTORIZADO',snapshot,'x','x','10000000-0000-4000-8000-000000000001' from public.control_cierres_nomina;
+ insert into public.control_flujo_cierres(cierre_id,obra_id,sucio,version_id) select id,obra_id,semana=30,id from public.control_cierres_nomina;
+ insert into public.control_obligaciones_pago(id,cierre_origen,cierre_id,version_id,obra_id,trabajador_id,semana,tipo,numero,nombre,contratista,importe,metodo)
+  select gen_random_uuid(),c.id,c.id,c.id,w.obra_id,w.id,c.semana,'NOMINA',w.no_trab,w.nombres,w.contratista,1500+(w.no_trab%97)+c.semana/100.0,case when w.no_trab%10=0 then 'CHEQUE' else 'TRANSFERENCIA' end
+  from public.control_cierres_nomina c join public.trabajadores w on(c.obra_id='a2000000-0000-4000-8000-000000000001' and w.no_trab<=115) or(c.semana=20 and c.obra_id='a2000000-0000-4000-8000-000000000002' and w.no_trab between 801 and 843);
+ insert into public.pagos(id,obra_id,trabajador_id,semana,medio,banco,importe,estado,fecha_pago,folio_lote,origen)
+  select gen_random_uuid(),o.obra_id,o.trabajador_id,'S'||o.semana,'TRANSFERENCIA','BBVA',o.importe-case when o.numero%13=0 then 50 else 0 end,'EXITOSO',b.fecha_inicio+(o.semana-1)*7+4,'L'||o.numero||'-'||o.semana,r.origen
+  from public.control_obligaciones_pago o join public.obras b on b.id=o.obra_id cross join(values('GLOBAL'),('INDIVIDUAL')) r(origen) where o.metodo='TRANSFERENCIA' and(r.origen='GLOBAL' or o.numero%7=0);
+ insert into public.pagos(id,obra_id,trabajador_id,semana,medio,banco,importe,estado,fecha_pago,folio_lote,origen)
+  select gen_random_uuid(),w.obra_id,w.id,'S'||s,'TRANSFERENCIA','BBVA',1400,case when w.no_trab%50=0 then 'RECHAZADO' else 'EXITOSO' end,date '2026-03-30'+(s-1)*7+4,'X'||w.no_trab||'-'||s,'GLOBAL'
+  from public.trabajadores w cross join generate_series(16,19) s where w.no_trab between 116 and 650;
+ insert into public.control_evidencias_pago(id,obra_id,trabajador_id,semana,clave,importe,pago_id)
+  select gen_random_uuid(),p.obra_id,p.trabajador_id,public.norm_semana(p.semana),'B'||p.folio_lote,p.importe,p.id from public.pagos p where p.origen='GLOBAL' and p.folio_lote like 'L%';
+ insert into public.control_pago_aplicaciones(obra_id,obligacion_id,evidencia_id,version_id,importe,actor_id,clave_idempotencia,motivo)
+  select e.obra_id,o.id,e.id,o.version_id,least(e.importe,o.importe),'10000000-0000-4000-8000-000000000001',gen_random_uuid(),'Aplicación ficticia de volumen'
+  from public.control_evidencias_pago e join public.control_obligaciones_pago o on o.trabajador_id=e.trabajador_id and o.semana=e.semana where (o.numero+o.semana)%6<>0;
+ insert into public.cheques(id,obra_id,trabajador_id,no_trab,nombre,semana,importe,tipo_pago,num_cheque,consecutivo,estatus,eliminado,created_at)
+  select ('c3000000-0000-4000-8000-'||lpad(k::text,12,'0'))::uuid,w.obra_id,w.id,w.no_trab,w.nombres,'S'||(11+k%20),1500,case when k%3=0 then 'FINIQUITO' else 'CHEQUE' end,
+   case when k%5=4 then '' else 'N'||k end,case when k%5=4 then '' else 'K'||k end,(array['ENTREGADO','EXPEDIDO','CANCELADO','ENTREGADO','PENDIENTE'])[1+k%5],k%5=4,'2026-06-01T15:00:00Z'::timestamptz+(k%120)*interval '1 day'
+  from generate_series(1,990) k join public.trabajadores w on w.no_trab=1+(k*7)%980;
+ insert into public.historial(trabajador_id,obra_id,accion,fecha,datos_antes,datos_despues)
+  select w.id,w.obra_id,a.accion,'2026-07-08T15:00:00Z'::timestamptz+((g*37)%120000)*interval '1 minute',
+   case when a.antes then jsonb_build_object('id',w.id,'estatus','ACTIVO','contratista',w.contratista,'fecha_baja',null,'relleno',repeat('a',a.tam/2)) end,
+   jsonb_build_object('id',w.id,'estatus',case when a.accion='BAJA' then 'BAJA' else 'ACTIVO' end,'contratista',case when a.adscripcion then w.contratista end,
+    'fecha_baja',case when a.accion='BAJA' then '2026-09-15' end,'fecha_reingreso',case when a.accion='REACTIVACION' then '2026-10-01' end,'relleno',repeat('d',a.tam/2))
+    ||case when a.adscripcion then jsonb_build_object('id_cuadrilla',null) else '{}' end
+  from(values('DOCUMENTO-MODIFICACION',16703,1756,true,false),('DOCUMENTO-ALTA',13568,600,false,false),('MODIFICACION',7014,2973,true,true),('DESCUENTO-MODIFICACION',796,1339,true,false),
+   ('SDI_PRECISION_NOI',657,800,true,false),('BAJA',538,3045,true,true),('DESCUENTO-ALTA',390,700,false,false),('REACTIVACION',110,3121,true,true),('ALTA',987,1500,false,true)) a(accion,n,tam,antes,adscripcion)
+  cross join lateral generate_series(1,a.n) g join public.trabajadores w on w.no_trab=1+(g*13)%980;
+ insert into public.historial(trabajador_id,obra_id,accion,fecha,datos_antes,datos_despues)
+  select q.trabajador_id,q.obra_id,a.accion,q.created_at+g*interval '1 hour',case when a.accion='CHEQUE-MODIFICACION' then jsonb_build_object('id',q.id,'estatus',case when g=1 then 'PENDIENTE' else 'EXPEDIDO' end,'relleno',repeat('c',700)) end,
+   jsonb_build_object('id',q.id,'estatus',case when g=1 and a.accion='CHEQUE-MODIFICACION' then 'EXPEDIDO' when a.accion='CHEQUE-ALTA' then 'PENDIENTE' else q.estatus end,'relleno',repeat('c',800))
+  from public.cheques q cross join(values('CHEQUE-ALTA',1),('CHEQUE-MODIFICACION',2)) a(accion,veces) cross join lateral generate_series(1,a.veces) g;`);
+ await db.exec('set session_replication_role=origin');await db.exec('analyze');
+ const rv0=(await db.query(`select (select count(*) from public.historial) h,(select count(*) from public.trabajadores) w,(select count(*) from public.control_obligaciones_pago) o,
+  (select count(*) from public.pagos) p,(select count(*) from public.cheques) q,(select count(*) from public.control_pago_aplicaciones) a`)).rows[0];
+ ok(Number(rv0.h)>=40000&&Number(rv0.o)>=2300&&Number(rv0.p)>=4000&&Number(rv0.q)>=900,`volumen real ${JSON.stringify(rv0)}`);
+ const reales={},mes={obras:['a2000000-0000-4000-8000-000000000001'],desde:'2026-07-01',hasta:'2026-07-31',comparar:'ANTERIOR'},anio={desde:'2026-01-01',hasta:'2026-12-31',comparar:'ANTERIOR'};
+ const conLimite=async(acc,d)=>{await db.exec('reset role');await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:vip,role:'authenticated'})]);
+  await db.exec('set role authenticated');await db.exec("set statement_timeout='8s'");
+  try{const t0=Date.now();const r=(await db.query('select public.control_tablero($1,$2::jsonb) r',[acc,JSON.stringify(d)])).rows[0].r;return [r,Date.now()-t0];}
+  finally{await db.exec("reset statement_timeout");await db.exec('reset role');}};
+ for(const [nombre,f] of [['centro_mes',mes],['todos_anio',anio]])for(const persp of ['PERIODO','PAGO'])for(const acc of ['CATALOGOS','RESUMEN','TENDENCIA','COMPARATIVOS','EXCEPCIONES','DETALLE']){
+  const d={filtros:{...f,perspectiva:persp},opciones:acc==='DETALLE'?{grano:persp==='PAGO'?'OPERACION':'OBLIGACION',pagina:2,por_pagina:100}:{por_pagina:100}};
+  const [r,ms]=await conLimite(acc,d);reales[`${nombre}.${persp}.${acc}`]=ms;
+  ok(r&&r.accion===acc&&ms<8000,`volumen real ${nombre} ${persp} ${acc} en ${ms} ms (< 8 s)`);
+ }
+ {const base=await fuentesDeBase();
+  for(const f of [mes,anio,{...anio,perspectiva:'PAGO'}]){const r=await rpcInterna(vip,'RESUMEN',f,'2026-11-11T18:00:00Z');
+   eq(diferencia(r,plano(M.calcular({...base,ahora:r.actualizado_en,permisos:{vip:true}},f))),null,'volumen real: RESUMEN = modelo al centavo '+JSON.stringify(f).slice(0,60));}}
+ console.log(`volumen real PGlite (ms, authenticated, statement_timeout 8 s) con ${JSON.stringify(rv0)}: ${JSON.stringify(reales)}`);
  // ---------- Volumen representativo ----------
  await db.exec('reset role');await db.exec('set session_replication_role=replica');
  await db.exec(`truncate ${[...Object.values(TABLAS),'documentos'].map(t=>'public.'+t).join(',')} cascade`);
@@ -147,24 +217,13 @@ const TABLAS={obras:'obras',trabajadores:'trabajadores',cuadrillas:'cuadrillas',
  await db.exec('set session_replication_role=origin');await db.exec('analyze'); // estadísticas como en producción
  const vol=(await db.query(`select (select count(*) from public.control_obligaciones_pago) o,(select count(*) from public.control_evidencias_pago) e,(select count(*) from public.control_pago_aplicaciones) a,(select count(*) from public.pagos) p`)).rows[0];
  ok(Number(vol.o)>=20000&&Number(vol.e)>=20000&&Number(vol.a)>=28000,`volumen ${JSON.stringify(vol)}`);
- const vf={desde:'2026-04-01',hasta:'2026-08-31',comparar:'ANTERIOR'},tiempos={};
- for(const [acc,d] of [['RESUMEN',vf],['TENDENCIA',vf],['DETALLE',{filtros:vf,opciones:{grano:'OBLIGACION',por_pagina:100}}],['EXCEPCIONES',{filtros:vf,opciones:{por_pagina:100}}]]){
-  const t0=Date.now();const r=await rpcInterna(vip,acc,d,'2026-11-11T18:00:00Z');tiempos[acc]=Date.now()-t0;ok(r&&r.accion===acc,'volumen '+acc);
- }
- // Tamaño real de producción (≈2,300 obligaciones): un centro y un mes, PERIODO con comparable.
- const real={desde:'2026-05-01',hasta:'2026-05-31',comparar:'ANTERIOR',obras:['a1000000-0000-4000-8000-000000000001']};
- {const t0=Date.now();const r=await rpcInterna(vip,'RESUMEN',real,'2026-11-11T18:00:00Z');tiempos.RESUMEN_real=Date.now()-t0;ok(r.medidas.neto_conciliado.valor>0,'RESUMEN tamaño real');}
- {const t0=Date.now();await rpcInterna(vip,'DETALLE',{filtros:real,opciones:{pagina:3,por_pagina:100}},'2026-11-11T18:00:00Z');tiempos.DETALLE_real=Date.now()-t0;}
- ok(tiempos.RESUMEN_real<8000,'RESUMEN de tamaño real < 8 s (statement_timeout de authenticated) aun en PGlite');
- {const t0=Date.now();await rpcInterna(vip,'RESUMEN',{...vf,perspectiva:'PAGO'},'2026-11-11T18:00:00Z');tiempos.RESUMEN_PAGO=Date.now()-t0;}
- const base=await fuentesDeBase();const t1=Date.now();
- const jsr=plano(M.calcular({...base,ahora:'2026-11-11T18:00:00.000Z',permisos:{vip:true}},vf));tiempos.modelo_js=Date.now()-t1;
- const sqr=await rpcInterna(vip,'RESUMEN',vf,'2026-11-11T18:00:00Z');
- eq(diferencia(sqr,jsr),null,'volumen: RESUMEN SQL (con poda por semanas) = modelo al centavo');
- {const r1=await rpcInterna(vip,'RESUMEN',real,'2026-11-11T18:00:00Z');const j1=plano(M.calcular({...base,ahora:r1.actualizado_en,permisos:{vip:true}},real));eq(diferencia(r1,j1),null,'volumen: RESUMEN tamaño real = modelo');}
- // Umbral del escenario grande (10× producción, PGlite WASM de un hilo): 60 s; producción nativa es varias veces más rápida.
- ok(tiempos.RESUMEN<60000,'RESUMEN grande en tiempo acotado');
- console.log(`tiempos PGlite (ms) con ${vol.o} obligaciones, ${vol.e} evidencias, ${vol.a} aplicaciones: ${JSON.stringify(tiempos)}`);
- console.log(`PASS tablero PostgreSQL: ${n} comprobaciones; ${consultas} consultas de ${datos.casos.length} casos de A1 idénticas al modelo al centavo (${esperadas} valores esperados), permisos en servidor, paginación ≤ 500 y volumen medido.`);
+ const vf={desde:'2026-04-01',hasta:'2026-08-31',comparar:'ANTERIOR'},grande={};
+ {const t0=Date.now();await rpcInterna(vip,'RESUMEN',vf,'2026-11-11T18:00:00Z');grande.RESUMEN=Date.now()-t0;}
+ {const base=await fuentesDeBase();const sqr=await rpcInterna(vip,'RESUMEN',vf,'2026-11-11T18:00:00Z');
+  eq(diferencia(sqr,plano(M.calcular({...base,ahora:sqr.actualizado_en,permisos:{vip:true}},vf))),null,'volumen grande: RESUMEN SQL = modelo al centavo');}
+ // Umbral del escenario grande (≈10× producción, PGlite WASM de un hilo): 60 s.
+ ok(grande.RESUMEN<60000,'RESUMEN grande en tiempo acotado');
+ console.log(`escenario grande PGlite (ms) con ${vol.o} obligaciones, ${vol.e} evidencias, ${vol.a} aplicaciones: ${JSON.stringify(grande)}`);
+ console.log(`PASS tablero PostgreSQL: ${n} comprobaciones; ${consultas} consultas de ${datos.casos.length} casos de A1 idénticas al modelo al centavo (${esperadas} valores esperados), permisos en servidor, paginación ≤ 500 y volumen real medido con límite de 8 s.`);
  await db.close();
 })().catch(e=>{console.error(e.message||e);process.exit(1);});

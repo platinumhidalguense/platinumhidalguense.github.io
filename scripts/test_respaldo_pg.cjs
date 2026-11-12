@@ -8,7 +8,7 @@ require(path.join(priv,'generar_prod_base.cjs'));
 const {makeDatabase,ids,actor,owner}=require('./soporte_flujo_pg.cjs');
 require(path.join(root,'frontend/modulos/79-respaldo-integral.js'));
 const FU=globalThis.PLATINUM_RESPALDO.fuentes(),CLAVES=FU.map(f=>f.clave);
-let n=0;const ok=(c,m)=>{assert.ok(c,m);n++;},eq=(a,b,m)=>{assert.deepEqual(a,b,m);n++;};
+const TIEMPOS=[];let n=0;const ok=(c,m)=>{assert.ok(c,m);n++;},eq=(a,b,m)=>{assert.deepEqual(a,b,m);n++;};
 const u=i=>'50000000-0000-4000-8000-'+String(i).padStart(12,'0');
 async function rpc(db,who,acc,datos){await actor(db,who);try{return (await db.query('select public.control_respaldo($1,$2::jsonb) r',[acc,JSON.stringify(datos)])).rows[0].r;}finally{await db.exec('reset role');}}
 async function falla(db,who,acc,datos,re,m){let e=null;try{await rpc(db,who,acc,datos);}catch(x){e=x;}await db.exec('reset role');ok(e&&re.test(e.message),m+' → '+(e&&e.message));}
@@ -117,6 +117,38 @@ async function falla(db,who,acc,datos,re,m){let e=null;try{await rpc(db,who,acc,
  await owner(db,"update public.app_usuarios set solo_contratos=true where user_id=$1",[ids.consulta]);
  await falla(db,'consulta','MARCAS',{empresa:'PLATINUM',fuentes:['pagos']},/Inicia sesión/,'rol de contratos excluido');
  const cfg=await rpc(db,'admin','MARCAS',{empresa:'PLATINUM',fuentes:['config']});eq(cfg.marcas.config.filas,1,'config sólo con claves autorizadas (sin credenciales)');
+ // Volumen de producción: historial ≈40.4k filas (~2 KB de JSON c/u), auditoría 23k y documentos 13.5k.
+ await owner(db,"set session_replication_role=replica");
+ await owner(db,`insert into public.historial(id,trabajador_id,obra_id,usuario,accion,datos_antes,datos_despues,fecha)
+  select 1000000+g,$1,$2,'captura',case when g%3=0 then 'MODIFICACION' else 'DOCUMENTO-MODIFICACION' end,
+   jsonb_build_object('observaciones',repeat(md5(g::text),30),'n',g),jsonb_build_object('observaciones',repeat(md5((g+1)::text),30),'n',g),
+   now()-g*interval '1 minute' from generate_series(1,40400) g`,[ids.w,ids.obra]);
+ await owner(db,`insert into public.auditoria_calculos_nomina(id,lote_id,obra_id,empresa_codigo,trabajador_nombre,tipo_calculo,periodo,formula_version,entradas,resultado,actor_id,actor_email,huella_sha256,created_at)
+  select gen_random_uuid(),gen_random_uuid(),$1,'PLATINUM','X','PROYECCION_NOMINA','S1','V',jsonb_build_object('a',repeat('e',90)),jsonb_build_object('r',g),$2,'a',md5(g::text),now() from generate_series(1,23000) g`,[ids.obra,ids.admin]);
+ await owner(db,`insert into public.documentos(id,trabajador_id,obra_id,categoria,archivo,anulado,created_at,hash)
+  select gen_random_uuid(),$1,$2,'RECIBO_NOMINA','r/'||g||'.pdf',false,now(),md5(g::text) from generate_series(1,13500) g`,[ids.w,ids.obra]);
+ await owner(db,"set session_replication_role=origin");await owner(db,'analyze');
+ const tiempo=async()=>{await actor(db,'admin');await db.exec("set statement_timeout='8s'");const t0=Date.now();
+  try{return {r:(await db.query('select public.control_respaldo($1,$2::jsonb) r',['MARCAS',JSON.stringify({empresa:'PLATINUM',fuentes:CLAVES,columnas:true})])).rows[0].r,ms:Date.now()-t0};}
+  finally{await db.exec("reset statement_timeout");await db.exec('reset role');}};
+ await tiempo();const V1=await tiempo();
+ ok(V1.ms<8000,'MARCAS completa con volumen real dentro de 8 s ('+V1.ms+' ms)');
+ eq([V1.r.marcas.historial.tipo,V1.r.marcas.auditoria_calculos_nomina.tipo,V1.r.marcas.documentos.tipo,V1.r.marcas.pagos.tipo],['LIGERA','LIGERA','LIGERA','COMPLETA'],'marca ligera sólo en tablas > 5,000 filas');
+ const hl=Number(V1.r.marcas.historial.filas);ok(hl>40400,'historial completo en la marca');
+ // La marca ligera conserva la detección de cambios concurrentes: alta, baja y edición con fecha de modificación.
+ const sig=x=>[x.filas,x.max_actualizado,x.max_creado,x.huella].join('|');
+ const V2=await tiempo();eq(sig(V2.r.marcas.historial),sig(V1.r.marcas.historial),'marca ligera estable sin cambios');
+ await owner(db,"set session_replication_role=replica");
+ await owner(db,"insert into public.historial(id,trabajador_id,obra_id,accion,datos_despues,fecha) values(5000000,$1,$2,'ALTA','{}',now()-interval '30 days')",[ids.w,ids.obra]);
+ const V3=await tiempo();ok(sig(V3.r.marcas.historial)!==sig(V2.r.marcas.historial),'detecta alta (aunque no sea la más reciente)');
+ await owner(db,"delete from public.historial where id=1000005");await owner(db,"insert into public.historial(id,trabajador_id,obra_id,accion,datos_despues,fecha) values(4999999,$1,$2,'ALTA','{}',now()-interval '40 days')",[ids.w,ids.obra]);
+ const V4=await tiempo();ok(V4.r.marcas.historial.filas===V3.r.marcas.historial.filas&&sig(V4.r.marcas.historial)!==sig(V3.r.marcas.historial),'detecta baja + alta con el mismo conteo');
+ const d1=(await owner(db,"select id from public.documentos where obra_id=$1 order by id limit 1",[ids.obra])).rows[0].id;
+ await owner(db,"update public.documentos set anulado=true,anulado_en=now()-interval '10 days' where id=$1",[d1]);
+ const V5=await tiempo();ok(sig(V5.r.marcas.documentos)!==sig(V4.r.marcas.documentos),'detecta edición que actualiza la fecha de modificación (sin ser la máxima)');
+ await owner(db,"set session_replication_role=origin");
+ TIEMPOS.push(V1.ms,V2.ms,V5.ms);
+ console.log(`MEDIDA MARCAS con volumen de producción (historial 40.4k, auditoría 23k, documentos 13.5k): ${TIEMPOS.join(' / ')} ms (límite 8 s).`);
  console.log(`PASS respaldo PostgreSQL: ${n} comprobaciones; marcas = RLS de producción para 5 perfiles, centros rechazados, huellas de cambio, LEER interno VIP por llave, sin anónimos, otra razón social ni rol de contratos.`);
  await db.close();
 })().catch(e=>{console.error(e);process.exit(1);});
