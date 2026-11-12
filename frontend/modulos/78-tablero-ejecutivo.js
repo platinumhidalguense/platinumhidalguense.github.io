@@ -68,7 +68,7 @@
 
  /* ---------------- Estado ---------------- */
  const S={abierto:false,raiz:null,host:null,turno:0,turnoDetalle:0,turnoExc:0,turnoPlant:0,ctx:null,filtros:null,vista:'GENERAL',
-  datos:{},cargando:{},errores:{},detalle:null,excepciones:null,plantillaPedida:false,plantillaPagina:1,cache:new Map(),enVuelo:new Map(),
+  datos:{},cargando:{},errores:{},detalle:null,excepciones:null,plantillaPedida:false,plantillaPagina:1,generacion:0,cache:new Map(),enVuelo:new Map(),
   tDebounce:null,tBusqueda:null,tVigilancia:null,metricas:[],red:{solicitudes:0,ms:0},renderMs:0,exportando:false,desactualizado:false,
   retorno:null,ultimoFoco:null,ultimoEl:null,origenApertura:null,pintaProgramada:false,pintaPendiente:false,observador:null,enfocarDetalle:false,focoPanel:null,cargaActual:null};
  const firmaPermisos=()=>{const u=X.user();return [u&&u.id||'',X.vip()?1:0,X.admin()?1:0].join('|');};
@@ -163,8 +163,11 @@
  async function consultar(accion,datos,op={}){
   const k=claveCache(accion,datos),usar=op.cache!==false;
   if(usar&&!op.forzar){const c=deCache(k);if(c)return {data:c.data,cache:true,clave:k};}
-  if(usar&&S.enVuelo.has(k))return S.enVuelo.get(k);
-  const p=(async()=>{const data=await rpc(accion,datos);if(usar&&k.startsWith(firmaPermisos()+'#'))aCache(k,data);return {data,cache:false,clave:k};})();
+  // Una lectura forzada nunca reutiliza una pendiente; la caché sólo acepta respuestas de la generación vigente
+  // (avisarCambio() abre una generación nueva y las lecturas anteriores ya no pueden quedar como vigentes).
+  if(usar&&!op.forzar&&S.enVuelo.has(k))return S.enVuelo.get(k);
+  const gen=S.generacion;
+  const p=(async()=>{const data=await rpc(accion,datos);if(usar&&gen===S.generacion&&k.startsWith(firmaPermisos()+'#'))aCache(k,data);return {data,cache:false,clave:k,generacion:gen};})();
   if(usar)S.enVuelo.set(k,p);
   try{return await p;}finally{if(S.enVuelo.get(k)===p)S.enVuelo.delete(k);}
  }
@@ -282,7 +285,7 @@
   const inval=validar(S.filtros);
   if(inval){S.errores.filtros={mensaje:inval};pintar();return 'invalido';}
   delete S.errores.filtros;
-  const t=++S.turno;S.ctx=firmaContexto();
+  const t=++S.turno,gen=S.generacion;S.ctx=firmaContexto();
   const met=medir(op.ruta||'carga',op.t0);
   const p=(async()=>{
    const f0=JSON.stringify(filtrosRPC());
@@ -300,7 +303,7 @@
    await Promise.all(extra);
    if(!vigente(t))return met.fin('descartada');
    const errs=[...fase1,...fase2].filter(x=>x==='error').length;
-   if(op.forzar&&!errs)S.desactualizado=false;
+   if(op.forzar&&!errs&&gen===S.generacion)S.desactualizado=false;
    pintar();
    if(!errs)anunciar(`Resultados actualizados: ${fechaHora(S.datos.resumen&&S.datos.resumen.crudo&&S.datos.resumen.crudo.actualizado_en)}.`);
    return met.fin(errs?'parcial':'ok');
@@ -445,7 +448,7 @@
  }
  /* Aviso del sincronizador en vivo (onDeferred): lo leído pudo cambiar. */
  function avisarCambio(){
-  S.cache.clear();S.desactualizado=true;
+  S.generacion++;S.cache.clear();S.enVuelo.clear();S.desactualizado=true;
   if(S.abierto){pintarPronto();anunciar('Hay cambios compartidos. Usa «Actualizar» para ver las cifras vigentes.');}
  }
 
@@ -709,6 +712,9 @@
   ent:()=>({...(typeof ST!=='undefined'?ST.cell:{}),numFmt:'#,##0',alignment:{horizontal:'right',vertical:'center'}}),
   txt:()=>({...(typeof ST!=='undefined'?ST.cell:{}),numFmt:'@'})
  };
+ /* Anti-fórmula: un texto que empieza con = + - @ (o tabulador/retorno) se escribe con apóstrofo inicial; los números no se tocan. */
+ const antiFormula=v=>typeof v==='string'&&/^[=+\-@\t\r]/.test(v)?"'"+v:v;
+ function neutralizar(rows){return rows.map(r=>Array.isArray(r)?r.map(c=>c&&typeof c==='object'&&c.t==='s'?{...c,v:antiFormula(String(c.v))}:antiFormula(c)):r);}
  function celda(v,tipo){
   if(v===null||v===undefined||v==='')return '';
   switch(tipo){
@@ -753,7 +759,7 @@
    const tramo=filas.slice(i*lim,(i+1)*lim),rows=[[titulo+(partes>1?` (parte ${i+1} de ${partes})`:'')],cols.map(c=>c[1])],styles=[ST.title,ST.head];
    for(const f of tramo){rows.push(cols.map(c=>celda(leer(f,c[0]),c[2])));styles.push(cols.map(c=>estiloDe(c[2])));}
    if(pie&&i===partes-1){rows.push(cols.map((c,j)=>j===0?`TOTAL · ${entero(filas.length)} filas`:c[2]==='MXN'?r2(filas.reduce((s,f)=>s+(num(leer(f,c[0]))||0),0)):''));styles.push(cols.map(c=>c[2]==='MXN'?ST.totalMoney:ST.total));}
-   const ws=buildSheet(rows,styles,cols.map(c=>c[2]==='id'?38:c[2]==='MXN'?18:Math.min(40,Math.max(12,String(c[1]).length+2))),[{s:{r:0,c:0},e:{r:0,c:Math.max(0,cols.length-1)}}]);
+   const ws=buildSheet(neutralizar(rows),styles,cols.map(c=>c[2]==='id'?38:c[2]==='MXN'?18:Math.min(40,Math.max(12,String(c[1]).length+2))),[{s:{r:0,c:0},e:{r:0,c:Math.max(0,cols.length-1)}}]);
    if(rows.length>2&&typeof XLSX!=='undefined'&&XLSX.utils&&XLSX.utils.encode_range)ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:1+tramo.length,c:cols.length-1}})};
    const n=(partes>1?`${nombre} ${i+1}`:nombre).slice(0,31);XLSX.utils.book_append_sheet(wb,ws,n);hojas.push(n);
   }
@@ -796,7 +802,7 @@
    ['Restricciones de acceso',[rest.prevision_social?'Previsión social no incluida (sin permiso)':'',rest.datos_internos?'Datos internos no incluidos':'',rest.obras_no_autorizadas?`${rest.obras_no_autorizadas} centro(s) solicitado(s) fuera de tu alcance`:''].filter(Boolean).join(' · ')||'Ninguna'],
    ['Actualizado (servidor)',fechaHora(res.actualizado_en)],['Huella de los datos',{t:'s',v:String(res.huella||''),z:'@'}],['Generado',fechaHora(ahora)],['Generado por',String((X.user()||{}).email||'')],
    ['Versión del modelo',String(res.version||'')],['Controlador del tablero',VERSION]];
-  let ws=buildSheet(filtrosRows,[ST.title,ST.sub,ST.head,...filtrosRows.slice(3).map(()=>[ST.total,ST.cell])],[44,110],[{s:{r:0,c:0},e:{r:0,c:1}},{s:{r:1,c:0},e:{r:1,c:1}}]);
+  let ws=buildSheet(neutralizar(filtrosRows),[ST.title,ST.sub,ST.head,...filtrosRows.slice(3).map(()=>[ST.total,ST.cell])],[44,110],[{s:{r:0,c:0},e:{r:0,c:1}},{s:{r:1,c:0},e:{r:1,c:1}}]);
   XLSX.utils.book_append_sheet(wb,ws,'FILTROS');
   const orden=[...new Set([...Object.keys(V()&&V().MEDIDAS||{}),...Object.keys(res.medidas||{})])].filter(k=>res.medidas&&res.medidas[k]);
   const defs=orden.map(k=>{const m=VISTA_MEDIDA(estado,k),raw=res.medidas[k];return {clave:k,indicador:m.etiqueta,unidad:m.unidad,definicion:raw.definicion||m.definicion,formula:raw.formula||m.formula,grano:raw.grano||'',perspectiva:raw.perspectiva_aplicada||''};});
@@ -813,7 +819,7 @@
   for(const k of orden){const d=res.medidas[k].desglose;if(!d||typeof d!=='object')continue;for(const [c,v] of plano('',d,[])){resRows.push([n$(k),c,typeof v==='number'?v:String(v??'')]);resSt.push([ST.cell,ST.cell,typeof v==='number'?ESTILO.ent():ST.cell]);}}
   resRows.push(['Calidad por centro']);resSt.push(ST.sect);resRows.push(['Centro','Estado','Periodos esperados','Periodos autorizados','Periodos provisionales','Periodos faltantes','Errores']);resSt.push(ST.head);
   for(const c of arr(res.calidad)){resRows.push([c.obra||nombreObra(c.obra_id),(V()&&V().CALIDAD&&V().CALIDAD[c.estado]||{}).etiqueta||c.estado,num(c.periodos_esperados)??'',num(c.periodos_autorizados)??'',num(c.periodos_provisionales)??'',arr(c.periodos_faltantes).map(p=>`S${p.semana} ${fmtFecha(p.desde)}–${fmtFecha(p.hasta)}`).join(', '),arr(c.errores).join('; ')]);resSt.push(ST.cell);}
-  ws=buildSheet(resRows,resSt,[34,26,18,14,18,18,14,14,12,12,40],[{s:{r:0,c:0},e:{r:0,c:10}}]);XLSX.utils.book_append_sheet(wb,ws,'RESUMEN');
+  ws=buildSheet(neutralizar(resRows),resSt,[34,26,18,14,18,18,14,14,12,12,40],[{s:{r:0,c:0},e:{r:0,c:10}}]);XLSX.utils.book_append_sheet(wb,ws,'RESUMEN');
   const MED=['neto_conciliado','pagado_registrado','pagado_conciliado','pendiente_conciliacion','saldo_por_cubrir','excedentes'].map(k=>[k,n$(k),'MXN']);
   hojaTabla(wb,'TENDENCIA','Tendencia por periodo y centro (fechas reales)',[['obra_id','ID centro','id'],['obra','Centro'],['periodicidad','Periodicidad'],['semanas','Semanas internas','LISTA'],['periodo_desde','Periodo desde','FECHA'],
    ['periodo_hasta','Periodo hasta','FECHA'],['fecha_pago','Fecha de pago','FECHA'],...MED,['sin_asignar','Sin asignar','MXN'],['cobertura',n$('cobertura'),'PCT']],arr(r.tendencia.filas),true);
