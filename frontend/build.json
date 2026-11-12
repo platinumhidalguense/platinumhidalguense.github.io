@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-11.3",
-  "entry": "assets/platinum-app.bdf6bab5d94a901f.js",
-  "sha256": "bdf6bab5d94a901f6516034e46ab0e8d64f6c181ecee1e0647c679fd4736c3c5",
-  "integrity": "sha384-im0EjQvlsj9k52E7hxfD1+ZN2BtdvuQxSvnkqHwz40eyv1fX52PX13rHc0oMfCjb",
+  "version": "2026-11-11.4",
+  "entry": "assets/platinum-app.620789b6e7cfdccf.js",
+  "sha256": "620789b6e7cfdccfa2e9412c51e88ecb8772489ad0ad4080025dc7f7b72d2464",
+  "integrity": "sha384-Vqlw0a4ogx9kvIEn3t+RPG0SPUo9JPkLKHaXk7ohaBsZlEcaeK6+z1r4pQWW4gUC",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "6034e713c113bf5219121f94cd37b0da7f78729adc2f8d3ec9e5a7346288adba"
+      "sha256": "b04d9202f2881de327207241835023cfe323a61ff87849d481893ff72b0de823"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -30,7 +30,7 @@
     },
     {
       "path": "frontend/modulos/06-movimientos-historial.js",
-      "sha256": "8e86b204da3320e2156a95a43ed69a6c42addaa9359ad8a235458d28ca0e3481"
+      "sha256": "b3c04238ace3689d79e43e3139818dd1c5c46688f67b88512ff0bab007b5e6d2"
     },
     {
       "path": "frontend/modulos/07-exportacion-corporativa.js",
@@ -46,7 +46,7 @@
     },
     {
       "path": "frontend/modulos/10-proyeccion-nomina.js",
-      "sha256": "09fc6c33db7b0032dccb54e14868e9cf43378aaca69bcd8a5a3612e20e69bab1"
+      "sha256": "a4c63fc4bfb50189810c9f7d99695a2f907c8148e1fb520a0c6cc82a07a373de"
     },
     {
       "path": "frontend/modulos/11-expedientes-excel.js",
@@ -190,11 +190,11 @@
     },
     {
       "path": "frontend/modulos/46-papeles-prestaciones.js",
-      "sha256": "fe7d22a3b0f54949fe633c842e8b3b8a7e71a0940ba4bdff9f0ef2064efb2e19"
+      "sha256": "5456a825a0163b308095cbec8ab7fb6398a3b0a51d626a74cea57e91b199ced7"
     },
     {
       "path": "frontend/modulos/47-contexto-historico-nomina.js",
-      "sha256": "a1229dc9ba5291553578037e5aa44c4df3007fd9950bad28793c94b73e4a4fbb"
+      "sha256": "01ff37ae6dda60e82905573e2183e0c88aa6038af18c1a6d16486c640cf7ffe3"
     },
     {
       "path": "frontend/modulos/48-isr-mensual-quincenal.js",
@@ -290,11 +290,11 @@
     },
     {
       "path": "frontend/modulos/71-ficha-personal.js",
-      "sha256": "c48a26c0adda75b1778a323a8beba404c90cd8e8d7e2910ed41cf16a879b7229"
+      "sha256": "c29f7c5feb34708b3ec1dff35d0fbfc359a3c34580bf1dfeff446c18e1f2141c"
     },
     {
       "path": "frontend/modulos/72-aguinaldo-nucleo.js",
-      "sha256": "4275c1cf439a6a8c5b875ee0e5996034fbddbf897cca6cd4f37214c452a70afa"
+      "sha256": "ebf937491ff310c2282a88e267124ffd9acc3c4aab116314711a0f23e69c009d"
     },
     {
       "path": "frontend/modulos/73-aguinaldo-integracion.js",
@@ -310,7 +310,7 @@
     },
     {
       "path": "frontend/modulos/76-baja-finiquito.js",
-      "sha256": "3ffcb40a0a46fd962688ed5ec97bc8562a3bd1a027b6812e2d8900f945bf8a43"
+      "sha256": "3df2e3c92e07c4087137ec3a69480866c5a81040862a3de920f20098a2e3b226"
     },
     {
       "path": "frontend/modulos/77-aguinaldo-evidencias.js",
@@ -331,6 +331,10 @@
     {
       "path": "frontend/modulos/81-prestaciones-fuentes.js",
       "sha256": "a889bddecb51750f49a06aec7272a091f474f5266e42eb2926ddc73df5863bf8"
+    },
+    {
+      "path": "frontend/modulos/82-reversion-bajas.js",
+      "sha256": "bfc74db7bdcac35ce1f448a488e3f443c1b162c7e596262151deb3fdc08baa47"
     }
   ]
 }

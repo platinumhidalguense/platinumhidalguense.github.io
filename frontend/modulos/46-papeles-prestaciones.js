@@ -83,7 +83,7 @@ async function ppfCargarSemana(){
  $('ppf-lista').textContent='Consultando papeles…';$('ppf-export').disabled=true;$('ppf-historico').disabled=true;
  try{
   const [a,b]=await Promise.all([
-   fetchAllRows(()=>sb.from('prestaciones_papeles').select('*').eq('obra_id',obra).eq('semana',n).eq('ejercicio',ej),'created_at'),
+   fetchAllRows(()=>sb.from('prestaciones_papeles_estado').select('*').eq('obra_id',obra).eq('semana',n).eq('ejercicio',ej),'created_at'),
    sb.from('prestaciones_archivos_historicos').select('id,hoja,fuente_sha256').eq('obra_id',obra).eq('semana',n).eq('ejercicio',ej).maybeSingle()
   ]);
   if(token!==PPF.token||OBRA.id!==obra||!$('ppf-lista'))return;
@@ -92,7 +92,7 @@ async function ppfCargarSemana(){
  }catch(e){if(token===PPF.token&&$('ppf-lista'))$('ppf-lista').textContent='No se pudo consultar: '+e.message;}
 }
 function ppfActuales(){
- const mapa=new Map();for(const r of PPF.filas.filter(x=>x.origen!=='HISTORICO')){const k=r.trabajador_id+'|'+r.fecha_baja;if(!mapa.has(k)||mapa.get(k).revision<r.revision)mapa.set(k,r);}
+ const mapa=new Map();for(const r of PPF.filas.filter(x=>x.origen!=='HISTORICO'&&!x.reversion_id)){const k=r.trabajador_id+'|'+r.fecha_baja;if(!mapa.has(k)||mapa.get(k).revision<r.revision)mapa.set(k,r);}
  return [...mapa.values()].sort((a,b)=>(a.numero??9e9)-(b.numero??9e9));
 }
 function ppfHistoricosActuales(){
@@ -101,11 +101,14 @@ function ppfHistoricosActuales(){
 }
 function ppfPintar(){
  if(!$('ppf-lista'))return;const filtro=String($('ppf-buscar')?.value||'').toUpperCase(),actuales=ppfActuales();
- const filas=[...actuales,...ppfHistoricosActuales()].filter(r=>(r.numero+' '+r.nombre).toUpperCase().includes(filtro));
- $('ppf-lista').innerHTML=ctrlTabla(['No.','Trabajador','Origen / revisión','Baja','ISR preciso','D001','Neto papel','Neto con créditos','Acciones'],filas.map(r=>`<tr><td>${esc(r.numero??'—')}</td><td>${esc(r.nombre||'Bloque sin nombre')} ${r.trabajador_id?'':'<small>· sin vínculo automático</small>'}</td><td>${esc(r.origen)} · ${r.revision}</td><td>${esc(r.fecha_baja||'—')}</td><td>${esc(r.resultado.isr_precision??r.resultado.isr_aplicado??'—')}</td><td>${r.resultado.d001==null?'Fuente original':'$'+money(r.resultado.d001)}</td><td>$${money(r.resultado.neto_papel??r.resultado.neto??0)}</td><td>${r.origen==='HISTORICO'?'No recalculado':'$'+money(r.resultado.neto_con_credito)}</td><td><button class="btn" onclick="ppfVer('${r.id}')">${r.origen==='HISTORICO'?'Ver fuente':'Ver / nueva revisión'}</button></td></tr>`));
+ const filas=[...actuales,...PPF.filas.filter(x=>x.reversion_id),...ppfHistoricosActuales()].filter(r=>(r.numero+' '+r.nombre).toUpperCase().includes(filtro));
+ $('ppf-lista').innerHTML=ctrlTabla(['No.','Trabajador','Origen / revisión','Baja','ISR preciso','D001','Neto papel','Neto con créditos','Acciones'],filas.map(r=>`<tr><td>${esc(r.numero??'—')}</td><td>${esc(r.nombre||'Bloque sin nombre')} ${r.trabajador_id?'':'<small>· sin vínculo automático</small>'}</td><td>${esc(r.origen)} · ${r.revision}${r.reversion_id?' · BAJA REVERTIDA · '+esc(r.reversion_id):''}</td><td>${esc(r.fecha_baja||'—')}</td><td>${esc(r.resultado.isr_precision??r.resultado.isr_aplicado??'—')}</td><td>${r.resultado.d001==null?'Fuente original':'$'+money(r.resultado.d001)}</td><td>$${money(r.resultado.neto_papel??r.resultado.neto??0)}</td><td>${r.origen==='HISTORICO'?'No recalculado':'$'+money(r.resultado.neto_con_credito)}</td><td><button class="btn" onclick="ppfVer('${r.id}')">${r.origen==='HISTORICO'?'Ver fuente':'Ver / nueva revisión'}</button></td></tr>`));
  $('ppf-export').disabled=!actuales.length;$('ppf-historico').disabled=!PPF.archivo;
 }
 async function ppfVer(id){
+ const revertido=PPF.filas.find(x=>x.id===id&&x.reversion_id);
+ if(revertido){modal2(`<div class="m-head"><h2>Papel conservado · baja revertida</h2><button class="x" onclick="closeModal2()">×</button></div><div class="m-body"><p>Referencia ${esc(revertido.reversion_id)} · papel ${esc(id)}.</p><p>Este cálculo se conserva como evidencia y quedó fuera de las aplicaciones vigentes.</p><pre>${esc(JSON.stringify(revertido.resultado,null,2))}</pre></div>`,'lg');return;}
+
  const r=PPF.filas.find(x=>x.id===id);if(!r)return;
  if(r.origen==='HISTORICO'){
   modal(`${ctrlNav('Papel histórico de consulta','openPapelesFiniquito')}<div class="m-body"><h3>${esc(r.nombre||'Bloque sin nombre')}</h3><p>Semana ${r.semana} · ${esc(r.fuente.hoja)} · fila ${esc(r.fuente.fila)}</p><p class="fhint">Valores y fórmulas de la fuente, sin recalcular ni modificar finiquitos/pagos. ${esc(r.fuente.vinculo||'')}</p>
@@ -124,11 +127,13 @@ async function ppfAbrirEditor(id,fecha,papel=null,audit=null){
  try{
   const [wr,prev,aj]=await Promise.all([
    sb.from('trabajadores').select('*').eq('id',id).eq('obra_id',obra).single(),
-   sb.from('prestaciones_papeles').select('*').eq('obra_id',obra).eq('trabajador_id',id).eq('fecha_baja',fecha).neq('origen','HISTORICO').order('revision',{ascending:false}).limit(1).maybeSingle(),
+   sb.from('prestaciones_papeles_vigentes').select('*').eq('obra_id',obra).eq('trabajador_id',id).eq('fecha_baja',fecha).neq('origen','HISTORICO').order('revision',{ascending:false}).limit(1).maybeSingle(),
    sb.from('historial').select('datos_despues').eq('obra_id',obra).eq('trabajador_id',id).eq('accion','AJUSTE_FINIQUITO_NOI').order('fecha',{ascending:false}).order('id',{ascending:false}).limit(1).maybeSingle()
   ]);
   if(OBRA.id!==obra)return;if(wr.error||prev.error||aj.error)throw Error((wr.error||prev.error||aj.error).message);
   const w=wr.data;
+  if(prev.data?.entradas?.sin_servicio_confirmado){modal2(`<div class="m-head"><h2>Papel justificativo sin servicio</h2><button class="x" onclick="closeModal2()">×</button></div><div class="m-body"><p>${esc(fullName(w))} · ciclo ${esc(prev.data.entradas.fecha_alta)} a ${esc(fecha)}.</p><p>Total $0.00 · Sin pago. Caso ${esc(prev.data.entradas.caso_servicio_id)}.</p><p>Para corregir este caso, abre la baja y usa su reversión específica. Se conservan el papel y las evidencias.</p></div>`,'lg');return;}
+
   await window.PLATINUM_PRESTACIONES_FUENTES.cargar(w,fecha,{actualizar:true});
   if(OBRA.id!==obra)return;
   const v=aj.data?.datos_despues,validacion=v?.periodo===fecha?v.validacion_noi:null;

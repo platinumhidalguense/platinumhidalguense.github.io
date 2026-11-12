@@ -56,6 +56,7 @@
    $('ficha-personal-estado').innerHTML=estadoTrabajador(w);
    $('ficha-editar').disabled=!puedeEditarTrabajador();
    accionBaja(w);
+   if(typeof cargarMarcaReversion==='function')cargarMarcaReversion(w);
    if(seccion==='incidencias'){
     cuerpo.innerHTML='<section id="cal-contenido" data-worker-id="'+esc(w.id)+'" aria-label="Calendario de incidencias"></section><section id="ficha-incidencias-datos"></section>';
     window.PLATINUM_CALENDARIO?.montar(w.id,s.mes);
@@ -114,7 +115,7 @@
   const html=`<div id="ficha-personal" class="ficha-personal" data-activity-worker="${esc(id)}">
     <div class="m-head ficha-personal-barra"><button type="button" class="btn" onclick="${anidada?'closeModal2()':'closeModal()'}">← Volver</button>
       <div class="ficha-personal-identidad"><h2 tabindex="-1" id="ficha-personal-titulo">#${esc(w.no_trab??'—')} · ${esc(fullName(w))}</h2>
-      <p>${esc(razonSocialEmpresa())} · ${esc(OBRA.nombre)}</p><div id="ficha-personal-estado">${encabezado(w)}</div></div>
+      <p>${esc(razonSocialEmpresa())} · ${esc(OBRA.nombre)}</p><div id="ficha-personal-estado">${encabezado(w)}</div><div id="ficha-reversion-aviso" role="status"></div></div>
       <div class="ficha-nav"><button type="button" class="btn" id="ficha-anterior" aria-label="Trabajador anterior" ${pos<=0?'disabled':''}>‹</button>
       <span class="pos">${pos+1} / ${ids.length}</span><button type="button" class="btn" id="ficha-siguiente" aria-label="Trabajador siguiente" ${pos===ids.length-1?'disabled':''}>›</button></div>
       <button class="btn dark" type="button" id="ficha-editar" ${puedeEditarTrabajador()?'disabled':'hidden'}>✎ Modificar</button>
@@ -154,6 +155,7 @@
   s.w=w;s.pendiente=Promise.resolve(w);
   $('ficha-personal-estado').innerHTML=estadoTrabajador(w);
   accionBaja(w);
+   if(typeof cargarMarcaReversion==='function')cargarMarcaReversion(w);
   mostrar(s,s.seccion);
  }
  window.PLATINUM_FICHA=Object.freeze({abrir,actual,antesCerrar,actualizar});

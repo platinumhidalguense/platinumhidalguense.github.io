@@ -46,3 +46,6 @@ supabase/migrations/*_pagos_historicos_ciclo_documentado.sql
 
 # Catálogo y fuentes de prestaciones: SQL operativo privado.
 supabase/migrations/*_catalogo_puestos_y_faltas_disponibles.sql
+
+# Reversión de bajas: SQL operativo privado.
+supabase/migrations/*_reversion_bajas_y_servicio_cero.sql

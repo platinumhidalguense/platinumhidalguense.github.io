@@ -102,7 +102,7 @@ function bajaDocumento(motivo,escenario){
   if(!MOTIVOS_BAJA.includes(motivo))throw Error('Elige el motivo del catálogo.');
   if(['OTRO','ABANDONO DE TRABAJO','DESPIDO JUSTIFICADO (ART. 47 LFT)'].includes(motivo)&&!detalle)throw Error('Captura la observación de esta causal.');
   if(s.fecha!==f||s.motivo!==motivo&&s.motivo){
-    s.campos=[];s.papelEntrada=null;s.referencia='';s.fonacot='';s.precision='';s.c=null;
+    s.campos=[];s.papelEntrada=null;s.referencia='';s.fonacot='';s.precision='';s.c=null;s.servicio=null;s.confirmacionServicio=false;
   }
   Object.assign(s,{fecha:f,motivo,detalle});
  }
@@ -119,13 +119,26 @@ function bajaDocumento(motivo,escenario){
     s.c=c;s.w=c.trabajador;
     window.PLATINUM_PRESTACIONES_FUENTES.registrar(s.w,s.fecha,c.prestaciones_fuente);
     periodo(s,c);
-    if(c.protegido||c.conflicto_caso||c.aguinaldo_periodo)throw Error(c.protegido?'Periodo protegido. Usa el flujo vigente de reapertura.':
+    if(c.protegido||c.conflicto_caso)throw Error(c.protegido?'Periodo protegido. Usa el flujo vigente de reapertura.':
       c.conflicto_caso?'Hay otro caso de servicio en esta semana. Revísalo antes de continuar.':'Hay aguinaldo aplicado a este periodo. Concilia la aplicación antes de continuar.');
     if(c.cheque)throw Error('Hay un cheque de finiquito vigente en esa semana. Coteja el ciclo y el importe antes de seguir.');
+    if(c.corta&&s.servicio==null){dibujarServicio(s);return;}
+    if(c.aguinaldo_periodo&&s.servicio!=='SI')throw Error('Hay una aplicación de aguinaldo en este periodo; revisa su cobertura antes de continuar.');
     dibujarCalculo(s);
   }finally{boton.disabled=false;}
  }
+ function dibujarServicio(s){
+  etapa(s,1);
+  el(s,'bf-panel').innerHTML=`<h3>Servicio efectivo del ciclo</h3><p>El alta o reingreso y la baja corresponden a la misma semana. ¿Confirmas que el trabajador no prestó servicios en este ciclo?</p><dl class="bf-resumen"><dt>Alta / reingreso</dt><dd>${esc(s.c.inicio_ciclo)}</dd><dt>Baja efectiva real</dt><dd>${esc(s.fecha)}</dd><dt>Semana del centro</dt><dd>S${esc(s.c.semana_fecha)} · ${esc(s.c.semana_inicio)}</dd></dl><p class="fhint">La coincidencia de fechas sólo activa esta pregunta. Los derechos y pagos de ciclos anteriores se conservan.</p>`;
+  acciones(s,'<button type="button" class="btn" data-bf="volver">Cambiar fecha</button><button type="button" class="btn dark" data-bf="sin-servicio">Sí, sin servicio</button><button type="button" class="btn" data-bf="con-servicio">No, sí prestó servicios</button><button type="button" class="btn" data-bf="servicio-pendiente">Pendiente de verificar</button>');
+ }
+ function dibujarSinServicio(s){
+  etapa(s,2);
+  el(s,'bf-panel').innerHTML=`<h3>Resultado del ciclo confirmado sin servicio</h3><dl class="bf-resumen"><dt>Inicio del ciclo</dt><dd>${esc(s.c.inicio_ciclo)}</dd><dt>Fecha efectiva real de baja</dt><dd><strong>${esc(s.fecha)}</strong></dd><dt>Total a pagar de este ciclo</dt><dd>$0.00</dd><dt>Destino</dt><dd>Sin pago</dd></dl><p>Se guardarán la clasificación, el papel justificativo en cero y la baja en una sola operación. No se genera cheque ni pago. Los ciclos anteriores conservan sus derechos y comprobantes.</p><label><input id="bf-confirma-servicio" type="checkbox" ${s.confirmacionServicio?'checked':''}> Confirmo que no hubo trabajo efectivo en este ciclo y que la fecha de baja mostrada es la real.</label>`;
+  acciones(s,'<button type="button" class="btn" data-bf="volver">Regresar</button><button type="button" class="btn dark" id="pr-usar" data-bf="revisar">Continuar a revisión</button>');
+ }
  function dibujarCalculo(s){
+  if(s.servicio==='SI')return dibujarSinServicio(s);
   etapa(s,2);
   s.noi={trabajador_id:s.w.id,estado:'LISTO',datos:s.c.noi};
   globalThis._PR_NOI_AJUSTE=s.noi;
@@ -235,6 +248,11 @@ function bajaDocumento(motivo,escenario){
     ' ISR matemático '+q.r.isr_calculado.toFixed(6)+' · D001 $'+money(q.r.d001)+' · neto del papel $'+money(q.r.neto_con_credito)+'.'+diff;
  }
  async function revisar(s){
+  if(s.servicio==='SI'){
+   if(!el(s,'bf-confirma-servicio')?.checked)throw Error('Confirma el ciclo sin servicio y su fecha efectiva.');
+   s.confirmacionServicio=true;s.propuesta={legal:false,reutiliza:false,e:null,confirmar_isr:false,a:{monto_modelo:0,monto_aplicado:0,entradas:{noi_manual:null,escenario_separacion:'NO'}}};
+   dibujarRevision(s);return;
+  }
   const boton=el(s,'pr-usar');boton.disabled=true;
   const revision=s.edicion;
   try{
@@ -279,6 +297,7 @@ function bajaDocumento(motivo,escenario){
     window.PLATINUM_PERSONAL?.aplicarFila(s.w,undefined,true);
     window.PLATINUM_FICHA?.actualizar?.(s.w);
   }
+  if(d.caso?.id)window.PLATINUM_DATOS?.aplicar({table:'control_altas_bajas_cortas',eventType:'UPDATE',new:d.caso});
   if(d.cheque?.id)window.PLATINUM_DATOS?.aplicar({table:'cheques',eventType:'INSERT',new:d.cheque});
   el(s,'bf-estatus').textContent=s.w.estatus;
   mensaje(s,d.recuperada?'Baja recuperada con el mismo identificador.':'Baja registrada.');
@@ -293,6 +312,7 @@ function bajaDocumento(motivo,escenario){
     ${b?.neto!=null?'$'+money(b.neto):misma&&w.monto_finiquito!=null?'$'+money(w.monto_finiquito):'Importe aplicado por consultar'}</p>
     ${b?`<p>${esc(destinos[b.destino]||b.destino)} ${b.cheque_id?'· cheque pendiente registrado':''}
       ${b.servicio?'· servicio '+esc(b.servicio):''}</p><p class="fhint">Operación ${esc(b.operacion_id)} · ${b.papel_revision?'papel revisión '+esc(b.papel_revision):'consultar el respaldo registrado'}.</p>`:''}
+    ${misma&&puedeEditarTrabajador()?'<button type="button" class="btn" data-bf="revertir">Revertir baja por error</button>':''}
     ${misma?'<button type="button" class="btn" data-bf="documento">Generar documento de separación</button>':''}
     ${b?.papel_id||fecha?'<button type="button" class="btn" data-bf="ver-papel">Ver papel de prestaciones</button>':''}
     <button type="button" class="btn" data-bf="expediente">Expediente</button>
@@ -322,7 +342,7 @@ function bajaDocumento(motivo,escenario){
   const q=s.propuesta, destino=el(s,'bf-destino').value, confirmar_neto=!!el(s,'bf-neto-confirmado')?.checked;
   if(q.a.entradas.noi_manual!=null&&!confirmar_neto){mensaje(s,'Confirma el neto conciliado.');return;}
   const payload={...identidad(s),motivo:s.motivo,detalle:s.detalle,referencia:s.referencia,destino,
-    firma:s.c.firma,calculo:q.a,entradas_papel:q.e,confirmar_isr:q.confirmar_isr,confirmar_neto};
+    firma:s.c.firma,servicio_respuesta:s.c.corta?s.servicio:null,confirmar_sin_servicio:s.servicio==='SI'&&s.confirmacionServicio,calculo:q.a,entradas_papel:q.e,confirmar_isr:q.confirmar_isr,confirmar_neto};
   const boton=el(s,'baja-btn');s.enviando=true;boton.disabled=true;
   try{
     if(s.intento){
@@ -367,6 +387,12 @@ function bajaDocumento(motivo,escenario){
     try{
       if(accion==='cerrar')return cerrar();
       if(accion==='calcular')return await cargarCalculo(s);
+      if(['sin-servicio','con-servicio','servicio-pendiente'].includes(accion)){
+       s.servicio=accion==='sin-servicio'?'SI':accion==='con-servicio'?'NO':'PENDIENTE';
+       if(s.servicio!=='SI'&&s.c.aguinaldo_periodo)throw Error('Hay una aplicación de aguinaldo en este periodo; revisa su cobertura.');
+       dibujarCalculo(s);return;
+      }
+      if(accion==='revertir')return abrirReversionBaja(s.w.id);
       if(accion==='papel'){cargarPapel(s);actualizarD001(s);return;}
       if(accion==='comparar')return comparar(s,propuesta(s));
       if(accion==='d001'){
@@ -377,7 +403,7 @@ function bajaDocumento(motivo,escenario){
         return mensaje(s,'D001 propuesto capturado. Se pedirá confirmación al continuar.');
       }
       if(accion==='revisar')return await revisar(s);
-      if(accion==='volver'){if(s.paso===2){guardarCampos(s);dibujarDatos(s);}else dibujarCalculo(s);return;}
+      if(accion==='volver'){if(s.paso===1){dibujarDatos(s);}else if(s.paso===2){if(s.servicio!=='SI')guardarCampos(s);s.servicio=null;dibujarDatos(s);}else dibujarCalculo(s);return;}
       if(accion==='documento')return generarBajaDoc(s.w.id);
       if(accion==='ver-papel')return await verPapel(s);
       if(accion==='expediente'||accion==='historial'){cerrar();return openDetail(s.w.id,undefined,{seccion:accion});}

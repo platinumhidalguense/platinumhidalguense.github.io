@@ -78,7 +78,8 @@
    if(/^\d+$/.test(String(a))&&/^\d+$/.test(String(b))){const x=BigInt(a),y=BigInt(b);return x<y?-1:x>y?1:0;}
    return String(a||'').localeCompare(String(b||''));
   };
-  const filas=(movimientos||[]).map((m,i)=>({...m,_orden:i})).sort((a,b)=>
+  const revertidas=new Set((movimientos||[]).filter(m=>m.accion==='BAJA_REVERTIDA').map(m=>String(m.datos_despues?.reversion_historial_id||'')));
+  const filas=(movimientos||[]).filter(m=>!revertidas.has(String(m.id))).map((m,i)=>({...m,_orden:i})).sort((a,b)=>
    String(a.fecha||'').localeCompare(String(b.fecha||''))||compararId(a.id,b.id)||a._orden-b._orden);
   function agregar(tipo,f,m){
    if(!f)return null;

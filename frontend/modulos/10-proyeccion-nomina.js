@@ -21,7 +21,7 @@ async function proyCargarHistoricos(personal){
     ||w.estatus==='BAJA'&&w.monto_finiquito!=null&&w.monto_finiquito!==''&&Number(w.monto_finiquito)===0)));
 }
 async function proyLeerBajasHistoricas(personal,obraId){
-  const r=await fetchAllRows(()=>sb.from('historial')
+  const r=await fetchAllRows(()=>sb.from('historial_laboral_efectivo')
     .select('id,obra_id,trabajador_id,fecha,baja:datos_despues->>fecha_baja,monto:datos_despues->>monto_finiquito,estado:datos_despues->>estatus')
     .eq('obra_id',obraId).eq('accion','BAJA').order('fecha',{ascending:false}));
   if(r.error||!Array.isArray(r.data))throw Error('No se pudieron verificar los ciclos de bajas históricos. '+(r.error?.message||'Respuesta incompleta.'));
@@ -202,7 +202,7 @@ async function proyLeerFiniquitos(fins){
   // Consulta filtrada y paginada. No trae toda la bitácora ni calcula un
   // crédito semanal para un finiquito cuyo proporcional ya fue aplicado.
   for(let i=0;i<fins.length;i+=100){
-    const {data,error}=await fetchAllRows(()=>sb.from('auditoria_calculos_nomina')
+    const {data,error}=await fetchAllRows(()=>sb.from('auditoria_calculos_vigentes')
       .select('id,obra_id,trabajador_id,periodo,entradas,resultado,monto_aplicado,created_at')
       .in('trabajador_id',fins.slice(i,i+100).map(w=>w.id)).eq('tipo_calculo','FINIQUITO_APLICADO').order('created_at',{ascending:false}));
     if(error)throw Error('No se pudo consultar el desglose de finiquitos: '+error.message);
@@ -210,7 +210,7 @@ async function proyLeerFiniquitos(fins){
     // ya está en entradas.fecha_calculo; no se recalcula ni se modifica la bitácora.
     out.push(...(data||[]).map(a=>({...a,periodo_captura:a.periodo,
       periodo:/^\d{4}-\d{2}-\d{2}$/.test(a.entradas?.fecha_calculo||'')?a.entradas.fecha_calculo:a.periodo})));
-    const hr=await fetchAllRows(()=>sb.from('historial')
+    const hr=await fetchAllRows(()=>sb.from('historial_laboral_efectivo')
       .select('id,obra_id,trabajador_id,datos_despues,fecha')
       .in('trabajador_id',fins.slice(i,i+100).map(w=>w.id)).eq('accion','AJUSTE_FINIQUITO_NOI')
       .order('fecha',{ascending:false}));

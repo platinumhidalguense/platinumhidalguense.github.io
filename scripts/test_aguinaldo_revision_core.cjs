@@ -158,4 +158,14 @@ for(const empresa_codigo of ['PLATINUM','JIRE']){
  cumple(r.avisos.some(a=>a.codigo==='REINGRESO_FICHA_DIFIERE'&&a.bloquea&&a.texto.includes('r1')&&a.texto.includes('2026-08-31')),'El conflicto señala evento y fecha de ficha');
 }
 
+// Una reversión explícita no produce un nuevo ciclo ni mantiene la baja original.
+{
+ const wb=ficha({estatus:'ACTIVO',fecha_reingreso:'2026-08-31',fecha_baja:'2026-08-03'});
+ const e=baja('err','2026-11-04T12:00:00Z','2026-11-04');
+ const r=reconstruir(wb,[baja('prev','2026-08-03T12:00:00Z','2026-08-03'),reingreso('r','2026-08-31T12:00:00Z','2026-08-31'),e,
+ {id:'rev',accion:'BAJA_REVERTIDA',fecha:'2026-11-05T12:00:00Z',datos_antes:{estatus:'BAJA',fecha_baja:'2026-11-04'},datos_despues:{estatus:'ACTIVO',fecha_baja:'2026-08-03',reversion_historial_id:'err'}}]);
+ igual(A.activoEnFecha(r.tramos,'2026-11-11'),true,'La baja revertida no cierra el ciclo vigente');
+ igual(r.eventos.filter(x=>x.tipo==='REINGRESO').length,1,'Sólo conserva el reingreso legítimo');
+}
+
 console.log('PASS revisión independiente del núcleo de aguinaldo: '+comprobaciones+' comprobaciones de correcciones, ciclos, fechas, trazabilidad y selección efectiva.');

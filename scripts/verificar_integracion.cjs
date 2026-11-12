@@ -114,7 +114,7 @@ else console.log('ALCANCE PÚBLICO RENDIMIENTO: se verifica la UI en dos sesione
 const aguinaldoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_aguinaldo_faltas_historicas.sql'));
 suites.push('test_aguinaldo_nucleo','test_aguinaldo_ui','test_aguinaldo_revision_core','test_aguinaldo_evidencias_ui');
 if(fs.existsSync('../revision/esquema_ag_actual.json')&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_aguinaldo_revision_reingresos.sql')))suites.push('test_aguinaldo_revision_pg');
-suites.push('test_baja_finiquito_ui');
+suites.push('test_baja_finiquito_ui','test_reversion_baja_ui');
 if(fs.existsSync('work/baja_finiquito_20261110/funciones_vigentes.json')&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_baja_finiquito_unificado.sql'))){
  suites.push('test_baja_finiquito_pg');
 }
