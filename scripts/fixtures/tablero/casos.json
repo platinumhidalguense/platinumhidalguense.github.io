@@ -6622,6 +6622,591 @@
      }
     }
    ]
+  },
+  {
+   "id": "revision_h5_h6_h7",
+   "titulo": "Operación sobreaplicada limitada a su importe (H6); recorte de previsión en excepciones (H5); comparativo por medio con un solo eje (H7)",
+   "cubre": [
+    "operación sobreaplicada",
+    "usuario restringido",
+    "comparativo por medio"
+   ],
+   "fuentes": {
+    "ahora": "2026-11-11T18:00:00Z",
+    "permisos": {
+     "vip": true
+    },
+    "obras": [
+     {
+      "id": "a0000000-0000-4000-8000-000000000001",
+      "nombre": "CENTRO UNO",
+      "empresa_codigo": "PLATINUM",
+      "fecha_inicio": "2026-03-30",
+      "tipo": "OBRA",
+      "activa": true,
+      "orden": 1
+     }
+    ],
+    "trabajadores": [
+     {
+      "id": "b0000000-0000-4000-8000-000000000001",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "no_trab": 1,
+      "nombres": "PERSONA 1",
+      "primer_apellido": "FICTICIA",
+      "segundo_apellido": "",
+      "estatus": "ACTIVO",
+      "eliminado": false,
+      "periodo_pago": "SEMANAL",
+      "contratista": "ALFA",
+      "id_cuadrilla": null,
+      "fecha_alta": "2026-04-06",
+      "fecha_baja": null,
+      "fecha_reingreso": null,
+      "forma_pago": "TRANSFERENCIA"
+     },
+     {
+      "id": "b0000000-0000-4000-8000-000000000002",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "no_trab": 2,
+      "nombres": "PERSONA 2",
+      "primer_apellido": "FICTICIA",
+      "segundo_apellido": "",
+      "estatus": "ACTIVO",
+      "eliminado": false,
+      "periodo_pago": "SEMANAL",
+      "contratista": "ALFA",
+      "id_cuadrilla": null,
+      "fecha_alta": "2026-04-06",
+      "fecha_baja": null,
+      "fecha_reingreso": null,
+      "forma_pago": "TRANSFERENCIA"
+     },
+     {
+      "id": "b0000000-0000-4000-8000-000000000003",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "no_trab": 3,
+      "nombres": "PERSONA 3",
+      "primer_apellido": "FICTICIA",
+      "segundo_apellido": "",
+      "estatus": "ACTIVO",
+      "eliminado": false,
+      "periodo_pago": "SEMANAL",
+      "contratista": "ALFA",
+      "id_cuadrilla": null,
+      "fecha_alta": "2026-04-06",
+      "fecha_baja": null,
+      "fecha_reingreso": null,
+      "forma_pago": "TRANSFERENCIA"
+     }
+    ],
+    "cuadrillas": [],
+    "cierres": [
+     {
+      "id": "c0000000-0000-4000-8000-000000000001",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "semana": 32,
+      "periodo": "SEMANAL",
+      "estado": "AUTORIZADO",
+      "total_neto": 0,
+      "formula_version": "PRUEBA",
+      "snapshot": {
+       "semana": 32,
+       "periodo": "SEMANAL",
+       "items": [],
+       "modelo": {
+        "filas": [
+         {
+          "w": {
+           "id": "b0000000-0000-4000-8000-000000000001",
+           "obra_id": "a0000000-0000-4000-8000-000000000001",
+           "contratista": "ALFA",
+           "periodo_pago": "SEMANAL"
+          },
+          "fin": false,
+          "neto": 0
+         },
+         {
+          "w": {
+           "id": "b0000000-0000-4000-8000-000000000002",
+           "obra_id": "a0000000-0000-4000-8000-000000000001",
+           "contratista": "ALFA",
+           "periodo_pago": "SEMANAL"
+          },
+          "fin": false,
+          "neto": 0
+         },
+         {
+          "w": {
+           "id": "b0000000-0000-4000-8000-000000000003",
+           "obra_id": "a0000000-0000-4000-8000-000000000001",
+           "contratista": "ALFA",
+           "periodo_pago": "SEMANAL"
+          },
+          "fin": false,
+          "neto": 0
+         }
+        ]
+       }
+      },
+      "snapshot_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "creado_por": "99999999-0000-4000-8000-000000000001",
+      "created_at": "2026-11-01T12:00:00Z"
+     }
+    ],
+    "versiones": [
+     {
+      "id": "d0000000-0000-4000-8000-000000000001",
+      "cierre_origen": "c0000000-0000-4000-8000-000000000001",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "version": 1,
+      "estado_origen": "AUTORIZADO",
+      "snapshot": {
+       "semana": 32,
+       "periodo": "SEMANAL",
+       "items": [],
+       "modelo": {
+        "filas": [
+         {
+          "w": {
+           "id": "b0000000-0000-4000-8000-000000000001",
+           "obra_id": "a0000000-0000-4000-8000-000000000001",
+           "contratista": "ALFA",
+           "periodo_pago": "SEMANAL"
+          },
+          "fin": false,
+          "neto": 0
+         },
+         {
+          "w": {
+           "id": "b0000000-0000-4000-8000-000000000002",
+           "obra_id": "a0000000-0000-4000-8000-000000000001",
+           "contratista": "ALFA",
+           "periodo_pago": "SEMANAL"
+          },
+          "fin": false,
+          "neto": 0
+         },
+         {
+          "w": {
+           "id": "b0000000-0000-4000-8000-000000000003",
+           "obra_id": "a0000000-0000-4000-8000-000000000001",
+           "contratista": "ALFA",
+           "periodo_pago": "SEMANAL"
+          },
+          "fin": false,
+          "neto": 0
+         }
+        ]
+       }
+      },
+      "snapshot_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "fuente_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "actor_id": "99999999-0000-4000-8000-000000000001",
+      "created_at": "2026-11-01T12:00:00Z"
+     }
+    ],
+    "flujo": [
+     {
+      "cierre_id": "c0000000-0000-4000-8000-000000000001",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "revision": 1,
+      "sucio": false,
+      "version_id": "d0000000-0000-4000-8000-000000000001"
+     }
+    ],
+    "obligaciones": [
+     {
+      "id": "e0000000-0000-4000-8000-000000000001",
+      "cierre_origen": "c0000000-0000-4000-8000-000000000001",
+      "cierre_id": "c0000000-0000-4000-8000-000000000001",
+      "version_id": "d0000000-0000-4000-8000-000000000001",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "trabajador_id": "b0000000-0000-4000-8000-000000000001",
+      "semana": 32,
+      "tipo": "NOMINA",
+      "numero": 1,
+      "nombre": "FICTICIA PERSONA 1",
+      "contratista": "",
+      "importe": "1000.00",
+      "metodo": "TRANSFERENCIA",
+      "vigente": true,
+      "created_at": "2026-11-01T12:00:00Z"
+     },
+     {
+      "id": "e0000000-0000-4000-8000-000000000002",
+      "cierre_origen": "c0000000-0000-4000-8000-000000000001",
+      "cierre_id": "c0000000-0000-4000-8000-000000000001",
+      "version_id": "d0000000-0000-4000-8000-000000000001",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "trabajador_id": "b0000000-0000-4000-8000-000000000001",
+      "semana": 32,
+      "tipo": "FINIQUITO",
+      "numero": 1,
+      "nombre": "FICTICIA PERSONA 1",
+      "contratista": "",
+      "importe": "800.00",
+      "metodo": "TRANSFERENCIA",
+      "vigente": true,
+      "created_at": "2026-11-01T12:00:00Z"
+     },
+     {
+      "id": "e0000000-0000-4000-8000-000000000003",
+      "cierre_origen": "c0000000-0000-4000-8000-000000000001",
+      "cierre_id": "c0000000-0000-4000-8000-000000000001",
+      "version_id": "d0000000-0000-4000-8000-000000000001",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "trabajador_id": "b0000000-0000-4000-8000-000000000002",
+      "semana": 32,
+      "tipo": "NOMINA",
+      "numero": 2,
+      "nombre": "FICTICIA PERSONA 2",
+      "contratista": "",
+      "importe": "1300.00",
+      "metodo": "CHEQUE",
+      "vigente": true,
+      "created_at": "2026-11-01T12:00:00Z"
+     },
+     {
+      "id": "e0000000-0000-4000-8000-000000000004",
+      "cierre_origen": "c0000000-0000-4000-8000-000000000001",
+      "cierre_id": "c0000000-0000-4000-8000-000000000001",
+      "version_id": "d0000000-0000-4000-8000-000000000001",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "trabajador_id": "b0000000-0000-4000-8000-000000000003",
+      "semana": 32,
+      "tipo": "NOMINA",
+      "numero": 3,
+      "nombre": "FICTICIA PERSONA 3",
+      "contratista": "",
+      "importe": "1500.00",
+      "metodo": "TRANSFERENCIA",
+      "vigente": true,
+      "created_at": "2026-11-01T12:00:00Z"
+     },
+     {
+      "id": "e0000000-0000-4000-8000-000000000005",
+      "cierre_origen": "c0000000-0000-4000-8000-000000000001",
+      "cierre_id": "c0000000-0000-4000-8000-000000000001",
+      "version_id": "d0000000-0000-4000-8000-000000000001",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "trabajador_id": "b0000000-0000-4000-8000-000000000003",
+      "semana": 32,
+      "tipo": "PREVISION_SOCIAL",
+      "numero": 3,
+      "nombre": "FICTICIA PERSONA 3",
+      "contratista": "",
+      "importe": "300.00",
+      "metodo": "TRANSFERENCIA",
+      "vigente": true,
+      "created_at": "2026-11-01T12:00:00Z"
+     }
+    ],
+    "evidencias": [
+     {
+      "id": "e1000000-0000-4000-8000-000000000001",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "trabajador_id": "b0000000-0000-4000-8000-000000000001",
+      "semana": 32,
+      "clave": "BANCO:1",
+      "importe": "1500.00",
+      "pago_id": "f0000000-0000-4000-8000-000000000001",
+      "cheque_id": null,
+      "created_at": "2026-11-06T21:00:00Z"
+     },
+     {
+      "id": "e1000000-0000-4000-8000-000000000002",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "trabajador_id": "b0000000-0000-4000-8000-000000000002",
+      "semana": 32,
+      "clave": "BANCO:2",
+      "importe": "700.00",
+      "pago_id": "f0000000-0000-4000-8000-000000000002",
+      "cheque_id": null,
+      "created_at": "2026-11-06T21:00:00Z"
+     },
+     {
+      "id": "e1000000-0000-4000-8000-000000000003",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "trabajador_id": "b0000000-0000-4000-8000-000000000003",
+      "semana": 32,
+      "clave": "BANCO:3",
+      "importe": "1800.00",
+      "pago_id": "f0000000-0000-4000-8000-000000000003",
+      "cheque_id": null,
+      "created_at": "2026-11-06T21:00:00Z"
+     }
+    ],
+    "aplicaciones": [
+     {
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "obligacion_id": "e0000000-0000-4000-8000-000000000001",
+      "evidencia_id": "e1000000-0000-4000-8000-000000000001",
+      "version_id": "d0000000-0000-4000-8000-000000000001",
+      "importe": "1000.00",
+      "actor_id": "99999999-0000-4000-8000-000000000001",
+      "clave_idempotencia": "5a000000-0000-4000-8000-000000000001",
+      "motivo": "Aplicación de prueba ficticia",
+      "created_at": "2026-11-06T21:00:00Z",
+      "retirado_en": null,
+      "retirado_por": null,
+      "motivo_retiro": null
+     },
+     {
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "obligacion_id": "e0000000-0000-4000-8000-000000000002",
+      "evidencia_id": "e1000000-0000-4000-8000-000000000001",
+      "version_id": "d0000000-0000-4000-8000-000000000001",
+      "importe": "800.00",
+      "actor_id": "99999999-0000-4000-8000-000000000001",
+      "clave_idempotencia": "5a000000-0000-4000-8000-000000000002",
+      "motivo": "Aplicación de prueba ficticia",
+      "created_at": "2026-11-06T21:00:01Z",
+      "retirado_en": null,
+      "retirado_por": null,
+      "motivo_retiro": null
+     },
+     {
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "obligacion_id": "e0000000-0000-4000-8000-000000000003",
+      "evidencia_id": "e1000000-0000-4000-8000-000000000002",
+      "version_id": "d0000000-0000-4000-8000-000000000001",
+      "importe": "700.00",
+      "actor_id": "99999999-0000-4000-8000-000000000001",
+      "clave_idempotencia": "5a000000-0000-4000-8000-000000000003",
+      "motivo": "Aplicación de prueba ficticia",
+      "created_at": "2026-11-06T21:00:00Z",
+      "retirado_en": null,
+      "retirado_por": null,
+      "motivo_retiro": null
+     },
+     {
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "obligacion_id": "e0000000-0000-4000-8000-000000000004",
+      "evidencia_id": "e1000000-0000-4000-8000-000000000003",
+      "version_id": "d0000000-0000-4000-8000-000000000001",
+      "importe": "1500.00",
+      "actor_id": "99999999-0000-4000-8000-000000000001",
+      "clave_idempotencia": "5a000000-0000-4000-8000-000000000004",
+      "motivo": "Aplicación de prueba ficticia",
+      "created_at": "2026-11-06T21:00:00Z",
+      "retirado_en": null,
+      "retirado_por": null,
+      "motivo_retiro": null
+     },
+     {
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "obligacion_id": "e0000000-0000-4000-8000-000000000005",
+      "evidencia_id": "e1000000-0000-4000-8000-000000000003",
+      "version_id": "d0000000-0000-4000-8000-000000000001",
+      "importe": "300.00",
+      "actor_id": "99999999-0000-4000-8000-000000000001",
+      "clave_idempotencia": "5a000000-0000-4000-8000-000000000005",
+      "motivo": "Aplicación de prueba ficticia",
+      "created_at": "2026-11-06T21:00:01Z",
+      "retirado_en": null,
+      "retirado_por": null,
+      "motivo_retiro": null
+     }
+    ],
+    "pagos": [
+     {
+      "id": "f0000000-0000-4000-8000-000000000001",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "trabajador_id": "b0000000-0000-4000-8000-000000000001",
+      "semana": "S32",
+      "medio": "TRANSFERENCIA",
+      "banco": "BBVA",
+      "importe": "1500.00",
+      "estado": "EXITOSO",
+      "fecha_pago": "2026-11-06",
+      "folio_lote": "H-1",
+      "origen": "GLOBAL",
+      "titular": "TITULAR 1",
+      "created_at": "2026-11-06T20:00:00Z"
+     },
+     {
+      "id": "f0000000-0000-4000-8000-000000000002",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "trabajador_id": "b0000000-0000-4000-8000-000000000002",
+      "semana": "S32",
+      "medio": "TRANSFERENCIA",
+      "banco": "BBVA",
+      "importe": "700.00",
+      "estado": "EXITOSO",
+      "fecha_pago": "2026-11-06",
+      "folio_lote": "H-2",
+      "origen": "GLOBAL",
+      "titular": "TITULAR 2",
+      "created_at": "2026-11-06T20:00:00Z"
+     },
+     {
+      "id": "f0000000-0000-4000-8000-000000000003",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "trabajador_id": "b0000000-0000-4000-8000-000000000003",
+      "semana": "S32",
+      "medio": "TRANSFERENCIA",
+      "banco": "BBVA",
+      "importe": "1800.00",
+      "estado": "EXITOSO",
+      "fecha_pago": "2026-11-06",
+      "folio_lote": "H-3",
+      "origen": "GLOBAL",
+      "titular": "TITULAR 3",
+      "created_at": "2026-11-06T20:00:00Z"
+     },
+     {
+      "id": "f0000000-0000-4000-8000-000000000004",
+      "obra_id": "a0000000-0000-4000-8000-000000000001",
+      "trabajador_id": "b0000000-0000-4000-8000-000000000003",
+      "semana": "S32",
+      "medio": "TRANSFERENCIA",
+      "banco": "AZTECA",
+      "importe": "1800.00",
+      "estado": "EXITOSO",
+      "fecha_pago": "2026-11-06",
+      "folio_lote": "SPEI-H3",
+      "origen": "INDIVIDUAL",
+      "titular": "TITULAR 4",
+      "created_at": "2026-11-07T19:00:00Z"
+     }
+    ],
+    "cheques": [],
+    "entregas": [],
+    "historial": [],
+    "finiquitos_transferencia": [],
+    "efectivo_autorizado": [],
+    "cfdi": [],
+    "desglose_noi": [],
+    "errores": []
+   },
+   "comprobaciones": [
+    {
+     "accion": "RESUMEN",
+     "filtros": {
+      "desde": "2026-11-01",
+      "hasta": "2026-11-08"
+     },
+     "esperado": {
+      "medidas.neto_conciliado.valor": 4900,
+      "medidas.pagado_conciliado.valor": 4000,
+      "medidas.saldo_por_cubrir.valor": 900,
+      "medidas.excedentes.valor": 0,
+      "medidas.pagado_registrado.desglose.excluidos.posibles_duplicados.importe": 1800
+     }
+    },
+    {
+     "accion": "RESUMEN",
+     "filtros": {
+      "desde": "2026-11-01",
+      "hasta": "2026-11-08",
+      "perspectiva": "PAGO"
+     },
+     "esperado": {
+      "medidas.pagado_registrado.valor": 4000,
+      "medidas.pagado_conciliado.valor": 4000
+     }
+    },
+    {
+     "accion": "RESUMEN",
+     "filtros": {
+      "desde": "2026-11-01",
+      "hasta": "2026-11-08"
+     },
+     "esperado": {
+      "medidas.pagado_registrado.desglose.excluidos.posibles_duplicados.importe": 1500
+     },
+     "permisos": {
+      "vip": false,
+      "obras": [
+       "a0000000-0000-4000-8000-000000000001"
+      ]
+     }
+    },
+    {
+     "accion": "EXCEPCIONES",
+     "filtros": {
+      "desde": "2026-11-01",
+      "hasta": "2026-11-08"
+     },
+     "opciones": {
+      "tipos": [
+       "OPERACION_SOBREAPLICADA",
+       "POSIBLE_DUPLICADO"
+      ]
+     },
+     "esperado": {
+      "total": 2,
+      "filas[0].tipo": "OPERACION_SOBREAPLICADA",
+      "filas[0].importe": 300,
+      "filas[1].tipo": "POSIBLE_DUPLICADO",
+      "filas[1].importe": 1800
+     }
+    },
+    {
+     "accion": "EXCEPCIONES",
+     "filtros": {
+      "desde": "2026-11-01",
+      "hasta": "2026-11-08"
+     },
+     "opciones": {
+      "tipos": [
+       "POSIBLE_DUPLICADO"
+      ]
+     },
+     "permisos": {
+      "vip": false,
+      "obras": [
+       "a0000000-0000-4000-8000-000000000001"
+      ]
+     },
+     "esperado": {
+      "total": 1,
+      "filas[0].importe": 1500
+     }
+    },
+    {
+     "accion": "COMPARATIVOS",
+     "filtros": {
+      "desde": "2026-11-01",
+      "hasta": "2026-11-08"
+     },
+     "esperado": {
+      "por_medio_criterio": "METODO_PLANEADO",
+      "por_medio.length": 2,
+      "por_medio[0].clave": "TRANSFERENCIA",
+      "por_medio[0].neto_conciliado": 3600,
+      "por_medio[0].pagado_conciliado": 3300,
+      "por_medio[0].cobertura": 91.67,
+      "por_medio[1].clave": "CHEQUE",
+      "por_medio[1].neto_conciliado": 1300,
+      "por_medio[1].pagado_conciliado": 700,
+      "por_medio[1].cobertura": 53.85
+     }
+    },
+    {
+     "accion": "COMPARATIVOS",
+     "filtros": {
+      "desde": "2026-11-01",
+      "hasta": "2026-11-08",
+      "perspectiva": "PAGO"
+     },
+     "esperado": {
+      "por_medio_criterio": "MEDIO_REAL",
+      "por_medio.length": 1,
+      "por_medio[0].clave": "TRANSFERENCIA",
+      "por_medio[0].pagado_registrado": 4000,
+      "por_medio[0].neto_conciliado": null,
+      "por_medio[0].cobertura": null,
+      "por_medio[0].saldo_por_cubrir": null
+     }
+    }
+   ]
   }
  ],
  "calendario": [

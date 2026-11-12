@@ -151,11 +151,19 @@ const TABLAS={obras:'obras',trabajadores:'trabajadores',cuadrillas:'cuadrillas',
  for(const [acc,d] of [['RESUMEN',vf],['TENDENCIA',vf],['DETALLE',{filtros:vf,opciones:{grano:'OBLIGACION',por_pagina:100}}],['EXCEPCIONES',{filtros:vf,opciones:{por_pagina:100}}]]){
   const t0=Date.now();const r=await rpcInterna(vip,acc,d,'2026-11-11T18:00:00Z');tiempos[acc]=Date.now()-t0;ok(r&&r.accion===acc,'volumen '+acc);
  }
+ // Tamaño real de producción (≈2,300 obligaciones): un centro y un mes, PERIODO con comparable.
+ const real={desde:'2026-05-01',hasta:'2026-05-31',comparar:'ANTERIOR',obras:['a1000000-0000-4000-8000-000000000001']};
+ {const t0=Date.now();const r=await rpcInterna(vip,'RESUMEN',real,'2026-11-11T18:00:00Z');tiempos.RESUMEN_real=Date.now()-t0;ok(r.medidas.neto_conciliado.valor>0,'RESUMEN tamaño real');}
+ {const t0=Date.now();await rpcInterna(vip,'DETALLE',{filtros:real,opciones:{pagina:3,por_pagina:100}},'2026-11-11T18:00:00Z');tiempos.DETALLE_real=Date.now()-t0;}
+ ok(tiempos.RESUMEN_real<8000,'RESUMEN de tamaño real < 8 s (statement_timeout de authenticated) aun en PGlite');
+ {const t0=Date.now();await rpcInterna(vip,'RESUMEN',{...vf,perspectiva:'PAGO'},'2026-11-11T18:00:00Z');tiempos.RESUMEN_PAGO=Date.now()-t0;}
  const base=await fuentesDeBase();const t1=Date.now();
  const jsr=plano(M.calcular({...base,ahora:'2026-11-11T18:00:00.000Z',permisos:{vip:true}},vf));tiempos.modelo_js=Date.now()-t1;
  const sqr=await rpcInterna(vip,'RESUMEN',vf,'2026-11-11T18:00:00Z');
- eq(diferencia(sqr,jsr),null,'volumen: RESUMEN SQL = modelo al centavo');
- ok(tiempos.RESUMEN<60000,'RESUMEN en tiempo razonable');
+ eq(diferencia(sqr,jsr),null,'volumen: RESUMEN SQL (con poda por semanas) = modelo al centavo');
+ {const r1=await rpcInterna(vip,'RESUMEN',real,'2026-11-11T18:00:00Z');const j1=plano(M.calcular({...base,ahora:r1.actualizado_en,permisos:{vip:true}},real));eq(diferencia(r1,j1),null,'volumen: RESUMEN tamaño real = modelo');}
+ // Umbral del escenario grande (10× producción, PGlite WASM de un hilo): 60 s; producción nativa es varias veces más rápida.
+ ok(tiempos.RESUMEN<60000,'RESUMEN grande en tiempo acotado');
  console.log(`tiempos PGlite (ms) con ${vol.o} obligaciones, ${vol.e} evidencias, ${vol.a} aplicaciones: ${JSON.stringify(tiempos)}`);
  console.log(`PASS tablero PostgreSQL: ${n} comprobaciones; ${consultas} consultas de ${datos.casos.length} casos de A1 idénticas al modelo al centavo (${esperadas} valores esperados), permisos en servidor, paginación ≤ 500 y volumen medido.`);
  await db.close();

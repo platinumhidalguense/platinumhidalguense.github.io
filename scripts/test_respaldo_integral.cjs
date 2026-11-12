@@ -39,6 +39,8 @@ const FUENTES=JSON.parse(JSON.stringify(API.fuentes()));
  eq(T.celda('∅ NULL','TEXTO').v,'∅∅ NULL','valor real con ∅ se escapa');
  eq(T.valorLogico(42,'ID'),'42','bigint de historial como texto');
  eq(T.tipoDe('clabe','text'),'TEXTO');eq(T.tipoDe('importe','numeric'),'IMPORTE');eq(T.tipoDe('sdi','numeric'),'IMPORTE');eq(T.tipoDe('factor','numeric'),'NUMERO');eq(T.tipoDe('id','bigint'),'ID');
+ eq([T.tipoDe('cuenta',undefined,123),T.tipoDe('clabe',undefined,12345678901234567),T.tipoDe('nss',undefined,1),T.tipoDe('folio_st7',undefined,7)],['TEXTO','TEXTO','TEXTO','TEXTO'],'sin metadatos, columnas sensibles siguen como texto');
+ ok(!/platinum_internal\.|correo_creados|admin_papelera/.test(src),'el cliente no enumera tablas internas ni claves de credenciales');
  const cfg=T.CONFIG_PERMITIDA('PLATINUM');ok(!('correo_creados' in cfg)&&!('admin_papelera' in cfg)&&!JSON.stringify(cfg).includes('pwd'),'configuración nunca incluye credenciales');
 }
 
@@ -152,7 +154,7 @@ function crearBase(V){
 
 // ---------- Supabase simulado ----------
 const PERM=Object.fromEntries(FUENTES.map(f=>[f.clave,f.permiso]));
-const TABLA=Object.fromEntries(FUENTES.map(f=>[f.clave,f.tabla]));
+const TABLA=Object.fromEntries(FUENTES.map(f=>[f.clave,f.alcance==='interna'?'platinum_internal.'+f.clave:f.tabla]));
 function servidor(db,usuario,op={}){
  const u=USUARIOS[usuario],vis=id=>{const o=db.obras.find(x=>x.id===id);return !!o&&(u.vip||(u.empresas.includes(o.empresa_codigo)&&(!u.obras.length||u.obras.includes(id))));};
  const aus=new Set(db.catalogo_incidencias.filter(c=>c.clase==='AUSENTISMO').map(c=>c.id));
@@ -193,6 +195,7 @@ function servidor(db,usuario,op={}){
   const d=args.p_datos,c=alcance(d);
   if(!u.empresas.includes(d.empresa)&&!u.vip)return {data:null,error:{code:'42501',message:'Sin permiso para esta razón social'}};
   if(args.p_accion==='MARCAS'){
+   if(op.timeoutMarcas&&op.timeoutMarcas(d.fuentes))return {data:null,error:{code:'57014',message:'canceling statement due to statement timeout'}};
    llamadasMarcas++;op.antesDeMarcas&&op.antesDeMarcas(llamadasMarcas,db);
    const marcas={},columnas={};
    for(const k of d.fuentes){
@@ -260,7 +263,7 @@ function servidor(db,usuario,op={}){
  };
  // Fuente esperada (verdad del servidor) para el lector independiente.
  const esperado=(d,claves)=>{const c=alcance(d),out={};for(const k of claves){const f=FUENTES.find(x=>x.clave===k);
-  const sel=f.tabla.startsWith('platinum_internal.')?'*':(['prestaciones_fuentes_historicas','infonavit_avisos_archivos','app_usuarios'].includes(k)?null:'*');
+  const sel=f.alcance==='interna'?'*':(['prestaciones_fuentes_historicas','infonavit_avisos_archivos','app_usuarios'].includes(k)?null:'*');
   const fd=api=>api;out[k]=filasDe(k,c).map(r=>{
    if(k==='prestaciones_fuentes_historicas'||k==='infonavit_avisos_archivos'||k==='app_usuarios'){const cols=({prestaciones_fuentes_historicas:'obra_id,sha256,archivo,created_at',infonavit_avisos_archivos:'importacion_id',app_usuarios:'user_id,email,nombre,rol,activo,full_access,puede_escribir,puede_eliminar,solo_contratos,empresas_permitidas,obras_permitidas,areas_permitidas,created_at,updated_at'})[k];return proyectar(r,cols);}
    const extra=(PRECISION[k]||[]).map(c2=>c2+'__origen:'+c2+'::text');return proyectar(r,['*',...extra].join(','));});
@@ -401,6 +404,16 @@ const manif=wb=>hoja(wb,'MANIFIESTO');
  eq([res.r.estado,res.r.motivos.includes('SIN_MARCAS_SERVIDOR')],['INCOMPLETO',true],'sin marcas no se declara completo');
  ok(res.r.fuentes.bajas_operaciones.estado==='OMITIDA_PERMISO','tablas internas no se leen sin la función');
 
+ // 8b) Tiempo agotado en MARCAS: se parte por tabla; si una tabla sigue excediendo queda sin marca; nunca aborta.
+ res=await correr('timeout_grupo',db,'admin',{timeoutMarcas:f=>f.length>1&&f.includes('historial')},{});
+ eq([res.r.estado,res.r.fuentes.historial.estado],['COMPLETO','LEIDA'],'marcas por tabla recuperan el tiempo agotado');
+ res=await correr('timeout_tabla',db,'admin',{timeoutMarcas:f=>f.includes('historial')},{});
+ eq([res.r.estado,res.r.motivos.includes('SIN_MARCA_TABLA'),res.r.fuentes.historial.estado,res.r.fuentes.pagos.estado],['INCOMPLETO',true,'LEIDA_SIN_MARCA','LEIDA'],'tabla sin marca → INCOMPLETO sin abortar');
+ ok(manif(libro(res.archivos[0])).some(x=>x.SECCION==='LIMITACION'&&/historial excedió/.test(x.DETALLE)),'limitación declarada en el manifiesto');
+ res=await correr('timeout_total',db,'admin',{timeoutMarcas:()=>true},{});
+ eq([res.r.estado,res.r.motivos.includes('SIN_MARCAS_SERVIDOR'),res.archivos.length],['INCOMPLETO',true,1],'marcas sin respuesta → respaldo INCOMPLETO con archivo, no aborta');
+ ok(typeof res.r.reintentar==='function','ofrece reintento');
+
  // 9) Cuadre con el modelo del tablero (A1) sobre las mismas hojas exportadas.
  const casos=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/tablero/casos.json'),'utf8')).casos;
  const caso=casos.find(c=>c.id==='dos_medios');const F=caso.fuentes,dc={};
@@ -416,6 +429,21 @@ const manif=wb=>hoja(wb,'MANIFIESTO');
  ok(ctlC.length>=5,'medidas del tablero en CONTROL');
  for(const x of ctlC.filter(x=>x.HOJA!=='huella_tablero'))eq(x.TOTAL_CENTAVOS,String(Math.round(directo.medidas[x.HOJA].valor*100)),'cuadre al centavo: '+x.HOJA);
  eq(ctlC.find(x=>x.HOJA==='huella_tablero').NOTA.split(' ')[1],directo.huella,'misma huella del modelo');
+ // Con finiquito en efectivo autorizado (excepción NOI) y CFDI: mismo resultado que el tablero.
+ const F2=JSON.parse(JSON.stringify(F)),o2=F2.obligaciones[0];o2.tipo='FINIQUITO';
+ const dc2=JSON.parse(JSON.stringify(dc));dc2.control_obligaciones_pago.find(x=>x.id===o2.id).tipo='FINIQUITO';
+ dc2['platinum_internal.excepciones_noi_individuales']=[{id:U('u',77),cierre_id:o2.cierre_id,trabajador_id:o2.trabajador_id,archivo_sha256:'s',neto_original:o2.importe,nomina_transferencia:0,finiquito_efectivo:o2.importe,pago_nomina_id:null,autorizacion_origen:'CORREO',autorizacion_texto:'AUTORIZADO',registrado_en:'2026-11-05T23:30:00Z'}];
+ dc2.documentos=[{id:U('d',77),trabajador_id:o2.trabajador_id,obra_id:o2.obra_id,categoria:'CFDI_NOMINA',subtipo:null,semana:'S1',fecha_doc:null,archivo:'x',nombre_archivo:'a.xml',notas:null,anulado:false,subido_por:null,created_at:'2026-11-01T00:00:00Z',hash:null,anulado_por:null,anulado_en:null,motivo_anulacion:null,cfdi_uuid:'AAAA-0001',cfdi_total:o2.importe,cfdi_fecha_pago:null,periodo_inicio:null,periodo_fin:null,mime_type:null,nomina_neto:null,nomina_tipo:'FINIQUITO',nomina_lector:null,conciliacion_archivo_id:null}];
+ const resE=await correr('cuadre_efectivo',dc2,'admin',{},{obrasCatalogo:dc2.obras,reloj:()=>new Date(F.ahora)});
+ const ctlE=hoja(libro(resE.archivos[0]),'CONTROL').filter(x=>x.DOMINIO==='CUADRE_TABLERO'&&x.FUENTE==='PLATINUM_TABLERO_MODELO · PERIODO');
+ const base2={...F2,permisos:{vip:true,obras:dc2.obras.map(o=>o.id),empresas:['PLATINUM']},entregas:[],errores:[],finiquitos_transferencia:[],desglose_noi:[],
+  cfdi:[{documento_id:U('d',77),obra_id:o2.obra_id,trabajador_id:o2.trabajador_id,uuid:'AAAA-0001',neto:o2.importe,desde:null,hasta:null,tipo:'FINIQUITO',formato:'XML',anulado:false}]};
+ const filt={empresa:'PLATINUM',obras:dc2.obras.map(o=>o.id),perspectiva:'PERIODO',desde:'2000-01-01',hasta:'2099-12-31'};
+ const conE=BOX.PLATINUM_TABLERO_MODELO.calcular({...base2,efectivo_autorizado:[{obligacion_id:o2.id,importe:o2.importe,fecha:'2026-11-05'}]},filt);
+ const sinE=BOX.PLATINUM_TABLERO_MODELO.calcular({...base2,efectivo_autorizado:[]},filt);
+ ok(conE.huella!==sinE.huella,'el efectivo autorizado cambia las medidas (caso significativo)');
+ for(const x of ctlE.filter(x=>x.HOJA!=='huella_tablero'))eq(x.TOTAL_CENTAVOS,String(Math.round(conE.medidas[x.HOJA].valor*100)),'cuadre con efectivo y CFDI: '+x.HOJA);
+ eq(ctlE.find(x=>x.HOJA==='huella_tablero').NOTA.split(' ')[1],conE.huella,'misma huella que el tablero con efectivo autorizado');
  // Sin modelo del tablero: queda el gancho y se avisa.
  const BOX2=cargar(false),r2=await BOX2.PLATINUM_RESPALDO.exportar({sb:servidor(dc,'admin').sb,XLSX,JSZip,obrasCatalogo:dc.obras,empresa:'PLATINUM',espera:0,marca:false,registrar:false,descargar:async()=>{}});
  ok(r2.control.some(x=>x[0]==='CUADRE_TABLERO'&&x[2]==='NO_DISPONIBLE'),'sin modelo: el gancho queda declarado');

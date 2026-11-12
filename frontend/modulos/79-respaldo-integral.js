@@ -359,14 +359,25 @@
    const {data,error}=await am.sb.rpc(RPC,{p_accion:'MARCAS',p_datos:{empresa:ctx.empresa,obras:ctx.obrasPedidas,fuentes:lista,columnas:!!columnas}});
    if(error)throw error;if(!data||typeof data!=='object'||!data.marcas)throw Error('Respuesta de marcas inválida');return data;
   };
+  const esTiempo=e=>/57014|timeout|tiempo|canceling statement/i.test(texto(e&&e.code)+' '+errTexto(e));
   try{return await conReintento(()=>pedir(claves),{...am,intentos:2});}
   catch(e){
-   if(esFaltaRpc(e)||!/57014|timeout|tiempo/i.test(texto(e&&e.code)+' '+errTexto(e)))throw e;
-   // Tiempo agotado: marcas por grupos (cada tabla sigue comparándose antes/después).
+   if(esFaltaRpc(e)||!esTiempo(e))throw e;
+   // Tiempo agotado (statement_timeout): por grupos y, si un grupo sigue excediendo, tabla por tabla.
+   // Una tabla que aun sola excede queda SIN marca (el respaldo se declara INCOMPLETO), no aborta.
    const grupos=[];for(let i=0;i<claves.length;i+=8)grupos.push(claves.slice(i,i+8));
-   const partes=await enParalelo(grupos,2,g=>conReintento(()=>pedir(g),am));
-   const r={...partes[0],marcas:{},columnas:{},por_grupos:true};
+   const partes=[],sinMarca=[];
+   await enParalelo(grupos,2,async g=>{
+    try{partes.push(await conReintento(()=>pedir(g),{...am,intentos:2}));}
+    catch(e2){
+     if(!esTiempo(e2))throw e2;
+     for(const k of g){try{partes.push(await conReintento(()=>pedir([k]),{...am,intentos:2}));}catch(e3){if(!esTiempo(e3))throw e3;sinMarca.push(k);}}
+    }
+   });
+   if(!partes.length)throw e;
+   const r={...partes[0],marcas:{},columnas:{},por_grupos:true,sin_marca:sinMarca};
    for(const p of partes){Object.assign(r.marcas,p.marcas);Object.assign(r.columnas,p.columnas||{});}
+   for(const k of sinMarca)r.marcas[k]={error:'TIEMPO_AGOTADO'};
    return r;
   }
  }
@@ -454,14 +465,17 @@
   let M=null,columnas={};
   try{M=await marcas(am,ctx,candidatas.map(f=>f.clave),true);}
   catch(e){
-   if(!esFaltaRpc(e))throw Object.assign(Error('No se pudieron tomar las marcas de consistencia: '+errTexto(e)),{causa:e});
-   R.modoMarcas='NO_DISPONIBLE';motivo('SIN_MARCAS_SERVIDOR');
-   R.limitaciones.push('El servidor no tiene la función de marcas: no se pudo verificar consistencia ni leer tablas internas.');
+   // Sin permiso operativo o de razón social: no hay nada que respaldar.
+   if(texto(e&&e.code)==='42501')throw Object.assign(Error(errTexto(e)),{causa:e});
+   // Cualquier otra falla (función ausente, tiempo agotado): se respalda por RLS y queda INCOMPLETO.
+   R.modoMarcas='NO_DISPONIBLE';motivo('SIN_MARCAS_SERVIDOR');R.errores.push(['(marcas)',errTexto(e)]);
+   R.limitaciones.push(esFaltaRpc(e)?'El servidor no tiene la función de marcas: no se pudo verificar consistencia ni leer tablas internas.':'Las marcas del servidor no respondieron ('+errTexto(e)+'): no se verificó consistencia ni se leyeron tablas internas; reintente más tarde.');
    try{const {data,error}=await am.sb.rpc('control_puede_ver_salud');ctx.permisos.salud=!error&&data===true;}catch(x){ctx.permisos.salud=false;}
   }
   if(M){
    ctx.permisos={registrado:!!M.permisos?.registrado,vip:!!M.permisos?.vip,salud:!!M.permisos?.salud,admin:!!M.permisos?.admin};
    ctx.obras=(M.obras||[]).slice();columnas=M.columnas||{};R.marcas.push(M);
+   for(const k of M.sin_marca||[])R.limitaciones.push('La marca de '+k+' excedió el tiempo del servidor: se leyó sin verificación de consistencia.');
    if(M.por_grupos)R.limitaciones.push('Las marcas se tomaron por grupos de tablas por tiempo de respuesta; cada tabla se verificó antes y después.');
    for(const id of M.obras_rechazadas||[])R.excluidas.push(['Centro '+id,'Fuera del alcance del usuario o de la razón social.']);
   }
@@ -500,6 +514,7 @@
     for(const f of activas){
      const d=datos.get(f.clave),a=ultima.marcas[f.clave],b=N.marcas[f.clave];
      if(d.error){relee.push(f);continue;}
+     if(d.sinMarca||(a&&a.error)||(b&&b.error)){d.sinMarca=true;continue;}
      // Válida sólo si no cambió entre la marca anterior y ésta y el conteo coincide con el servidor.
      if(firma(a)!==firma(b))cambiadas.add(f.clave);
      if(cambiadas.has(f.clave)||!b||Number(b.filas)!==d.filas.length)relee.push(f);
@@ -523,10 +538,11 @@
   // Estado por fuente.
   for(const f of activas){
    const d=datos.get(f.clave),m=ultima&&ultima.marcas[f.clave];
-   const reg={estado:d.error?'ERROR':d.inconsistente||'LEIDA',filas:d.filas.length,filas_servidor:m?Number(m.filas):null,huella:m?m.huella:null,
+   const reg={estado:d.error?'ERROR':d.inconsistente||(d.sinMarca?'LEIDA_SIN_MARCA':'LEIDA'),filas:d.filas.length,filas_servidor:m&&m.filas!=null?Number(m.filas):null,huella:m&&m.huella||null,
     max_actualizado:m?m.max_actualizado:null,paginas:d.est.paginas,reintentos:d.est.reintentos,error:d.error||null,por_obra:m&&m.por_obra||null};
    R.fuentes[f.clave]=reg;
    if(d.error){motivo('ERROR_LECTURA');R.errores.push([f.clave,d.error]);}
+   else if(d.sinMarca){motivo('SIN_MARCA_TABLA');}
    else if(d.inconsistente){motivo(d.inconsistente);R.errores.push([f.clave,d.inconsistente==='CONTEO_DIFERENTE'?'El conteo leído no coincide con el servidor.':'La tabla siguió cambiando durante la exportación.']);}
   }
   am.progreso({fase:'armado',texto:'Armando el libro…'});
@@ -713,6 +729,31 @@
  /* Cuadre con el tablero: si el modelo del tablero está cargado, calcula sus
     medidas sobre las mismas fuentes exportadas para compararlas al centavo. */
  const CUADRE_DESDE='2000-01-01',CUADRE_HASTA='2099-12-31';
+ const diaMX=ts=>{if(!ts)return null;const d=new Date(ts);return Number.isFinite(+d)?new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).format(d):null;};
+ /* Efectivo autorizado como lo deriva el tablero: finiquito de un cierre con excepción NOI individual
+    cuyo finiquito_efectivo coincide con el importe de la obligación; fecha = día local de registro. */
+ function efectivoDe(ob,exc){
+  if(!ob||!exc)return [];
+  const idx=new Map(exc.map(x=>[x.cierre_id+'|'+x.trabajador_id,x])),out=[];
+  for(const o of ob){
+   if(texto(o.tipo).toUpperCase()!=='FINIQUITO'||!o.cierre_id)continue;
+   const x=idx.get(o.cierre_id+'|'+o.trabajador_id);
+   if(x&&x.finiquito_efectivo!=null&&centavos(x.finiquito_efectivo)===centavos(o.importe))out.push({obligacion_id:o.id,importe:x.finiquito_efectivo,fecha:diaMX(x.registrado_en)});
+  }
+  return out;
+ }
+ /* Comprobantes fiscales: XML/recibos con UUID del expediente y lecturas PDF con UUID. */
+ function cfdiDe(docs,lect){
+  const out=[],conUuid=new Set();
+  for(const d of docs){
+   if(!['CFDI_NOMINA','RECIBO_NOMINA'].includes(d.categoria)||!texto(d.cfdi_uuid).trim())continue;conUuid.add(d.id);
+   out.push({documento_id:d.id,obra_id:d.obra_id,trabajador_id:d.trabajador_id,uuid:d.cfdi_uuid,neto:d.categoria==='CFDI_NOMINA'?d.cfdi_total:(d.nomina_neto??d.cfdi_total),
+    desde:d.periodo_inicio,hasta:d.periodo_fin,tipo:d.nomina_tipo,formato:d.categoria==='CFDI_NOMINA'?'XML':'PDF',anulado:!!d.anulado});
+  }
+  for(const l of lect)if(texto(l.uuid).trim()&&!conUuid.has(l.documento_id))
+   out.push({documento_id:l.documento_id,obra_id:l.obra_id,trabajador_id:l.trabajador_id,uuid:l.uuid,neto:l.neto,desde:l.desde,hasta:l.hasta,tipo:l.tipo,formato:'PDF',anulado:false});
+  return out;
+ }
  function cuadreTablero(ctx,datos){
   const g=k=>{const d=datos.get(k);return d&&!d.error?d.filas:null;};
   const ob=g('control_obligaciones_pago'),ev=g('control_evidencias_pago'),ap=g('control_pago_aplicaciones');
@@ -728,7 +769,8 @@
    // Mismas filas exportadas, con la forma de fuentes de PLATINUM_TABLERO_MODELO.calcular (A1).
    const fuentes={ahora:ctx.inicio.toISOString(),obras:g('obras')||[],cierres:g('control_cierres_nomina')||[],versiones:g('control_cierre_versiones')||[],flujo:g('control_flujo_cierres')||[],
     trabajadores:g('trabajadores')||[],cuadrillas:g('cuadrillas')||[],obligaciones:ob,evidencias:ev,aplicaciones:ap,pagos:g('pagos')||[],cheques:g('cheques')||[],historial:g('historial')||[],
-    finiquitos_transferencia:g('control_finiquitos_transferencia')||[],desglose_noi:g('control_desglose_noi')||[],entregas:g('reunion_cheques_entrega')||[],cfdi:[],efectivo_autorizado:[],errores:[],
+    finiquitos_transferencia:g('control_finiquitos_transferencia')||[],desglose_noi:g('control_desglose_noi')||[],entregas:g('reunion_cheques_entrega')||[],
+    cfdi:cfdiDe(g('documentos')||[],g('lecturas_fiscales_documentos')||[]),efectivo_autorizado:efectivoDe(ob,g('excepciones_noi_individuales')),errores:[],
     permisos:{vip:!!ctx.permisos.vip,obras:ctx.obras.slice(),empresas:[ctx.empresa]}};
    const res={};
    for(const persp of ['PERIODO','PAGO']){
@@ -740,6 +782,9 @@
     }
     filas.push(['CUADRE_TABLERO','huella_tablero','PLATINUM_TABLERO_MODELO · '+persp,'(TOTAL)',null,null,null,null,null,null,null,null,(r&&r.version||'')+' '+(r&&r.huella||'')]);
    }
+   if(!datos.get('excepciones_noi_individuales')||datos.get('excepciones_noi_individuales').error)
+    filas.push(['CUADRE_TABLERO','efectivo_autorizado','SIN_FUENTE','(TOTAL)',null,null,null,null,null,null,null,null,'Sin acceso VIP no se exportan las excepciones NOI: el cuadre excluye finiquitos en efectivo autorizados y puede diferir del tablero del servidor.']);
+   filas.push(['CUADRE_TABLERO','respaldo_fiscal','NO_CUADRADO','(TOTAL)',null,null,null,null,null,null,null,null,'La medida respaldo_fiscal no se cuadra en el respaldo (depende de lecturas fiscales internas).']);
    return {disponible:true,filas,resultado:res};
   }catch(e){add('modelo_tablero','ERROR',null,'El modelo del tablero no pudo calcular: '+errTexto(e));return {disponible:true,filas,error:errTexto(e)};}
  }

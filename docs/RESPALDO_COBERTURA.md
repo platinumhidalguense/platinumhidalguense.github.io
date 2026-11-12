@@ -7,7 +7,7 @@ Documento público: describe qué cubre el respaldo, cómo se verifica y qué qu
 
 ## Garantías
 - **Completo**: cada fuente se lee con paginación ordenada por llave, reintentos y detección de filas repetidas; el conteo leído se compara con el del servidor. Si una fuente falla, el respaldo se marca **INCOMPLETO** (también en el nombre del archivo) y se ofrece reintentar.
-- **Consistente**: el servidor entrega marcas por tabla (conteo, máximos de fecha y huella) calculadas en una sola instantánea, antes y después de leer. Lo que cambió se vuelve a leer; si sigue cambiando, queda INCOMPLETO con el motivo.
+- **Consistente**: si el servidor tarda, las marcas se piden por grupos y por tabla; una tabla sin marca o un servidor sin respuesta deja el respaldo INCOMPLETO (con archivo y reintento), nunca lo aborta. El servidor entrega marcas por tabla (conteo, máximos de fecha y huella) calculadas en una sola instantánea, antes y después de leer. Lo que cambió se vuelve a leer; si sigue cambiando, queda INCOMPLETO con el motivo.
 - **Mismo alcance que la aplicación**: los permisos (centro, razón social, acceso total, salud, administrador) se resuelven en el servidor. Un usuario restringido obtiene archivo y conteos de su alcance; el rol de consulta de contratos no genera respaldos.
 - **Fidelidad**: IDs, CURP, RFC, NSS, CLABE, cuentas, folios y códigos son texto (formato @, conservan ceros); importes numéricos con formato monetario y, donde hace falta para reconstruir un cálculo, la precisión de origen como columna `__origen`; `∅ NULL` = nulo, celda vacía = texto vacío, 0 = cero; ninguna cadena se evalúa como fórmula; fechas en ISO; JSON completo.
 - **Límites de Excel**: textos de más de 32,767 caracteres van en `TEXTOS_LARGOS` por partes con huella; hojas de más de 1,048,575 filas o libros que exceden la capacidad del navegador se dividen en hojas y archivos numerados que el MANIFIESTO enlaza.
@@ -16,7 +16,7 @@ Documento público: describe qué cubre el respaldo, cómo se verifica y qué qu
 ## Hojas de control
 - **MANIFIESTO**: formato y versiones, fecha y hora, usuario, razón social, centros (y centros excluidos), alcance, filtros, fuente temporal (marcas), partes y hojas con rangos de filas, estado por fuente con huella, exclusiones, campos omitidos por permiso, limitaciones, errores, compatibilidad y convenciones.
 - **DICCIONARIO**: hoja, campo, tipo, clave (PK/FK), relación, permiso, origen y descripción.
-- **CONTROL**: filas y totales al centavo por fuente y centro contra el servidor; cuadre con el modelo del tablero (`PLATINUM_TABLERO_MODELO`) en perspectiva de periodo y de pago.
+- **CONTROL**: filas y totales al centavo por fuente y centro contra el servidor; cuadre con el modelo del tablero (`PLATINUM_TABLERO_MODELO`) en perspectiva de periodo y de pago, con las mismas entradas que el tablero (incluye finiquitos en efectivo autorizados y comprobantes fiscales; sin acceso total se declara que el efectivo autorizado no se incluye; la medida de respaldo fiscal no se cuadra).
 - **MOVIMIENTOS_LABORALES**: un evento por movimiento documentado (alta, baja, reingreso con fecha efectiva, traslado, correcciones) con ciclo y fuente. La fecha de reingreso vigente del padrón no sustituye reingresos anteriores; si un ciclo antiguo no tiene evidencia, se conserva lo disponible y se declara.
 
 ## Cobertura por dominio
@@ -175,7 +175,7 @@ Permiso «operativo» = el alcance normal del usuario por centro y razón social
 ## Fuera del respaldo (visible en el MANIFIESTO)
 | Objeto | Motivo |
 |---|---|
-| Credenciales y configuración de seguridad o de servicios | Nunca se respaldan en Excel. |
+| Credenciales y configuración de seguridad o de servicios | Excluidas por seguridad: nunca se respaldan en Excel ni se nombran en el cliente. |
 | Índices y colas técnicas de búsqueda asistida | Regenerables desde las fuentes respaldadas. |
 | Avisos técnicos de sincronización y presencia de sesiones | Efímeros; el antes/después está en HISTORIAL y BITACORA. |
 | Copias técnicas de migraciones puntuales | Sin lectura de cliente; permanecen en la base. |

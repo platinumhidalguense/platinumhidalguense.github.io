@@ -66,7 +66,7 @@ async function falla(db,who,acc,datos,re,m){let e=null;try{await rpc(db,who,acc,
  await owner(db,"set session_replication_role=origin");
  // Consulta del cliente: alcance + filtros explícitos del módulo; la RLS de producción hace el resto.
  const cliente=async(who,f,obras,emp,perm)=>{
-  const t=f.tabla.startsWith('platinum_internal.')?null:'public.'+f.tabla;if(!t)return null;
+  const t=f.alcance==='interna'?null:'public.'+f.tabla;if(!t)return null;
   const w=[],a=[obras];
   if(f.alcance==='centros')w.push('id=any($1)');else if(f.alcance==='obra')w.push('obra_id=any($1)');
   else if(f.alcance==='obra_o_global')w.push(perm.vip?'(obra_id=any($1) or obra_id is null)':'obra_id=any($1)');

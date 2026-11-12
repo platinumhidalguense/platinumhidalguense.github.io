@@ -320,9 +320,10 @@
     provisional:o?o.provisional:false});
    x.visible=obraVisible(x.obra_id)&&(x.concepto!=='PREVISION_SOCIAL'||!!permisos.vip);
   }
-  /* H5: importe visible = importe − piezas que el usuario no puede ver (previsión social sin VIP). */
+  /* H5: importe visible = importe − piezas que el usuario no puede ver (previsión social sin VIP);
+     un posible duplicado se recorta igual que la operación que duplica. */
   const ocultoPorOp=new Map();for(const x of piezas)if(!x.visible&&x.op_id)ocultoPorOp.set(x.op_id,(ocultoPorOp.get(x.op_id)||0n)+x.importe);
-  for(const op of ops){op.importe_visible=permisos.vip?op.importe:op.importe-(ocultoPorOp.get(op.id)||0n);op.sobreaplicada_visible=permisos.vip?op.sobreaplicada:(ocultoPorOp.has(op.id)?null:op.sobreaplicada);}
+  for(const op of ops){op.importe_visible=permisos.vip?op.importe:op.importe-(ocultoPorOp.get(op.duplicado?op.duplicado_de:op.id)||0n);op.sobreaplicada_visible=permisos.vip?op.sobreaplicada:(ocultoPorOp.has(op.id)?null:op.sobreaplicada);}
   for(const op of ops){const d=op.obligacion_dims||(op.trabajador_id||op.semana?dimsSinOblig(op):null);op.dims=d;op.visible=obraVisible(op.obra_id);op.empresa=empresaDe(op.obra_id);}
 
   /* ---- CFDI: un comprobante fiscal por UUID; PDF y XML del mismo UUID cuentan una vez. ---- */

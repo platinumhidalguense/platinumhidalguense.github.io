@@ -108,12 +108,15 @@ transición a `ENTREGADO`. Cancelación: transición a `CANCELADO`. Cobro: no di
 3. **Posible duplicado.** Transferencias válidas de la misma persona, semana, fecha e
    importe con otra llave: se conservan las aplicadas; las demás (o todas menos la
    primera, si ninguna está aplicada) no suman y aparecen como excepción.
-4. **Aplicaciones.** Por obligación exigible, primero el efectivo autorizado y después
+4. **Capacidad de la operación.** Las aplicaciones vigentes de una operación se
+   consumen en orden (`created_at`, `id`) hasta su importe; lo que lo exceda no cuenta
+   como dinero y aparece como excepción `OPERACION_SOBREAPLICADA`.
+5. **Aplicaciones.** Por obligación exigible, primero el efectivo autorizado y después
    las aplicaciones vigentes en orden (`created_at`, `id`). Cada una cubre hasta el
    importe pendiente (`APLICADA_CONCILIADA` o `APLICADA_ANULADA`); lo que excede es
    `EXCEDENTE_APLICADO` (recae en las aplicaciones más recientes). Una aplicación a una
    obligación archivada es `APLICADA_NO_EXIGIBLE`.
-5. **Remanente.** Lo no aplicado de cada operación válida se asigna en forma
+6. **Remanente.** Lo no aplicado de cada operación válida se asigna en forma
    provisional al saldo de la **misma persona, centro y semana**: obligaciones en orden
    de concepto (`FINIQUITO`, `NOMINA`, `PREVISION_SOCIAL`) e id; operaciones en orden de
    fecha efectiva e id. Lo asignado es `POR_VINCULAR`; el resto es
@@ -186,8 +189,9 @@ variacion`.
 | `rotacion` | Bajas entre plantilla promedio | bajas ÷ ((activos al inicio + al cierre) ÷ 2) × 100 | evento |
 
 Previsión social sólo es visible con acceso VIP: para otros usuarios se excluyen sus
-obligaciones y piezas, y las operaciones muestran sólo la parte visible. Datos de
-salud no forman parte del modelo.
+obligaciones y piezas, y las operaciones muestran sólo la parte visible, también en
+excepciones y en los importes excluidos (un posible duplicado se recorta igual que la
+operación que duplica). Datos de salud no forman parte del modelo.
 
 ## 7. Resolución de casos
 
@@ -232,7 +236,10 @@ con fecha de pago programada dentro del rango y no posterior a hoy.
   monetarias.
 - `TENDENCIA`: `filas[]` por centro y periodo (`PERIODO`) o semana de pago (`PAGO`),
   con fechas reales, semanas internas y medidas.
-- `COMPARATIVOS`: `por_centro[]`, `por_contratista[]`, `por_medio[]`.
+- `COMPARATIVOS`: `por_centro[]`, `por_contratista[]`, `por_medio[]` y
+  `por_medio_criterio`. En `PERIODO` el medio es el **método planeado** de la obligación
+  (pagos sin obligación: `SIN_OBLIGACION`); en `PAGO` es el **medio real** de la
+  operación y la fila no trae neto, saldo ni cobertura.
 - `EXCEPCIONES` y `DETALLE`: `{filas, total, pagina, por_pagina ≤ 500}`. El detalle
   tiene grano `OBLIGACION` u `OPERACION` con las llaves para abrir trabajador,
   obligación, cierre, pago, cheque y evidencia.
