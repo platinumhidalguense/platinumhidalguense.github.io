@@ -23,7 +23,7 @@ const box={console,Date,Number,Math,Error,Set,Map,Uint8Array,window:{},DESC:ds,D
  OBRAS:[{id:'obra',nombre:'Obra prueba'},{id:'otra',nombre:'Otra obra'}],EMPRESA_ACTIVA:'PLATINUM',CFGEMP:{},EMPRESAS:{PLATINUM:{nombre:'Comercializadora PLATINUM Hidalguense',corto:'PLATINUM'}},
  redondearCentavos:pad,money:n=>Number(n).toFixed(2),fullName:w=>'PERSONA '+w.no_trab,empresaDeTrabajador:()=> 'PLATINUM',empresaDeObra:()=> 'PLATINUM',
  perDe:()=>({dias:7,cve:'SEMANAL'}),descuentoVigenteSemana:()=>true,montoDescuento:d=>d.monto,
- retencionEvaluada:d=>({monto:d.monto,estado:d.excepciones?'PAUSADO':'NORMAL',extra:0}),difDe:id=>id==='uno'?200:0,finTransDe:()=>null,
+ retencionEvaluada:d=>({monto:d.monto,estado:d.excepciones?'PAUSADO':'NORMAL',extra:0}),difDe:()=>0,finTransDe:()=>null,
  XLSX:fakeXLSX,ST:Object.fromEntries(['title','sub','head','cell','cellC','money','fin','finMoney','total','totalMoney','sect'].map(k=>[k,{}])),
  $:id=>elements[id],esc:x=>String(x),semObra:()=>28,isoWeek:()=>28,fmtD:x=>x,rangoTexto:(a,b)=>a+' a '+b,
  toast:(s,t)=>{box.messages.push({s,t});},messages:[],closeModal:()=>{box.closed++;},closed:0,
@@ -39,8 +39,8 @@ vm.runInContext(['descuentoCorrespondePeriodo','adaptarRetencionPeriodo','retenc
 // Post-proceso y columnas de aguinaldo (módulo 73): sin aplicaciones, mismas hojas y totales.
 vm.runInContext(fs.readFileSync('frontend/modulos/73-aguinaldo-integracion.js','utf8'),box);
 const model=box.proyModelo(workers.slice(0,2),[workers[2]],'S28',[audit]);
-assert.equal(model.costo,4600);assert.equal(model.neto,3950);
-assert.deepEqual(Array.from(model.filas,x=>[x.costo,x.neto,x.prevision,x.creditos]),[[1600,1300,200,500],[2000,1700,0,300],[1000,950,0,50]]);
+assert.equal(model.costo,4600);assert.equal(model.neto,3750);
+assert.deepEqual(Array.from(model.filas,x=>[x.costo,x.neto,x.prevision,x.creditos]),[[1600,1100,0,500],[2000,1700,0,300],[1000,950,0,50]]);
 assert.deepEqual(Array.from(model.filas,x=>x.pago),['TRANSFERENCIA','POR DEFINIR','CHEQUE']);
 assert.equal(workers[1].cuenta,'CREAR');assert.equal(workers[1].forma_pago,undefined);
 const meta={titulo:'PROYECCIÓN S28',sub:'Comercializadora PLATINUM Hidalguense · Obra prueba',pie:'5 al 11 octubre 2026',colB:'CONTRATISTA',codigo:'PLATINUM'};
@@ -48,29 +48,29 @@ const cost=box.proyLibro(model,'CONTRATISTA',meta),disp=box.proyLibro(model,'DIS
 assert.equal(cost.SheetNames.length,2);assert.equal(disp.SheetNames.length,2);
 const cws=cost.Sheets[cost.SheetNames[0]],dws=disp.Sheets[disp.SheetNames[0]];
 const dnet=dws._rows[2].indexOf('NETO A PAGAR');
-assert.equal(dnet,8);assert.equal(dws._rows[2].length,10);
-assert.deepEqual(Array.from(dws._rows[2]).slice(6,9),['SUELDO REGISTRADO / FINIQUITO','PREVISIÓN SOCIAL','NETO A PAGAR']);
-assert.deepEqual(Array.from(dws._rows.find(r=>r[0]===1)).slice(6,9),[2000,200,1300]);
-assert.equal(dws._rows.find(r=>r[0]===1)[dnet],1300);
-assert.equal(dws._rows.find(r=>r[0]==='TOTAL · 3 TRABAJADORES')[dnet],3950);
+assert.equal(dnet,7);assert.equal(dws._rows[2].length,9);
+assert.deepEqual(Array.from(dws._rows[2]).slice(6,9),['SUELDO REGISTRADO / FINIQUITO','NETO A PAGAR','FORMA DE PAGO']);
+assert.deepEqual(Array.from(dws._rows.find(r=>r[0]===1)).slice(6,9),[2000,1100,'TRANSFERENCIA']);
+assert.equal(dws._rows.find(r=>r[0]===1)[dnet],1100);
+assert.equal(dws._rows.find(r=>r[0]==='TOTAL · 3 TRABAJADORES')[dnet],3750);
 // Contratista: formato aprobado, sin deducir créditos ni previsión del costo.
-assert.equal(cws._rows[2].length,11);assert(cws._rows[2].includes('PREVISIÓN SOCIAL'));assert(!cws._rows.join().includes('TOTAL TRANSFERENCIA'));
+assert.equal(cws._rows[2].length,10);assert(!cws._rows[2].includes('PREVISIÓN SOCIAL'));assert(!cws._rows.join().includes('TOTAL TRANSFERENCIA'));
 assert.equal(cws._rows.filter(r=>String(r[0]).startsWith('TOTAL')).length,1);
 assert.deepEqual(Array.from(cws._rows.filter(r=>typeof r[0]==='number'),r=>r[0]),[1,3,2]);
 assert(cws._rows.join().includes('POR DEFINIR'));assert(cws._rows[2].includes('FORMA DE PAGO'));
-assert.deepEqual(Array.from(cws._rows.find(r=>r[0]===3)).slice(6),[1000,0,50,0,'CHEQUE']);
+assert.deepEqual(Array.from(cws._rows.find(r=>r[0]===3)).slice(6),[1000,0,50,'CHEQUE']);
 assert.deepEqual(Array.from(dws._rows.filter(r=>typeof r[0]==='number'),r=>r[0]),[1,3,2]);
 assert.equal(dws._rows.find(r=>r[0]===2).at(-1),'POR DEFINIR');
-assert.equal(dws._rows.find(r=>r[0]==='SUBTOTAL NÓMINA POR TRANSFERENCIA')[dnet],1300);assert.equal(dws._rows.find(r=>r[0]==='SUBTOTAL FINIQUITOS POR CHEQUE')[dnet],950);
+assert.equal(dws._rows.find(r=>r[0]==='SUBTOTAL NÓMINA POR TRANSFERENCIA')[dnet],1100);assert.equal(dws._rows.find(r=>r[0]==='SUBTOTAL FINIQUITOS POR CHEQUE')[dnet],950);
 assert.equal(dws._rows.find(r=>r[0]==='SUBTOTAL NÓMINA SIN CUENTA · POR DEFINIR')[dnet],1700);
-assert.equal(dws._rows.find(r=>r[0]==='TOTAL · 3 TRABAJADORES')[dnet],3950);
+assert.equal(dws._rows.find(r=>r[0]==='TOTAL · 3 TRABAJADORES')[dnet],3750);
 // Un finiquito por transferencia queda antes de cheques sin perder su distinción ni autorización.
 box.finTransDe=()=>({autorizado:true});
 const transferModel=box.proyModelo(workers.slice(0,2),[workers[2]],'S28',[audit]);
 const transferWS=box.buildProyDestinoWS({...meta,modelo:transferModel,destino:'DISPERSION'});
 assert.deepEqual(Array.from(transferWS._rows.filter(r=>typeof r[0]==='number'),r=>r[0]),[1,3,2]);
 assert.equal(transferWS._rows.find(r=>r[0]===3).at(-1),'TRANSFERENCIA');
-assert.equal(transferWS._rows.find(r=>r[0]==='SUBTOTAL NÓMINA POR TRANSFERENCIA')[dnet]+transferWS._rows.find(r=>r[0]==='SUBTOTAL FINIQUITOS POR TRANSFERENCIA')[dnet],2250);
+assert.equal(transferWS._rows.find(r=>r[0]==='SUBTOTAL NÓMINA POR TRANSFERENCIA')[dnet]+transferWS._rows.find(r=>r[0]==='SUBTOTAL FINIQUITOS POR TRANSFERENCIA')[dnet],2050);
 assert(!transferWS._rows.some(r=>r[0]==='SUBTOTAL FINIQUITOS POR CHEQUE'));
 box.finTransDe=()=>null;
 // Cuenta válida, sólo CLABE, cheque de nómina y número consecutivo en cada bloque.
@@ -87,7 +87,7 @@ const mixedCost=box.buildProyDestinoWS({...meta,modelo:mixed,destino:'CONTRATIST
 assert.deepEqual(Array.from(mixedCost._rows.filter(r=>typeof r[0]==='number'),r=>r[0]),[1,8,9,3,4]);
 assert.equal(mixedCost._rows.filter(r=>String(r[0]).startsWith('TOTAL')).length,1);
 const casosTotales=[];
-for(const prevision of [0,200])for(const otras of [0,25]){
+for(const prevision of [0])for(const otras of [0,25]){
  const filas=model.filas.map(x=>({...x,prevision:x.fin?0:prevision,otras:x.fin?0:otras,
   neto:pad(Math.max(0,x.sueldo+(x.fin?0:prevision)-x.incidencias-x.creditos-(x.fin?0:otras)))}));
  const modelo={...model,filas,neto:pad(filas.reduce((s,x)=>s+x.neto,0))};
@@ -137,7 +137,7 @@ for(const destino of ['CONTRATISTA','DISPERSION']){
  assert.deepEqual(Array.from(ws._rows.filter(r=>typeof r[0]==='number'),r=>r[0]),[1,3]);
  assert(!ws._rows.some(r=>String(r[0]).startsWith('NÓMINA SIN CUENTA')));
 }
-assert.equal(dws._rows.find(r=>String(r[0]).startsWith('TOTAL ·'))[dnet],3950);
+assert.equal(dws._rows.find(r=>String(r[0]).startsWith('TOTAL ·'))[dnet],3750);
 assert.equal(disp.Sheets.RETENCIONES._rows.length,cost.Sheets.RETENCIONES._rows.length);
 assert.equal(cost.Sheets.RETENCIONES._rows.find(r=>r[0]===3)[6],50);
 assert.throws(()=>box.proyModelo(workers.slice(0,2),[workers[2]],'S28',[]),/Falta el desglose INFONAVIT/);
@@ -176,40 +176,12 @@ assert.throws(()=>box.buildProyDestinoWS({...meta,modelo:model,destino:'OTRO'}),
 assert.throws(()=>box.buildProyContratistaWS({...meta,modelo:{...model,filas:[{...model.filas[0],pago:'OTRO'}]}}),/sin clasificar/);
 assert.throws(()=>box.buildProyContratistaWS({...meta,modelo:{...model,filas:[{...model.filas[0],costo:NaN}]}}),/inválido/);
 assert.equal(cws['D'+rowOf(cws,1)].t,'s');
-assert.equal(cws.K1.v,'');
+assert.equal(cws.J1.v,'');
 assert.equal(cws._rows.filter(r=>String(r[0]).startsWith('SUBTOTAL')).length,0);
 assert.equal(cws['H'+(cws._rows.length-1)].v,400);
 assert.equal(cws['I'+(cws._rows.length-1)].v,850);
 console.log('OK colores INFONAVIT/FONACOT, doble crédito, ambas empresas/alcances, totales y rechazo de importes inválidos');
-// Previsión informativa: ambos destinos, cuentas/cheques, subtotales y versiones.
-for(const destino of ['CONTRATISTA','DISPERSION'])for(const colB of ['OBRA','CONTRATISTA']){
- const copy=JSON.stringify(model),ws=box.buildProyDestinoWS({...meta,colB,modelo:model,destino});
- const p=ws._rows[2].indexOf('PREVISIÓN SOCIAL'),letter=String.fromCharCode(65+p);
- assert.equal(p,destino==='CONTRATISTA'?9:7);
- for(const f of model.filas){const r=rowOf(ws,f.w.no_trab);assert.equal(ws[letter+r].v,f.prevision);assert.equal(ws[letter+r].t,'n');assert.equal(ws[letter+r].f,undefined);}
- const total=ws._rows.findIndex(r=>String(r[0]).startsWith('TOTAL ·'))+1;
- assert.equal(ws[letter+total].v,200);assert.equal(ws[letter+total].t,'n');assert(ws[letter+total].f.startsWith('SUM('));
- assert.equal(ws[(destino==='CONTRATISTA'?'G':'I')+total].v,destino==='CONTRATISTA'?4600:3950,'No añade la previsión otra vez al total');
- const width=ws._rows[2].length;assert.equal(ws['!cols'].length,width);
- const title=ws['!merges'].find(m=>m.s.r===0);assert.equal(title.e.c,width-2);assert.equal(ws[String.fromCharCode(64+width)+'1'].v,'','Logo fuera del título');
- assert.equal(JSON.stringify(model),copy,'Adaptador de presentación sin mutación del modelo');
- const noDiff={...model,filas:model.filas.map(x=>({...x,prevision:0}))};
- const no=box.buildProyDestinoWS({...meta,colB,modelo:noDiff,destino});assert(!no._rows[2].includes('PREVISIÓN SOCIAL'));assert.equal(no['!cols'].length,width-1);
- const missing={...model,filas:model.filas.map(({prevision,...x})=>x)};assert(!box.buildProyDestinoWS({...meta,modelo:missing,destino})._rows[2].includes('PREVISIÓN SOCIAL'));
- assert.throws(()=>box.buildProyDestinoWS({...meta,modelo:{...model,filas:[{...model.filas[0],prevision:NaN}]},destino}),/Previsión social inválida/);
- if(destino==='DISPERSION'){
-  assert.equal(ws['G'+total].v,5000,'Sueldo completo anterior a incidencias y créditos; finiquito completo');
-  assert.equal(ws['G'+total].f,'SUM(G5:G5,G8:G8,G11:G11)');
-  assert.equal(ws['I'+total].f,'SUM(I5:I5,I8:I8,I11:I11)');
-  for(const f of model.filas){const r=rowOf(ws,f.w.no_trab);assert.equal(ws['G'+r].v,f.sueldo);assert.equal(ws['G'+r].t,'n');}
-  assert.equal(no._rows[2].indexOf('NETO A PAGAR'),7,'Sin previsión el neto se desplaza a H');
-  assert.throws(()=>box.buildProyDestinoWS({...meta,modelo:{...model,filas:[{...model.filas[0],sueldo:undefined}]},destino}),/Sueldo registrado o neto inválido/);
-  assert.equal(ws._rows.find(r=>r[0]==='SUBTOTAL NÓMINA POR TRANSFERENCIA')[p],200);
-  assert.equal(ws._rows.find(r=>r[0]==='SUBTOTAL FINIQUITOS POR CHEQUE')[p],0);
-  assert.equal(ws._rows.find(r=>r[0]==='SUBTOTAL NÓMINA SIN CUENTA · POR DEFINIR')[p],0);
- }
-}
-console.log('OK previsión social condicional en ambas proyecciones, numérica y con totales propios; netos, costo y modelo intactos.');
+// El nuevo bloque con previsión se comprueba en test_proyeccion_tres_importes.cjs.
 (async()=>{
  // Serialización: no basta con ver dos colores en el objeto de estilos.
  vm.runInContext(block('const _xmlEsc=','function _uuid('),box);

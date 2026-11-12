@@ -162,13 +162,16 @@ async function pyPreview(){
     const inc=m.filas.reduce((s,x)=>s+x.incidencias,0),creditos=m.filas.reduce((s,x)=>s+x.creditos,0);
     const ag=m.filas.filter(x=>x.aguinaldo),agBruto=redondearCentavos(ag.reduce((s,x)=>s+x.aguinaldo.bruto,0)),agIsr=redondearCentavos(ag.reduce((s,x)=>s+x.aguinaldo.isr,0));
     const agFaltan=aguinaldoSinFila(m,globalThis._PY_AGUINALDOS,{periodo:$('py-periodo').value});
+    const tienePrevision=proyTienePrevision(m),previsionTotal=redondearCentavos(m.filas.reduce((s,x)=>s+proyTresImportes(x).prevision,0));
     $('py-prev').innerHTML=`<div style="display:flex;gap:10px;flex-wrap:wrap">
       <div class="stat g" style="flex:1"><div class="n">${m.filas.length}</div><div class="l">Trabajadores · incluye ${fins.length} finiquitos</div></div>
-      <div class="stat a" style="flex:1"><div class="n">$${money(inc)}</div><div class="l">Descuentos por incidencias</div></div>
+      ${tienePrevision?`<div class="stat a" style="flex:1"><div class="n">$${money(redondearCentavos(m.neto-previsionTotal))}</div><div class="l">Sueldo registrado menos retenciones</div></div>
+      <div class="stat b" style="flex:1"><div class="n">$${money(previsionTotal)}</div><div class="l">Previsión social</div></div>`:`<div class="stat a" style="flex:1"><div class="n">$${money(inc)}</div><div class="l">Descuentos por incidencias</div></div>
       <div class="stat b" style="flex:1"><div class="n">$${money(creditos)}</div><div class="l">Créditos · no reducen importe del contratista</div></div>
-      <div class="stat b" style="flex:1"><div class="n">$${money(destino==='CONTRATISTA'?m.costo:m.neto)}</div><div class="l">${destino==='CONTRATISTA'?'Total para contratista · sin previsión social':'Total para dispersión · incluye previsión social aparte'}</div></div>
+      `}
+      <div class="stat b" style="flex:1"><div class="n">$${money(tienePrevision?m.neto:destino==='CONTRATISTA'?m.costo:m.neto)}</div><div class="l">${tienePrevision?'Neto total a pagar':destino==='CONTRATISTA'?'Total para contratista · sin previsión social':'Total para dispersión · incluye previsión social aparte'}</div></div>
       ${ag.length?`<div class="stat g" style="flex:1"><div class="n">$${money(agBruto)}</div><div class="l">Aguinaldo bruto · ${ag.length} trabajador(es) · ISR $${money(agIsr)} · ${destino==='CONTRATISTA'?'columna aparte, no suma al costo':'neto incluido en el total'}</div></div>`:''}
-    </div>${agFaltan.length?`<div class="fhint" style="color:var(--red);margin-top:8px">${agFaltan.length} aplicación(es) de aguinaldo de este periodo no tienen fila de nómina. Retíralas o corrígelas en Prestaciones → Aguinaldo antes de exportar.</div>`:''}`;
+    </div>${proyVistaTresImportes(m)}${agFaltan.length?`<div class="fhint" style="color:var(--red);margin-top:8px">${agFaltan.length} aplicación(es) de aguinaldo de este periodo no tienen fila de nómina. Retíralas o corrígelas en Prestaciones → Aguinaldo antes de exportar.</div>`:''}`;
     for(const id of ['py-btn','py-ambas'])if($(id))$(id).disabled=window._PROY_EXPORTANDO||!m.filas.length||agFaltan.length>0;
   }catch(e){
     if(version!==window._PY_PREVIEW_VERSION||!$('py-prev'))return;
@@ -184,7 +187,7 @@ function proySelector(id){
       <option value="CONTRATISTA">Para presentar al contratista</option>
       <option value="DISPERSION" selected>Para dispersión de nómina</option>
     </select>
-    <div class="fhint">Contratista: sueldo menos incidencias, créditos informativos en amarillo (INFONAVIT) y verde (FONACOT), y un solo total general; sin previsión social. Dispersión: neto a pagar y totales por forma de pago. Ambas incluyen el detalle de retenciones en su segunda hoja.</div>`;
+    <div class="fhint">Cuando hay previsión social, ambas presentaciones muestran registrado menos retenciones, previsión y neto total a pagar. En las demás nóminas se conserva el formato por destino. La hoja RETENCIONES mantiene el desglose completo; no se descuentan impuestos ni créditos dos veces.</div>`;
 }
 function proyRetenciones(w,sem){
   const P=perDe(w), d=retencionesDePeriodo(w,sem);
@@ -271,27 +274,50 @@ function proyTransferenciaOtroBanco(w){
   if(/BBVA|BANCOMER/.test(banco)||/^0?12$/.test(banco))return false;
   return !!banco&&!/^(?:—|-|N\/A|SIN BANCO|SIN ASIGNAR|POR DEFINIR|PENDIENTE|CREAR)$/.test(banco);
 }
-/* Adaptador de presentación: revela el diferencial de la MISMA fotografía.
-   No lo suma al costo del contratista ni de nuevo al neto de dispersión. */
+/* Importes de la misma fotografía. El neto registrado ya incluye los impuestos
+   ordinarios y las retenciones del periodo: no se vuelven a calcular aquí. */
+function proyTresImportes(x){
+  const prevision=Number(x.prevision??0),neto=Number(x.neto);
+  if(!Number.isFinite(prevision))throw Error('Previsión social inválida. Revisa el diferencial antes de exportar.');
+  if(!Number.isFinite(neto))throw Error('Neto inválido. Revisa el modelo antes de exportar.');
+  const p=redondearCentavos(prevision),n=redondearCentavos(neto);
+  return {registrado:redondearCentavos(n-p),prevision:p,neto:n};
+}
+function proyTienePrevision(modelo){
+  return modelo.filas.map(proyTresImportes).some(x=>x.prevision!==0);
+}
+function proyVistaTresImportes(modelo){
+  if(!proyTienePrevision(modelo))return '';
+  const total={registrado:0,prevision:0,neto:0};
+  const grupo=x=>x.fin?(x.pago==='TRANSFERENCIA'?1:3):x.sinCuenta?4:x.pago==='TRANSFERENCIA'?0:2;
+  const orden=[...modelo.filas].sort((a,b)=>grupo(a)-grupo(b)||(Number(a.w.no_trab)||0)-(Number(b.w.no_trab)||0));
+  const filas=orden.map(x=>{const m=proyTresImportes(x);for(const k of Object.keys(total))total[k]+=m[k];return `<tr><td>${esc(x.w.no_trab??'')}</td><td>${esc(fullName(x.w))}</td><td>$${money(m.registrado)}</td><td>$${money(m.prevision)}</td><td>$${money(m.neto)}</td></tr>`;});
+  return `<div style="overflow:auto;max-height:38vh;margin-top:12px"><table><thead><tr><th>No.</th><th>Nombre completo</th><th>Sueldo registrado menos retenciones</th><th>Previsión social</th><th>Neto total a pagar</th></tr></thead><tbody>${filas.join('')}</tbody><tfoot><tr><th colspan="2">TOTAL GENERAL</th><th>$${money(redondearCentavos(total.registrado))}</th><th>$${money(redondearCentavos(total.prevision))}</th><th>$${money(redondearCentavos(total.neto))}</th></tr></tfoot></table></div>`;
+}
 function proyColumnaPrevision(tabla,filas,totales,pos=tabla.rows[2].length-1){
-  const importes=new Map(filas.map(({r,x})=>{const n=Number(x.prevision??0);if(!Number.isFinite(n))throw Error('Previsión social inválida. Revisa el diferencial antes de exportar.');return [r,n];}));
-  if(![...importes.values()].some(n=>n!==0))return null;
-  const col=XLSX.utils.encode_col(pos),formulas=[];
+  const importes=new Map(filas.map(({r,x})=>[r,proyTresImportes(x)]));
+  if(![...importes.values()].some(x=>x.prevision!==0))return null;
+  const pago=tabla.rows[2].length-1,formulas=[],encabezados=['SUELDO REGISTRADO MENOS RETENCIONES','PREVISIÓN SOCIAL','NETO TOTAL A PAGAR'];
   tabla.rows.forEach((row,i)=>{
-    if(i===2)row.splice(pos,0,'PREVISIÓN SOCIAL');
-    else if(row.length>pos)row.splice(pos,0,importes.get(i+1)??0);
-    const st=tabla.styles[i];if(Array.isArray(st))st.splice(pos,0,{...st[6],alignment:{...st[6]?.alignment,indent:1}});
+    const m=importes.get(i+1);
+    if(i===2)row.splice(6,pago-6,...encabezados);
+    else if(row.length>6)row.splice(6,pago-6,...(m?[m.registrado,m.prevision,m.neto]:[0,0,0]));
+    const st=tabla.styles[i];if(Array.isArray(st)){const base=st[6];st.splice(6,pago-6,...Array.from({length:3},()=>({...base,alignment:{...base?.alignment,indent:1}})));}
+    if(m)formulas.push(['I'+(i+1),`G${i+1}+H${i+1}`]);
   });
   for(const {r,datos} of totales){
-    tabla.rows[r-1][pos]=redondearCentavos(datos.reduce((s,n)=>s+(importes.get(n)||0),0));
-    const ranges=[];let a=null,b=null;
-    for(const n of datos){if(a==null)a=b=n;else if(n===b+1)b=n;else{ranges.push(`${col}${a}:${col}${b}`);a=b=n;}}
-    if(a!=null)ranges.push(`${col}${a}:${col}${b}`);
-    formulas.push([col+r,ranges.length?`SUM(${ranges.join(',')})`:'0']);
+    for(const [c,k] of [[6,'registrado'],[7,'prevision'],[8,'neto']]){
+      tabla.rows[r-1][c]=redondearCentavos(datos.reduce((s,n)=>s+(importes.get(n)?.[k]||0),0));
+      const col=XLSX.utils.encode_col(c),ranges=[];let a=null,b=null;
+      for(const n of datos){if(a==null)a=b=n;else if(n===b+1)b=n;else{ranges.push(`${col}${a}:${col}${b}`);a=b=n;}}
+      if(a!=null)ranges.push(`${col}${a}:${col}${b}`);
+      formulas.push([col+r,ranges.length?`SUM(${ranges.join(',')})`:'0']);
+    }
   }
-  tabla.widths.splice(pos,0,18);
-  tabla.merges.forEach(m=>{if(m.s.c>=pos)m.s.c++;if(m.e.c>=pos||(m.s.r===0&&m.e.c===pos-1))m.e.c++;});
-  return {col,formulas};
+  tabla.widths.splice(6,pago-6,24,18,22);
+  const recolocar=(c,final)=>c<6?c:c>=pago?c+9-pago:final?8:6;
+  tabla.merges.forEach(m=>{m.s.c=recolocar(m.s.c,false);m.e.c=recolocar(m.e.c,true);});
+  return {col:'H',formulas,compacto:true};
 }
 function buildProyDispersionWS({titulo,sub,pie,colB,modelo}){
   const cols=['NO.',colB==='OBRA'?'OBRA':'CONTRATISTA','NOMBRE COMPLETO','CLABE','CUENTA','BANCO','SUELDO REGISTRADO / FINIQUITO','NETO A PAGAR','FORMA DE PAGO'];
@@ -348,14 +374,14 @@ function buildProyDispersionWS({titulo,sub,pie,colB,modelo}){
     {s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:8}});
   const widths=[8,20,38,24,17,12,22,18,18],prevision=proyColumnaPrevision({rows,styles,widths,merges},previsionFilas,previsionTotales,7);
   // Aguinaldo bruto antes del neto: el neto a pagar ya incluye su neto (bruto − ISR).
-  const aguinaldo=proyColumnaConcepto({rows,styles,widths,merges},previsionFilas,previsionTotales,cols.indexOf('NETO A PAGAR'),'AGUINALDO BRUTO',x=>x.aguinaldo?.bruto);
+  const aguinaldo=prevision?.compacto?null:proyColumnaConcepto({rows,styles,widths,merges},previsionFilas,previsionTotales,cols.indexOf('NETO A PAGAR'),'AGUINALDO BRUTO',x=>x.aguinaldo?.bruto);
   const ws=buildSheet(rows,styles,widths,merges,hs);
   ws[XLSX.utils.encode_col(widths.length-1)+'1']={t:'s',v:'',s:ST.title};
   for(const r of dataRows)for(const col of ['D','E']){
     const cell=ws[col+r];cell.t='s';cell.v=String(cell.v??'');cell.z='@';cell.s={...cell.s,numFmt:'@'};
   }
-  const netoCol=XLSX.utils.encode_col(cols.indexOf('NETO A PAGAR'));
-  for(const [tipo,r,datos] of fx){const col=tipo==='NETO'?netoCol:tipo;ws[col+r].t='n';ws[col+r].f=suma(datos,col);}
+  if(!prevision?.compacto){const netoCol=XLSX.utils.encode_col(cols.indexOf('NETO A PAGAR'));
+    for(const [tipo,r,datos] of fx){const col=tipo==='NETO'?netoCol:tipo;ws[col+r].t='n';ws[col+r].f=suma(datos,col);}}
   for(const [a,f] of [...prevision?.formulas||[],...aguinaldo?.formulas||[]]){ws[a].t='n';ws[a].f=f;}
   return ws;
 }
@@ -428,7 +454,7 @@ function buildProyContratistaWS({titulo,sub,pie,colB,modelo}){
     {s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:9}});
   const widths=[8,20,38,24,17,12,20,18,20,18],prevision=proyColumnaPrevision({rows,styles,widths,merges},previsionFilas,[{r:total,datos:dataRows}]);
   // Informativo: el aguinaldo bruto no se suma al costo del contratista (columna G).
-  const aguinaldo=proyColumnaConcepto({rows,styles,widths,merges},previsionFilas,[{r:total,datos:dataRows}],cols.indexOf('FORMA DE PAGO'),'AGUINALDO BRUTO',x=>x.aguinaldo?.bruto);
+  const aguinaldo=prevision?.compacto?null:proyColumnaConcepto({rows,styles,widths,merges},previsionFilas,[{r:total,datos:dataRows}],cols.indexOf('FORMA DE PAGO'),'AGUINALDO BRUTO',x=>x.aguinaldo?.bruto);
   const ws=buildSheet(rows,styles,widths,merges,hs);
   ws[XLSX.utils.encode_col(widths.length-1)+'1']={t:'s',v:'',s:ST.title};
   for(const r of dataRows)for(const col of ['D','E']){

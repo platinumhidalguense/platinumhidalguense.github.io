@@ -315,10 +315,10 @@ function coalesceInicio(id){const w=bdd.trabajadores.find(w=>w.id===id);return w
  const meta={titulo:'S37',sub:'S',pie:'P',colB:'CONTRATISTA',codigo:'PLATINUM'};
  const disp=box.proyLibro(m,'DISPERSION',meta),cont=box.proyLibro(m,'CONTRATISTA',meta),dws=disp.Sheets[disp.SheetNames[0]],cws=cont.Sheets[cont.SheetNames[0]];
  const dh=dws._rows[2],ch=cws._rows[2];
- eq(dh.slice(6),['SUELDO REGISTRADO / FINIQUITO','PREVISIÓN SOCIAL','AGUINALDO BRUTO','NETO A PAGAR','FORMA DE PAGO'],'dispersión: aguinaldo bruto antes del neto');
- eq(dws._rows.find(r=>r[0]===1).slice(6,10),[3000,200,4356.16,r.neto],'fila con bruto y neto incluido');
- const tot=dws._rows.findIndex(r=>String(r[0]).startsWith('TOTAL ·'))+1;ok(/^SUM\(I/.test(dws['I'+tot]?.f||'')||dws._rows[tot-1][8]===4356.16,'total de aguinaldo bruto');
- ok(ch.includes('AGUINALDO BRUTO')&&cws._rows.find(r=>r[0]===1)[6]===3000,'contratista: columna aparte, costo sin cambio');
+ eq(dh.slice(6),['SUELDO REGISTRADO MENOS RETENCIONES','PREVISIÓN SOCIAL','NETO TOTAL A PAGAR','FORMA DE PAGO'],'con previsión sólo tres importes; el bruto queda en AGUINALDO');
+ eq(dws._rows.find(r=>r[0]===1).slice(6,9),[r.neto-200,200,r.neto],'neto vigente con aguinaldo incluido una sola vez');
+ const tot=dws._rows.findIndex(r=>String(r[0]).startsWith('TOTAL ·'))+1;eq(dws['I'+tot].v,m.neto,'total vigente sin sumar el aguinaldo otra vez');
+ ok(!ch.includes('AGUINALDO BRUTO')&&cws._rows.find(r=>r[0]===1)[6]===r.neto-200,'contratista con previsión muestra los mismos tres importes');
  ok(disp.SheetNames.includes('AGUINALDO')&&disp.Sheets.AGUINALDO._rows[2].slice(6,12).join()===[4356.16,3519.3,836.86,i96.isr,'LISR 96',L().neto].join(),'hoja de desglose fiscal');
  const sin=box.proyLibro(base,'DISPERSION',meta);ok(!sin.SheetNames.includes('AGUINALDO')&&!sin.Sheets[sin.SheetNames[0]]._rows[2].includes('AGUINALDO BRUTO'),'sin aguinaldo: libro anterior');
  eq(box.aguinaldoCamposItem(r),{aguinaldo_bruto:4356.16,aguinaldo_exento:3519.3,aguinaldo_gravado:836.86,aguinaldo_isr:i96.isr,aguinaldo_neto:L().neto,aguinaldo_lineas:['L1']},'campos de fotografía');
