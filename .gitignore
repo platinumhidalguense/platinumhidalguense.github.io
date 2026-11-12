@@ -49,3 +49,6 @@ supabase/migrations/*_catalogo_puestos_y_faltas_disponibles.sql
 
 # Reversión de bajas: SQL operativo privado.
 supabase/migrations/*_reversion_bajas_y_servicio_cero.sql
+
+# SQL operativo privado: ciclo vigente de aguinaldo.
+supabase/migrations/*_aguinaldo_ciclo_vigente_y_contexto_acotado.sql

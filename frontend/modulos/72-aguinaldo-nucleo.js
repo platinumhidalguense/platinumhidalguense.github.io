@@ -406,13 +406,14 @@
   }
   const anioPago=e.fecha_pago?e.fecha_pago.slice(0,4):null;
   const c=conciliar(d.bruto,e.evidencias,anioPago);
+  if(e.fiscal_anual){c.exento_usado=r2(e.fiscal_anual.exento_usado||0);c.exento_desconocido=!!e.fiscal_anual.pendientes?.length;if(c.exento_desconocido)add('FISCAL_ANUAL_PENDIENTE','Falta desglose fiscal anual verificado: '+e.fiscal_anual.pendientes.map(p=>p.motivo+(p.fecha_baja?' '+p.fecha_baja:'')).join('; ')+'. El bruto del ciclo vigente sí está calculado.',true);}
   if(c.pendiente.length)add('EVIDENCIA_PENDIENTE',`${c.pendiente.length} pago(s) anterior(es) sin desglose del aguinaldo: no se puede saber el saldo.`,true);
   if(c.excedente>0)add('PAGADO_DE_MAS',`Lo acreditado excede lo causado por $${c.excedente.toFixed(2)}.`,false);
-  if(c.exento_desconocido)add('EXENCION_DESCONOCIDA','Un pago del mismo año no informa su parte exenta: no se puede determinar la exención disponible.',true);
+  if(c.exento_desconocido&&!e.fiscal_anual)add('EXENCION_DESCONOCIDA','Un pago del mismo año no informa su parte exenta: no se puede determinar la exención disponible.',true);
   const fila={version:VERSION,derecho:d,conciliacion:c,observaciones:obs,saldo:c.saldo,bruto_causado:d.bruto};
   const aPagar=e.importe_a_pagar==null?c.saldo:r2(Math.min(e.importe_a_pagar,c.saldo));
   fila.bruto_a_pagar=aPagar;
-  if(e.fecha_pago){
+  if(e.fecha_pago&&!(e.fiscal_anual&&c.exento_desconocido)){
    if(e.fecha_pago>`${d.ejercicio}-12-20`)add('FUERA_DE_PLAZO',`El pago del ${e.fecha_pago} es posterior al 20 de diciembre (art. 87 LFT).`,false);
    try{
     const x=exencion(aPagar,e.fecha_pago,c.exento_usado);fila.fiscal={...x};

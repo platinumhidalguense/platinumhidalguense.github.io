@@ -1,16 +1,16 @@
 {
-  "version": "2026-11-11.4",
-  "entry": "assets/platinum-app.620789b6e7cfdccf.js",
-  "sha256": "620789b6e7cfdccfa2e9412c51e88ecb8772489ad0ad4080025dc7f7b72d2464",
-  "integrity": "sha384-Vqlw0a4ogx9kvIEn3t+RPG0SPUo9JPkLKHaXk7ohaBsZlEcaeK6+z1r4pQWW4gUC",
+  "version": "2026-11-12.1",
+  "entry": "assets/platinum-app.de6bf0a979846bb0.js",
+  "sha256": "de6bf0a979846bb0bfc420803a8620ca2ef1a21250dba92e9c4d5f008f891936",
+  "integrity": "sha384-T9NNBNYzDa6FJtkTaj+l99LdtGw3CTmrIG/c8mDRiQWkT/uK+okVpYd0MEf/OiTj",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
-      "sha256": "045d313fb6606b327e41f2dbc7419a01cb67da93a709adb5a107f04b7e51d70f"
+      "sha256": "44b111142b071fdeeb9790e0d1eaf374d432f090fe207ec8ec062f2f51dfd65d"
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "b04d9202f2881de327207241835023cfe323a61ff87849d481893ff72b0de823"
+      "sha256": "95a91c5585d192308ac6005bc6d44970c953710cfd86bea2cac8696b3dc98d06"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -294,7 +294,7 @@
     },
     {
       "path": "frontend/modulos/72-aguinaldo-nucleo.js",
-      "sha256": "ebf937491ff310c2282a88e267124ffd9acc3c4aab116314711a0f23e69c009d"
+      "sha256": "bc368b059d2d7ecc6a7131c3a892de57a287add057d70011d30efd7b8b239ec7"
     },
     {
       "path": "frontend/modulos/73-aguinaldo-integracion.js",
@@ -302,7 +302,7 @@
     },
     {
       "path": "frontend/modulos/74-aguinaldo-corrida.js",
-      "sha256": "06dc42be2752bfbbd89de067e28d03a069dd70c1dc5fc9fd52d91dd98e89cac7"
+      "sha256": "f8469186907f93d2ce32216a2f0f2be1157dad6f761d5394527287d25b97f795"
     },
     {
       "path": "frontend/modulos/75-faltas-historicas.js",
@@ -314,7 +314,7 @@
     },
     {
       "path": "frontend/modulos/77-aguinaldo-evidencias.js",
-      "sha256": "42ab41f639fc32e476dc5bb0d02e4a313b9c2616bb6820642f0490ab1df42154"
+      "sha256": "3365d66e45c06fef1b634a6fa4e2e2d93430a99106dac0c7c6ca9a23f699f68b"
     },
     {
       "path": "frontend/modulos/78-banco-historico-servicio.js",

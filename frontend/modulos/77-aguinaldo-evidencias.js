@@ -12,6 +12,7 @@
   for(const a of x.aplicaciones||[])ev.push({id:a.id,operacion:'APL:'+a.id,origen:'APLICACION',
    estado:a.estado==='APLICADO'?a.estado_destino:a.estado,importe_bruto:numero(a.bruto),exento:numero(a.exento),
    fecha_pago:a.fecha_pago,semana:a.semana,obra_id:a.obra_id,aplicado:a.estado==='APLICADO'});
+  if(x.contrato_version==='AG_CICLO_V1')return [...ev,...(x.evidencias_ciclo||[])];
   if(Array.isArray(x.evidencias_aguinaldo)){
    for(const fuente of x.evidencias_aguinaldo){
     const e={...fuente},f=fechaBaja(e),importe=numero(e.importe_bruto);
