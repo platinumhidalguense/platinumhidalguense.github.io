@@ -133,7 +133,7 @@ async function falla(db,who,acc,datos,re,m){let e=null;try{await rpc(db,who,acc,
   finally{await db.exec("reset statement_timeout");await db.exec('reset role');}};
  await tiempo();const V1=await tiempo();
  ok(V1.ms<8000,'MARCAS completa con volumen real dentro de 8 s ('+V1.ms+' ms)');
- eq([V1.r.marcas.historial.tipo,V1.r.marcas.auditoria_calculos_nomina.tipo,V1.r.marcas.documentos.tipo,V1.r.marcas.pagos.tipo],['LIGERA','LIGERA','LIGERA','COMPLETA'],'marca ligera sólo en tablas > 5,000 filas');
+ eq([V1.r.marcas.historial.tipo,V1.r.marcas.auditoria_calculos_nomina.tipo,V1.r.marcas.documentos.tipo,V1.r.marcas.pagos.tipo],['LIGERA','LIGERA','COMPLETA','COMPLETA'],'marca ligera sólo en bitácoras de sólo inserción > 5,000 filas; documentos (13.5k) y pagos completas');
  const hl=Number(V1.r.marcas.historial.filas);ok(hl>40400,'historial completo en la marca');
  // La marca ligera conserva la detección de cambios concurrentes: alta, baja y edición con fecha de modificación.
  const sig=x=>[x.filas,x.max_actualizado,x.max_creado,x.huella].join('|');
@@ -145,9 +145,16 @@ async function falla(db,who,acc,datos,re,m){let e=null;try{await rpc(db,who,acc,
  const V4=await tiempo();ok(V4.r.marcas.historial.filas===V3.r.marcas.historial.filas&&sig(V4.r.marcas.historial)!==sig(V3.r.marcas.historial),'detecta baja + alta con el mismo conteo');
  const d1=(await owner(db,"select id from public.documentos where obra_id=$1 order by id limit 1",[ids.obra])).rows[0].id;
  await owner(db,"update public.documentos set anulado=true,anulado_en=now()-interval '10 days' where id=$1",[d1]);
- const V5=await tiempo();ok(sig(V5.r.marcas.documentos)!==sig(V4.r.marcas.documentos),'detecta edición que actualiza la fecha de modificación (sin ser la máxima)');
+ const V5=await tiempo();ok(sig(V5.r.marcas.documentos)!==sig(V4.r.marcas.documentos),'detecta edición de documento');
+ // Regresión N3: ediciones sin fecha de modificación (notas de documento, estado de pago) se detectan.
+ const d2=(await owner(db,"select id from public.documentos where obra_id=$1 order by id offset 7 limit 1",[ids.obra])).rows[0].id;
+ await owner(db,"update public.documentos set notas='NOTA EDITADA' where id=$1",[d2]);
+ const V6=await tiempo();ok(sig(V6.r.marcas.documentos)!==sig(V5.r.marcas.documentos)&&V6.r.marcas.documentos.filas===V5.r.marcas.documentos.filas,'editar notas de documento cambia la marca');
+ await owner(db,"update public.pagos set estado='RECHAZADO' where id=(select id from public.pagos where obra_id=$1 order by id limit 1)",[ids.obra]);
+ const V7=await tiempo();ok(sig(V7.r.marcas.pagos)!==sig(V6.r.marcas.pagos),'editar estado de pago cambia la marca');
+ ok(V7.ms<8000,'MARCAS con documentos completos dentro de 8 s ('+V7.ms+' ms)');
  await owner(db,"set session_replication_role=origin");
- TIEMPOS.push(V1.ms,V2.ms,V5.ms);
+ TIEMPOS.push(V1.ms,V2.ms,V5.ms,V7.ms);
  console.log(`MEDIDA MARCAS con volumen de producción (historial 40.4k, auditoría 23k, documentos 13.5k): ${TIEMPOS.join(' / ')} ms (límite 8 s).`);
  console.log(`PASS respaldo PostgreSQL: ${n} comprobaciones; marcas = RLS de producción para 5 perfiles, centros rechazados, huellas de cambio, LEER interno VIP por llave, sin anónimos, otra razón social ni rol de contratos.`);
  await db.close();

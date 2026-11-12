@@ -204,7 +204,7 @@ function servidor(db,usuario,op={}){
     const huella=crypto.createHash('md5').update(fs_.map(x=>JSON.stringify(x)).sort().join('|')).digest('hex');
     const por_obra={};for(const x of fs_)if(x.obra_id)por_obra[x.obra_id]=(por_obra[x.obra_id]||0)+1;
     if(k==='obras')for(const x of fs_)por_obra[x.id]=1;
-    marcas[k]={filas:fs_.length,max_actualizado:max('updated_at'),max_creado:max('created_at'),huella,por_obra};
+    marcas[k]={tipo:'COMPLETA',filas:fs_.length,max_actualizado:max('updated_at'),max_creado:max('created_at'),huella,por_obra};
     if(d.columnas)columnas[k]=columnasDe(TABLA[k]);
    }
    return {data:{version:'RESPALDO_MARCAS_V1',generado_en:new Date(Date.UTC(2026,10,11,18,0,llamadasMarcas)).toISOString(),empresa:d.empresa,obras:c.lista,obras_rechazadas:c.rechazadas,
@@ -346,6 +346,7 @@ const manif=wb=>hoja(wb,'MANIFIESTO');
  ok(M.some(x=>x.SECCION==='GENERAL'&&x.CLAVE==='originales'&&/Storage privado/.test(x.VALOR)),'manifiesto declara originales en Storage privado');
  ok(M.some(x=>x.SECCION==='EXCLUSION'),'exclusiones visibles con motivo');
  ok(M.filter(x=>x.SECCION==='FUENTE').length>=70,'manifiesto por fuente');
+ ok(M.some(x=>x.SECCION==='FUENTE_MARCA'&&x.CLAVE==='documentos'&&x.VALOR==='COMPLETA'&&/cualquier alta, baja o edición/.test(x.DETALLE)),'manifiesto: tipo de marca y alcance de detección por fuente');
  const ctl=hoja(wb,'CONTROL');
  const cp=ctl.find(x=>x.FUENTE==='pagos'&&x.OBRA_ID==='(TOTAL)');eq([cp.FILAS_EXPORTADAS,cp.FILAS_SERVIDOR,cp.COINCIDE],[db.pagos.filter(p=>p.obra_id!==O3).length,db.pagos.filter(p=>p.obra_id!==O3).length,'SI'],'control de pagos contra el servidor');
  eq(cp.TOTAL_CENTAVOS,String(db.pagos.filter(p=>p.obra_id!==O3).reduce((s,p)=>s+Math.round(p.importe*100),0)),'total al centavo');
