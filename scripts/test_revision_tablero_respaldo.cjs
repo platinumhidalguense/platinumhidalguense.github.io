@@ -11,6 +11,7 @@ const M=require('../frontend/modulos/76-tablero-modelo.js');
 // A6_SONDA=1: modo diagnóstico (no se detiene; informa qué regresiones fallan) para comprobar que fallan con el código anterior.
 const SONDA=process.env.A6_SONDA==='1',fallas=[];
 let n=0;const ok=(c,m)=>{if(SONDA){if(!c)fallas.push(m);n++;return;}assert.ok(c,m);n++;},eq=(a,b,m)=>{const j=x=>x===undefined?null:JSON.parse(JSON.stringify(x));if(SONDA){try{assert.deepStrictEqual(j(a),j(b),m);}catch(e){fallas.push(m);}n++;return;}assert.deepStrictEqual(j(a),j(b),m);n++;};
+const abiertos=[];const abierto=(id,reproduce,texto)=>{if(reproduce)abiertos.push(id+': '+texto);};
 const regresion=new Set();const reg=(id,cond,m)=>{ok(cond,id+' (regresión): '+m);regresion.add(id);};
 const c=v=>Math.round(Number(v)*100); // centavos de un valor ya redondeado
 const clon=x=>JSON.parse(JSON.stringify(x));
@@ -23,7 +24,7 @@ const X1=U(1),X2=U(2),W=i=>U(10+i),ACTOR=U(999);
 function fuentesBase(){
  const I={};let k=100;const nid=t=>(I[t]=U(k++));
  const obras=[{id:X1,nombre:'CENTRO UNO',empresa_codigo:'PLATINUM',fecha_inicio:'2026-01-05',activa:true},{id:X2,nombre:'CENTRO DOS',empresa_codigo:'PLATINUM',fecha_inicio:'2026-01-05',activa:true}];
- const trabajadores=[];for(let i=1;i<=10;i++)trabajadores.push({id:W(i),obra_id:i===9?X2:X1,no_trab:i,nombres:'PERSONA '+i,primer_apellido:'FICTICIA',estatus:'ACTIVO',eliminado:false,periodo_pago:'SEMANAL',fecha_alta:'2026-01-05',contratista:'CONTR A'});
+ const trabajadores=[];for(let i=1;i<=11;i++)trabajadores.push({id:W(i),obra_id:i===9||i===11?X2:X1,no_trab:i,nombres:'PERSONA '+i,primer_apellido:'FICTICIA',estatus:'ACTIVO',eliminado:false,periodo_pago:'SEMANAL',fecha_alta:'2026-01-05',contratista:'CONTR A'});
  const C1=nid('C1'),C2=nid('C2'),V1=nid('V1'),V2=nid('V2'),C3=nid('C3'),V3=nid('V3'),H64='0'.repeat(64);
  const cierres=[{id:C1,obra_id:X1,semana:10,periodo:'SEMANAL',estado:'AUTORIZADO',snapshot:{},snapshot_sha256:H64,formula_version:'PRUEBA',creado_por:ACTOR,created_at:'2026-03-12T12:00:00Z'},
   {id:C2,obra_id:X2,semana:10,periodo:'SEMANAL',estado:'AUTORIZADO',snapshot:{},snapshot_sha256:H64,formula_version:'PRUEBA',creado_por:ACTOR,created_at:'2026-03-12T12:00:00Z'},
@@ -35,6 +36,7 @@ function fuentesBase(){
   nombre:'FICTICIA PERSONA '+i,contratista:'CONTR A',importe,metodo,vigente:true,created_at:'2026-03-12T12:00:00Z'});
  ob('O1n',1,'NOMINA','1000.00');ob('O1f',1,'FINIQUITO','500.00');ob('O1p',1,'PREVISION_SOCIAL','300.00');ob('O2',2,'NOMINA','800.00');ob('O3',3,'NOMINA','700.00','CHEQUE');
  ob('O4',4,'NOMINA','600.00','CHEQUE');ob('O5',5,'NOMINA','900.00');ob('O6',6,'NOMINA','1000.00');ob('O8',8,'NOMINA','200.00');ob('O9',9,'NOMINA','5000.00');
+ ob('O11',11,'NOMINA','50.00');Object.assign(obligaciones[obligaciones.length-1],{obra_id:X1,cierre_id:C1,cierre_origen:C1,version_id:V1,contratista:''}); // ficha en otro centro; contratista sólo en bitácora
  ob('O10b',10,'NOMINA','100.00');ob('O10a',10,'NOMINA','100.00');Object.assign(obligaciones[obligaciones.length-1],{semana:3,cierre_id:C3,cierre_origen:C3,version_id:V3}); // semana 3 y semana 10
  const pagos=[];
  const pg=(t,i,importe,banco,folio,fecha,origen,estado='EXITOSO',hora='10:00:00')=>pagos.push({id:nid(t),obra_id:i===9?X2:X1,trabajador_id:i?W(i):null,semana:'S10',medio:'TRANSFERENCIA',banco,importe,estado,
@@ -71,7 +73,17 @@ function fuentesBase(){
   {documento_id:nid('D1p'),obra_id:X1,trabajador_id:W(1),uuid:'ABC-0001',neto:'1000.00',desde:'2026-03-09',hasta:'2026-03-15',tipo:'NOMINA',formato:'PDF',anulado:false},
   {documento_id:nid('D2x'),obra_id:X1,trabajador_id:W(2),uuid:'uu-0002',neto:'800.00',desde:'2026-03-09',hasta:'2026-03-15',tipo:'NOMINA',formato:'XML',anulado:false},
   {documento_id:nid('D2p'),obra_id:X1,trabajador_id:W(2),uuid:'UU-0002',neto:'799.50',desde:'2026-03-09',hasta:'2026-03-15',tipo:'NOMINA',formato:'PDF',anulado:false}];
- return {I,f:{ahora:'2026-06-01T18:00:00Z',obras,trabajadores,cuadrillas:[],cierres,versiones,flujo:[],obligaciones,evidencias,aplicaciones,pagos,cheques,entregas:[],historial:[],
+ // Bitácora: adscripción de una persona con ficha en otro centro, baja/reingreso y fechas de cheques; ruido de documentos.
+ const historial=[];let hid=1;const hi=(tid,obra,accion,fecha,antes,despues)=>historial.push({id:hid++,trabajador_id:tid,obra_id:obra,accion,fecha,datos_antes:antes,datos_despues:despues,usuario:'revisor@ejemplo.test'});
+ hi(W(11),X2,'MODIFICACION','2026-02-01T18:00:00Z',{contratista:'CONTR VIEJO'},{contratista:'CONTR HIST',id_cuadrilla:null,estatus:'ACTIVO'});
+ hi(W(11),X2,'MODIFICACION','2026-04-01T18:00:00Z',{contratista:'CONTR HIST'},{contratista:'CONTR NUEVO',estatus:'ACTIVO'});
+ hi(W(11),X1,'BAJA','2026-03-11T18:00:00Z',{estatus:'ACTIVO'},{estatus:'BAJA',fecha_baja:'2026-03-11'});
+ hi(W(11),X1,'REACTIVACION','2026-03-12T18:00:00Z',{estatus:'BAJA',fecha_baja:'2026-03-11'},{estatus:'ACTIVO',fecha_reingreso:'2026-03-12'});
+ hi(W(3),X1,'CHEQUE-ALTA','2026-03-11T17:00:00Z',null,{id:I.Q3b,estatus:'PENDIENTE'});
+ hi(W(3),X1,'CHEQUE-MODIFICACION','2026-03-12T17:00:00Z',{id:I.Q3b,estatus:'PENDIENTE'},{id:I.Q3b,estatus:'EXPEDIDO'}); // emisión 12/03 (captura 13/03)
+ hi(W(3),X1,'CHEQUE-MODIFICACION','2026-03-14T17:00:00Z',{id:I.Q3a,estatus:'EXPEDIDO'},{id:'',estatus:'CANCELADO'});   // id vacío después: se toma el de antes
+ hi(W(4),X1,'DOCUMENTO-MODIFICACION','2026-03-12T17:00:00Z',{id:I.Q4,estatus:'EXPEDIDO'},{id:I.Q4,estatus:'CANCELADO',contratista:'RUIDO'}); // no es de cheque ni de adscripción
+ return {I,f:{ahora:'2026-06-01T18:00:00Z',obras,trabajadores,cuadrillas:[],cierres,versiones,flujo:[],obligaciones,evidencias,aplicaciones,pagos,cheques,entregas:[],historial,
   finiquitos_transferencia:[],desglose_noi:[],cfdi,efectivo_autorizado:[],errores:[]}};
 }
 const VIP={vip:true},REST={vip:false,obras:[X1],empresas:['PLATINUM']};
@@ -81,11 +93,11 @@ const val=(r,k)=>r.medidas[k].valor;
 const CLAVES=['neto_conciliado','pagado_registrado','pagado_conciliado','pendiente_conciliacion','saldo_por_cubrir','excedentes','sin_asignar','cobertura','trabajadores_con_pago'];
 const resumen=r=>Object.fromEntries(CLAVES.map(k=>[k,val(r,k)]));
 // Esperados calculados a mano (ver informe A6 §Cálculos).
-const ESPERADO={ // incluye W10: obligación de semana 10 (100) cubierta con un comprobante de semana 3 (fecha 23/01)
- VIP_PERIODO:{neto_conciliado:6100,pagado_registrado:5850,pagado_conciliado:4400,pendiente_conciliacion:1450,saldo_por_cubrir:250,excedentes:660,sin_asignar:350,cobertura:72.13,trabajadores_con_pago:8},
- VIP_PAGO:{neto_conciliado:6100,pagado_registrado:6500,pagado_conciliado:4300,pendiente_conciliacion:1250,saldo_por_cubrir:250,excedentes:600,sin_asignar:350,cobertura:72.13,trabajadores_con_pago:7},
- REST_PERIODO:{neto_conciliado:5800,pagado_registrado:5550,pagado_conciliado:4100,pendiente_conciliacion:1450,saldo_por_cubrir:250,excedentes:660,sin_asignar:350,cobertura:70.69,trabajadores_con_pago:8},
- REST_PAGO:{neto_conciliado:5800,pagado_registrado:6200,pagado_conciliado:4000,pendiente_conciliacion:1250,saldo_por_cubrir:250,excedentes:600,sin_asignar:350,cobertura:70.69,trabajadores_con_pago:7}};
+const ESPERADO={ // incluye W10 (semana 10 cubierta con un comprobante de semana 3) y W11 (ficha en otro centro, 50 sin pago)
+ VIP_PERIODO:{neto_conciliado:6150,pagado_registrado:5850,pagado_conciliado:4400,pendiente_conciliacion:1450,saldo_por_cubrir:300,excedentes:660,sin_asignar:350,cobertura:71.54,trabajadores_con_pago:8},
+ VIP_PAGO:{neto_conciliado:6150,pagado_registrado:6500,pagado_conciliado:4300,pendiente_conciliacion:1250,saldo_por_cubrir:300,excedentes:600,sin_asignar:350,cobertura:71.54,trabajadores_con_pago:7},
+ REST_PERIODO:{neto_conciliado:5850,pagado_registrado:5550,pagado_conciliado:4100,pendiente_conciliacion:1450,saldo_por_cubrir:300,excedentes:660,sin_asignar:350,cobertura:70.09,trabajadores_con_pago:8},
+ REST_PAGO:{neto_conciliado:5850,pagado_registrado:6200,pagado_conciliado:4000,pendiente_conciliacion:1250,saldo_por_cubrir:300,excedentes:600,sin_asignar:350,cobertura:70.09,trabajadores_con_pago:7}};
 
 function seccionModelo(){
  const {I,f}=fuentesBase(),fv=conPermisos(f,VIP),fr=conPermisos(f,REST);
@@ -106,10 +118,15 @@ function seccionModelo(){
  eq([rP.medidas.trabajadores_pago_parcial.valor,rP.medidas.pagado_registrado.desglose.operaciones],[1,9],'pago parcial (W6) y operaciones únicas del registrado PERIODO');
  eq(rP.medidas.cheques_por_estado.desglose.CANCELADO,{cantidad:1,importe:700},'cheque cancelado contado como cheque, no como pago');
  eq([rP.medidas.cheques_por_estado.valor,rP.medidas.cheques_por_estado.desglose.reposiciones],[3,1],'cheques del alcance y reposición');
- eq([rP.medidas.respaldo_fiscal.valor,rP.medidas.respaldo_fiscal.desglose.obligaciones],[1000,{COINCIDE:1,DIFERENCIA:0,SIN_CFDI:7,CONTRADICTORIO:1}],'CFDI+PDF del mismo UUID cuentan una vez; UUID con netos distintos no suma');
+ eq([rP.medidas.respaldo_fiscal.valor,rP.medidas.respaldo_fiscal.desglose.obligaciones],[1000,{COINCIDE:1,DIFERENCIA:0,SIN_CFDI:8,CONTRADICTORIO:1}],'CFDI+PDF del mismo UUID cuentan una vez; UUID con netos distintos no suma');
  eq(rP.calidad.map(x=>x.estado),['COMPLETO'],'calidad del centro');
  // Detalle por operación: P2 global + individual = una operación con dos representaciones.
  const op=M.detalle(fv,{...MARZO,perspectiva:'PERIODO'},{grano:'OPERACION',por_pagina:500});
+ const o11=M.detalle(fv,{...MARZO},{grano:'OBLIGACION',por_pagina:500}).filas.find(x=>x.obligacion_id===I.O11);
+ eq([o11.contratista,o11.fuente_adscripcion],['CONTR HIST','HISTORIAL'],'adscripción de bitácora a la fecha del periodo (persona con ficha en otro centro)');
+ const q3b=M.detalle(fv,{...MARZO,perspectiva:'PAGO'},{grano:'OPERACION',por_pagina:500}).filas.find(x=>x.operacion_id==='CHQ:'+I.Q3b);
+ eq([q3b.fecha_efectiva,q3b.fuente_fecha],['2026-03-12','EXPEDICION'],'cheque: emisión de la bitácora, no la captura');
+ const pl=M.plantilla(fv,{...MARZO},{}).medidas;eq([pl.altas.valor,pl.bajas.valor,pl.reingresos.valor],[0,1,1],'plantilla: baja y reingreso de la bitácora en el centro');
  eq(op.total,12,'12 operaciones con piezas en el alcance (incluye el comprobante de otra semana)');
  const p2=op.filas.find(x=>x.operacion_id==='TRF:'+I.P2a);eq([p2.representaciones,p2.origenes,p2.importe],[2,['GLOBAL','INDIVIDUAL'],800],'global e individual unificados');
  ok(!op.filas.some(x=>x.operacion_id==='TRF:'+I.P1d||x.operacion_id==='TRF:'+I.P2b||x.operacion_id==='CHQ:'+I.Q3a),'duplicado, segunda representación y cheque cancelado no son operaciones');
@@ -117,7 +134,7 @@ function seccionModelo(){
  eq([opR.importe,opR.importe_operacion],[1500,null],'restringido: P1 sólo muestra la parte visible y oculta el importe total');
  // Excepciones esperadas (a mano).
  const ex=M.excepciones(fv,{...MARZO,perspectiva:'PERIODO'},{por_pagina:500}),tipos={};for(const x of ex.filas)tipos[x.tipo]=(tipos[x.tipo]||0)+1;
- eq(tipos,{PAGO_PARCIAL:1,EXCEDENTE_APLICADO:1,CFDI_CONTRADICTORIO:1,POR_VINCULAR:3,EXCEDENTE_NO_APLICADO:1,SIN_ASIGNAR:2,OPERACION_ANULADA:1,POSIBLE_DUPLICADO:1,REPRESENTACIONES_UNIFICADAS:1,CHEQUE_POR_ENTREGAR:1,APLICACION_RETIRADA:2},'excepciones por tipo');
+ eq(tipos,{SIN_PAGO:1,PAGO_PARCIAL:1,EXCEDENTE_APLICADO:1,CFDI_CONTRADICTORIO:1,POR_VINCULAR:3,EXCEDENTE_NO_APLICADO:1,SIN_ASIGNAR:2,OPERACION_ANULADA:1,POSIBLE_DUPLICADO:1,REPRESENTACIONES_UNIFICADAS:1,CHEQUE_POR_ENTREGAR:1,APLICACION_RETIRADA:2},'excepciones por tipo');
  // Previsión social: el importe completo de la operación sí llega al restringido por excepciones.
  const exR=M.excepciones(fr,{...MARZO,perspectiva:'PERIODO'},{por_pagina:500}).filas.find(x=>x.tipo==='POSIBLE_DUPLICADO');
  reg('H5',exR&&exR.importe===1500&&M.calcular(fr,{...MARZO}).medidas.pagado_registrado.desglose.excluidos.posibles_duplicados.importe===1500,'sin VIP, el posible duplicado muestra sólo la parte visible (1500), no el total con previsión (1800)');
@@ -239,7 +256,7 @@ async function seccionControlador(base){
  const servir=(acc,d,u)=>{const f={...fuentesServidor,permisos:permisosDe(u)};return {CATALOGOS:()=>M.catalogos(f,d),RESUMEN:()=>M.calcular(f,d),TENDENCIA:()=>M.tendencia(f,d),COMPARATIVOS:()=>M.comparativos(f,d),
   EXCEPCIONES:()=>M.excepciones(f,d,d),DETALLE:()=>M.detalle(f,d,d),PLANTILLA:()=>M.plantilla(f,d,d)}[acc]();};
  let box;
- const sb={rpc:async(fn,a)=>{a=clon(a);const u=box.USER;llamadas.push(a.p_accion);await new Promise(r=>setImmediate(r));
+ const ultimos={};const sb={rpc:async(fn,a)=>{a=clon(a);const u=box.USER;llamadas.push(a.p_accion);ultimos[a.p_accion]=a.p_datos;await new Promise(r=>setImmediate(r));
    const datos=clon(servir(a.p_accion,a.p_datos,u)); // se calcula al recibir la solicitud (instantánea del servidor)
    if(retener&&retener(a.p_accion)){retener=null;await new Promise(r=>retenidas.push(r));}
    return {data:datos,error:null};},
@@ -260,13 +277,13 @@ async function seccionControlador(base){
  T.configurar({hoy:'2026-06-01',debounce_filtros_ms:1,debounce_busqueda_ms:1,vigilancia_ms:0});
  const neto=()=>{const e=T.estado();return e&&e.resumen&&e.resumen.medidas.neto_conciliado.valor;};
  await T.abrir({obras:[X1],desde:'2026-03-09',hasta:'2026-03-15',preset:'PERSONALIZADO',comparar:'NINGUNO'});await tick();
- eq(neto(),6100,'controlador: resumen del servidor pintado');
+ eq(neto(),6150,'controlador: resumen del servidor pintado');
  // 3.1 Respuesta tardía de filtros anteriores: se descarta.
  retener=a=>a==='RESUMEN';
  const p1=T.acciones.cambiarFiltros({desde:'2026-03-02',hasta:'2026-03-08'});await new Promise(r=>setTimeout(r,5));await tick();
  const p2=T.acciones.cambiarFiltros({desde:'2026-03-09',hasta:'2026-03-15'});await new Promise(r=>setTimeout(r,5));await tick();
  while(retenidas.length)retenidas.shift()();await Promise.all([p1,p2]);await tick(30);
- eq([T.estado().filtros.desde,neto()],['2026-03-09',6100],'respuesta tardía del rango anterior descartada');
+ eq([T.estado().filtros.desde,neto()],['2026-03-09',6150],'respuesta tardía del rango anterior descartada');
  // 3.2 Aviso de cambio compartido mientras una lectura está en vuelo, seguido de «Actualizar».
  const antes=llamadas.filter(x=>x==='RESUMEN').length;
  retener=a=>a==='RESUMEN';
@@ -276,8 +293,8 @@ async function seccionControlador(base){
  const r2=T.acciones.reintentar('todo');await tick();
  while(retenidas.length)retenidas.shift()();await Promise.all([r1,r2]);await tick(30);
  const despues=llamadas.filter(x=>x==='RESUMEN').length-antes;
- reg('H1',neto()===6200&&despues>=2,`tras avisarCambio(), «Actualizar» pide una lectura nueva y muestra el dato vigente (neto ${neto()}, ${despues} RESUMEN)`);
- const cacheVieja=[...S.cache.values()].some(e=>e.data&&e.data.accion==='RESUMEN'&&e.data.medidas.neto_conciliado.valor===6100);
+ reg('H1',neto()===6250&&despues>=2,`tras avisarCambio(), «Actualizar» pide una lectura nueva y muestra el dato vigente (neto ${neto()}, ${despues} RESUMEN)`);
+ const cacheVieja=[...S.cache.values()].some(e=>e.data&&e.data.accion==='RESUMEN'&&e.data.medidas.neto_conciliado.valor===6150);
  reg('H1b',!cacheVieja,'la respuesta en vuelo previa a avisarCambio() no entra a la caché');
  // Aviso con una lectura normal (no forzada) en vuelo: los datos que llegan quedan marcados como desactualizados.
  retener=a=>a==='RESUMEN';const r3=T.acciones.cambiarFiltros({desde:'2026-03-02',hasta:'2026-03-15'});await new Promise(r=>setTimeout(r,5));await tick();
@@ -285,6 +302,14 @@ async function seccionControlador(base){
  ok(T.estado().desactualizado===true,'lectura que cruza un aviso de cambio queda marcada «desactualizado»');
  await T.acciones.cambiarFiltros({desde:'2026-03-09',hasta:'2026-03-15'});await tick(30);
  fuentesServidor=clon(base.f);T._pruebas.limpiarCache();await T.acciones.reintentar('todo');await tick(30);
+ const txt=document.body.textContent;
+ reg('N2',txt.includes('por método de pago planeado')&&!txt.includes('Distribución por medio de pago'),'en PERIODO la gráfica se rotula «método de pago planeado» (no «medio de pago»)');
+ reg('N1',!!document.querySelector('.tb-barra--fija')&&/Pagos sin obligación/.test(document.querySelector('.tb-barra--fija').textContent),'la fila de pagos sin obligación no es navegable');
+ // Navegación desde la gráfica por método planeado (perspectiva periodo): el detalle debe filtrar ese método.
+ await T.acciones.abrirDetalle('pagado_registrado',{dimension:'metodo_planeado',valor:'CHEQUE',origen:'grafica'});await tick(30);
+ const dD=ultimos.DETALLE||{};
+ abierto('N4',!(Array.isArray(dD.medios)&&dD.medios.includes('CHEQUE')),`78 ajusteDimension no reconoce la dimensión 'metodo_planeado' que ahora emite la gráfica de 77 en PERIODO: el detalle «… · Cheque» se abre sin filtro (medios=${JSON.stringify(dD.medios)}) y lista todo el alcance`);
+ await T.acciones.cerrarDetalle();await tick(10);
  // 3.3 Exportación filtrada: cuadre al centavo, hojas, textos, anti-fórmula, división.
  T.configurar({limite_filas_hoja:4});
  fuentesServidor.obligaciones.find(o=>o.id===base.I.O2).contratista='=HYPERLINK("http://x","y")';fuentesServidor.obligaciones.find(o=>o.id===base.I.O4).nombre='+SUMA(1;2)';
@@ -294,13 +319,13 @@ async function seccionControlador(base){
  eq(ex.cuadre.map(x=>x.resultado),ex.cuadre.map(()=>'CUADRA'),'CUADRE de la exportación: todo cuadra');
  const wb=ex.wb,nombres=wb.SheetNames;
  ok(nombres.every(x=>x.length<=31)&&new Set(nombres.map(x=>x.toLowerCase())).size===nombres.length,'hojas ≤31 caracteres y únicas: '+nombres.join(' | '));
- ok(nombres.filter(x=>x.startsWith('DETALLE OBLIGACIONES')).length===3,'detalle dividido por el límite configurado de filas por hoja (10 → 3 hojas de 4)');
+ ok(nombres.filter(x=>x.startsWith('DETALLE OBLIGACIONES')).length===3,'detalle dividido por el límite configurado de filas por hoja (11 → 3 hojas de 4)');
  const filasHoja=nombre=>XLSX.utils.sheet_to_json(wb.Sheets[nombre],{header:1,raw:true});
  const partes=nombres.filter(x=>x.startsWith('DETALLE OBLIGACIONES')).map(filasHoja);
  const encab=partes[0][1],iImp=encab.findIndex(h=>/^Neto/.test(h)),iId=encab.indexOf('ID obligación');
  const datos=partes.flatMap((p,i)=>p.slice(2,i===partes.length-1?-1:undefined));
- eq([datos.length,Math.round(datos.reduce((s,r)=>s+r[iImp],0)*100)],[10,610000],'Σ neto de las hojas de detalle = 6,100.00 del resumen');
- const pie=partes[partes.length-1].slice(-1)[0];ok(Math.round(pie[iImp]*100)===610000,'el TOTAL de la última parte suma todas las partes');
+ eq([datos.length,Math.round(datos.reduce((s,r)=>s+r[iImp],0)*100)],[11,615000],'Σ neto de las hojas de detalle = 6,150.00 del resumen');
+ const pie=partes[partes.length-1].slice(-1)[0];ok(Math.round(pie[iImp]*100)===615000,'el TOTAL de la última parte suma todas las partes');
  const sh=wb.Sheets[nombres.find(x=>x.startsWith('DETALLE OBLIGACIONES'))],celdaId=sh[XLSX.utils.encode_cell({r:2,c:iId})];
  eq([celdaId.t,celdaId.z],['s','@'],'IDs como texto con formato @');
  const todasCeldas=nombres.flatMap(nm=>Object.entries(wb.Sheets[nm]).filter(([k])=>k[0]!=='!').map(([,v])=>v));
@@ -367,7 +392,7 @@ async function seccionRespaldoExportar(){
  const {I,f}=fuentesBase(),oF=f.obligaciones.find(o=>o.id===I.O1f);
  const exc={id:U(800),cierre_id:oF.cierre_id,trabajador_id:oF.trabajador_id,finiquito_efectivo:'500.00',neto_original:'1500.00',nomina_transferencia:'1000.00',registrado_en:'2026-03-13T18:00:00Z'};
  const tablas={obras:f.obras,trabajadores:f.trabajadores,control_cierres_nomina:f.cierres,control_cierre_versiones:f.versiones,control_obligaciones_pago:f.obligaciones,
-  control_evidencias_pago:f.evidencias,control_pago_aplicaciones:f.aplicaciones,pagos:f.pagos,cheques:f.cheques},internas={excepciones_noi_individuales:[exc]};
+  control_evidencias_pago:f.evidencias,control_pago_aplicaciones:f.aplicaciones,pagos:f.pagos,cheques:f.cheques,historial:f.historial},internas={excepciones_noi_individuales:[exc]};
  const filasDe=k=>tablas[k]||internas[k]||[],TAB=Object.fromEntries(box.PLATINUM_RESPALDO.fuentes().map(x=>[x.tabla,x.clave]));
  let lento=true;const marca=k=>({filas:filasDe(k).length,max_actualizado:null,max_creado:null,huella:'h'+filasDe(k).length,por_obra:{}});
  const sb={rpc:async(fn,a)=>{
@@ -390,6 +415,38 @@ async function seccionRespaldoExportar(){
  const conE=M.calcular({...base,efectivo_autorizado:[{obligacion_id:oF.id,importe:'500.00',fecha:'2026-03-13'}]},rango),sinE=M.calcular({...base,efectivo_autorizado:[]},rango);
  reg('H3',conE.huella!==sinE.huella&&['pendiente_conciliacion','excedentes','saldo_por_cubrir','pagado_registrado'].every(k=>fila(k,'PERIODO')===String(c(val(conE,k)))),
   'CONTROL del respaldo cuadra con el tablero incluyendo el finiquito en efectivo autorizado (pendiente '+fila('pendiente_conciliacion','PERIODO')+' centavos)');
+}
+
+/* Marca LIGERA del respaldo (> 5,000 filas): ¿detecta ediciones concurrentes en tablas que sí se editan? */
+async function seccionMarcasLigeras(sqls){
+ const priv='work/respaldo_20261111';
+ if(!sqls.respaldo||!fs.existsSync(priv+'/generar_prod_base.cjs')){console.log('ALCANCE PÚBLICO: marcas del respaldo omitidas.');return;}
+ require(path.join(root,priv,'generar_prod_base.cjs'));
+ const {makeDatabase,ids,actor}=require('./soporte_flujo_pg.cjs');
+ const db=await makeDatabase();await db.exec(fs.readFileSync(priv+'/prod_base.sql','utf8'));await db.exec(sqls.respaldo);
+ const emp=(await db.query('select coalesce(empresa_codigo,$2) e from public.obras where id=$1',[ids.obra,'PLATINUM'])).rows[0].e;
+ await db.exec('set session_replication_role=replica');
+ const plantilla=async(t,base)=>{const cs=(await db.query(`select column_name c,data_type t from information_schema.columns where table_schema='public' and table_name=$1 and is_nullable='NO' and column_default is null`,[t])).rows;
+  const r={...base};for(const c of cs)if(!(c.c in r))r[c.c]=c.t==='uuid'?ids.w:/int|numeric/.test(c.t)?1:c.t==='jsonb'?{}:c.t==='boolean'?false:/timestamp/.test(c.t)?'2026-03-13T12:00:00Z':c.t==='date'?'2026-03-13':'Dato ficticio de prueba';return r;};
+ const masivo=async(t,base,n)=>{const r=await plantilla(t,base),ks=Object.keys(r).filter(k=>k!=='id');
+  await db.query(`insert into public.${t}(id,${ks.map(k=>'"'+k+'"').join(',')}) select gen_random_uuid(),${ks.map(k=>'x."'+k+'"').join(',')} from generate_series(1,${n}) g cross join jsonb_populate_record(null::public.${t},$1::jsonb) x`,[JSON.stringify(r)]);};
+ await masivo('documentos',{obra_id:ids.obra,trabajador_id:ids.w,categoria:'RECIBO_NOMINA',archivo:'ruta/x',notas:'nota',anulado:false},5001);
+ await masivo('pagos',{obra_id:ids.obra,trabajador_id:ids.w,importe:100,estado:'EXITOSO',medio:'TRANSFERENCIA',fecha_pago:'2026-03-13',folio_lote:'F'},5001);
+ await masivo('cheques',{obra_id:ids.obra,importe:100,estatus:'EXPEDIDO',eliminado:false},20);
+ await db.exec('set session_replication_role=origin');
+ const marcas=async()=>{await actor(db,'admin');try{return (await db.query('select public.control_respaldo($1,$2::jsonb) r',['MARCAS',JSON.stringify({empresa:emp,obras:[ids.obra],fuentes:['documentos','pagos','cheques']})])).rows[0].r.marcas;}finally{await db.exec('reset role');}};
+ const firma=m=>[m.filas,m.max_actualizado,m.max_creado,m.huella].join('|');
+ const a=await marcas();
+ eq([a.documentos.tipo,a.pagos.tipo,a.cheques.tipo],['LIGERA','LIGERA','COMPLETA'],'tipo de marca por volumen');
+ await db.exec('set session_replication_role=replica'); // edición concurrente simulada (sin disparadores de validación)
+ await db.exec(`update public.documentos set notas='EDITADA' where id=(select id from public.documentos order by id limit 1);
+  update public.pagos set estado='RECHAZADO' where id=(select id from public.pagos order by id limit 1);
+  update public.cheques set importe=999 where id=(select id from public.cheques order by id limit 1)`);
+ await db.exec('set session_replication_role=origin');
+ const b=await marcas();
+ ok(firma(a.cheques)!==firma(b.cheques),'marca COMPLETA detecta la edición de un cheque');
+ abierto('N3',firma(a.documentos)===firma(b.documentos)&&firma(a.pagos)===firma(b.pagos),
+  'marca LIGERA (>5,000 filas) no detecta ediciones en documentos (13.5k filas; se editan: 16.7k DOCUMENTO-MODIFICACION) ni en pagos al pasar de 5,000 (hoy ~4,260; sin columna de modificación): el respaldo puede salir COMPLETO con una edición concurrente no detectada');
 }
 
 /* =====================================================================
@@ -465,7 +522,7 @@ async function seccionPG(base,sqls){
  const ct=def.find(x=>x.proname==='control_tablero'),tr=def.find(x=>x.proname==='tablero_rpc');
  eq([ct.prosecdef,ct.proconfig,ct.anon,ct.auth],[true,['search_path=""'],false,true],'control_tablero: SECURITY DEFINER, search_path vacío, sin anon');
  eq([tr.anon,tr.auth],[false,false],'tablero_rpc interna sin EXECUTE para anon/authenticated');
- const T={obras:'obras',trabajadores:'trabajadores',cierres:'control_cierres_nomina',versiones:'control_cierre_versiones',obligaciones:'control_obligaciones_pago',evidencias:'control_evidencias_pago',aplicaciones:'control_pago_aplicaciones',pagos:'pagos',cheques:'cheques'};
+ const T={obras:'obras',trabajadores:'trabajadores',historial:'historial',cierres:'control_cierres_nomina',versiones:'control_cierre_versiones',obligaciones:'control_obligaciones_pago',evidencias:'control_evidencias_pago',aplicaciones:'control_pago_aplicaciones',pagos:'pagos',cheques:'cheques'};
  const cols={};for(const t of [...Object.values(T),'documentos'])cols[t]=(await db.query(`select column_name c,data_type t,is_nullable='NO' and column_default is null and is_generated='NEVER' and identity_generation is null req from information_schema.columns where table_schema='public' and table_name=$1`,[t])).rows;
  const relleno=(cc,r,i)=>cc.t==='uuid'?(r.id||U(7000+i)):/int|numeric/.test(cc.t)?0:cc.t==='jsonb'?{}:cc.t==='boolean'?false:/timestamp/.test(cc.t)?'2026-03-01T00:00:00Z':cc.t==='date'?'2026-03-01':cc.t==='ARRAY'?[]:'Dato ficticio de prueba';
  let fila=0;
@@ -511,16 +568,54 @@ async function seccionPG(base,sqls){
  const leidas={};for(const [k,t] of Object.entries(T))leidas[k]=(await db.query(`select coalesce(jsonb_agg(to_jsonb(x)),'[]') j from public.${t} x`)).rows[0].j;
  const canon=v=>Array.isArray(v)?'['+v.map(canon).join(',')+']':v&&typeof v==='object'?'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}':JSON.stringify(v===undefined?null:v);
  const primera=(a,b,p='$')=>{if(canon(a)===canon(b))return null;if(a&&b&&typeof a==='object'&&typeof b==='object'){for(const k of new Set([...Object.keys(a),...Object.keys(b)])){const d=primera(a[k],b[k],p+'.'+k);if(d)return d;}}return p+': SQL '+JSON.stringify(a)?.slice(0,160)+' ≠ JS '+JSON.stringify(b)?.slice(0,160);};
- const FN={RESUMEN:'calcular',TENDENCIA:'tendencia',COMPARATIVOS:'comparativos',EXCEPCIONES:'excepciones',DETALLE:'detalle'};
+ const FN={RESUMEN:'calcular',TENDENCIA:'tendencia',COMPARATIVOS:'comparativos',EXCEPCIONES:'excepciones',DETALLE:'detalle',PLANTILLA:'plantilla',CATALOGOS:'catalogos'};
  const rangos=[[ '2026-03-09','2026-03-15'],['2026-03-16','2026-03-22'],['2026-01-19','2026-03-31'],['2026-03-01','2026-03-31']];
  const difs=[];
- for(const [d,h] of rangos)for(const persp of ['PERIODO','PAGO'])for(const [uid,p] of [[uV,VIP],[uR,REST]])for(const [acc,op] of [['RESUMEN',{}],['TENDENCIA',{}],['COMPARATIVOS',{}],['EXCEPCIONES',{por_pagina:500}],['DETALLE',{grano:'OBLIGACION',por_pagina:500}],['DETALLE',{grano:'OPERACION',por_pagina:500}]]){
+ for(const [d,h] of rangos)for(const persp of ['PERIODO','PAGO'])for(const [uid,p] of [[uV,VIP],[uR,REST]])for(const [acc,op] of [['RESUMEN',{}],['TENDENCIA',{}],['COMPARATIVOS',{}],['EXCEPCIONES',{por_pagina:500}],['DETALLE',{grano:'OBLIGACION',por_pagina:500}],['DETALLE',{grano:'OPERACION',por_pagina:500}],['PLANTILLA',{por_pagina:500}],['CATALOGOS',{}]]){
   const fl={empresa:'PLATINUM',desde:d,hasta:h,perspectiva:persp,comparar:acc==='RESUMEN'?'ANTERIOR':null};
   const sq=await llamarInt(uid,acc,{filtros:fl,opciones:op});
   const js=clon(M[FN[acc]]({...base.f,...leidas,ahora:sq.actualizado_en||base.f.ahora,permisos:p},fl,op));
   const df=primera(clon(sq),js);if(df)difs.push(`${acc} ${op.grano||''} ${persp} ${d}…${h} ${p.vip?'VIP':'REST'}: ${df}`);n++;
  }
- eq(difs.slice(0,3),[],'SQL = modelo JS al centavo en 96 consultas (4 rangos × 2 perspectivas × 2 perfiles × 6 acciones)');
+ eq(difs.slice(0,3),[],'SQL = modelo JS al centavo en 128 consultas (4 rangos × 2 perspectivas × 2 perfiles × 8 acciones, con bitácora)');
+ // Dependencias: ningún objeto o columna que sólo exista en los fixtures (inventario de producción de A4 + vista verificada por A7).
+ const prodF='work/respaldo_20261111/prod_columnas.json';
+ if(fs.existsSync(prodF)){
+  const prod=JSON.parse(fs.readFileSync(prodF,'utf8')),colsProd=(sch,t)=>prod[sch]&&prod[sch][t]?new Set(String(prod[sch][t]).split(/\s+/).map(x=>x.split(':')[0]).filter(Boolean)):null;
+  const sql=sqls.tablero.replace(/--[^\n]*/g,''),propias=new Set([...sql.matchAll(/create or replace function (?:public|platinum_internal)\.([a-z_0-9]+)/g)].map(m=>m[1]));
+  const FUNC_PROD=new Set(['app_registrado','app_ve_obra','app_ve_empresa','app_es_vip','excepcion_noi']);
+  const VISTA_FISCAL=['id','obra_id','trabajador_id','cfdi_uuid','categoria','cfdi_total','nomina_neto','periodo_inicio','periodo_fin','nomina_tipo','anulado']; // A7: columnas verificadas en producción
+  const malos=[],rels=new Set();
+  for(const m of sql.matchAll(/\b(public|platinum_internal)\.([a-z_0-9]+)\b(\s*\()?/g)){
+   const [,sch,nom,par]=m;if(propias.has(nom))continue;
+   const indice=/\bon\s*$/i.test(sql.slice(Math.max(0,m.index-6),m.index));
+   if(par&&!indice){if(!FUNC_PROD.has(nom))malos.push('función '+sch+'.'+nom);continue;}
+   if(sch==='platinum_internal'&&nom==='documentos_fiscales'){rels.add(sch+'.'+nom);continue;}
+   if(!colsProd(sch,nom))malos.push('relación '+sch+'.'+nom);else rels.add(sch+'.'+nom);
+  }
+  ok(!/public\.documentos_fiscales/.test(sql)&&rels.has('platinum_internal.documentos_fiscales'),'vista fiscal en platinum_internal (como en producción)');
+  const fis=sql.slice(sql.indexOf('platinum_internal.documentos_fiscales d')-1200,sql.indexOf('platinum_internal.documentos_fiscales d')+400);
+  const usadasFis=[...new Set([...fis.matchAll(/\bd\.([a-z_]+)/g)].map(m=>m[1]))];
+  eq(usadasFis.filter(c=>!VISTA_FISCAL.includes(c)),[],'columnas de la vista fiscal existentes en producción ('+usadasFis.join(',')+')');
+  const extra=[];
+  for(const r of rels){const [sch,t]=r.split('.');if(t==='documentos_fiscales')continue;const pc=colsProd(sch,t);
+   const lc=(await db.query('select column_name c from information_schema.columns where table_schema=$1 and table_name=$2',[sch,t])).rows.map(x=>x.c);
+   for(const c of lc)if(!pc.has(c)&&new RegExp('\\.'+c+'\\b').test(sql)&&![...rels].some(r2=>r2!==r&&colsProd(...r2.split('.'))?.has(c)))extra.push(r+'.'+c);}
+  eq([malos,extra],[[],[]],'el SQL del tablero sólo usa relaciones, columnas y funciones de producción ('+rels.size+' relaciones)');
+ }
+ // Índices aditivos de historial: forma, tamaño y tiempo de creación con volumen real simulado (40,400 filas, JSON ~1.6 KB).
+ const idx=[...sqls.tablero.matchAll(/create\s+(unique\s+)?index[^;]*?\bon\s+public\.[^;]*;/gi)].map(m=>m[0]);
+ ok(idx.length===3&&idx.every(x=>/^create index if not exists historial_tablero_[a-z_]+ on public\.historial/i.test(x))&&!/drop index[^;]*public\.|unique index[^;]*public\./i.test(sqls.tablero),'sólo 3 índices aditivos en historial (if not exists, no únicos, sin drop)');
+ await db.exec('reset role');await db.exec('set session_replication_role=replica');
+ await db.exec(`insert into public.historial(id,trabajador_id,obra_id,accion,fecha,datos_antes,datos_despues)
+  select 1000000+g,md5((g%980)::text)::uuid,md5((g%8)::text)::uuid,case when g%100<41 then 'DOCUMENTO-MODIFICACION' when g%100<75 then 'DOCUMENTO-ALTA' when g%100<92 then 'MODIFICACION' when g%100<97 then 'CHEQUE-MODIFICACION' else 'CHEQUE-ALTA' end,
+   timestamptz '2026-01-01'+g*interval '5 minutes',jsonb_build_object('id',md5((g%980)::text)::uuid::text,'p',repeat('x',700)),jsonb_build_object('id',md5((g%980)::text)::uuid::text,'p',repeat('y',800))
+  from generate_series(1,40400) g`);
+ await db.exec('set session_replication_role=origin');
+ const info=[];
+ for(const x of idx){const nom=x.match(/historial_tablero_[a-z_]+/)[0];await db.exec('drop index public.'+nom);const t1=Date.now();await db.exec(x);const ms=Date.now()-t1;
+  const kb=Math.round((await db.query('select pg_relation_size($1::regclass) b',['public.'+nom])).rows[0].b/1024);info.push(`${nom} ${kb} KiB ${ms} ms`);ok(kb<20480&&ms<8000,'índice '+nom+' pequeño y rápido de crear');}
+ console.log('INFO índices de historial (PGlite, 40,400 filas): '+info.join(' · '));
  return {dif};
 }
 
@@ -534,6 +629,8 @@ async function seccionPG(base,sqls){
  seccionRegresiones();
  const sqls=estaticoSQL();
  const pg=await seccionPG(fuentesBase(),sqls);
+ await seccionMarcasLigeras(sqls);
+ for(const x of abiertos)console.log('ABIERTO '+x);
  if(SONDA){console.log('SONDA: '+fallas.length+' comprobaciones fallan');for(const m of fallas)console.log(' - '+m.slice(0,160));return;}
- console.log(`PASS revisión tablero/respaldo: ${n} comprobaciones · regresiones cerradas ${[...regresion].sort().join(', ')} · SQL ${pg.omitido?'omitido (paquete privado ausente)':'= modelo y = cálculo a mano'} · ${((Date.now()-t0)/1000).toFixed(1)} s`);
+ console.log(`PASS revisión tablero/respaldo: ${n} comprobaciones · regresiones cerradas ${[...regresion].sort().join(', ')} · abiertos ${abiertos.map(x=>x.split(':')[0]).join(', ')||'ninguno'} · SQL ${pg.omitido?'omitido (paquete privado ausente)':'= modelo y = cálculo a mano'} · ${((Date.now()-t0)/1000).toFixed(1)} s`);
 })().catch(e=>{console.error(e);process.exit(1);});
