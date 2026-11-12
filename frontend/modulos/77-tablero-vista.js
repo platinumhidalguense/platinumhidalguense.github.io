@@ -109,7 +109,7 @@
  const FUENTES={catalogos:'Catálogos de filtros',resumen:'Indicadores',tendencia:'Tendencia',comparativos:'Comparativos',excepciones:'Excepciones',detalle:'Detalle',plantilla:'Plantilla'};
  const ADSCRIPCION_PENDIENTE='Adscripción histórica pendiente',PENDIENTE_CLAVE='__PENDIENTE__',SIN_CUADRILLA_CLAVE='__SIN_CUADRILLA__';
  const PERIODICIDADES={SEMANAL:'Semanal',QUINCENAL:'Quincenal',SEMANA_DE_PAGO:'Semana de pago'};
- const MEDIOS={TRANSFERENCIA:'Transferencia',CHEQUE:'Cheque','POR DEFINIR':'Por definir',POR_DEFINIR:'Por definir',EFECTIVO:'Efectivo',SIN_MEDIO:'Sin medio'};
+ const MEDIOS={TRANSFERENCIA:'Transferencia',CHEQUE:'Cheque','POR DEFINIR':'Por definir',POR_DEFINIR:'Por definir',EFECTIVO:'Efectivo',SIN_MEDIO:'Sin medio',SIN_OBLIGACION:'Pagos sin obligación'};
  const CONCEPTOS={NOMINA:'Nómina',FINIQUITO:'Finiquito',PREVISION_SOCIAL:'Previsión social',SIN_CONCEPTO:'Sin concepto'};
  const CHEQUES=[['PENDIENTE','Pendiente'],['EXPEDIDO','Expedido'],['ENTREGADO','Entregado'],['CANCELADO','Cancelado']];
  const TRAMOS=[['por_vencer','Por vencer'],['0_7','0–7 días'],['8_14','8–14 días'],['15_30','15–30 días'],['31_60','31–60 días'],['mas_60','Más de 60 días']];
@@ -357,6 +357,9 @@
    const fuera=o.panorama&&f.seleccionado===false;
    const pista=segs.map(g=>{const v=Math.max(0,num(f.valores[g.clave])||0);if(!v)return '';const color=fuera?'--tb-gris':(o.colorFila?o.colorFila(f,i):g.color);return `<span class="tb-seg" style="width:${(v/max*100).toFixed(2)}%;background:var(${color})"></span>`;}).join('');
    const aria=`${f.etiqueta}${f.sub?' ('+f.sub+')':''}: ${o.textoAria(f)}${fuera?'. Fuera de la selección actual':''}. Abrir detalle.`;
+   if(o.noNavegable&&o.noNavegable(f))return `<li><div class="tb-barra tb-barra--fija" role="group" aria-label="${E(f.etiqueta+': '+o.textoAria(f)+'. '+o.textoFija)}">
+    <span class="tb-barra-et"><span class="tb-barra-nom">${E(f.etiqueta)}</span><span class="tb-sub">${E(o.textoFija)}</span></span>
+    <span class="tb-barra-pista" aria-hidden="true">${pista||'<span class="tb-seg tb-seg--cero"></span>'}</span><span class="tb-barra-val">${o.textoValor(f)}</span></div></li>`;
    return `<li><button type="button" class="tb-barra${fuera?' tb-barra--fuera':''}" data-accion="detalle" data-clave="${E(o.medida)}" data-origen="grafica" data-dim="${E(o.dimension)}" data-valor="${E(f.clave)}" data-etq="${E(f.etiqueta)}" data-foco="${E(gid)}-b-${i}" aria-label="${E(aria)}">
     <span class="tb-barra-et"><span class="tb-barra-nom">${f.pendiente?marcaPendiente():E(f.etiqueta)}</span>${f.sub?`<span class="tb-sub">${E(f.sub)}</span>`:''}</span>
     <span class="tb-barra-pista" aria-hidden="true">${pista||'<span class="tb-seg tb-seg--cero"></span>'}</span>
@@ -460,22 +463,35 @@
  }
  function grafSimple(r,gid,o){
   const e=r.estado,filas=o.filas;
-  const cuerpo=conFuente(e,o.fuente||'comparativos',filas.length>0,()=>filas.length?barrasHtml(r,gid,{filas,segmentos:[{clave:'v',color:o.color||'--tb-uno'}],medida:o.medida,dimension:o.dimension,colorFila:o.colorFila,textoAria:o.textoAria,textoValor:o.textoValor})
+  const cuerpo=conFuente(e,o.fuente||'comparativos',filas.length>0,()=>filas.length?barrasHtml(r,gid,{filas,segmentos:[{clave:'v',color:o.color||'--tb-uno'}],medida:o.medida,dimension:o.dimension,colorFila:o.colorFila,textoAria:o.textoAria,textoValor:o.textoValor,noNavegable:o.noNavegable,textoFija:o.textoFija})
    :bloqueVacio(o.vacioTitulo||'Sin datos',o.vacioTexto||'No hay registros en este alcance.',false),'graf');
   const tabla=filas.length?tablaHtml({caption:o.titulo,columnas:o.columnasTabla,filas,pie:o.pie}):'';
   return figura(r,gid,{titulo:o.titulo,descripcion:o.descripcion,cuerpo,tabla});
  }
  const comp=(estado,k)=>arr(estado.comparativos&&estado.comparativos[k]);
+ /* H7 del modelo: `por_medio_criterio` = METODO_PLANEADO (perspectiva periodo:
+    método planeado de la obligación; pagos sin obligación → SIN_OBLIGACION) o
+    MEDIO_REAL (perspectiva pago: medio real de la operación, sin saldo ni cobertura). */
+ function criterioMedio(estado){
+  const c=(estado.comparativos&&estado.comparativos.por_medio_criterio)||(estado.resumen&&estado.resumen.por_medio_criterio);
+  if(c==='METODO_PLANEADO'||c==='MEDIO_REAL')return c;return filtros(estado).perspectiva==='PAGO'?'MEDIO_REAL':'METODO_PLANEADO';
+ }
  function grafMedio(r){
+  const crit=criterioMedio(r.estado),plan=crit==='METODO_PLANEADO';
   let src=comp(r.estado,'por_medio'),fuente='comparativos';
   if(!src.length){const pm=obj(obj(medida(r.estado,'pagado_registrado').desglose).por_medio);src=Object.entries(pm).map(([k,v])=>({clave:k,pagado_registrado:v}));fuente='resumen';}
   const lista=src.map(f=>{const k=String(f.clave??f.medio??'');const imp=num(f.pagado_registrado??f.importe);return {clave:k,etiqueta:MEDIOS[k]||f.etiqueta||k||'—',valores:{v:imp},importe:imp,operaciones:num(f.operaciones),neto:num(f.neto_conciliado)};})
    .sort((a,b)=>(b.importe||0)-(a.importe||0)||(b.neto||0)-(a.neto||0));
   const total=lista.reduce((s,f)=>s+(f.importe||0),0),part=f=>total?(f.importe||0)/total*100:null,ops=lista.some(f=>f.operaciones!==null);
-  return grafSimple(r,'por_medio',{fuente,titulo:'Distribución por medio de pago',descripcion:'Pagado registrado por medio de pago y su participación en el total; cada operación real cuenta una vez aunque tenga varias representaciones.',filas:lista,medida:'pagado_registrado',dimension:'medio',
+  const eje=plan?'Método de pago planeado':'Medio de pago real';
+  return grafSimple(r,'por_medio',{fuente,titulo:plan?'Pagado registrado por método de pago planeado':'Pagado registrado por medio de pago real',
+   descripcion:plan?'Perspectiva por periodo de nómina: agrupa por el método planeado de cada obligación (transferencia, cheque o por definir), no por el medio con que se pagó; por eso puede diferir del desglose por medio real. Los pagos sin obligación van aparte.'
+    :'Perspectiva por fecha efectiva de pago: agrupa por el medio real de cada operación; cada operación cuenta una vez. No aplica saldo ni cobertura.',
+   filas:lista,medida:'pagado_registrado',dimension:plan?'metodo_planeado':'medio',
+   noNavegable:f=>f.clave==='SIN_OBLIGACION',textoFija:'Sin obligación asociada: se revisa en «Pago sin asignar» y en excepciones.',
    textoAria:f=>`${F.mxn(f.importe)}${f.operaciones!==null?', '+F.entero(f.operaciones)+' operaciones':''}, ${F.pct(part(f))} del total`,
    textoValor:f=>`<span class="tb-cifra">${E(F.mxn(f.importe))}</span><span class="tb-sub">${f.operaciones!==null?E(F.entero(f.operaciones))+' operaciones · ':''}${E(F.pct(part(f)))}</span>`,
-   columnasTabla:[{etiqueta:'Medio de pago',valor:f=>f.etiqueta},{etiqueta:'Pagado registrado',tipo:'MXN',valor:f=>f.importe},...(ops?[{etiqueta:'Operaciones',tipo:'OPERACIONES',valor:f=>f.operaciones}]:[]),{etiqueta:'Participación',tipo:'PCT',valor:part}],
+   columnasTabla:[{etiqueta:eje,valor:f=>f.etiqueta},{etiqueta:'Pagado registrado',tipo:'MXN',valor:f=>f.importe},...(ops?[{etiqueta:'Operaciones',tipo:'OPERACIONES',valor:f=>f.operaciones}]:[]),{etiqueta:'Participación',tipo:'PCT',valor:part}],
    pie:ops?['Total',total,lista.reduce((s,f)=>s+(f.operaciones||0),0),total?100:null]:['Total',total,total?100:null]});
  }
  function grafCheques(r){

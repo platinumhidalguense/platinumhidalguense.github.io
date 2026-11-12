@@ -228,6 +228,8 @@
 .tb-barra-val{text-align:right;font-variant-numeric:tabular-nums}
 .tb-cifra{display:block;font-weight:700}
 .tb-barra--fuera .tb-barra-nom{color:var(--mut)}
+.tb-barra--fija{cursor:default}
+.tb-barra--fija:hover{background:none}
 
 /* tabla alternativa */
 .tb-alt{padding-top:6px;border-top:1px solid var(--line)}
