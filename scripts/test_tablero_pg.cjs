@@ -157,7 +157,7 @@ const TABLAS={obras:'obras',trabajadores:'trabajadores',cuadrillas:'cuadrillas',
  insert into public.cheques(id,obra_id,trabajador_id,no_trab,nombre,semana,importe,tipo_pago,num_cheque,consecutivo,estatus,eliminado,created_at)
   select ('c3000000-0000-4000-8000-'||lpad(k::text,12,'0'))::uuid,w.obra_id,w.id,w.no_trab,w.nombres,'S'||(11+k%20),1500,case when k%3=0 then 'FINIQUITO' else 'CHEQUE' end,
    case when k%5=4 then '' else 'N'||k end,case when k%5=4 then '' else 'K'||k end,(array['ENTREGADO','EXPEDIDO','CANCELADO','ENTREGADO','PENDIENTE'])[1+k%5],k%5=4,'2026-06-01T15:00:00Z'::timestamptz+(k%120)*interval '1 day'
-  from generate_series(1,990) k join public.trabajadores w on w.no_trab=1+(k*7)%980;
+  from generate_series(1,980) k join public.trabajadores w on w.no_trab=k;
  insert into public.historial(trabajador_id,obra_id,accion,fecha,datos_antes,datos_despues)
   select w.id,w.obra_id,a.accion,'2026-07-08T15:00:00Z'::timestamptz+((g*37)%120000)*interval '1 minute',
    case when a.antes then jsonb_build_object('id',w.id,'estatus','ACTIVO','contratista',w.contratista,'fecha_baja',null,'relleno',repeat('a',a.tam/2)) end,
