@@ -21,7 +21,7 @@
  function decision(d){
   if(!d?.firma)throw Error('No se verificó la fuente de faltas y aguinaldo.');
   if(d.reservas?.length)throw Error('Hay aguinaldo reservado en una nómina abierta ('+d.reservas.map(r=>r.id).join(', ')+'). Retira o resuelve su aplicación en la corrida de aguinaldo antes de continuar.');
-  if(d.exento_acreditado_pendiente)throw Error('Falta la parte exenta del aguinaldo acreditado: '+d.referencias.map(r=>r.id).join(', ')+'. Vincula ese desglose antes de aplicar.');
+  if(d.exento_acreditado_pendiente){const refs=(d.referencias||[]).filter(r=>r.exento==null);throw Error('Falta la parte exenta del aguinaldo de un pago anterior: '+refs.map(r=>r.fecha_pago?fmtD(r.fecha_pago):r.id).join(', ')+'. Importa o verifica su XML/PDF timbrado y vuelve a calcular.');}
   return {puede_continuar:true,etiqueta:d.etiqueta,acreditado:Number(d.aguinaldo_acreditado)||0,documentos_informativos:d.informativos?.length||0};
  }
  function panel(d){return `<section class="bf-papel"><h4>${esc(d.etiqueta)}</h4><p>Ciclo ${esc(d.desde)} al ${esc(d.corte)} · ${d.dias_base} días base · ${d.faltas} falta(s) tipo 2 · ${d.dias_aguinaldo} días de aguinaldo.</p>
@@ -29,6 +29,7 @@
   ${Number(d.aguinaldo_acreditado)?`<p>Aguinaldo acreditado del ciclo: $${money(d.aguinaldo_acreditado)} · ${d.referencias.map(r=>esc(r.id)).join(', ')}.</p>`:'<p>El aguinaldo causado pendiente se incluye en el finiquito.</p>'}
   ${d.reservas.length?'<p style="color:var(--amber)">Hay una reserva vigente: resuelve su cobertura en la corrida de aguinaldo.</p><button class="btn" type="button" onclick="window.PLATINUM_AGUINALDO_UI.abrir()">Ver corrida de aguinaldo</button>':''}
   ${d.informativos.length?'<p class="fhint">'+d.informativos.length+' documento(s) sin aplicación acreditada: son informativos, no equivalen a pago previo.</p>':''}
+  <p class="fhint">${d.exento_acreditado_pendiente?'Exención anual anterior pendiente de verificar.':'Exención de aguinaldo ya utilizada en el año: $'+money(d.exento_ag_usado||0)+'.'}${(d.referencias||[]).some(r=>r.fiscal_cfdi?.estado==='VERIFICADO')?' Desglose recuperado de un CFDI verificado; la operación histórica se conserva.':''}</p>
   ${d.limitaciones.length?'<p style="color:var(--amber)">Hay '+d.limitaciones.length+' registro(s) con cobertura parcial o cantidad sin desglose. Se usan sólo las faltas verificables; no se asume que los periodos faltantes tuvieron cero faltas.</p>':''}
   <details><summary>Desglose y criterio aplicado</summary>${ctrlTabla(['Fuente','Referencia','Fecha / rango','Días','Tipo'],d.detalle.map(r=>`<tr><td>${esc(r.fuente)}</td><td>${esc(r.id)}</td><td>${esc(r.fecha||r.desde+' al '+r.hasta)}</td><td>${r.dias}</td><td>${r.tipo_aplicado}</td></tr>`))}</details></section>`;}
  const invalidar=(w,f)=>lecturas.delete(clave(w,f));

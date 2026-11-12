@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-12.1",
-  "entry": "assets/platinum-app.de6bf0a979846bb0.js",
-  "sha256": "de6bf0a979846bb0bfc420803a8620ca2ef1a21250dba92e9c4d5f008f891936",
-  "integrity": "sha384-T9NNBNYzDa6FJtkTaj+l99LdtGw3CTmrIG/c8mDRiQWkT/uK+okVpYd0MEf/OiTj",
+  "version": "2026-11-12.2",
+  "entry": "assets/platinum-app.4fce63992bf62a02.js",
+  "sha256": "4fce63992bf62a02f4e5a4b7cf0e6a45d17eb80792f6abdff5decbcbbae98a0f",
+  "integrity": "sha384-cmqVhWYiNhtdExZDHNLbhcwJkIDzxKnFPI00bufdYkoK5Oi6Hy5fKU9MhmDooP9o",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "95a91c5585d192308ac6005bc6d44970c953710cfd86bea2cac8696b3dc98d06"
+      "sha256": "44202c6e8066780faca9839cb3aec16cf6a19c1e06330ae8fcf1bf2de07c2d1a"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -330,7 +330,7 @@
     },
     {
       "path": "frontend/modulos/81-prestaciones-fuentes.js",
-      "sha256": "a889bddecb51750f49a06aec7272a091f474f5266e42eb2926ddc73df5863bf8"
+      "sha256": "2d37c505b4708d881b8981fa64b9981187168d5d1221fba82564180ed15d3b20"
     },
     {
       "path": "frontend/modulos/82-reversion-bajas.js",

@@ -52,3 +52,6 @@ supabase/migrations/*_reversion_bajas_y_servicio_cero.sql
 
 # SQL operativo privado: ciclo vigente de aguinaldo.
 supabase/migrations/*_aguinaldo_ciclo_vigente_y_contexto_acotado.sql
+
+# Fuente fiscal privada de prestaciones.
+supabase/migrations/*_prestaciones_exento_desde_cfdi_verificado.sql

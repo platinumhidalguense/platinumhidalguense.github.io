@@ -25,6 +25,7 @@ eq(Number(e.dias_aguinaldo),66,'papel no recalcula otras faltas');eq(Number(e.ag
 nodes['pr-isr-noi'].value=String(r.d001);box.calcPrestaciones(w.id);
 eq(box._PR_AUDIT.resultado.aguinaldo,r.aguinaldo,'individual y papel mismo aguinaldo');eq(box._PR_AUDIT.monto_modelo,r.neto_con_credito,'mismo neto a centavos');
 eq(P.decision(fuente).puede_continuar,true,'un papel no aplicado no bloquea');
+eq(P.panel({...fuente,exento_ag_usado:104.14,referencias:[{id:'historia',fiscal_cfdi:{estado:'VERIFICADO'}}]}).includes('CFDI verificado'),true,'desglose fiscal recuperado visible sin editar historia');
 assert.throws(()=>P.decision({...fuente,reservas:[{id:'reserva'}]}),/reservado/);checks++;
 assert.throws(()=>P.decision({...fuente,exento_acreditado_pendiente:true}),/parte exenta/);checks++;
 eq(JSON.stringify({w,desc:box.DESC}),antes,'no reescribe persona ni crea descuento monetario');
