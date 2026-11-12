@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-12.4",
-  "entry": "assets/platinum-app.8149845ff2af4556.js",
-  "sha256": "8149845ff2af4556f54ed8201f3e61dc4791834bac3338a856ddd1755b747f2e",
-  "integrity": "sha384-pkIU3Lcfd8VGKWlCN6u6xefpqiwkZmPCy2oeBm+onQ6wJUPI0YF2ewLHUH7DI80n",
+  "version": "2026-11-12.5",
+  "entry": "assets/platinum-app.6b316ab81283896a.js",
+  "sha256": "6b316ab81283896a9128675cd0b32a278e2c3c64068cf40c88558873c5b251b9",
+  "integrity": "sha384-QEUPUYzlK8MkQ15O1LWYZUIrOtGsIiMgpGvYJIapnriGcgp7FU7FufeQiEKPhd8f",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "b375fd21007efc286def80069a84656c14a0272497f746df7b00cdf04fa66c7f"
+      "sha256": "0a53c2204fa0f11343b7f9f0857b9f5a5bc35bc81c19bf858eb0d38cdfda8932"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -338,7 +338,7 @@
     },
     {
       "path": "frontend/modulos/83-recibos-contexto-servicio.js",
-      "sha256": "b14cf75991182d9f5a8eb45ef9101353251fd12c03631e7ca149200fdef444eb"
+      "sha256": "5eb48df0256735e4ec1c50275a05213ecb285746ebd481546a92ab254e219652"
     },
     {
       "path": "frontend/modulos/84-recibos-contexto-interfaz.js",

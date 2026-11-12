@@ -22,13 +22,13 @@
     if(f.lectura?.datos?.recibos!==1)errores.push('No se identificó un recibo individual');
     const d=f.lectura?.datos;
     if(d?.percepciones!=null&&d?.deducciones!=null&&Math.round((d.percepciones+(d.otros_pagos||0)-d.deducciones)*100)!==Math.round(d.neto*100))errores.push('La suma de conceptos no coincide con el neto');
-    const propuesta=errores.length?{...f.datos,neto:null,errores}:f.datos;
+    const propuesta={...f.datos,transcripciones:f.transcripciones||[],...(errores.length?{neto:null,errores}:{})};
     Object.assign(f,await rpc('LECTURA',{archivo_id:f.id,lectura:propuesta}));
     if(errores.length)f.motivo=errores.join(' · ');
    emitir();return f;
   }
   async function leer(f,g){
-   try{await dep.leer(f);return await lecturaGuardar(f,g);}
+   try{await dep.leer(f);for(const x of f.transcripciones||[])dep.incorporar(f,x);return await lecturaGuardar(f,g);}
    catch(e){f.estado='REVISAR';f.motivo=e.message;await rpc('LECTURA',{archivo_id:f.id,lectura:{error:e.message}});emitir();return f;}
   }
   async function subir(files){return ejecutar(async()=>{
@@ -40,7 +40,7 @@
      const formato=file.name.split('.').pop().toUpperCase();
      if(!['PDF','XML'].includes(formato)||file.size<1||file.size>25*1024*1024)throw Error('Selecciona PDF/XML individuales de hasta 25 MB.');
      const huella=await dep.hash(new Uint8Array(await file.arrayBuffer()));if(!valido(g))break;
-     const a=await rpc('INICIAR',{archivo:{nombre:file.name,tamano:file.size,formato,huella}});Object.assign(f,a);
+     const a=await rpc('INICIAR',{archivo:{nombre:file.name,tamano:file.size,formato,huella}});Object.assign(f,a);f.transcripciones=a.datos?.transcripciones||[];
      if(!valido(g))break;
      if(!a.ya_subido){
       const r=await dep.storage.from('expedientes').upload(a.ruta,file,{upsert:false,contentType:formato==='XML'?'application/xml':'application/pdf'});
@@ -56,7 +56,7 @@
    const g=generacion,f=estado.archivos.find(x=>x.id===id);if(!f)throw Error('Selecciona un archivo del periodo.');
    const a=await rpc('ABRIR',{archivo_id:id});if(!valido(g))return;
    const {data,error}=await dep.storage.from('expedientes').download(a.ruta);if(error)throw Error(error.message);
-   if(!valido(g))return;f.file=dep.archivo(data,a.datos.nombre);f.id=a.id;
+   if(!valido(g))return;f.file=dep.archivo(data,a.datos.nombre);f.id=a.id;f.transcripciones=a.datos?.transcripciones||[];
    if(await dep.hash(new Uint8Array(await f.file.arrayBuffer()))!==a.huella)throw Error('La huella no corresponde al original.');
    if(!a.documento_id)await leer(f,g);else Object.assign(f,a,{estado:'ARCHIVADO'});
   });}
@@ -70,7 +70,7 @@
    const llamada=async accion=>{const r=await dep.rpc('control_revision_recibo',{p_accion:accion,p_datos:p});if(r.error)throw Error(r.error.message);return r.data;};
    const preparado=await llamada('PREPARAR');
    if(preparado.estado==='LISTO'){
-    const resultado=await dep.verificar({lote_id:preparado.lote_id,token:preparado.token,individual:true,huella:f.huella});
+    const resultado=await dep.verificar({lote_id:preparado.lote_id,token:preparado.token,individual:true,huella:f.huella,transcripciones:f.transcripciones||f.datos?.transcripciones||[]});
     const final=await llamada('ESTADO');Object.assign(f,final);
     if(resultado.error&&final.estado!=='VERIFICADO')f.motivo=final.motivo||resultado.error.message;
    }else Object.assign(f,preparado);
@@ -86,7 +86,7 @@
     if([429,503].includes(r.error?.context?.status)||r.data?.temporal){pausaIA=Date.now()+45000;throw Error('Gemini temporalmente ocupado. El original y las lecturas correctas se conservaron.');}
     if(r.error||!r.data?.ok)throw Error(r.data?.error||r.error?.message||'No se obtuvo transcripción comprobable.');literal=r.data.literal;
    }
-   if(!valido(g))return;dep.incorporar(f,{region,literal});await lecturaGuardar(f,g);
+   if(!valido(g))return;const evidencia={region,literal};dep.incorporar(f,evidencia);(f.transcripciones??=[]).push(evidencia);await lecturaGuardar(f,g);
   });}
   return Object.freeze({abrir,subir,reanudar,confirmar,vincular,completar,verificar:id=>ejecutar(()=>verificar(estado.archivos.find(f=>f.id===id))),estado:()=>estado,ocupado:()=>ocupado,cerrar:()=>{cerrado=true;generacion++;}});
  }
