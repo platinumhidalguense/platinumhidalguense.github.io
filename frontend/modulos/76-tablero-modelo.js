@@ -234,10 +234,16 @@
    if(e.cheque_id){const q=(f.cheques||[]).find(x=>x.id===e.cheque_id);if(q){const ev=eventosCheque(q);op.fecha=ev.emision||ev.registro;op.fuente_fecha=ev.emision?'EXPEDICION':'REGISTRO_CAPTURA';op.concepto_cheque=conceptoCheque(q.tipo_pago);}}
    opPorEvid.set(eid,op);
   }
+  const efectivaAp=new Map(); // aplicación → importe efectivo (≤ capacidad de su operación)
+  const impAp=a=>efectivaAp.has(a.id)?efectivaAp.get(a.id):mic(a.importe);
   for(const op of ops){
    if(op.reversada&&op.evidencia_id&&(apsPorEvid.get(op.evidencia_id)||[]).length)op.anulada=true;
    op.aplicaciones=(op.evidencia_id&&apsPorEvid.get(op.evidencia_id)||[]).slice().sort(cmpTs);
-   op.aplicado=sum(op.aplicaciones,a=>mic(a.importe));
+   /* H6: una operación no aporta más que su importe. Las aplicaciones vigentes se consumen en orden
+      (created_at, id); lo que excede la capacidad queda fuera del dinero y como excepción. */
+   let usado=0n;op.sobreaplicada=0n;
+   for(const a of op.aplicaciones){const imp=mic(a.importe),ef=minB(imp,maxB(op.importe-usado,0n));efectivaAp.set(a.id,ef);op.sobreaplicada+=imp-ef;usado+=imp;}
+   op.aplicado=sum(op.aplicaciones,a=>efectivaAp.get(a.id));
   }
   /* Posible duplicado: misma persona, semana, fecha e importe con otra clave. */
   for(const g of grupoBy(ops.filter(o=>o.medio==='TRANSFERENCIA'&&o.valida&&o.trabajador_id),o=>[o.obra_id,o.trabajador_id,o.semana,o.fecha,o.importe.toString()].join('|')).values()){
@@ -261,12 +267,12 @@
   const apsPorOblig=grupoBy(apsVig,a=>a.obligacion_id);
   for(const o of obligs){
    const aps=(apsPorOblig.get(o.id)||[]).slice().sort(cmpTs);
-   if(!o.exigible){for(const a of aps){const op=opPorEvid.get(a.evidencia_id);pieza('APLICADA_NO_EXIGIBLE',op,o,mic(a.importe),{aplicacion_id:a.id});}continue;}
+   if(!o.exigible){for(const a of aps){const op=opPorEvid.get(a.evidencia_id);pieza('APLICADA_NO_EXIGIBLE',op,o,impAp(a),{aplicacion_id:a.id});}continue;}
    let acum=0n;
    const efe=efectivoPorOblig.get(o.id);
    if(efe){const c=minB(efe.importe,o.importe);pieza('EFECTIVO',efe,o,c);if(efe.importe>c)pieza('EXCEDENTE_APLICADO',efe,o,efe.importe-c);o.efectivo=c;acum+=c;}
    for(const a of aps){
-    const op=opPorEvid.get(a.evidencia_id),imp=mic(a.importe),c=minB(imp,maxB(o.importe-acum,0n));
+    const op=opPorEvid.get(a.evidencia_id),imp=impAp(a),c=minB(imp,maxB(o.importe-acum,0n));
     const anul=!op||op.anulada||!op.valida;
     pieza(anul?'APLICADA_ANULADA':'APLICADA_CONCILIADA',op,o,c,{aplicacion_id:a.id});
     if(imp>c)pieza('EXCEDENTE_APLICADO',op,o,imp-c,{aplicacion_id:a.id});
@@ -277,7 +283,7 @@
   /* Remanente de cada operación válida: se asigna provisionalmente al saldo de la misma persona-semana. */
   const exigPorGrupo=grupoBy(exigibles,o=>[o.obra_id,o.trabajador_id,o.semana].join('|'));
   const opsLibres=ops.filter(op=>op.valida&&!op.duplicado&&op.medio!=='EFECTIVO');
-  for(const op of opsLibres){op.remanente=op.importe-op.aplicado;if(op.remanente<0n){op.sobreaplicada=-op.remanente;op.remanente=0n;}}
+  for(const op of opsLibres)op.remanente=maxB(op.importe-op.aplicado,0n);
   const gruposOps=grupoBy(opsLibres.filter(op=>op.remanente>0n),op=>op.trabajador_id&&op.semana?[op.obra_id,op.trabajador_id,op.semana].join('|'):'SIN:'+op.id);
   for(const [k,lista] of gruposOps){
    const os=(exigPorGrupo.get(k)||[]).slice().sort((a,b)=>cmp(TIPOS_ORDEN.indexOf(a.concepto),TIPOS_ORDEN.indexOf(b.concepto))||cmp(a.id,b.id));
@@ -314,6 +320,9 @@
     provisional:o?o.provisional:false});
    x.visible=obraVisible(x.obra_id)&&(x.concepto!=='PREVISION_SOCIAL'||!!permisos.vip);
   }
+  /* H5: importe visible = importe − piezas que el usuario no puede ver (previsión social sin VIP). */
+  const ocultoPorOp=new Map();for(const x of piezas)if(!x.visible&&x.op_id)ocultoPorOp.set(x.op_id,(ocultoPorOp.get(x.op_id)||0n)+x.importe);
+  for(const op of ops){op.importe_visible=permisos.vip?op.importe:op.importe-(ocultoPorOp.get(op.id)||0n);op.sobreaplicada_visible=permisos.vip?op.sobreaplicada:(ocultoPorOp.has(op.id)?null:op.sobreaplicada);}
   for(const op of ops){const d=op.obligacion_dims||(op.trabajador_id||op.semana?dimsSinOblig(op):null);op.dims=d;op.visible=obraVisible(op.obra_id);op.empresa=empresaDe(op.obra_id);}
 
   /* ---- CFDI: un comprobante fiscal por UUID; PDF y XML del mismo UUID cuentan una vez. ---- */
@@ -621,7 +630,7 @@
  }
  function excluidos(b,a,bandera){
   const os=b.ops.filter(op=>op[bandera]&&op.visible&&a.obras.includes(op.obra_id)&&!(bandera==='reversada'&&op.aplicado>0n)&&(a.perspectiva==='PAGO'?enRango(op.fecha,a):op.dims&&enRango(op.dims.fecha_pago,a)));
-  return {importe:centavos(sum(os,o=>o.importe)),operaciones:os.length};
+  return {importe:centavos(sum(os,o=>o.importe_visible)),operaciones:os.length};
  }
 
  const VARIABLES=['neto_conciliado','pagado_registrado','pagado_conciliado','saldo_por_cubrir','excedentes','sin_asignar','cobertura','pendiente_conciliacion','trabajadores_con_pago','promedio_pagado_trabajador','mediana_pagado_trabajador','trabajadores_pago_parcial','bruto','altas','bajas','reingresos','rotacion'];
@@ -697,21 +706,24 @@
  function comparativos(fuentes,filtros){
   const b=construir(fuentes),a=resolverAlcance(b,filtros),sel=seleccionar(b,a);
   const selP=a.perspectiva==='PERIODO'?sel:seleccionar(b,{...a,perspectiva:'PERIODO'});
-  function agrupar(fo,fp,etq){
+  function agrupar(fo,fp,etq,soloPagos){
    const m=new Map();const g=k=>{if(!m.has(k))m.set(k,{clave:k,etiqueta:etq(k),neto_conciliado:0n,pagado_registrado:0n,pagado_conciliado:0n,pendiente_conciliacion:0n,saldo_por_cubrir:0n,excedentes:0n,sin_asignar:0n,concP:0n,personas:new Set()});return m.get(k);};
-   for(const o of sel.obligs){const r=g(fo(o));r.neto_conciliado+=o.importe;r.saldo_por_cubrir+=o.saldo;}
+   if(!soloPagos)for(const o of sel.obligs){const r=g(fo(o));r.neto_conciliado+=o.importe;r.saldo_por_cubrir+=o.saldo;}
    for(const x of sel.piezas){const r=g(fp(x));acumularPieza(r,x,a.perspectiva);if(x.trabajador_id&&(a.perspectiva==='PERIODO'?REG_PERIODO:REG_PAGO).includes(x.clase))r.personas.add(x.trabajador_id);}
-   for(const x of selP.piezas)if(x.clase==='APLICADA_CONCILIADA'&&m.has(fo(x)))m.get(fo(x)).concP+=x.importe;
-   return [...m.values()].map(r=>({clave:r.clave,etiqueta:r.etiqueta,neto_conciliado:centavos(r.neto_conciliado),pagado_registrado:centavos(r.pagado_registrado),pagado_conciliado:centavos(r.pagado_conciliado),
-    pendiente_conciliacion:centavos(r.pendiente_conciliacion),saldo_por_cubrir:centavos(r.saldo_por_cubrir),excedentes:centavos(r.excedentes),sin_asignar:centavos(r.sin_asignar),
-    cobertura:r.neto_conciliado===0n?null:pct(r.concP,r.neto_conciliado),trabajadores_con_pago:r.personas.size}))
-    .sort((x,y)=>(y.neto_conciliado-x.neto_conciliado)||(y.pagado_registrado-x.pagado_registrado)||cmp(x.etiqueta,y.etiqueta)||cmp(String(x.clave),String(y.clave)));
+   if(!soloPagos)for(const x of selP.piezas)if(x.clase==='APLICADA_CONCILIADA'&&m.has(fo(x)))m.get(fo(x)).concP+=x.importe;
+   return [...m.values()].map(r=>({clave:r.clave,etiqueta:r.etiqueta,neto_conciliado:soloPagos?null:centavos(r.neto_conciliado),pagado_registrado:centavos(r.pagado_registrado),pagado_conciliado:centavos(r.pagado_conciliado),
+    pendiente_conciliacion:centavos(r.pendiente_conciliacion),saldo_por_cubrir:soloPagos?null:centavos(r.saldo_por_cubrir),excedentes:centavos(r.excedentes),sin_asignar:centavos(r.sin_asignar),
+    cobertura:soloPagos||r.neto_conciliado===0n?null:pct(r.concP,r.neto_conciliado),trabajadores_con_pago:r.personas.size}))
+    .sort((x,y)=>((y.neto_conciliado||0)-(x.neto_conciliado||0))||(y.pagado_registrado-x.pagado_registrado)||cmp(x.etiqueta,y.etiqueta)||cmp(String(x.clave),String(y.clave)));
   }
   const obraN=id=>(b.obras.get(id)||{}).nombre||'';
   return {version:VERSION,accion:'COMPARATIVOS',alcance:a,
    por_centro:agrupar(o=>o.obra_id,x=>x.obra_id,obraN),
    por_contratista:agrupar(o=>o.contratista,x=>x.contratista,k=>k===PENDIENTE?ADSCRIPCION_PENDIENTE:k),
-   por_medio:agrupar(o=>o.metodo||'POR DEFINIR',x=>x.medio||x.metodo||'POR DEFINIR',k=>k)};
+   /* H7: un solo eje por perspectiva. PERIODO: método planeado de la obligación (piezas sin obligación → SIN_OBLIGACION).
+      PAGO: medio real de la operación; sin neto, saldo ni cobertura (no aplican por medio real). */
+   por_medio_criterio:a.perspectiva==='PERIODO'?'METODO_PLANEADO':'MEDIO_REAL',
+   por_medio:a.perspectiva==='PERIODO'?agrupar(o=>o.metodo||'POR DEFINIR',x=>x.metodo||'SIN_OBLIGACION',k=>k):agrupar(null,x=>x.medio||'SIN_MEDIO',k=>k,true)};
  }
 
  function excepcionesTodas(b,a){
@@ -747,11 +759,11 @@
   for(const op of b.ops){
    if(!op.visible||!a.obras.includes(op.obra_id)||!enRango(fechaRef(op),a))continue;
    const base={obra_id:op.obra_id,trabajador_id:op.trabajador_id,semana:op.semana,fecha:op.fecha},ll={operacion_id:op.id,pago_id:op.pago_ids[0]||null,cheque_id:op.cheque_id,evidencia_id:op.evidencia_id};
-   if(op.duplicado)ex('POSIBLE_DUPLICADO','AMBAR',base,op.importe,'Comprobante con misma persona, semana, fecha e importe que otra operación; no se suma',ll);
-   if(op.reversada&&op.aplicado===0n)ex('DEVOLUCION_O_REVERSO','INFO',base,op.importe,'Transferencia exitosa con devolución o rechazo posterior; no cuenta como pago',ll);
+   if(op.duplicado)ex('POSIBLE_DUPLICADO','AMBAR',base,op.importe_visible,'Comprobante con misma persona, semana, fecha e importe que otra operación; no se suma',ll);
+   if(op.reversada&&op.aplicado===0n)ex('DEVOLUCION_O_REVERSO','INFO',base,op.importe_visible,'Transferencia exitosa con devolución o rechazo posterior; no cuenta como pago',ll);
    if(op.representaciones>1)ex('REPRESENTACIONES_UNIFICADAS','INFO',base,null,`${op.representaciones} representaciones (${op.origenes.join(', ')}) de la misma operación; cuenta una vez`,ll);
-   if(op.medio==='CHEQUE'&&op.situacion==='EXPEDIDO'&&op.valida)ex('CHEQUE_POR_ENTREGAR','INFO',base,op.importe,'Cheque expedido: entrega pendiente; cobro no registrado',ll);
-   if(op.sobreaplicada)ex('OPERACION_SOBREAPLICADA','ROJO',base,op.sobreaplicada,'Las aplicaciones vigentes superan el importe de la operación',ll);
+   if(op.medio==='CHEQUE'&&op.situacion==='EXPEDIDO'&&op.valida)ex('CHEQUE_POR_ENTREGAR','INFO',base,op.importe_visible,'Cheque expedido: entrega pendiente; cobro no registrado',ll);
+   if(op.sobreaplicada>0n)ex('OPERACION_SOBREAPLICADA','ROJO',base,op.sobreaplicada_visible,'Las aplicaciones vigentes superan el importe de la operación; el exceso no se cuenta como pago',ll);
   }
   for(const p of [...b.rechazos,...b.pendBanco]){
    if(!b.obraVisible(p.obra_id)||!a.obras.includes(p.obra_id))continue;

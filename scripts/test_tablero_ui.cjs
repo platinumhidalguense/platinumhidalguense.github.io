@@ -23,6 +23,7 @@ for(const o of obras){
   const viernes=MOD.calendario.periodo(o,s,'SEMANAL').fecha_pago;
   for(let i=1;i<=POR;i++){
    const w=`${o.id}-W${String(i).padStart(3,'0')}`,imp=2500+((i*37+s*11)%900)+(i%7)/100,ob={id:`OB-${o.id}-${s}-${i}`,cierre_id:c.id,version_id:v.id,obra_id:o.id,trabajador_id:w,semana:s,tipo:'NOMINA',numero:i,nombre:'FICTICIA '+o.id+' PERSONA '+i,contratista:i%3?'CONTRATISTA A':'CONTRATISTA B',importe:imp,metodo:'TRANSFERENCIA',vigente:true};
+   if(o.id==='O1'&&s===30&&i===7)ob.nombre='=HYPERLINK("http://ejemplo.test","x")';
    F.obligaciones.push(ob);
    if(o.id==='O1'&&i<=5)F.obligaciones.push({...ob,id:ob.id+'-PS',tipo:'PREVISION_SOCIAL',importe:300});
    if(i%10===0)continue; // sin pago
@@ -50,9 +51,10 @@ const sb={
  rpc:async(fn,args)=>{
   assert.equal(fn,'control_tablero');const a=JSON.parse(JSON.stringify(args)),u=box.USER;llamadas.push({accion:a.p_accion,datos:a.p_datos,usuario:u.id});eventos.push('>'+a.p_accion);
   await new Promise(r=>setImmediate(r));
+  let instante=null;try{instante=JSON.stringify(servir(a.p_accion,a.p_datos,u));}catch(e){instante=e;}
   if(retener&&retener(a.p_accion,a.p_datos)){await new Promise(r=>retenidas.push(r));}
   if(fallar&&fallar(a.p_accion,a.p_datos)){eventos.push('!'+a.p_accion);return {data:null,error:{message:'Fallo simulado de la fuente '+a.p_accion}};}
-  const data=JSON.parse(JSON.stringify(servir(a.p_accion,a.p_datos,u)));eventos.push('<'+a.p_accion);return {data,error:null};
+  if(instante instanceof Error)throw instante;const data=JSON.parse(instante);eventos.push('<'+a.p_accion);return {data,error:null};
  },
  from(tabla){const cond={};const q={select(){return q;},eq(k,v){cond[k]=v;return q;},maybeSingle:async()=>{desde.push({tabla,cond:{...cond}});
   if(box.USER.id==='u-rest')return {data:null,error:null};
@@ -153,6 +155,18 @@ const tiempos={};
  T.avisarCambio();ok(T.estado().desactualizado&&S.cache.size===0,'aviso del sincronizador en vivo: caché invalidada y datos marcados');
  await T.acciones.reintentar('todo');
 
+ // Regresión H1/H1b: avisarCambio() con una lectura en vuelo; «Actualizar» no reutiliza la vieja ni la deja en caché.
+ {const fq=P.filtrosRPC(),netoViejo=T.estado().resumen.medidas.neto_conciliado.valor;
+  retener=a=>a==='RESUMEN';const pend=T.acciones.cambiarFiltros({contratistas:['CONTRATISTA A']});await espera(20);await tick();retener=null;
+  ok(retenidas.length===1,'H1: lectura de RESUMEN en vuelo');
+  const obA=F.obligaciones.find(o=>o.obra_id==='O1'&&o.semana===30&&o.contratista==='CONTRATISTA A');
+  const mod=F.obligaciones.map(o=>o===obA?{...o,importe:o.importe+100}:o);fuentes.admin={...F,obligaciones:mod,permisos:USUARIOS.admin.permisos};
+  T.avisarCambio();const antesR=llamadas.filter(c=>c.accion==='RESUMEN').length;
+  const act=T.acciones.reintentar('todo');await tick(10);retenidas.splice(0).forEach(r=>r());await act;await pend;await tick(20);
+  const nuevo=MOD.calcular(fuentes.admin,P.filtrosRPC()).medidas.neto_conciliado.valor;
+  ok(llamadas.filter(c=>c.accion==='RESUMEN').length>antesR&&T.estado().resumen.medidas.neto_conciliado.valor===nuevo&&!T.estado().desactualizado,'H1: «Actualizar» tras avisarCambio() consulta de nuevo y muestra la cifra vigente');
+  const kc=P.claveCache('RESUMEN',P.filtrosRPC()),ec=S.cache.get(kc);ok(ec&&ec.data.medidas.neto_conciliado.valor===nuevo,'H1b: la caché sólo guarda la respuesta de la generación vigente');
+  await T.acciones.cambiarFiltros({contratistas:[]});}
  // ---------- 6. Detalle bajo demanda, paginado, foco y búsqueda con debounce ----------
  ok(q('[data-tablero-bajo-demanda="detalle"]')&&q('[data-tablero-bajo-demanda="excepciones"]'),'detalle y excepciones bajo demanda');
  antes=llamadas.length;const kpi=q('[data-accion="detalle"][data-clave="neto_conciliado"]');kpi.focus();t0=performance.now();click(kpi);await tick(30);tiempos.detalle=performance.now()-t0;
@@ -211,6 +225,8 @@ const tiempos={};
  eq(dob.length-3,ex.filas.obligaciones,'detalle completo: todas las páginas');ok(ex.filas.obligaciones>3000&&ex.filas.operaciones>2500,'miles de filas exportadas');
  eq(Math.round(dob.slice(2,-1).reduce((s,r)=>s+(r[ci]||0),0)*100)/100,T.estado().resumen.medidas.neto_conciliado.valor,'el detalle reproduce el neto del RESUMEN');
  ok(ex.cuadre.length>=6&&ex.cuadre.every(c=>c.resultado==='CUADRA'),'hoja CUADRE: todas las medidas cuadran');
+ {const celdas=wb.SheetNames.flatMap(nm=>Object.entries(descargas.at(-1).wb.Sheets[nm]).filter(([k])=>k[0]!=='!').map(([,v])=>v));
+  ok(celdas.some(c=>c.v==="'=HYPERLINK(\"http://ejemplo.test\",\"x\")")&&!celdas.some(c=>typeof c.v==='string'&&/^[=+\-@\t\r]/.test(c.v)),'H8: textos con = + - @ neutralizados con apóstrofo; números intactos');}
  const ws=wb.Sheets['DETALLE OBLIGACIONES'];ok(ws['A3'].t==='s'&&ws[XLSX.utils.encode_cell({r:2,c:ci})].t==='n','IDs como texto y montos como número');
  {const rr=filas('RESUMEN'),ix=rr.findIndex(r=>r[0]==='Cobertura de pago'),c0=descargas.at(-1).wb.Sheets.RESUMEN['C'+(ix+1)];
   ok(rr[ix][2]===T.estado().resumen.medidas.cobertura.valor&&rr[ix][3]==='PORCENTAJE'&&c0.s.numFmt==='0.0"%"','misma unidad que la pantalla (porcentaje 0–100 con formato %)');}

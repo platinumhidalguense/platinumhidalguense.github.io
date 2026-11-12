@@ -68,7 +68,7 @@
   P('control_finiquitos_transferencia','control_finiquitos_transferencia','FINIQUITOS_TRANSF','BAJAS','obra',{totales:['importe'],rel:{pago_id:'PAGOS',cheque_id:'CHEQUES'},desc:'Finiquitos pagados por transferencia.'}),
   P('auditoria_calculos_nomina','auditoria_calculos_nomina','AUDITORIA_CALCULOS','BAJAS','obra',{precision:['monto_modelo','monto_aplicado','ajuste_noi'],totales:['monto_aplicado'],desc:'Auditoría de cálculos (finiquitos, proyección, exportaciones) con entradas, resultado, ajuste NOI y huella.'}),
   P('constancias_laborales','constancias_laborales','CONSTANCIAS','BAJAS','obra',{desc:'Constancias laborales emitidas con su fotografía.'}),
-  P('bajas_operaciones','platinum_internal.bajas_operaciones','BAJAS_OPERACIONES','BAJAS','interna',{permiso:'vip',desc:'Operaciones de baja firmadas (interna; sólo VIP).'}),
+  P('bajas_operaciones','(interna)','BAJAS_OPERACIONES','BAJAS','interna',{permiso:'vip',desc:'Operaciones de baja firmadas (interna; sólo VIP).'}),
   P('control_cierres_nomina','control_cierres_nomina','CIERRES','NOMINA','obra',{totales:['total_neto','total_nomina','total_retenciones','total_finiquitos'],omitirSinVip:['snapshot','total_prevision'],desc:'Cierres de nómina con estados, totales y fotografía.'}),
   P('control_cierre_versiones','control_cierre_versiones','CIERRE_VERSIONES','NOMINA','obra',{omitirSinVip:['snapshot'],rel:{cierre_origen:'CIERRES'},desc:'Versiones de cierre con fotografía y huellas.'}),
   P('control_cierres_eliminados','control_cierres_eliminados','CIERRES_ELIMINADOS','NOMINA','obra',{permiso:'admin',desc:'Cierres eliminados (papelera; sólo administrador).'}),
@@ -80,9 +80,9 @@
   P('archivos_conciliacion_nomina','archivos_conciliacion_nomina','ARCHIVOS_CONCILIACION','NOMINA','obra',{rel:{estado_id:'ESTADO_CONCILIACION'},desc:'Archivos del conciliador (ruta lógica privada y propuesta).'}),
   P('control_revision_pagos','control_revision_pagos','REVISION_PAGOS','NOMINA','obra',{desc:'Revisión semanal de pagos.'}),
   P('control_presupuestos_obra','control_presupuestos_obra','PRESUPUESTOS','NOMINA','obra',{omitirSinVip:['presupuesto_prevision'],desc:'Presupuestos por centro, semana y contratista.'}),
-  P('excepciones_noi_individuales','platinum_internal.excepciones_noi_individuales','EXCEPCIONES_NOI','NOMINA','interna',{permiso:'vip',rel:{cierre_id:'CIERRES',pago_nomina_id:'PAGOS'},desc:'Excepciones NOI individuales autorizadas (interna; sólo VIP).'}),
-  P('correcciones_centavos_aprobadas','platinum_internal.correcciones_centavos_aprobadas','CORRECCIONES_CENTAVOS','NOMINA','interna',{permiso:'vip',rel:{cierre_id:'CIERRES'},desc:'Correcciones de centavos aprobadas con antes y después (interna; sólo VIP).'}),
-  P('noi_identidades_resueltas','platinum_internal.noi_identidades_resueltas','IDENTIDADES_NOI','NOMINA','interna',{permiso:'vip',desc:'Identidades NOI resueltas con evidencia (interna; sólo VIP).'}),
+  P('excepciones_noi_individuales','(interna)','EXCEPCIONES_NOI','NOMINA','interna',{permiso:'vip',rel:{cierre_id:'CIERRES',pago_nomina_id:'PAGOS'},desc:'Excepciones NOI individuales autorizadas (interna; sólo VIP).'}),
+  P('correcciones_centavos_aprobadas','(interna)','CORRECCIONES_CENTAVOS','NOMINA','interna',{permiso:'vip',rel:{cierre_id:'CIERRES'},desc:'Correcciones de centavos aprobadas con antes y después (interna; sólo VIP).'}),
+  P('noi_identidades_resueltas','(interna)','IDENTIDADES_NOI','NOMINA','interna',{permiso:'vip',desc:'Identidades NOI resueltas con evidencia (interna; sólo VIP).'}),
   P('control_obligaciones_pago','control_obligaciones_pago','OBLIGACIONES','PAGOS','obra',{totales:['importe'],filtro:(q,c)=>c.permisos.vip?q:q.neq('tipo','PREVISION_SOCIAL'),
    rel:{cierre_id:'CIERRES',cierre_origen:'CIERRES',version_id:'CIERRE_VERSIONES'},desc:'Obligaciones de pago por versión de cierre; vigentes y no vigentes. Previsión social sólo VIP.'}),
   P('control_evidencias_pago','control_evidencias_pago','EVIDENCIAS','PAGOS','obra',{totales:['importe'],rel:{pago_id:'PAGOS',cheque_id:'CHEQUES'},desc:'Evidencias de pago (operación real, deduplicada por clave).'}),
@@ -102,15 +102,15 @@
   P('documentos','documentos','DOCUMENTOS','EXPEDIENTE','obra',{rel:{conciliacion_archivo_id:'ARCHIVOS_CONCILIACION'},
    desc:'Inventario del expediente: propietario, nombre original, tipo, fecha, estado, ruta lógica privada y huella. Los originales permanecen en Storage privado.'}),
   P('control_documentos_cumplimiento','control_documentos_cumplimiento','CUMPLIMIENTO','EXPEDIENTE','obra',{desc:'Documentos de cumplimiento del centro con vigencia.'}),
-  P('archivo_recibo_periodo','platinum_internal.archivo_recibo_periodo','ARCHIVO_RECIBOS','EXPEDIENTE','interna',{permiso:'vip',rel:{cierre_id:'CIERRES',documento_id:'DOCUMENTOS'},desc:'Archivo de recibos por periodo (interna; sólo VIP).'}),
-  P('lecturas_fiscales_documentos','platinum_internal.lecturas_fiscales_documentos','LECTURAS_FISCALES','EXPEDIENTE','interna',{permiso:'vip',pk:['documento_id'],rel:{documento_id:'DOCUMENTOS'},desc:'Lecturas fiscales de documentos (interna; sólo VIP).'}),
-  P('cfdi_pdf_verificados','platinum_internal.cfdi_pdf_verificados','CFDI_PDF_VERIFICADOS','EXPEDIENTE','interna',{permiso:'vip',pk:['documento_id'],rel:{documento_id:'DOCUMENTOS'},desc:'Recibos PDF verificados contra CFDI (interna; sólo VIP).'}),
-  P('recibos_ia','platinum_internal.recibos_ia','RECIBOS_IA','EXPEDIENTE','interna',{permiso:'vip',rel:{documento_id:'DOCUMENTOS'},desc:'Lecturas asistidas de recibos y su confirmación (interna; sólo VIP).'}),
+  P('archivo_recibo_periodo','(interna)','ARCHIVO_RECIBOS','EXPEDIENTE','interna',{permiso:'vip',rel:{cierre_id:'CIERRES',documento_id:'DOCUMENTOS'},desc:'Archivo de recibos por periodo (interna; sólo VIP).'}),
+  P('lecturas_fiscales_documentos','(interna)','LECTURAS_FISCALES','EXPEDIENTE','interna',{permiso:'vip',pk:['documento_id'],rel:{documento_id:'DOCUMENTOS'},desc:'Lecturas fiscales de documentos (interna; sólo VIP).'}),
+  P('cfdi_pdf_verificados','(interna)','CFDI_PDF_VERIFICADOS','EXPEDIENTE','interna',{permiso:'vip',pk:['documento_id'],rel:{documento_id:'DOCUMENTOS'},desc:'Recibos PDF verificados contra CFDI (interna; sólo VIP).'}),
+  P('recibos_ia','(interna)','RECIBOS_IA','EXPEDIENTE','interna',{permiso:'vip',rel:{documento_id:'DOCUMENTOS'},desc:'Lecturas asistidas de recibos y su confirmación (interna; sólo VIP).'}),
   P('control_casos_imss','control_casos_imss','CASOS_IMSS','IMSS','obra',{permiso:'salud',rel:{incidente_id:'INCIDENTES'},desc:'Casos IMSS e incapacidades (permiso de salud).'}),
   P('control_casos_imss_semanas','control_casos_imss_semanas','CASOS_IMSS_SEMANAS','IMSS','padre',{permiso:'salud',padre:{fuente:'control_casos_imss',campo:'id',destino:'caso_id'},rel:{caso_id:'CASOS_IMSS',descuento_id:'DESCUENTOS'},desc:'Semanas de cada caso IMSS.'}),
   P('control_st7_acuses','control_st7_acuses','ST7_ACUSES','IMSS','obra',{permiso:'salud',rel:{incidente_id:'INCIDENTES',caso_imss_id:'CASOS_IMSS'},desc:'Acuses ST-7 (permiso de salud).'}),
   P('control_incidentes_laborales','control_incidentes_laborales','INCIDENTES','IMSS','obra',{permiso:'salud',desc:'Incidentes laborales (permiso de salud).'}),
-  P('imss_auditoria_integraciones','platinum_internal.imss_auditoria_integraciones','IMSS_AUDITORIA','IMSS','interna',{permiso:'vip_salud',rel:{caso_id:'CASOS_IMSS'},desc:'Auditoría de integraciones IMSS (interna; VIP y salud).'}),
+  P('imss_auditoria_integraciones','(interna)','IMSS_AUDITORIA','IMSS','interna',{permiso:'vip_salud',rel:{caso_id:'CASOS_IMSS'},desc:'Auditoría de integraciones IMSS (interna; VIP y salud).'}),
   P('infonavit_avisos_importaciones','infonavit_avisos_importaciones','INFONAVIT_AVISOS','IMSS','empresa',{desc:'Importaciones de avisos INFONAVIT con su comparación.'}),
   P('infonavit_avisos_aplicaciones','infonavit_avisos_aplicaciones','INFONAVIT_APLICACIONES','IMSS','obra',{rel:{importacion_id:'INFONAVIT_AVISOS',descuento_id:'DESCUENTOS'},desc:'Aplicaciones de avisos INFONAVIT con antes y después.'}),
   P('infonavit_avisos_archivos','infonavit_avisos_archivos','INFONAVIT_ARCHIVOS','IMSS','padre',{pk:['importacion_id'],select:'importacion_id',padre:{fuente:'infonavit_avisos_importaciones',campo:'id',destino:'importacion_id'},
@@ -130,15 +130,15 @@
   fiscal:['anio','ceav','fuentes','isn','seguro_danos_bim','sm','sm_frontera','subsidio_calibracion_fuente','subsidio_fuente','subsidio_pct','subsidio_semanal_metodo','subsidio_semanal_valor_anterior','subsidio_semanal_valor_calibrado','subsidio_tope_mensual','uma','umi'],
   motores_nomina:['fuente','version','SEMANAL','QUINCENAL'],tabulador:'*NUMEROS*',['empresa_'+e]:CAMPOS_EMPRESA,['contrato_empresa_'+e]:CAMPOS_EMPRESA});
  const EXCLUSIONES=Object.freeze([
-  ['config: correo_creados, admin_papelera y claves no listadas','Credenciales o seguridad: nunca se respaldan en Excel.'],
+  ['config: claves de credenciales o de seguridad y cualquier clave no listada','Excluidas por seguridad: nunca se respaldan en Excel.'],
   ['ia_config','Configuración con llaves de servicios: nunca se respalda.'],
   ['ia_embeddings, ia_cola_embeddings','Índice y cola técnicos regenerables a partir de las fuentes respaldadas.'],
   ['control_eventos_integracion','Aviso técnico de sincronización entre sesiones; el antes/después está en HISTORIAL y BITACORA.'],
   ['control_actividad_actual','Presencia efímera de sesiones.'],
   ['respaldo_* (tablas de migraciones puntuales)','Copias técnicas sin política de lectura de cliente; permanecen en la base.'],
   ['Vistas v_* y control_saldos_pago','Derivadas: se recalculan con las hojas de origen.'],
-  ['platinum_internal: fragmentos_recibo, lectura_documental_lotes, lectura_documental_resultados, recibos_verificacion_errores','Colas, bloqueos y errores técnicos transitorios.'],
-  ['platinum_internal: documentos_fiscales, recibos_fiscales_verificados','Vistas derivadas de DOCUMENTOS y lecturas fiscales.'],
+  ['Tablas internas técnicas de lectura documental (colas, bloqueos, errores)','Colas, bloqueos y errores técnicos transitorios.'],
+  ['Vistas internas fiscales','Derivadas de DOCUMENTOS y de las lecturas fiscales.'],
   ['Archivos originales (Storage privado, contenido de avisos y fuentes de prestaciones)','Permanecen en Storage o en la base privada; el libro sólo lleva metadatos, ruta lógica y huella. Sin URLs firmadas.']
  ]);
  const LEGADO_COLS=[['contratista','CONTRATISTA'],['estatus','ESTATUS'],['no_trab','NO. TRAB.'],['fecha_alta','FECHA ALTA'],['fecha_baja','FECHA BAJA'],['monto_finiquito','MONTO FINIQUITO'],['semana_ingreso','SEMANA DE INGRESO'],['periodo_pago','PERIODO DE PAGO'],['primer_apellido','PRIMER APELLIDO'],['segundo_apellido','SEGUNDO APELLIDO'],['nombres','NOMBRE(S)'],['estado_civil','ESTADO CIVIL'],['escolaridad','ESCOLARIDAD'],['funciones','FUNCIONES'],['puesto','PUESTO'],['beneficiario','BENEFICIARIO'],['sd','SD'],['sdi','SDI'],['sal_semanal','SAL. PERIODO'],['rfc','RFC'],['curp','CURP'],['nacionalidad','NACIONALIDAD'],['fecha_nacimiento','FECHA DE NACIMIENTO'],['nss','NSS'],['cuenta','CUENTA'],['clabe','CUENTA CLABE'],['banco','BANCO'],['edo_nacimiento','EDO. NACIMIENTO'],['direccion','DIRECCION'],['cp','C.P.'],['telefono','TELEFONO'],['correo','CORREO ELECTRONICO'],['genero','GENERO'],['turno','TURNO'],['forma_pago','FORMA DE PAGO'],['observaciones','OBSERVACIONES'],['drive_link','CARPETA DRIVE']];
@@ -164,6 +164,7 @@
   campos_cambiados:'Campos que difieren entre antes y después (derivado).',estado_documento:'VIGENTE o ANULADO (derivado de anulado).',almacenamiento:'Dónde está el original (derivado).',
   docs_entregados:'Documentos base entregados (derivado del campo docs).'};
  const MONEDA=/(^|_)(importe|monto|total|neto|bruto|isr|exento|gravado|sueldo|salario|sal_semanal|sd|sdi|presupuesto|percepciones|deducciones|subsidio|imss|ajuste|diferencia|cuota|uma|real|transferencia|efectivo|original|acreditado|causado|platinum|noi)(_|$)/;
+ const TEXTO_SENSIBLE=/^(clabe|cuenta|cuenta_mask|nss|rfc|rfc_origen|rfc_validado|curp|cp|telefono|benef_telefono|num_tarjeta|numero_credito|num_cheque|consecutivo|registro_patronal|registro_siroc|codigo_verificacion|cfdi_uuid|uuid|uuid_fiscal|hash|huella|sha256)$|^(folio|codigo|clave)(_|$)|_sha256$/;
  const URL_FIRMA=/[?&](token|signature|x-amz-signature|x-amz-credential|sig|se)=/i;
 
  /* ---------- utilidades puras ---------- */
@@ -201,6 +202,7 @@
  function tipoDe(campo,tipoBD,muestra){
   const t=texto(tipoBD).toLowerCase();
   if(campo==='id'||/_id$/.test(campo)||t==='uuid')return 'ID';
+  if(TEXTO_SENSIBLE.test(campo))return 'TEXTO'; // conserva ceros aunque falten metadatos del servidor
   if(t.endsWith('[]'))return 'LISTA';
   if(t==='jsonb'||t==='json')return 'JSON';
   if(t==='boolean')return 'BOOLEANO';
@@ -581,7 +583,7 @@
    const cols=[];
    for(const c of campos){
     const muestra=filas.find(x=>x[c]!=null);
-    cols.push({campo:c,tipo:tipoDe(c,tipoBD.get(c),muestra&&muestra[c]),origen:f.tabla+'.'+c,tipoBD:tipoBD.get(c)||''});
+    cols.push({campo:c,tipo:tipoDe(c,tipoBD.get(c),muestra&&muestra[c]),origen:(f.alcance==='interna'?'interna:'+f.clave:f.tabla)+'.'+c,tipoBD:tipoBD.get(c)||''});
     if(c==='obra_id')cols.push({campo:'centro',tipo:'TEXTO',origen:'DERIVADO: CENTROS.nombre',derivado:true});
     if((f.precision||[]).includes(c))cols.push({campo:c+'__origen',tipo:'TEXTO',origen:'TEXTO_ORIGEN: '+f.tabla+'.'+c+'::text',precisionDe:c});
    }
