@@ -1,8 +1,8 @@
 {
   "version": "2026-11-11.1",
-  "entry": "assets/platinum-app.bb411afb7298ad67.js",
-  "sha256": "bb411afb7298ad67f4cbd305b48ecc31874898fc43a13715890af9ac23e163c4",
-  "integrity": "sha384-dfK/s4zPyjjqtUACxESLMktURhNGnJmC0nRBYk2izDDhf9C8jWeAb/FYnR3nquyr",
+  "entry": "assets/platinum-app.ce97120169d3d1bf.js",
+  "sha256": "ce97120169d3d1bf0237f30493d516d5df0c38a95c2d3d7d637e42b9cbf1aeed",
+  "integrity": "sha384-goXaxAxbv9bQ3eG0Kx8lek87Wyi1kwARmD47t7W4gwCydL2mJEDu3xlEil3Sdpcb",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -318,11 +318,11 @@
     },
     {
       "path": "frontend/modulos/78-tablero-ejecutivo.js",
-      "sha256": "c33f77091e9542da6a546ef8c13e2ff8cabd4575aa96e87d967941836e4747a3"
+      "sha256": "37db7e105502d83446747f51ab0dbd9b88fdb3d98a5443b1a3ba15f0d8bbbdfb"
     },
     {
       "path": "frontend/modulos/79-respaldo-integral.js",
-      "sha256": "4a1840bc1633fc3c0818489a25841307d030ec8898b7a76e6936862d15a9b5e6"
+      "sha256": "bf97fcd496e438c3bb7a285f7ec978f0a84c5a13fe987f262564d26480d1fb5c"
     }
   ]
 }

@@ -308,7 +308,7 @@ async function seccionControlador(base){
  // Navegación desde la gráfica por método planeado (perspectiva periodo): el detalle debe filtrar ese método.
  await T.acciones.abrirDetalle('pagado_registrado',{dimension:'metodo_planeado',valor:'CHEQUE',origen:'grafica'});await tick(30);
  const dD=ultimos.DETALLE||{};
- abierto('N4',!(Array.isArray(dD.medios)&&dD.medios.includes('CHEQUE')),`78 ajusteDimension no reconoce la dimensión 'metodo_planeado' que ahora emite la gráfica de 77 en PERIODO: el detalle «… · Cheque» se abre sin filtro (medios=${JSON.stringify(dD.medios)}) y lista todo el alcance`);
+ reg('N4',Array.isArray(dD.medios)&&dD.medios.includes('CHEQUE'),`el clic en «Cheque» de la gráfica por método planeado filtra el detalle (medios=${JSON.stringify(dD.medios)})`);
  await T.acciones.cerrarDetalle();await tick(10);
  // 3.3 Exportación filtrada: cuadre al centavo, hojas, textos, anti-fórmula, división.
  T.configurar({limite_filas_hoja:4});
@@ -394,7 +394,7 @@ async function seccionRespaldoExportar(){
  const tablas={obras:f.obras,trabajadores:f.trabajadores,control_cierres_nomina:f.cierres,control_cierre_versiones:f.versiones,control_obligaciones_pago:f.obligaciones,
   control_evidencias_pago:f.evidencias,control_pago_aplicaciones:f.aplicaciones,pagos:f.pagos,cheques:f.cheques,historial:f.historial},internas={excepciones_noi_individuales:[exc]};
  const filasDe=k=>tablas[k]||internas[k]||[],TAB=Object.fromEntries(box.PLATINUM_RESPALDO.fuentes().map(x=>[x.tabla,x.clave]));
- let lento=true;const marca=k=>({filas:filasDe(k).length,max_actualizado:null,max_creado:null,huella:'h'+filasDe(k).length,por_obra:{}});
+ let lento=true;const marca=k=>({tipo:'COMPLETA',filas:filasDe(k).length,max_actualizado:null,max_creado:null,huella:'h'+filasDe(k).length,por_obra:{}});
  const sb={rpc:async(fn,a)=>{
    if(fn==='control_puede_ver_salud')return {data:false,error:null};const d=a.p_datos;
    if(a.p_accion==='MARCAS'){if(lento&&(d.fuentes.length>8||d.fuentes.includes('historial')))return {data:null,error:{code:'57014',message:'canceling statement due to statement timeout'}};
@@ -409,7 +409,7 @@ async function seccionRespaldoExportar(){
   'MARCAS con tiempo agotado en una tabla: el respaldo se genera INCOMPLETO en lugar de abortar'+(err?' ('+err.message+')':''));
  // H3 con marcas normales (independiente de H2).
  lento=false;const r2=await box.PLATINUM_RESPALDO.exportar({sb,XLSX,JSZip:null,obrasCatalogo:f.obras,empresa:'PLATINUM',espera:0,marca:false,registrar:false,descargar:async()=>{},reloj:()=>ahora});
- ok(r2.estado==='COMPLETO','respaldo con marcas normales: COMPLETO ('+r2.motivos.join(',')+')');
+ ok(r2.estado==='COMPLETO'&&r2.fuentes.pagos.tipo_marca==='COMPLETA','respaldo con marcas normales: COMPLETO y tipo de marca por fuente registrado ('+r2.motivos.join(',')+')');
  const fila=(k,p)=>(r2.cuadre.filas.find(x=>x[1]===k&&x[2]==='PLATINUM_TABLERO_MODELO · '+p)||[])[11];
  const base={...f,ahora:ahora.toISOString(),cfdi:[],permisos:{vip:true,obras:[X1,X2],empresas:['PLATINUM']}},rango={empresa:'PLATINUM',obras:[X1,X2],desde:'2000-01-01',hasta:'2099-12-31'};
  const conE=M.calcular({...base,efectivo_autorizado:[{obligacion_id:oF.id,importe:'500.00',fecha:'2026-03-13'}]},rango),sinE=M.calcular({...base,efectivo_autorizado:[]},rango);
@@ -433,11 +433,12 @@ async function seccionMarcasLigeras(sqls){
  await masivo('documentos',{obra_id:ids.obra,trabajador_id:ids.w,categoria:'RECIBO_NOMINA',archivo:'ruta/x',notas:'nota',anulado:false},5001);
  await masivo('pagos',{obra_id:ids.obra,trabajador_id:ids.w,importe:100,estado:'EXITOSO',medio:'TRANSFERENCIA',fecha_pago:'2026-03-13',folio_lote:'F'},5001);
  await masivo('cheques',{obra_id:ids.obra,importe:100,estatus:'EXPEDIDO',eliminado:false},20);
+ await db.query(`insert into public.historial(id,trabajador_id,obra_id,accion,fecha,datos_despues) select 2000000+g,$2,$1,'DOCUMENTO-ALTA',now(),'{}'::jsonb from generate_series(1,5001) g`,[ids.obra,ids.w]);
  await db.exec('set session_replication_role=origin');
- const marcas=async()=>{await actor(db,'admin');try{return (await db.query('select public.control_respaldo($1,$2::jsonb) r',['MARCAS',JSON.stringify({empresa:emp,obras:[ids.obra],fuentes:['documentos','pagos','cheques']})])).rows[0].r.marcas;}finally{await db.exec('reset role');}};
+ const marcas=async()=>{await actor(db,'admin');try{return (await db.query('select public.control_respaldo($1,$2::jsonb) r',['MARCAS',JSON.stringify({empresa:emp,obras:[ids.obra],fuentes:['documentos','pagos','cheques','historial']})])).rows[0].r.marcas;}finally{await db.exec('reset role');}};
  const firma=m=>[m.filas,m.max_actualizado,m.max_creado,m.huella].join('|');
  const a=await marcas();
- eq([a.documentos.tipo,a.pagos.tipo,a.cheques.tipo],['LIGERA','LIGERA','COMPLETA'],'tipo de marca por volumen');
+ eq([a.documentos.tipo,a.pagos.tipo,a.cheques.tipo,a.historial.tipo],['COMPLETA','COMPLETA','COMPLETA','LIGERA'],'marca LIGERA sólo en tablas de sólo-inserción (historial > 5,000 filas); documentos y pagos > 5,000 con marca COMPLETA');
  await db.exec('set session_replication_role=replica'); // edición concurrente simulada (sin disparadores de validación)
  await db.exec(`update public.documentos set notas='EDITADA' where id=(select id from public.documentos order by id limit 1);
   update public.pagos set estado='RECHAZADO' where id=(select id from public.pagos order by id limit 1);
@@ -445,8 +446,10 @@ async function seccionMarcasLigeras(sqls){
  await db.exec('set session_replication_role=origin');
  const b=await marcas();
  ok(firma(a.cheques)!==firma(b.cheques),'marca COMPLETA detecta la edición de un cheque');
- abierto('N3',firma(a.documentos)===firma(b.documentos)&&firma(a.pagos)===firma(b.pagos),
-  'marca LIGERA (>5,000 filas) no detecta ediciones en documentos (13.5k filas; se editan: 16.7k DOCUMENTO-MODIFICACION) ni en pagos al pasar de 5,000 (hoy ~4,260; sin columna de modificación): el respaldo puede salir COMPLETO con una edición concurrente no detectada');
+ reg('N3',firma(a.documentos)!==firma(b.documentos)&&firma(a.pagos)!==firma(b.pagos),'con > 5,000 filas, la edición concurrente de un documento y de un pago cambia la marca (respaldo no puede salir COMPLETO sin detectarla)');
+ const c2=await marcas();ok(firma(c2.historial)===firma(b.historial)&&firma(c2.documentos)===firma(b.documentos),'marcas estables sin cambios');
+ await db.exec('set session_replication_role=replica');await db.query(`insert into public.historial(id,trabajador_id,obra_id,accion,fecha,datos_despues) values(3000000,$2,$1,'DOCUMENTO-ALTA',now(),'{}')`,[ids.obra,ids.w]);await db.exec('set session_replication_role=origin');
+ ok(firma((await marcas()).historial)!==firma(c2.historial),'marca LIGERA de historial detecta altas');
 }
 
 /* =====================================================================
