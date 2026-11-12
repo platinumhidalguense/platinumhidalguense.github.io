@@ -5,7 +5,7 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),os=require('node:os'),crypto=require('node:crypto');
 const assert=require('node:assert/strict'),acorn=require('acorn'),{spawnSync}=require('node:child_process');
 const XLSX=require('xlsx-js-style'),JSZip=require('jszip');
-const root=path.resolve(__dirname,'..'),MOD=path.join(root,'frontend/modulos/79-respaldo-integral.js');
+const root=path.resolve(__dirname,'..'),MOD=path.join(root,'frontend/modulos/86-respaldo-integral.js');
 let n=0;const ok=(c,m)=>{assert.ok(c,m);n++;},eq=(a,b,m)=>{assert.deepStrictEqual(JSON.parse(JSON.stringify(a)),JSON.parse(JSON.stringify(b)),m);n++;};
 const salida=fs.mkdtempSync(path.join(os.tmpdir(),'respaldo-'));
 const PROD=path.join(root,'work/respaldo_20261111/prod_columnas.json'),meta=fs.existsSync(PROD)?JSON.parse(fs.readFileSync(PROD,'utf8')):null;
@@ -19,7 +19,7 @@ ok(!/\bfunction\s+exportRespaldo\b/.test(src),'no redefine exportRespaldo (la de
 function cargar(conModelo){
  const box={console,Date,Math,JSON,Number,String,Array,Object,Set,Map,Promise,Error,RegExp,Symbol,Intl,Uint8Array,ArrayBuffer,BigInt,TextEncoder,setTimeout,clearTimeout,setImmediate,crypto:crypto.webcrypto,URL};
  box.window=box;box.globalThis=box;vm.createContext(box);
- if(conModelo)vm.runInContext(fs.readFileSync(path.join(root,'frontend/modulos/76-tablero-modelo.js'),'utf8'),box);
+ if(conModelo)vm.runInContext(fs.readFileSync(path.join(root,'frontend/modulos/83-tablero-modelo.js'),'utf8'),box);
  vm.runInContext(src,box);return box;
 }
 const BOX=cargar(true),API=BOX.PLATINUM_RESPALDO,T=API._pruebas;

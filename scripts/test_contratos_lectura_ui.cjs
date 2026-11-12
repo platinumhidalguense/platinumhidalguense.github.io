@@ -13,7 +13,7 @@ box.money=x=>'$'+Number(x).toFixed(2);
 window.open=()=>{const v={document:{open(){},write(h){impresiones.push(h);},close(){}},close(){}};return v;};
 box.LOGO_JIRE='data:image/png;base64,';
 box.CFGEMP.contrato_empresa_PLATINUM=firma;
-vm.createContext(box);vm.runInContext(funciones,box);vm.runInContext(fs.readFileSync('frontend/modulos/55-contratos-consulta.js','utf8'),box);
+vm.createContext(require('./soporte_puestos_vistas.cjs').instalar(box)||box);vm.runInContext(funciones,box);vm.runInContext(fs.readFileSync('frontend/modulos/55-contratos-consulta.js','utf8'),box);
 const settle=()=>new Promise(r=>setImmediate(r));
 (async()=>{
  const h=await box.generarContrato(w.id,{soloLectura:true,devolverHTML:true,trabajador:w,obra:box.OBRA,empresa:e,datos:{emp:'PLATINUM',tipo:w.tipo_contrato,fecha:w.fecha_alta,razon:e.razon,rfc:e.rfc,rep:e.representante,dom:e.domicilio}});assert(h.includes('PRIMERA'));assert(h.includes('&lt;script&gt;'));assert.equal(escrituras,0);

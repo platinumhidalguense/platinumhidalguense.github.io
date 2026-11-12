@@ -1,11 +1,11 @@
 # Tablero ejecutivo · diseño de información e interfaz
 
-Capa de presentación del tablero: `frontend/modulos/77-tablero-vista.js`
+Capa de presentación del tablero: `frontend/modulos/84-tablero-vista.js`
 (`window.PLATINUM_TABLERO_VISTA`) y `assets/platinum-tablero.css`. La vista
 **sólo pinta un `estado` y emite `acciones`**: no lee red, Supabase ni
-almacenamiento. Las medidas las define `76-tablero-modelo.js`
+almacenamiento. Las medidas las define `83-tablero-modelo.js`
 (`PLATINUM_TABLERO_MODELO`, ver `docs/MODELO_INDICADORES.md`) y los datos los
-entrega `78-tablero-ejecutivo.js`. Prueba: `node scripts/test_tablero_vista.cjs`.
+entrega `85-tablero-ejecutivo.js`. Prueba: `node scripts/test_tablero_vista.cjs`.
 
 ## 1. Jerarquía y orden de lectura
 
@@ -217,7 +217,7 @@ acciones = {cambiarFiltros(parcial), restablecer(), abrirDetalle(clave, contexto
 
 - Hoja de estilos (template, después de `platinum-cinta.css`):
   `<link rel="stylesheet" href="assets/platinum-tablero.css?v=<versión>">`
-- Módulo en `frontend/modulos.json` después de `76-tablero-modelo.js`.
+- Módulo en `frontend/modulos.json` después de `83-tablero-modelo.js`.
 - Ancho de trabajo: `modal(html, 'tb-pantalla')` (pantalla completa con fondo
   `--bg`) o una vista principal; la tendencia se redibuja a la escala real del
   contenedor (ResizeObserver).

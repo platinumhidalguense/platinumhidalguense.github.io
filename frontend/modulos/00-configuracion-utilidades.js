@@ -195,6 +195,8 @@ function rangoTexto(d1,d2){if(!d1||!d2)return'';const a=new Date(d1+'T12:00'),b=
    (en celular, position:fixed mueve el scroll a 0; lo devolvemos para que
    NO se vea "movido" todo al salir de una ficha). */
 function closeModal(force=false){
+  if(!force&&window.PLATINUM_AGUINALDO_UI?.antesCerrar?.()===false)return;
+  if(!force&&window.PLATINUM_BAJA?.antesCerrar?.()===false)return;
   if(!force&&$('ar-recibos')?.dataset.busy==='1')return;
   const formulario=$('worker-form-body');
   if(formulario&&!force){
@@ -231,6 +233,8 @@ function modal2(html,w=''){
 function closeModal2(){
   const ov=$('modals').querySelectorAll('.overlay');
   if(ov.length>1){
+    if(window.PLATINUM_AGUINALDO_UI?.antesCerrar?.(ov[ov.length-1])===false)return;
+    if(window.PLATINUM_BAJA?.antesCerrar?.(ov[ov.length-1])===false)return;
     const ultimo=ov[ov.length-1],volver=window.PLATINUM_FICHA?.antesCerrar(ultimo);
     ultimo.remove();volver?.();
   }

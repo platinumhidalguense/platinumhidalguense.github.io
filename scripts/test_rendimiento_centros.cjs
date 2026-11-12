@@ -7,7 +7,7 @@ const fn=n=>{assert(functions.has(n),n);return functions.get(n);};
 const c={console,Map,Set,Date,Number,String,Array,parseInt,WORKERS:[],DOCSX:[],PAGOS:[],CHEQUES:[],DESC:[],CONTRATISTAS:[],OBRA:{},DOCS:[],RECALCINF:undefined,
  today:()=> '2026-10-20',fullName:w=>w.nombres,recSetGlobal:()=>new Set(),faltantesReciboDe:()=>[],isoWeekDe:()=>30,normSem:v=>String(v).replace(/\D/g,''),esRecibo:d=>d.categoria==='RECIBO_NOMINA',conciliaSemanaDatos:()=>[],datosFaltantes:()=>[],docsOk:()=>0,catalogoPuestos:()=>['OFICIAL'],FISC:()=>({sm:300}),
  $:()=>({value:''}),money:v=>String(v),esc:v=>String(v),fmtD:v=>String(v)};
-vm.createContext(c);
+vm.createContext(require('./soporte_puestos_vistas.cjs').instalar(c)||c);
 for(const n of ['fechaAcuseISO','indiceAcusesIMSS','estadoAcuseIMSS','altaImssPendiente','acuseAltaPendiente','computeAlertas','pintarVistaObra','pagosIndexados','pagosFiltered','renderPagosView','cargarAcusesTrabajadores'])vm.runInContext(fn(n),c);
 const plain=s=>JSON.parse(JSON.stringify(s));
 (async()=>{

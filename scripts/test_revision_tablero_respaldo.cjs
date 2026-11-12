@@ -7,7 +7,7 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),crypto=require('node:crypto'),assert=require('node:assert/strict');
 const acorn=require('acorn'),{parseHTML}=require('linkedom'),XLSX=require('xlsx-js-style');
 const root=path.resolve(__dirname,'..');process.chdir(root);
-const M=require('../frontend/modulos/76-tablero-modelo.js');
+const M=require('../frontend/modulos/83-tablero-modelo.js');
 // A6_SONDA=1: modo diagnóstico (no se detiene; informa qué regresiones fallan) para comprobar que fallan con el código anterior.
 const SONDA=process.env.A6_SONDA==='1',fallas=[];
 let n=0;const ok=(c,m)=>{if(SONDA){if(!c)fallas.push(m);n++;return;}assert.ok(c,m);n++;},eq=(a,b,m)=>{const j=x=>x===undefined?null:JSON.parse(JSON.stringify(x));if(SONDA){try{assert.deepStrictEqual(j(a),j(b),m);}catch(e){fallas.push(m);}n++;return;}assert.deepStrictEqual(j(a),j(b),m);n++;};
@@ -260,9 +260,9 @@ async function seccionControlador(base){
    const datos=clon(servir(a.p_accion,a.p_datos,u)); // se calcula al recibir la solicitud (instantánea del servidor)
    if(retener&&retener(a.p_accion)){retener=null;await new Promise(r=>retenidas.push(r));}
    return {data:datos,error:null};},
-  from:()=>{const q={select:()=>q,eq:()=>q,maybeSingle:async()=>({data:null,error:null})};return q;},storage:{from:()=>({createSignedUrl:async()=>({data:null,error:{message:'x'}})})}};
+  from:()=>{const q={select:()=>q,eq:()=>q,order:()=>q,limit:()=>q,maybeSingle:async()=>({data:null,error:null})};return q;},storage:{from:()=>({createSignedUrl:async()=>({data:null,error:{message:'x'}})})}};
  const code=[];
- for(const p of JSON.parse(fs.readFileSync('frontend/modulos.json','utf8')).modules){if(/7[6-9]-/.test(p))continue;const s=fs.readFileSync(p,'utf8');
+ for(const p of JSON.parse(fs.readFileSync('frontend/modulos.json','utf8')).modules){if(/8[3-6]-(tablero|respaldo)/.test(p))continue;const s=fs.readFileSync(p,'utf8');
   for(const node of acorn.parse(s,{ecmaVersion:'latest'}).body)if(node.type==='FunctionDeclaration'||node.type==='VariableDeclaration'&&node.declarations.every(x=>x.init&&['ST','BORD'].includes(x.id.name)))code.push(s.slice(node.start,node.end));}
  const descargas=[],errVista=[];
  box={window:null,document,console:{...console,error:(...a)=>errVista.push(a.map(String).join(' '))},Date,Math,JSON,Number,String,Array,Object,Set,Map,WeakMap,Promise,Error,RegExp,Symbol,Intl,BigInt,TextEncoder,setImmediate,setTimeout,clearTimeout,setInterval,clearInterval,
@@ -271,7 +271,7 @@ async function seccionControlador(base){
  box.window=box;box.globalThis=box;vm.createContext(box);
  vm.runInContext(`const $=id=>document.getElementById(id);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const money=v=>v==null||v===''?'':Number(v).toFixed(2);const fmtD=v=>v?String(v).slice(0,10):'';const today=()=>'2026-06-01';`+code.join('\n'),box);
- for(const m of ['76-tablero-modelo','77-tablero-vista','78-tablero-ejecutivo'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
+ for(const m of ['83-tablero-modelo','84-tablero-vista','85-tablero-ejecutivo'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
  Object.assign(box,{toast:()=>{},esVip:()=>box.USER.id==='u-admin',esAdmin:()=>box.USER.id==='u-admin',dl:async(wb,nombre)=>{descargas.push({wb,nombre});}});
  const T=box.PLATINUM_TABLERO,S=T._pruebas.S;
  T.configurar({hoy:'2026-06-01',debounce_filtros_ms:1,debounce_busqueda_ms:1,vigilancia_ms:0});
@@ -364,7 +364,7 @@ async function seccionControlador(base){
    ===================================================================== */
 function seccionRespaldo(){
  const box={console,Date,Math,JSON,Number,String,Array,Object,Set,Map,Promise,Error,RegExp,Symbol,Intl,BigInt,TextEncoder,setTimeout,clearTimeout,crypto:require('node:crypto').webcrypto};box.window=box;box.globalThis=box;vm.createContext(box);
- const src=fs.readFileSync('frontend/modulos/79-respaldo-integral.js','utf8');vm.runInContext(src,box);
+ const src=fs.readFileSync('frontend/modulos/86-respaldo-integral.js','utf8');vm.runInContext(src,box);
  const R=box.PLATINUM_RESPALDO,P=R._pruebas;
  const usados=new Set(['manifiesto']),nom=[];for(let i=0;i<40;i++)nom.push(P.nombreHoja('CENTRO DE TRABAJO CON NOMBRE MUY LARGO [A]/B:'+(i%3),usados));
  ok(nom.every(x=>x.length<=31&&!/[\\\/?*\[\]:]/.test(x))&&new Set(nom.map(x=>x.toLowerCase())).size===40,'40 hojas con el mismo prefijo: únicas, ≤31 y sin caracteres prohibidos');
@@ -388,7 +388,7 @@ function seccionRespaldo(){
 /* Respaldo de punta a punta con un servidor simulado: marcas con tiempo agotado (H2) y cuadre con efectivo (H3). */
 async function seccionRespaldoExportar(){
  const box={console,Date,Math,JSON,Number,String,Array,Object,Set,Map,WeakMap,Promise,Error,RegExp,Symbol,Intl,BigInt,TextEncoder,Uint8Array,setTimeout,clearTimeout,crypto:require('node:crypto').webcrypto};box.window=box;box.globalThis=box;vm.createContext(box);
- for(const m of ['76-tablero-modelo','79-respaldo-integral'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
+ for(const m of ['83-tablero-modelo','86-respaldo-integral'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
  const {I,f}=fuentesBase(),oF=f.obligaciones.find(o=>o.id===I.O1f);
  const exc={id:U(800),cierre_id:oF.cierre_id,trabajador_id:oF.trabajador_id,finiquito_efectivo:'500.00',neto_original:'1500.00',nomina_transferencia:'1000.00',registrado_en:'2026-03-13T18:00:00Z'};
  const tablas={obras:f.obras,trabajadores:f.trabajadores,control_cierres_nomina:f.cierres,control_cierre_versiones:f.versiones,control_obligaciones_pago:f.obligaciones,
@@ -460,10 +460,10 @@ function seccionRegresiones(){
  for(const p of mods){const s=fs.readFileSync(p,'utf8'),ast=acorn.parse(s,{ecmaVersion:'latest'});
   for(const nd of ast.body){const ns=nd.type==='FunctionDeclaration'?[nd.id.name]:nd.type==='VariableDeclaration'?nd.declarations.flatMap(d=>d.id.type==='Identifier'?[d.id.name]:[]):nd.type==='ClassDeclaration'?[nd.id.name]:[];
    for(const x of ns){if(vistos.has(x))dup.push(x);else vistos.set(x,p);}if(nd.type==='FunctionDeclaration')funcs.set(nd.id.name,s.slice(nd.start,nd.end));}
-  if(/7[6-9]-/.test(p))eq(ast.body.length,1,'módulo nuevo con un único enunciado de nivel superior: '+path.basename(p));}
+  if(/8[3-6]-(tablero|respaldo)/.test(p))eq(ast.body.length,1,'módulo nuevo con un único enunciado de nivel superior: '+path.basename(p));}
  eq(dup,[],'sin nombres globales duplicados en los '+mods.length+' módulos');
- const nuevos=['76-tablero-modelo','77-tablero-vista','78-tablero-ejecutivo','79-respaldo-integral'].map(m=>'frontend/modulos/'+m+'.js');
- ok(nuevos.every(p=>mods.includes(p))&&mods.indexOf(nuevos[0])<mods.indexOf(nuevos[1])&&mods.indexOf(nuevos[1])<mods.indexOf(nuevos[2]),'76→77→78→79 en modulos.json');
+ const nuevos=['83-tablero-modelo','84-tablero-vista','85-tablero-ejecutivo','86-respaldo-integral'].map(m=>'frontend/modulos/'+m+'.js');
+ ok(nuevos.every(p=>mods.includes(p))&&mods.indexOf(nuevos[0])<mods.indexOf(nuevos[1])&&mods.indexOf(nuevos[1])<mods.indexOf(nuevos[2]),'83→84→85→86 en modulos.json');
  // Globales que expone cada módulo nuevo.
  for(const [p,esperado] of [[nuevos[0],['PLATINUM_TABLERO_MODELO']],[nuevos[1],['PLATINUM_TABLERO_VISTA']],[nuevos[2],['PLATINUM_TABLERO']],[nuevos[3],['PLATINUM_RESPALDO']]]){
   const {window:w2,document:d2}=parseHTML('<html><body></body></html>');const bx={console,Date,Math,JSON,Number,String,Array,Object,Set,Map,WeakMap,Promise,Error,RegExp,Symbol,Intl,BigInt,TextEncoder,setTimeout,clearTimeout,document:d2};
@@ -478,9 +478,9 @@ function seccionRegresiones(){
  const protegidas=['proyModelo','calcPrestaciones','retencionEvaluada','descuentosDe','calcularPrestaciones','fonacotMontoPeriodo','infonavitRetencionPeriodo'];
  for(const k of protegidas)if(funcs.has(k)){const s=funcs.get(k);ok(!/PLATINUM_TABLERO|PLATINUM_RESPALDO/.test(s)&&(!(k in orig)||sha(s)===orig[k]||(k in rev)),'función protegida sin cambios del tablero/respaldo: '+k);}
  const g=(cmd)=>{try{return require('node:child_process').execSync(cmd,{encoding:'utf8',stdio:['ignore','pipe','ignore']});}catch(e){return null;}};
- const base=g('git rev-parse --verify -q dc42457');
- if(base){for(const m of ['52','53']){const fs2=fs.readdirSync('frontend/modulos').filter(x=>x.startsWith(m+'-'));for(const x of fs2)eq(g('git show dc42457:frontend/modulos/'+x),fs.readFileSync('frontend/modulos/'+x,'utf8'),'motor '+x+' byte-idéntico a la base');}
-  const cambiados=(g('git diff --name-only dc42457 -- frontend/modulos')||'').trim().split('\n').filter(Boolean).sort();
+ const base=g('git rev-parse --verify -q 921f202');
+ if(base){for(const m of ['52','53']){const fs2=fs.readdirSync('frontend/modulos').filter(x=>x.startsWith(m+'-'));for(const x of fs2)eq(g('git show 921f202:frontend/modulos/'+x),fs.readFileSync('frontend/modulos/'+x,'utf8'),'motor '+x+' byte-idéntico a la base');}
+  const cambiados=(g('git diff --name-only 921f202 -- frontend/modulos')||'').trim().split('\n').filter(Boolean).sort();
   eq(cambiados,['frontend/modulos/01-sesion-centros-sincronizacion.js','frontend/modulos/34-dashboard-respaldos.js',...nuevos].sort(),'sólo 01 y 34 cambian entre los módulos existentes');}
  // Seguridad de publicación.
  const ign=g('git check-ignore -q supabase/migrations/20261111100000_tablero_indicadores.sql && git check-ignore -q supabase/migrations/20261111100100_respaldo_marcas.sql && git check-ignore -q work/x && echo si');

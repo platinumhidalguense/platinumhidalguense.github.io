@@ -1,29 +1,13 @@
 /* Layout de altas: catálogo confirmado por contabilidad (NOI 11).
    Adaptador de salida: no escribe fichas, contratos, sueldos ni movimientos.
    El Excel de importación conserva encabezado en fila 1 y exactamente A:BF. */
-const NOI_PUESTOS_ALTAS=[
-  'AYUDANTE ALBAÑIL','RESIDENTE DE OBRA','OPERADOR DE EXCAVADORA','OFICIAL ALBAÑIL',
-  'OFICIAL FIERRERO','OFICIAL CARPINTERO','CABO DE OFICIOS','OPERADOR DE PIPA DE AGUA',
-  'OPERADOR DE VIBROCOMPACTADOR','OPERADOR DE MOTOCONFORMADORA','OPERADOR DE TRANSPORTE',
-  'OFICIAL PLOMERO','ALMACENISTA','PERSONAL DE LIMPIEZA','OFICIAL ELECTRICISTA','YESERO',
-  'AYUDANTE GENERAL','OPERADOR DE MANIPULADOR'
-];
+function noiCatalogoPuestos(){return (puestoDatosCentral()?.catalogo||[]).filter(p=>p.activo).sort((a,b)=>a.clave-b.clave);}
 const NOI_ANCHOS_ALTAS=[11,15.43,15.86,21.14,14.86,16.43,21.71,16.71,24.14,17.29,25.29,21.29,
   10.71,10.71,10.71,17.29,17.29,27.14,13.43,13.43,19.43,21.57,11,10.71,10.71,11,29.29,27.14,
   10.71,10.71,20.71,10.71,31.14,16.86,11,10.71,10.71,10.71,10.71,21.86,11,31.57,15.86,20.71,
   10.71,23.14,10.71,10.71,10.71,10.71,10.71,10.71,20.71,10.71,10.71,10.71,10.71,10.71];
-function noiPuestoClave(puesto){
-  const normal=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim().replace(/\s+/g,' ');
-  let nombre=normal(puesto);
-  // Equivalencia ortográfica explícita. No confundir maquinaria o jerarquías.
-  if(nombre==='AYUDANTE DE ALBANIL')nombre='AYUDANTE ALBANIL';
-  return NOI_PUESTOS_ALTAS.findIndex(p=>normal(p)===nombre)+1;
-}
-function noiPuestoSeleccionado(w){
-  const auto=noiPuestoClave(w.puesto);if(auto)return auto;
-  const i=(window._NA||[]).findIndex(x=>x.id===w.id),n=Number($('na-puesto-'+i)?.value);
-  return Number.isInteger(n)&&n>=1&&n<=NOI_PUESTOS_ALTAS.length?n:0;
-}
+function noiPuestoClave(puesto){return puestoResolver(puesto).clave||0;}
+function noiPuestoSeleccionado(w){return puestoResolver(w).clave||0;}
 function noiFechaValida(fecha){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha||'')))return false;
   const d=new Date(fecha+'T00:00:00Z');

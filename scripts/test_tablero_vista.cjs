@@ -1,13 +1,13 @@
-// Tablero ejecutivo · capa de presentación (77-tablero-vista.js).
+// Tablero ejecutivo · capa de presentación (84-tablero-vista.js).
 // Pinta un `estado` ficticio completo y estados de carga, error, vacío y
 // calidad; verifica estructura, orden, roles/aria, tablas alternativas,
 // emisión de acciones con la clave correcta y escape de texto.
 // Sin red ni Supabase: el módulo corre en una VM con linkedom.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict'),acorn=require('acorn'),{parseHTML}=require('linkedom');
-const raiz=path.resolve(__dirname,'..'),RUTA=path.join(raiz,'frontend/modulos/77-tablero-vista.js'),CSS=path.join(raiz,'assets/platinum-tablero.css'),MODELO=path.join(raiz,'frontend/modulos/76-tablero-modelo.js');
+const raiz=path.resolve(__dirname,'..'),RUTA=path.join(raiz,'frontend/modulos/84-tablero-vista.js'),CSS=path.join(raiz,'assets/platinum-tablero.css'),MODELO=path.join(raiz,'frontend/modulos/83-tablero-modelo.js');
 let n=0;const ok=(c,m)=>{assert(c,m);n++;},eq=(a,b,m)=>{const j=x=>x===undefined?x:JSON.parse(JSON.stringify(x));assert.deepStrictEqual(j(a),j(b),m);n++;};
 
-/* ---------- Estado ficticio completo con las formas de 76-tablero-modelo.js ---------- */
+/* ---------- Estado ficticio completo con las formas de 83-tablero-modelo.js ---------- */
 const XSS='<img src=x onerror="alert(1)"><script>alert(2)</script><u>u</u>';
 const M=(valor,o={})=>({valor,unidad:'MXN',definicion:'',formula:'',provisional:false,disponible:true,motivo_no_disponible:null,desglose:{},comparable:null,variacion:null,...o});
 function estadoCompleto(){
@@ -90,8 +90,8 @@ function contexto(conEsc){
  const box={document,console,Date,Math,JSON,Number,String,Array,Object,Set,Map,WeakMap,Promise,Error,RegExp,Symbol,Intl,setTimeout,print:()=>impresiones.push(1)};
  box.window=box;box.globalThis=box;vm.createContext(box);
  if(conEsc)vm.runInContext(`const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));`,box);
- if(conEsc&&fs.existsSync(MODELO))vm.runInContext(fs.readFileSync(MODELO,'utf8'),box,{filename:'76-tablero-modelo.js'});
- vm.runInContext(fuente,box,{filename:'77-tablero-vista.js'});
+ if(conEsc&&fs.existsSync(MODELO))vm.runInContext(fs.readFileSync(MODELO,'utf8'),box,{filename:'83-tablero-modelo.js'});
+ vm.runInContext(fuente,box,{filename:'84-tablero-vista.js'});
  return {box,window,document,V:box.PLATINUM_TABLERO_VISTA,impresiones};
 }
 const {box,window,document,V,impresiones}=contexto(true);

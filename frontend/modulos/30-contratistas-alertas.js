@@ -221,7 +221,7 @@ function computeAlertas(){
     {k:'PAGOG',icon:'💸',txt:'Semanas sin pago global importado (revisa)',items:pagoFalt},
     {k:'DOCS',icon:'📋',txt:'Activos con documentación incompleta',items:act.filter(w=>docsOk(w)<DOCS.length)},
     {k:'CREAR',icon:'🪪',txt:'Tarjetas por solicitar (cuenta CREAR)',items:act.filter(w=>String(w.cuenta).toUpperCase()==='CREAR')},
-    {k:'CAT',icon:'🧰',txt:'Puesto fuera del catálogo (corregir en su ficha)',items:WORKERS.filter(w=>w.estatus!=='BAJA'&&w.puesto&&!catalogoPuestos().includes(w.puesto))},
+    {k:'CAT',icon:'🧰',txt:'Puesto sin equivalencia central (conservar original hasta verificar)',items:WORKERS.filter(w=>w.estatus!=='BAJA'&&w.puesto&&!puestoResolver(w).resuelto)},
     {k:'FINIQ',icon:'🧾',txt:'Cheques de finiquito PENDIENTES de expedir',items:CHEQUES.filter(c=>c.estatus==='PENDIENTE'&&c.tipo_pago==='FINIQUITO')},
     {k:'REV',icon:'⚠️',txt:'Registros con marca REVISAR',items:WORKERS.filter(w=>(w.observaciones||'').includes('REVISAR'))},
     {k:'CONTR',icon:'📄',txt:'Contratos determinados que vencen en 14 días',items:act.filter(w=>w.fecha_fin_contrato&&w.fecha_fin_contrato>=hoy&&w.fecha_fin_contrato<=en14)},

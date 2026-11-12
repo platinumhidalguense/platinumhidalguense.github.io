@@ -1,8 +1,8 @@
 /* =====================================================================
    77 · TABLERO EJECUTIVO — CAPA DE PRESENTACIÓN (vista)
    Sólo PINTA un `estado` y EMITE `acciones`: no lee red, Supabase ni
-   almacenamiento. Los datos los entrega 78-tablero-ejecutivo.js con las
-   formas de 76-tablero-modelo.js / RPC control_tablero (RESUMEN,
+   almacenamiento. Los datos los entrega 85-tablero-ejecutivo.js con las
+   formas de 83-tablero-modelo.js / RPC control_tablero (RESUMEN,
    TENDENCIA, COMPARATIVOS, EXCEPCIONES, DETALLE, PLANTILLA, CATALOGOS).
    Ver docs/TABLERO_DISENO.md y docs/MODELO_INDICADORES.md.
    Orden de lectura: filtros → alcance aplicado → vistas → 6 a 8

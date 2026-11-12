@@ -4,7 +4,7 @@
    Fechas civiles AAAA-MM-DD, límites inclusivos, sin husos horarios. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;if(root)root.PLATINUM_AGUINALDO=api;})(typeof window!=='undefined'?window:null,function(){
  'use strict';
- const VERSION='AGUINALDO_2026_V1';
+ const VERSION='AGUINALDO_2026_V2';
  const r2=x=>Math.round((Number(x)||0)*100+Number.EPSILON)/100;
  const fecha=s=>{
   if(!/^\d{4}-\d{2}-\d{2}$/.test(String(s||'')))throw Error('Fecha inválida: '+s);
@@ -70,8 +70,59 @@
     ÚLTIMA baja; por eso un reingreso con la relación aún abierta indica una
     baja intermedia que no consta: el tramo se cuenta corrido y se marca para
     verificar (art. 18 LFT), sin inventar un hueco. */
+ function eventosCorregidos(w,movimientos){
+  const eventos=[],avisos=[],correcciones=[];
+  const campos={ALTA:'fecha_alta',BAJA:'fecha_baja',REINGRESO:'fecha_reingreso'};
+  const civil=v=>v?String(v).slice(0,10):null;
+  const compararId=(a,b)=>{
+   if(/^\d+$/.test(String(a))&&/^\d+$/.test(String(b))){const x=BigInt(a),y=BigInt(b);return x<y?-1:x>y?1:0;}
+   return String(a||'').localeCompare(String(b||''));
+  };
+  const revertidas=new Set((movimientos||[]).filter(m=>m.accion==='BAJA_REVERTIDA').map(m=>String(m.datos_despues?.reversion_historial_id||'')));
+  const filas=(movimientos||[]).filter(m=>!revertidas.has(String(m.id))).map((m,i)=>({...m,_orden:i})).sort((a,b)=>
+   String(a.fecha||'').localeCompare(String(b.fecha||''))||compararId(a.id,b.id)||a._orden-b._orden);
+  function agregar(tipo,f,m){
+   if(!f)return null;
+   try{fecha(f);}catch{avisos.push({codigo:'FECHA_MOVIMIENTO_INVALIDA',bloquea:true,texto:'Fecha inválida en el movimiento '+(m.id||m._orden)+'.'});return null;}
+   const e={tipo,fecha:f,id:m.id||'mov-'+m._orden,origen:'HISTORIAL',capturado_en:m.fecha||null,correcciones:[]};
+   eventos.push(e);return e;
+  }
+  for(const m of filas){
+   const accion=String(m.accion||'').toUpperCase(),antes=m.datos_antes||m.antes||{},despues=m.datos_despues||m.despues||m;
+   if(accion==='ALTA'){if(!w.fecha_alta)agregar('ALTA',civil(despues.fecha_alta),m);continue;}
+   if(accion==='BAJA'){agregar('BAJA',civil(despues.fecha_baja),m);continue;}
+   if(accion==='REACTIVACION'||accion==='REINGRESO'){agregar('REINGRESO',civil(despues.fecha_reingreso),m);continue;}
+   if(!['MODIFICACION','CORRECCION_REINGRESO'].includes(accion))continue;
+   for(const [tipo,campo] of Object.entries(campos)){
+    const f=civil(despues[campo]),prev=civil(antes[campo]),explicita=accion==='CORRECCION_REINGRESO'&&tipo==='REINGRESO';
+    if(!explicita&&(!Object.prototype.hasOwnProperty.call(antes,campo)||prev===f))continue;
+    if(f){try{fecha(f);}catch{avisos.push({codigo:'FECHA_CORRECCION_INVALIDA',bloquea:true,texto:'Fecha inválida en la corrección '+(m.id||m._orden)+'.'});continue;}}
+    const delTipo=eventos.filter(e=>e.tipo===tipo),ultimo=delTipo[delTipo.length-1];
+    const candidatos=prev?delTipo.filter(e=>e.fecha===prev):explicita&&ultimo?[ultimo]:[];
+    if(prev&&!candidatos.length&&delTipo.length){
+     avisos.push({codigo:'CORRECCION_SIN_ANTECEDENTE',bloquea:true,texto:'La corrección '+(m.id||m._orden)+' parte del '+prev+', que no coincide con los movimientos de ese ciclo.'});continue;
+    }
+    if(candidatos.length>1||candidatos.length===1&&candidatos[0]!==ultimo){
+     avisos.push({codigo:'CORRECCION_CICLO_AMBIGUA',bloquea:true,texto:'La corrección '+(m.id||m._orden)+' de '+(prev||'fecha pendiente')+' a '+(f||'vacío')+' coincide con otro ciclo. Revisa sus fechas y origen.'});continue;
+    }
+    let e=candidatos[0];
+    const correccion={id:m.id||'mov-'+m._orden,fecha_anterior:prev||e?.fecha||null,fecha_corregida:f,capturado_en:m.fecha||null};
+    if(!e&&f)e=agregar(tipo,f,m);
+    if(!e)continue;
+    correcciones.push({...correccion,tipo});
+    if(!f){eventos.splice(eventos.indexOf(e),1);continue;}
+    e.fecha=f;e.correcciones.push(correccion);
+   }
+  }
+  const reingresos=eventos.filter(e=>e.tipo==='REINGRESO'),ultimo=reingresos[reingresos.length-1];
+  if(ultimo&&w.fecha_reingreso&&ultimo.fecha!==civil(w.fecha_reingreso)){
+   avisos.push({codigo:'REINGRESO_FICHA_DIFIERE',bloquea:true,texto:'El último reingreso del historial '+ultimo.fecha+' ('+ultimo.id+') difiere de la ficha '+civil(w.fecha_reingreso)+'. Revisa la corrección documentada.'});
+  }
+  eventos.avisos=avisos;eventos.correcciones=correcciones;
+  return eventos;
+ }
  function tramosServicio(w,eventos){
-  const avisos=[],ev=[];
+  const avisos=[...(eventos?.avisos||[])],ev=[];
   const push=(tipo,f,origen)=>{if(!f)return;const d=String(f).slice(0,10);fecha(d);ev.push({tipo,fecha:d,origen});};
   for(const e of eventos||[])push(String(e.tipo).toUpperCase()==='REACTIVACION'?'REINGRESO':String(e.tipo).toUpperCase(),e.fecha,e.origen||'HISTORIAL');
   push('ALTA',w&&w.fecha_alta,'FICHA');push('REINGRESO',w&&w.fecha_reingreso,'FICHA');push('BAJA',w&&w.fecha_baja,'FICHA');
@@ -223,7 +274,12 @@
   const raw=sb*pact*computables/denominador;
   const cierre=recortar(p.tramos,ej,`${ej}-12-31`,p.opciones).reduce((s,t)=>s+t.dias,0);
   const cierreComputables=Math.max(0,cierre-aus.que_afectan);
-  return {version:VERSION,ejercicio:ej,corte,salario_base:sb,dias_pactados:pact,tramos:rec,
+  const detalle_tramos=rec.map(t=>{
+   const a=ausenciasAplicables(p.ausencias||{},[t],p.politica),pendiente=a.pendientes.length>0||a.discrepancias.length>0;
+   const computablesTramo=Math.max(0,t.dias-a.que_afectan),brutoTramo=sb*pact*computablesTramo/denominador;
+   return {desde:t.desde,hasta:t.hasta,dias_base:t.dias,dias_computables:pendiente?null:computablesTramo,bruto:pendiente?null:r2(brutoTramo),bruto_raw:pendiente?null:brutoTramo,pendiente};
+  });
+  return {version:VERSION,ejercicio:ej,corte,salario_base:sb,dias_pactados:pact,tramos:rec,detalle_tramos,
    dias_vinculo:vinculo,dias_confirmados:confirmados,dias_proyectados:Math.max(0,vinculo-confirmados),
    faltas_digitales:aus.digitales,faltas_historicas:aus.historicas,faltas_afectan:aus.que_afectan,
    dias_computables:computables,denominador,proporcion:computables/denominador,bruto_raw:raw,bruto:r2(raw),
@@ -243,13 +299,20 @@
   for(const e of evidencias||[]){
    if(['CANCELADO','RETIRADO','ANULADO'].includes(e.estado)){res.ignorado.push(e);continue;}
    const k=e.operacion||e.id;
-   if(vistos.has(k)){vistos.get(k).duplicados.push(e.id);continue;}
+   if(vistos.has(k)){
+    const previo=vistos.get(k),confirmado=x=>['APLICACION','FINIQUITO_DESGLOSADO','AJUSTE_NOI','CFDI_DESGLOSADO'].includes(x.origen)||
+     x.origen==='CONCILIACION_VERIFICADA'&&x.acreditacion_confirmada===true&&['APLICADO','PAGADO','CERO_VERIFICADO'].includes(x.estado);
+    if(confirmado(e)&&!confirmado(previo))vistos.set(k,{...e,duplicados:[previo.id,...previo.duplicados]});
+    else previo.duplicados.push(e.id);
+    continue;
+   }
    const reg={...e,duplicados:[]};vistos.set(k,reg);
   }
   for(const e of vistos.values()){
    const imp=r2(e.importe_bruto),mismoAnio=!anioPago||String(e.fecha_pago||'').slice(0,4)===String(anioPago);
    let clase;
    if(e.origen==='APLICACION')clase=ESTADOS_ACREDITADOS.includes(e.estado)?'ACREDITADO':'RESERVADO';
+   else if(e.origen==='CONCILIACION_VERIFICADA'&&e.acreditacion_confirmada===true&&['APLICADO','PAGADO','CERO_VERIFICADO'].includes(e.estado))clase='ACREDITADO';
    else if(['FINIQUITO_DESGLOSADO','AJUSTE_NOI','CFDI_DESGLOSADO'].includes(e.origen)&&e.desglosado!==false)clase='ACREDITADO';
    else clase='PENDIENTE';
    res.detalle.push({...e,clase,importe_bruto:imp});
@@ -343,13 +406,14 @@
   }
   const anioPago=e.fecha_pago?e.fecha_pago.slice(0,4):null;
   const c=conciliar(d.bruto,e.evidencias,anioPago);
+  if(e.fiscal_anual){c.exento_usado=r2(e.fiscal_anual.exento_usado||0);c.exento_desconocido=!!e.fiscal_anual.pendientes?.length;if(c.exento_desconocido)add('FISCAL_ANUAL_PENDIENTE','Falta desglose fiscal anual verificado: '+e.fiscal_anual.pendientes.map(p=>p.motivo+(p.fecha_baja?' '+p.fecha_baja:'')).join('; ')+'. El bruto del ciclo vigente sí está calculado.',true);}
   if(c.pendiente.length)add('EVIDENCIA_PENDIENTE',`${c.pendiente.length} pago(s) anterior(es) sin desglose del aguinaldo: no se puede saber el saldo.`,true);
   if(c.excedente>0)add('PAGADO_DE_MAS',`Lo acreditado excede lo causado por $${c.excedente.toFixed(2)}.`,false);
-  if(c.exento_desconocido)add('EXENCION_DESCONOCIDA','Un pago del mismo año no informa su parte exenta: no se puede determinar la exención disponible.',true);
+  if(c.exento_desconocido&&!e.fiscal_anual)add('EXENCION_DESCONOCIDA','Un pago del mismo año no informa su parte exenta: no se puede determinar la exención disponible.',true);
   const fila={version:VERSION,derecho:d,conciliacion:c,observaciones:obs,saldo:c.saldo,bruto_causado:d.bruto};
   const aPagar=e.importe_a_pagar==null?c.saldo:r2(Math.min(e.importe_a_pagar,c.saldo));
   fila.bruto_a_pagar=aPagar;
-  if(e.fecha_pago){
+  if(e.fecha_pago&&!(e.fiscal_anual&&c.exento_desconocido)){
    if(e.fecha_pago>`${d.ejercicio}-12-20`)add('FUERA_DE_PLAZO',`El pago del ${e.fecha_pago} es posterior al 20 de diciembre (art. 87 LFT).`,false);
    try{
     const x=exencion(aPagar,e.fecha_pago,c.exento_usado);fila.fiscal={...x};
@@ -376,7 +440,7 @@
   return JSON.stringify(v===undefined?null:v);
  }
 
- return Object.freeze({VERSION,NATURALEZAS,UMA,naturalezaCatalogo,computaNaturaleza,tramosServicio,recortar,activoEnFecha,seleccionar,
+ return Object.freeze({VERSION,NATURALEZAS,UMA,naturalezaCatalogo,computaNaturaleza,eventosCorregidos,tramosServicio,recortar,activoEnFecha,seleccionar,
   ausenciasAplicables,calcularDerecho,conciliar,umaVigente,exencion,isrSemanalMotor,isrArt96Semanal,isrArt96Quincenal,
   isrMensualTarifa,isrArt174,calcularFila,canonico,util:Object.freeze({fecha,iso,sumar,dias,diasAnio,r2})});
 });

@@ -2,7 +2,7 @@
 // modelo real (76) como servidor simulado de `control_tablero`. Datos ficticios.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),acorn=require('acorn'),{parseHTML}=require('linkedom'),XLSX=require('xlsx-js-style');
 const {performance}=require('node:perf_hooks');
-const MOD=require('../frontend/modulos/76-tablero-modelo.js');
+const MOD=require('../frontend/modulos/83-tablero-modelo.js');
 const {window,document}=parseHTML('<html><head></head><body><div id="modals"></div><div id="toasts"></div><div id="tbody"></div></body></html>');
 Object.defineProperty(window.HTMLSelectElement.prototype,'value',{configurable:true,get(){return this._valor??this.querySelector('option[selected]')?.getAttribute('value')??this.querySelector('option')?.getAttribute('value')??'';},set(v){this._valor=v;}});
 let activo=null;Object.defineProperty(document,'activeElement',{configurable:true,get(){return activo&&activo.isConnected?activo:document.body;}});
@@ -56,7 +56,7 @@ const sb={
   if(fallar&&fallar(a.p_accion,a.p_datos)){eventos.push('!'+a.p_accion);return {data:null,error:{message:'Fallo simulado de la fuente '+a.p_accion}};}
   if(instante instanceof Error)throw instante;const data=JSON.parse(instante);eventos.push('<'+a.p_accion);return {data,error:null};
  },
- from(tabla){const cond={};const q={select(){return q;},eq(k,v){cond[k]=v;return q;},maybeSingle:async()=>{desde.push({tabla,cond:{...cond}});
+ from(tabla){const cond={};const q={select(){return q;},eq(k,v){cond[k]=v;return q;},order(){return q;},limit(){return q;},maybeSingle:async()=>{desde.push({tabla,cond:{...cond}});
   if(box.USER.id==='u-rest')return {data:null,error:null};
   if(tabla==='pagos'){const p=F.pagos.find(x=>x.id===cond.id);return {data:p?{id:p.id,archivo:p.archivo}:null,error:null};}
   if(tabla==='control_evidencias_pago'){const e=F.evidencias.find(x=>x.id===cond.id);return {data:e||null,error:null};}
@@ -82,8 +82,8 @@ const money=v=>v==null||v===''?'':Number(v).toLocaleString('es-MX',{minimumFract
 const fmtD=v=>{if(!v)return'';const[y,m,d]=String(v).slice(0,10).split('-');return d+'/'+m+'/'+y;};
 const today=()=>'2026-11-11';
 `+code.join('\n'),box);
-const existe={m76:fs.existsSync('frontend/modulos/76-tablero-modelo.js'),m77:fs.existsSync('frontend/modulos/77-tablero-vista.js')};
-for(const m of ['69-personal-lecturas','71-ficha-personal','76-tablero-modelo','77-tablero-vista','78-tablero-ejecutivo'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
+const existe={m76:fs.existsSync('frontend/modulos/83-tablero-modelo.js'),m77:fs.existsSync('frontend/modulos/84-tablero-vista.js')};
+for(const m of ['69-personal-lecturas','71-ficha-personal','83-tablero-modelo','84-tablero-vista','85-tablero-ejecutivo'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
 Object.assign(box,{toast:(s,t)=>toasts.push({s,t}),esVip:()=>box.USER.id==='u-admin',esAdmin:()=>box.USER.id==='u-admin',puedeEditarTrabajador:()=>false,razonSocialEmpresa:c=>'RAZÓN '+c,
  fichaResumenHTML:w=>'<p>Resumen ficticio de '+w.id+'</p>',agruparExpedienteFicha:()=>'<p>Sección ficticia</p>',navTrabajadores:()=>[],
  dl:async(wb,nombre)=>{descargas.push({wb,nombre});},

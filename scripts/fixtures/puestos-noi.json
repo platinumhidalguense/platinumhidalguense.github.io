@@ -1,0 +1,250 @@
+{
+  "catalogo": [
+    {
+      "clave": 1,
+      "descripcion": "AYUDANTE ALBAÑIL",
+      "activo": true
+    },
+    {
+      "clave": 2,
+      "descripcion": "RESIDENTE DE OBRA",
+      "activo": true
+    },
+    {
+      "clave": 3,
+      "descripcion": "OPERADOR DE EXCAVADORA",
+      "activo": true
+    },
+    {
+      "clave": 4,
+      "descripcion": "OFICIAL ALBAÑIL",
+      "activo": true
+    },
+    {
+      "clave": 5,
+      "descripcion": "OFICIAL FIERRERO",
+      "activo": true
+    },
+    {
+      "clave": 6,
+      "descripcion": "OFICIAL CARPINTERO",
+      "activo": true
+    },
+    {
+      "clave": 7,
+      "descripcion": "CABO DE OFICIOS",
+      "activo": true
+    },
+    {
+      "clave": 8,
+      "descripcion": "OPERADOR DE PIPA DE AGUA",
+      "activo": true
+    },
+    {
+      "clave": 9,
+      "descripcion": "OPERADOR DE VIBROCOMPACTADORA",
+      "activo": true
+    },
+    {
+      "clave": 10,
+      "descripcion": "OPERADOR DE MOTOCONFORMADORA",
+      "activo": true
+    },
+    {
+      "clave": 11,
+      "descripcion": "OPERADOR DE TRANSPORTE",
+      "activo": true
+    },
+    {
+      "clave": 12,
+      "descripcion": "OFICIAL PLOMERO",
+      "activo": true
+    },
+    {
+      "clave": 13,
+      "descripcion": "ALMACENISTA",
+      "activo": true
+    },
+    {
+      "clave": 14,
+      "descripcion": "PERSONAL DE LIMPIEZA",
+      "activo": true
+    },
+    {
+      "clave": 15,
+      "descripcion": "OFICIAL ELECTRICISTA",
+      "activo": true
+    },
+    {
+      "clave": 16,
+      "descripcion": "OFICIAL YESERO",
+      "activo": true
+    },
+    {
+      "clave": 17,
+      "descripcion": "AYUDANTE GENERAL",
+      "activo": true
+    },
+    {
+      "clave": 18,
+      "descripcion": "OPERADOR DE MANIPULADOR",
+      "activo": true
+    },
+    {
+      "clave": 19,
+      "descripcion": "OPERADOR MAQUINARIA",
+      "activo": true
+    },
+    {
+      "clave": 20,
+      "descripcion": "OFICIAL PINTOR",
+      "activo": true
+    }
+  ],
+  "equivalencias": [
+    {
+      "empresa": "*",
+      "variante": "AYUDANTE ALBANIL",
+      "especialidad": "",
+      "clave": 1
+    },
+    {
+      "empresa": "*",
+      "variante": "RESIDENTE DE OBRA",
+      "especialidad": "",
+      "clave": 2
+    },
+    {
+      "empresa": "*",
+      "variante": "OPERADOR DE EXCAVADORA",
+      "especialidad": "",
+      "clave": 3
+    },
+    {
+      "empresa": "*",
+      "variante": "OFICIAL ALBANIL",
+      "especialidad": "",
+      "clave": 4
+    },
+    {
+      "empresa": "*",
+      "variante": "OFICIAL FIERRERO",
+      "especialidad": "",
+      "clave": 5
+    },
+    {
+      "empresa": "*",
+      "variante": "OFICIAL CARPINTERO",
+      "especialidad": "",
+      "clave": 6
+    },
+    {
+      "empresa": "*",
+      "variante": "CABO DE OFICIOS",
+      "especialidad": "",
+      "clave": 7
+    },
+    {
+      "empresa": "*",
+      "variante": "OPERADOR DE PIPA DE AGUA",
+      "especialidad": "",
+      "clave": 8
+    },
+    {
+      "empresa": "*",
+      "variante": "OPERADOR DE VIBROCOMPACTADORA",
+      "especialidad": "",
+      "clave": 9
+    },
+    {
+      "empresa": "*",
+      "variante": "OPERADOR DE MOTOCONFORMADORA",
+      "especialidad": "",
+      "clave": 10
+    },
+    {
+      "empresa": "*",
+      "variante": "OPERADOR DE TRANSPORTE",
+      "especialidad": "",
+      "clave": 11
+    },
+    {
+      "empresa": "*",
+      "variante": "OFICIAL PLOMERO",
+      "especialidad": "",
+      "clave": 12
+    },
+    {
+      "empresa": "*",
+      "variante": "ALMACENISTA",
+      "especialidad": "",
+      "clave": 13
+    },
+    {
+      "empresa": "*",
+      "variante": "PERSONAL DE LIMPIEZA",
+      "especialidad": "",
+      "clave": 14
+    },
+    {
+      "empresa": "*",
+      "variante": "OFICIAL ELECTRICISTA",
+      "especialidad": "",
+      "clave": 15
+    },
+    {
+      "empresa": "*",
+      "variante": "OFICIAL YESERO",
+      "especialidad": "",
+      "clave": 16
+    },
+    {
+      "empresa": "*",
+      "variante": "AYUDANTE GENERAL",
+      "especialidad": "",
+      "clave": 17
+    },
+    {
+      "empresa": "*",
+      "variante": "OPERADOR DE MANIPULADOR",
+      "especialidad": "",
+      "clave": 18
+    },
+    {
+      "empresa": "*",
+      "variante": "OPERADOR MAQUINARIA",
+      "especialidad": "",
+      "clave": 19
+    },
+    {
+      "empresa": "*",
+      "variante": "OFICIAL PINTOR",
+      "especialidad": "",
+      "clave": 20
+    },
+    {
+      "empresa": "*",
+      "variante": "YESERO",
+      "especialidad": "",
+      "clave": 16
+    },
+    {
+      "empresa": "*",
+      "variante": "OPERADOR DE VIBROCOMPACTADOR",
+      "especialidad": "",
+      "clave": 9
+    },
+    {
+      "empresa": "*",
+      "variante": "OPERADOR DE MAQUINARIA",
+      "especialidad": "",
+      "clave": 19
+    },
+    {
+      "empresa": "*",
+      "variante": "AYUDANTE DE ALBANIL",
+      "especialidad": "",
+      "clave": 1
+    }
+  ]
+}

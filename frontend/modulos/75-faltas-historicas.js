@@ -12,17 +12,33 @@
  const ESTADOS={VIGENTE:'Vigente',SUSTITUIDA:'Sustituida por corrección',REVERTIDA:'Revertida'};
 
  /* Resumen del ejercicio con las mismas reglas del aguinaldo. */
- async function resumen(w,ejercicio,corte){
+ async function resumen(w,ejercicio,corte,inicioCiclo=null){
   if(!A()||!F())throw Error('No cargaron las reglas de aguinaldo. Recarga la plataforma.');
   const {data,error}=await sb.rpc('control_aguinaldo',{p_accion:'CONTEXTO',p_datos:{ejercicio,trabajadores:[w.id]}});
   if(error){if(/control_aguinaldo|could not find the function|PGRST202/i.test(error.message+' '+(error.code||'')))throw Error('El servidor todavía no tiene la migración de faltas históricas.');throw Error(error.message);}
   const x=(data.personas||[])[0];if(!x)throw Error('Este trabajador está fuera de tu alcance.');
   const fin=`${ejercicio}-12-31`,c=corte&&corte<fin?corte:fin;
   const {tramos,avisos}=A().tramosServicio(w,F().eventosDe(w,x.movimientos)),aus=F().ausenciasDe(x);
-  const d=A().calcularDerecho({ejercicio,salario_base:Number(w.sd)>0?Number(w.sd):1,dias_pactados:15,corte:c,hoy:today(),tramos,
-   ausencias:{digitales:aus.digitales,rangos:aus.rangos,historicas:aus.historicas}});
+  const entrada={ejercicio,salario_base:Number(w.sd)>0?Number(w.sd):1,dias_pactados:15,corte:c,hoy:today(),tramos,
+   ausencias:{digitales:aus.digitales,rangos:aus.rangos,historicas:aus.historicas}};
+  const d=A().calcularDerecho(entrada);
   const ev=F().evidenciasDe(x,tramos,ejercicio),conc=A().conciliar(d.bruto,ev,null);
-  return {x,d,conc,avisos:[...avisos,...aus.avisos],aus,cobertura:F().coberturaDe((data.coberturas||[]).find(o=>o.obra_id===w.obra_id)),sinSalario:!(Number(w.sd)>0)};
+  let ciclo=null;
+  if(inicioCiclo){
+   if(!iso.test(inicioCiclo)||inicioCiclo>c)throw Error('El inicio del ciclo no corresponde a la fecha de cálculo.');
+   const pertenece=f=>!iso.test(f||'')||f>=inicioCiclo&&f<=c;
+   const tramosCiclo=tramos.filter(t=>t.desde<=c&&(!t.hasta||t.hasta>=inicioCiclo))
+    .map(t=>({...t,desde:t.desde<inicioCiclo?inicioCiclo:t.desde,hasta:t.hasta>c?null:t.hasta}));
+   const fuentes={...x,
+    aplicaciones:(x.aplicaciones||[]).filter(a=>iso.test(a.periodo_desde||'')&&iso.test(a.periodo_hasta||'')
+     ?a.periodo_hasta>=inicioCiclo&&a.periodo_desde<=c:pertenece(a.fecha_pago)),
+    finiquitos:(x.finiquitos||[]).filter(f=>pertenece(f.periodo)),
+    // El papel abierto se revisa junto al cálculo de la baja actual.
+    papeles:(x.papeles||[]).filter(p=>pertenece(p.fecha_baja)&&p.fecha_baja!==c)};
+   const derecho=A().calcularDerecho({...entrada,tramos:tramosCiclo});
+   ciclo={desde:inicioCiclo,hasta:c,d:derecho,conc:A().conciliar(derecho.bruto,F().evidenciasDe(fuentes,tramosCiclo,ejercicio),null)};
+  }
+  return {x,d,conc,ciclo,avisos:[...avisos,...aus.avisos],aus,cobertura:F().coberturaDe((data.coberturas||[]).find(o=>o.obra_id===w.obra_id)),sinSalario:!(Number(w.sd)>0)};
  }
  /* Faltas digitales que la regla de aguinaldo cuenta dentro de un rango. */
  function digitalesEnRango(aus,desde,hasta,politica){
@@ -186,14 +202,16 @@
  /* Finiquito nuevo o abierto: muestra la fuente común sin cambiar la fórmula
     del finiquito (protegida y conciliada con NOI). Si difiere de las faltas
     que el finiquito toma de las incidencias semanales, lo advierte. */
- async function panelFiniquito(host,w,fecha,faltasFiniquito){
+ async function panelFiniquito(host,w,fecha,faltasFiniquito,lectura=null){
   if(!host||!w)return;
   const f=iso.test(fecha||'')?fecha:today(),ej=Number(f.slice(0,4)),turno=(host._turno=(host._turno||0)+1);
   host.innerHTML='<p class="fhint">Consultando faltas históricas y aguinaldo acreditado…</p>';
   try{
-   const r=await resumen(w,ej,f);if(!host.isConnected||turno!==host._turno)return;
-   const d=r.d,c=r.conc,distinto=Number.isFinite(faltasFiniquito)&&faltasFiniquito!==d.faltas_afectan;
+   const r=await (lectura||resumen(w,ej,f));if(!host.isConnected||turno!==host._turno)return;
+   if(!r)throw Error('No se verificaron las fuentes del ejercicio.');
+   const base=r.ciclo||r,d=base.d,c=base.conc,distinto=Number.isFinite(faltasFiniquito)&&faltasFiniquito!==d.faltas_afectan;
    host.innerHTML=`<div class="tbl-card" style="padding:10px 12px"><div class="sect">Aguinaldo del ejercicio ${ej} · fuente común</div>
+    ${base.desde?`<p class="fhint">Ciclo de esta baja del ${fmtD(base.desde)} al ${fmtD(base.hasta)}. Consulta el acumulado anual en la ficha para ver los ciclos anteriores.</p>`:''}
     <div style="display:flex;gap:8px;flex-wrap:wrap">${stat(d.dias_vinculo,'Días base al '+fmtD(f))}${stat(d.faltas_digitales,'Faltas digitales')}${stat(d.faltas_historicas,'Faltas históricas','b')}${stat(d.dias_computables,'Días computables','g')}${stat('$'+money(r2s(c.acreditado+c.reservado)),'Aguinaldo ya acreditado','g')}</div>
     ${distinto?`<p style="color:var(--amber);font-size:12px">⚠ El finiquito toma ${faltasFiniquito} falta(s) de las incidencias semanales y la fuente común reporta ${d.faltas_afectan}. La fórmula del finiquito no cambia aquí: valida los días de aguinaldo con el ajuste NOI si corresponde.</p>`:''}
     ${d.ausencias.discrepancias.length?'<p style="color:var(--red);font-size:12px">⛔ Hay una discrepancia de faltas históricas: revísala en la ficha antes de cerrar el finiquito.</p>':''}

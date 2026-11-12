@@ -21,7 +21,7 @@ const sb={from(tabla){const cond=[];const q={select(){return q;},eq(k,v){cond.pu
   range(a,b){return Promise.resolve({data:(bdd[tabla]||[]).filter(r=>cond.every(f=>f(r))).slice(a,b+1),error:null});}};return q;},
  rpc:async(fn,args)=>{llamadas.push({fn,args:JSON.parse(JSON.stringify(args))});return rpc(fn,args);},
  storage:{from:()=>({upload:async()=>({error:null}),createSignedUrl:async()=>({data:{signedUrl:'about:blank'}})})}};
-const box={window:null,document,console,Date,Math,JSON,Number,String,Array,Object,Set,Map,Promise,Error,RegExp,Symbol,Intl,setImmediate,
+const box={window:null,document,console,AbortController,Date,Math,JSON,Number,String,Array,Object,Set,Map,Promise,Error,RegExp,Symbol,Intl,setImmediate,
  OBRA:obras[0],OBRAS:obras,WORKERS:[w1,w2,w3,w4,w5],EMPRESA_ACTIVA:'PLATINUM',EMPRESAS:{PLATINUM:{nombre:'PLATINUM',corto:'PLATINUM'},JIRE:{nombre:'JIRE',corto:'JIRE'}},
  CFGEMP:{fiscal:{anio:2026,sm:315.04,uma:117.31,umi:100.81}},CUADS:[],CONTRATISTAS:[],DESC:[],DIFS:[],FINTRANS:[],USER:{id:'u',email:'u@x'},sb,
  ST:Object.fromEntries(['title','sub','head','cell','cellC','money','fin','finMoney','total','totalMoney','sect'].map(k=>[k,{}])),
@@ -37,7 +37,7 @@ const fmtD=v=>{if(!v)return'';const[y,m,d]=String(v).slice(0,10).split('-');retu
 const today=()=>'2026-11-10';
 const dmyAiso=v=>{const m=String(v||'').trim().match(/^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})$/);return m?m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'):null;};
 `+code.join('\n'),box);
-for(const m of ['72-aguinaldo-nucleo','74-aguinaldo-corrida','75-faltas-historicas'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
+for(const m of ['72-aguinaldo-nucleo','74-aguinaldo-corrida','75-faltas-historicas','77-aguinaldo-evidencias'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
 Object.assign(box,{toast:(s,t)=>toasts.push({s,t}),puedeEditarTrabajador:()=>editar,razonSocialEmpresa:()=>'RAZÓN FICTICIA',dl:async(wb,name)=>{descargas.push({wb,name});},
  buildSheet:(rows,styles,widths,merges)=>{const ws={_rows:rows,_widths:widths,_merges:merges};rows.forEach((row,r)=>row.forEach((v,c)=>ws[String.fromCharCode(65+c)+(r+1)]={t:typeof v==='number'?'n':'s',v}));return ws;}});
 const A=box.PLATINUM_AGUINALDO,UI=box.PLATINUM_AGUINALDO_UI,FH=box.PLATINUM_FALTAS_HIST,$=id=>document.getElementById(id);
@@ -51,13 +51,14 @@ let ctx={w1:persona(w1),w2:persona(w2,{calendario:[{id:'c1',fecha:'2026-07-07',i
 let historial=[],aplicar=null;
 const servidor=(fn,a)=>{
  const d=a.p_datos||{};
- if(fn==='control_aguinaldo'&&a.p_accion==='CONTEXTO')return {data:{ejercicio:d.ejercicio,salud:true,coberturas:[{obra_id:'O',inicio_centro:'2026-03-30',primera_captura_calendario:'2026-04-02',primera_semana_descuentos:1}],personas:d.trabajadores.map(id=>ctx[id]).filter(Boolean)}};
+ if(fn==='control_aguinaldo'&&a.p_accion==='CONTEXTO')return {data:{ejercicio:d.ejercicio,contrato_version:'AG_CICLO_V1',salud:true,coberturas:[{obra_id:'O',inicio_centro:'2026-03-30',primera_captura_calendario:'2026-04-02',primera_semana_descuentos:1}],personas:d.trabajadores.map(id=>ctx[id]).filter(Boolean).map(x=>d.alcance!=='CICLO_VIGENTE_V1'?x:({...x,contrato_version:'AG_CICLO_V1',ciclo:{inicio:coalesceInicio(x.trabajador_id),activo:true},fiscal_anual:x.fiscal_anual||{exento_usado:0,pendientes:[]},evidencias_ciclo:x.evidencias_ciclo||[]}))}};
  if(fn==='control_aguinaldo'&&a.p_accion==='HISTORIAL')return {data:{lineas:historial}};
  if(fn==='control_aguinaldo'&&a.p_accion==='APLICAR')return aplicar(d);
  if(fn==='control_aguinaldo'&&a.p_accion==='RETIRAR')return {data:{id:d.id,estado:'RETIRADO'}};
  throw Error('RPC no esperada '+fn+' '+a.p_accion);
 };
 rpc=servidor;
+function coalesceInicio(id){const w=bdd.trabajadores.find(w=>w.id===id);return w.fecha_reingreso||w.fecha_alta;}
 
 (async()=>{
  // ---------- 1. Corrida: parámetros y cálculo ----------
@@ -81,7 +82,7 @@ rpc=servidor;
  eq([f1.fila.fiscal.isr,f1.fila.fiscal.neto],[i96.isr,Math.round((4356.16-i96.isr)*100)/100],'ISR incremental art. 96 del motor semanal');
  ok(i96.isr>0&&i96.isr<836.86,'ISR acotado al gravado');
  ok(f5.fila.estado==='BLOQUEADA'&&f5.fila.observaciones.some(o=>o.codigo==='FISCAL_INCOMPLETO'),'quincenal sin perfil validado: fiscal incompleto, no se aplica');
- eq(S.fuera.map(f=>[f.w.no_trab,f.motivo]),[[3,'EXCLUIDO_POR_FILTRO'],[4,'EXCLUIDO_POR_FILTRO']],'alta 28/10 y baja quedan fuera de esta corrida');
+ eq(S.fuera.map(f=>[f.w.no_trab,f.motivo]),[[3,'EXCLUIDO_POR_FILTRO']],'alta posterior al filtro; las bajas se excluyen antes de consultar contexto');
  ok(S.fuera[0].sel.detalle.includes('2026-10-27'),'explica el límite del rango');
  ok([...S.sel].length===2,'preselecciona sólo filas listas');
  const tabla=$('agc-cuerpo').textContent;
@@ -137,12 +138,15 @@ rpc=servidor;
  click(document.querySelector('[data-agc-paso="1"]'));click(document.querySelector('[data-agc-acc="calcular"]'));await tick(20);
  ok(UI._pruebas.estado().paso===1&&UI._pruebas.estado().filas.length===3&&UI._pruebas.estado().lotes.size===0,'recalcular desde el paso 2 usa los parámetros vigentes');
  click(document.querySelector('[data-agc-paso="3"]'));
- // Conflicto todo-o-nada: no hay aplicación parcial y el reintento conserva el identificador.
- const ops=[];aplicar=d=>{ops.push(d.operacion_id);return {error:{message:'CONFLICTO_AGUINALDO',details:JSON.stringify([{trabajador_id:'w1',motivo:'FUENTES_CAMBIARON'}])}};};
+ // Reintento de transporte conserva el identificador; el conflicto de fuentes exige recálculo.
+ const ops=[];aplicar=d=>{ops.push(d.operacion_id);return {error:{message:'FALLO_DE_TRANSPORTE_FICTICIO'}};};
  click(document.querySelector('[data-agc-acc="aplicar"]'));await tick(20);
  click(document.querySelector('[data-agc-acc="aplicar"]'));await tick(20);
  ok(ops.length===2&&ops[0]===ops[1],'mismo identificador al reintentar sin recalcular');
+ aplicar=()=>({error:{message:'CONFLICTO_AGUINALDO',details:JSON.stringify([{trabajador_id:'w1',motivo:'FUENTES_CAMBIARON'}])}});
+ click(document.querySelector('[data-agc-acc="aplicar"]'));await tick(20);
  ok(toasts.at(-1).s.includes('cambiaron sus fuentes'),'informa qué recalcular');
+ ok(!UI._pruebas.estado().filas.find(f=>f.w.id==='w1').puede_aplicar,'la fuente cambiada queda pendiente hasta recalcular');
  // Historial: retiro sólo mientras la nómina sea editable.
  historial=[{id:'L1',trabajador_id:'w1',estado:'APLICADO',estado_destino:'BORRADOR',version:1,periodicidad:'SEMANAL',periodo_desde:'2026-12-07',periodo_hasta:'2026-12-13',bruto:4356.16,isr:i96.isr,neto:4356.16-i96.isr,created_at:'2026-11-10'},
   {id:'L2',trabajador_id:'w2',estado:'APLICADO',estado_destino:'AUTORIZADO',version:1,periodicidad:'SEMANAL',periodo_desde:'2026-11-30',periodo_hasta:'2026-12-06',bruto:100,isr:0,neto:100,created_at:'2026-11-09'}];
@@ -152,6 +156,64 @@ rpc=servidor;
  const ret=llamadas.find(c=>c.args.p_accion==='RETIRAR');eq([ret.args.p_datos.id,ret.args.p_datos.version],['L1',1],'retira con versión y motivo');
  editar=false;box.PLATINUM_AGUINALDO_UI._pruebas.estado().paso=3;click(document.querySelector('[data-agc-paso="3"]'));
  ok(document.querySelector('[data-agc-acc="aplicar"]').disabled,'consulta: no aplica');editar=true;
+ box.closeModal();
+
+ // Reingreso pendiente seleccionable, resolución por fila, importes indeterminados y paginación.
+ const rev=W('rev',77,{fecha_alta:'2026-04-20',fecha_baja:'2026-05-25',fecha_reingreso:'2026-08-31'});
+ bdd.trabajadores.push(rev);ctx.rev=persona(rev,{movimientos:[
+  {id:'alta',accion:'ALTA',fecha_alta:'2026-04-20',fecha:'2026-04-20T12:00:00Z'},
+  {id:'baja',accion:'BAJA',fecha_baja:'2026-05-25',fecha:'2026-05-25T12:00:00Z'},
+  {id:'reing',accion:'REACTIVACION',fecha_reingreso:'2026-08-31',fecha:'2026-09-01T12:00:00Z'}],fiscal_anual:{exento_usado:0,pendientes:[{motivo:'BAJA_ANTERIOR_SIN_FUENTE_FISCAL_VERIFICADA',fecha_baja:'2026-05-25'}]}});
+ UI.abrir();valor('agc-texto','77');valor('agc-fecha_destino','2026-12-09');
+ click(document.querySelector('[data-agc-acc="calcular"]'));await tick(20);
+ const revision=UI._pruebas.estado(),rv=revision.filas[0];
+ eq([rv.estado_revision,rv.puede_revisar,rv.puede_aplicar],['FISCAL_PENDIENTE',true,false],'bruto del ciclo disponible; acumulado fiscal pendiente impide aplicar neto');
+ const casilla=document.querySelector('[data-agc-sel="rev"]');
+ ok(casilla&&!casilla.disabled,'casilla del pendiente disponible');
+ casilla.checked=true;casilla.dispatchEvent(new window.Event('change',{bubbles:true}));
+ ok(revision.sel.has('rev'),'selección estable por ID');
+ ok($('agc-cuerpo').textContent.includes('2026-05-25')&&$('agc-cuerpo').textContent.includes('Por confirmar'),'motivo concreto y saldo indeterminado');
+ assert.throws(()=>UI._pruebas.lineaDe(rv),/información pendiente/);n++;
+ click(document.querySelector('[data-agc-acc="analisis"]'));await tick();
+ const analisis=descargas.at(-1).wb.Sheets['ANÁLISIS']._rows[3];
+ ok(analisis[9]>0&&analisis[12]===''&&analisis[15]===''&&analisis[16]==='','análisis exporta bruto calculable y saldo/ISR/neto pendientes vacíos');
+ const descargasAntes=descargas.length;
+ click(document.querySelector('#agc-pie [data-agc-acc="excel"]'));await tick();
+ eq(descargas.length,descargasAntes,'el pendiente no pasa al Excel para firmas');
+ click(document.querySelector('[data-agc-paso="3"]'));
+ ok(document.querySelector('[data-agc-acc="aplicar"]').disabled&&$('agc-cuerpo').textContent.includes('1 pendiente'),'aplicación explica la fila pendiente');
+ click(document.querySelector('[data-agc-paso="1"]'));
+ ok(!document.querySelector('[data-agc-acc="evidencia"]'),'la corrida normal no exige vincular el finiquito del ciclo anterior');
+ ctx.rev.fiscal_anual={exento_usado:0,pendientes:[]};
+ ctx.rev.huella_fuentes='H-rev-2';
+ const parametrosAntes=JSON.stringify(revision.p),lecturasAntes=llamadas.length;
+ await UI.recalcularTrabajador('rev');await tick();
+ ok(revision.sel.has('rev')&&JSON.stringify(revision.p)===parametrosAntes,'resolver conserva selección y filtros');
+ ok(revision.filas[0].puede_aplicar,'el acumulado fiscal verificado resuelve la fila sin cambiar el derecho');
+ eq(llamadas.slice(lecturasAntes).filter(c=>c.args.p_accion==='CONTEXTO').map(c=>c.args.p_datos.trabajadores),[['rev']],'se recalcula únicamente la fila afectada');
+ const rpcAntes=rpc;
+ rpc=(fn,a)=>fn==='control_aguinaldo'&&a.p_accion==='CONTEXTO'?{error:{message:'RED_FICTICIA'}}:rpcAntes(fn,a);
+ await assert.rejects(UI.recalcularTrabajador('rev'),/RED_FICTICIA/);n++;
+ ok(!revision.filas[0].puede_aplicar&&$('agc-cuerpo').textContent.includes('Lectura fallida'),'la lectura fallida tiene motivo y pierde aptitud para aplicar');
+ rpc=rpcAntes;await UI.recalcularTrabajador('rev');
+ ok(revision.filas[0].puede_aplicar&&revision.sel.has('rev'),'el reintento recupera la fila conservando selección');
+ click(document.querySelector('[data-agc-paso="0"]'));
+ const textoFiltro=$('agc-texto');textoFiltro.dispatchEvent(new window.Event('change',{bubbles:true}));
+ ok(document.querySelector('[data-agc-paso="3"]').disabled,'cambiar parámetros exige recálculo');
+ click(document.querySelector('[data-agc-acc="calcular"]'));await tick(20);
+ ok(revision.sel.has('rev')&&revision.filas[0].puede_aplicar,'recalcular mantiene la selección por ID');
+ let enviados=0;aplicar=d=>{enviados++;return {data:{lote_id:'REV',lineas:d.lineas.length}};};
+ click(document.querySelector('[data-agc-paso="3"]'));click(document.querySelector('[data-agc-acc="aplicar"]'));await tick(20);
+ eq(enviados,1,'la fila resuelta se aplica una vez');
+ ok(document.querySelector('[data-agc-acc="aplicar"]').disabled,'el lote registrado exige recalcular antes de otra aplicación');
+ revision.filas=Array.from({length:51},(_,i)=>({...f1,w:{...f1.w,id:'pagina-'+i,no_trab:100+i}}));revision.sel=new Set();revision.paso=1;
+ click(document.querySelector('[data-agc-paso="1"]'));
+ eq(document.querySelectorAll('[data-agc-sel]').length,50,'la página limita el DOM a 50 filas');
+ click(document.querySelector('[data-agc-acc="sel-todo"]'));
+ eq(revision.sel.size,51,'Seleccionar todos abarca las páginas');
+ click(document.querySelector('[data-agc-acc="pagina"][data-pagina="1"]'));
+ ok(document.querySelectorAll('[data-agc-sel]').length===1&&document.querySelector('[data-agc-sel]').hasAttribute('checked'),'cambiar página conserva la selección');
+ click(document.querySelector('[data-agc-acc="sel-ninguno"]'));eq(revision.sel.size,0,'quitar selección abarca todas las páginas');
  box.closeModal();
 
  // ---------- 5. Faltas históricas en la ficha ----------
@@ -210,6 +272,33 @@ rpc=servidor;
  ok(fuente71.includes("faltas:'Faltas históricas y acumulado'")&&fuente71.includes('PLATINUM_FALTAS_HIST.montar'),'sección en la ficha');
  ok(fuente33.includes('pr-faltas-hist')&&!/function calcPrestaciones[\s\S]{0,4000}PLATINUM_FALTAS_HIST/.test(fuente33),'panel fuera de calcPrestaciones');
 
+ // Reingreso con cinco faltas: el acumulado anual y el ciclo de la baja tienen alcances propios.
+ const reingreso=W('w6',6,{fecha_alta:'2026-08-10',fecha_baja:'2026-09-07',fecha_reingreso:'2026-09-21'});
+ ctx.w6=persona(reingreso,{movimientos:[{accion:'BAJA',fecha_baja:'2026-09-07'},{accion:'REACTIVACION',fecha_reingreso:'2026-09-22'}],
+  faltas_semana:[
+   {id:'f26',tipo:'FALTA',motivo:'3 FALTAS · NETO NOI -100',periodo:{desde:'2026-09-21',hasta:'2026-09-27'}},
+   {id:'f27',tipo:'FALTA',motivo:'2 FALTAS · NETO NOI -100',periodo:{desde:'2026-09-28',hasta:'2026-10-04'}}],
+  papeles:[{id:'hist',fecha_baja:'2026-09-07',ejercicio:2026,revision:1,aguinaldo:null}]});
+ const ciclo=await FH.resumen(reingreso,2026,'2026-11-04','2026-09-21');
+ eq(ciclo.d.faltas_afectan,5,'el resumen anual reconoce las cinco faltas registradas');
+ eq(ciclo.conc.pendiente.length,1,'el histórico sin desglose sigue visible en el acumulado anual');
+ eq([ciclo.ciclo.d.faltas_afectan,ciclo.ciclo.conc.pendiente.length],[5,0],'la baja anterior no bloquea el finiquito del reingreso');
+ ctx.w6.papeles.push({id:'actual',fecha_baja:'2026-11-04',ejercicio:2026,revision:1,aguinaldo:100});
+ let delCiclo=await FH.resumen(reingreso,2026,'2026-11-04','2026-09-21');
+ eq([delCiclo.conc.acreditado,delCiclo.ciclo.conc.acreditado],[0,0],'el papel abierto aporta un cálculo pendiente de vincular');
+ ctx.w6.finiquitos.push({id:'futuro',periodo:'2026-11-07',monto_aplicado:150,aguinaldo:null});
+ delCiclo=await FH.resumen(reingreso,2026,'2026-11-04','2026-09-21');
+ eq(delCiclo.ciclo.conc.pendiente.length,0,'un movimiento posterior al corte queda fuera de la baja');
+ ctx.w6.aplicaciones.push({id:'actual',estado:'APLICADO',estado_destino:'PAGADO',bruto:90,fecha_pago:'2026-10-09',periodo_desde:'2026-10-05',periodo_hasta:'2026-10-11'});
+ delCiclo=await FH.resumen(reingreso,2026,'2026-11-04','2026-09-21');
+ eq(delCiclo.ciclo.conc.acreditado,90,'el aguinaldo aplicado en el ciclo actual conserva su conciliación');
+ ctx.w6.finiquitos.push({id:'vigente',periodo:'2026-10-12',monto_aplicado:150,aguinaldo:null});
+ delCiclo=await FH.resumen(reingreso,2026,'2026-11-04','2026-09-21');
+ eq(delCiclo.ciclo.conc.pendiente.length,1,'un finiquito sin desglose dentro del ciclo sí requiere revisión');
+ ctx.w6.historicas.push({id:'contradictorio',estado:'VIGENTE',modo:'TOTAL_AL_CORTE',rango_desde:'2026-09-21',fecha_corte:'2026-10-04',total_acreditado:4,naturaleza:'FALTA_INJUSTIFICADA'});
+ delCiclo=await FH.resumen(reingreso,2026,'2026-11-04','2026-09-21');
+ eq(delCiclo.ciclo.d.ausencias.discrepancias.length,1,'cinco capturadas contra cuatro acreditadas conserva la discrepancia real');
+
  // ---------- 7. Proyección: post-proceso, Excel, fotografía y auditoría ----------
  const fila=(w,o)=>({w,fin:false,sueldo:3000,incidencias:0,creditos:0,otras:0,prevision:200,costo:3000,neto:3200,items:[],pago:'TRANSFERENCIA',...o});
  const base={sem:'S37',filas:[fila(w1),fila(w2,{prevision:0,neto:3000}),fila(w4,{fin:true,sueldo:5200,prevision:0,costo:5200,neto:5200,pago:'CHEQUE'})],items:[],neto:11400,costo:11200};
@@ -236,5 +325,43 @@ rpc=servidor;
  eq([box.aguinaldoCamposItem(base.filas[1]),box.aguinaldoCamposSnapshot(base.filas)],[{},{}],'fotografía sin aguinaldo conserva su forma');
  box.empresaDeTrabajador=()=> 'PLATINUM';
  const au=box.proyAuditoria(m,['DISPERSION']);ok(au[0].entradas.aguinaldo.bruto===4356.16&&!('aguinaldo' in au[1].entradas),'auditoría con desglose sólo donde aplica');
- console.log(`PASS aguinaldo UI: ${n} comprobaciones; corrida en cuatro pasos (filtros, cálculo, desglose, conciliación, Excel, aplicación, conflicto y retiro), faltas históricas versionadas en la ficha, panel de finiquito y columna de aguinaldo en proyección y fotografía.`);
+ // ---------- 8. Corrida normal: volumen, reintento, cancelación y fiscal separado ----------
+ box.closeModal();bdd.trabajadores=Array.from({length:275},(_,i)=>W('mg-'+i,i+1,{sd:362,fecha_alta:'2026-04-20',fecha_baja:'2026-08-03',fecha_reingreso:'2026-08-31'}));
+ ctx=Object.fromEntries(bdd.trabajadores.map(w=>[w.id,persona(w)]));
+ let paralelos=0,maxParalelos=0;const lotesLeidos=[];
+ rpc=async(fn,a)=>{if(a.p_accion!=='CONTEXTO')return servidor(fn,a);paralelos++;maxParalelos=Math.max(maxParalelos,paralelos);lotesLeidos.push(a.p_datos.trabajadores.length);await tick(1);paralelos--;return servidor(fn,a);};
+ const iniciar=()=>{UI.abrir();valor('agc-fecha_destino','2026-12-09');valor('agc-metodo_isr','ART174');click(document.querySelector('[data-agc-acc="calcular"]'));};
+ const tMG=Date.now();iniciar();await tick(80);const mg=UI._pruebas.estado();
+ eq([mg.calculado,mg.filas.length,mg.filas.filter(f=>f.puede_aplicar).length],[true,275,275],'MG sintético completo, sin omisiones');
+ eq(lotesLeidos,[48,48,48,48,48,35],'seis solicitudes acotadas');eq(maxParalelos,2,'concurrencia limitada a dos');
+ ok(mg.filas.every(f=>f.fila.derecho.dias_computables===123),'todos usan el ciclo desde31agosto');
+ ok(mg.metricas.every(m=>m.trabajadores<=48&&m.ms>=0),'duración y tamaño por lote registrados');
+ const rNormal=mg.filas[0],externa=UI._pruebas.calcularPersona(rNormal.w,{...rNormal.x,evidencias_ciclo:[{id:'fiscal-previo',operacion:'CFDI:UNO',origen:'CFDI_DESGLOSADO',estado:'APLICADO',desglosado:true,importe_bruto:50,exento:50,fecha_pago:'2026-10-09'}],fiscal_anual:{exento_usado:550.12,pendientes:[]}},mg.p);
+ eq([externa.fila.derecho.dias_computables,externa.fila.conciliacion.acreditado,externa.fila.fiscal.exento_usado],[123,50,550.12],'pago actual resta saldo; acumulado anual independiente');
+ eq(UI._pruebas.lineaDe(externa).acreditado_externo,50,'contrato aplica el importe externo exacto');
+ const pendienteFiscal=UI._pruebas.calcularPersona(rNormal.w,{...rNormal.x,fiscal_anual:{exento_usado:550.12,pendientes:[{motivo:'CFDI_SAT_002_INCOMPLETO'}]}},mg.p);
+ eq([pendienteFiscal.puede_revisar,pendienteFiscal.puede_aplicar,pendienteFiscal.fila.derecho.dias_computables,pendienteFiscal.fila.fiscal],[true,false,123,null],'fiscal pendiente no elimina bruto ni posibilidad de selección');
+ // Un 57014 divide sólo el lote afectado y conserva los confirmados.
+ let falloTimeout=true;const intentos=[];
+ rpc=async(fn,a)=>{if(a.p_accion==='CONTEXTO'){intentos.push(a.p_datos.trabajadores.length);if(falloTimeout&&a.p_datos.trabajadores.length===48){falloTimeout=false;return {error:{code:'57014',message:'statement timeout ficticio'}};}}return servidor(fn,a);};
+ box.closeModal();iniciar();await tick(80);eq(UI._pruebas.estado().filas.length,275);ok(UI._pruebas.estado().calculado&&intentos.filter(n=>n===24).length===2,'timeout se divide en24+24 sin duplicar personas');
+ // Error no transitorio: la corrida queda explícitamente incompleta, no firmable/aplicable.
+ let permitirPendiente=false;const pedidos=[];
+ rpc=async(fn,a)=>{if(a.p_accion==='CONTEXTO'){pedidos.push([...a.p_datos.trabajadores]);if(!permitirPendiente&&a.p_datos.trabajadores.includes('mg-250'))return {error:{message:'RED_FICTICIA'}};}return servidor(fn,a);};
+ box.closeModal();iniciar();await tick(80);let parcial=UI._pruebas.estado();
+ eq([parcial.calculado,parcial.filas.length,parcial.pendientesLectura.length],[false,275,35],'las35 filas sin lectura quedan identificadas');
+ ok($('agc-cuerpo').textContent.includes('Corrida incompleta'),'aviso de corrida parcial visible');
+ const antesFirma=descargas.length;click(document.querySelector('#agc-pie [data-agc-acc="excel"]'));await tick();eq(descargas.length,antesFirma,'parcial nunca se exporta para firmas');
+ const pedidosAntes=pedidos.length;permitirPendiente=true;click(document.querySelector('[data-agc-acc="calcular"]'));await tick(80);
+ eq(pedidos.slice(pedidosAntes).map(p=>p.length),[35],'reintento conserva240 lecturas confirmadas');ok(UI._pruebas.estado().calculado,'la reanudación completa la corrida');
+ // Cerrar mientras lee cancela y una respuesta tardía no invade la corrida siguiente.
+ const pendientesRed=[];rpc=(fn,a)=>a.p_accion==='CONTEXTO'?new Promise(resolve=>pendientesRed.push(()=>resolve(servidor(fn,a)))):servidor(fn,a);
+ box.closeModal();iniciar();await tick(8);const abandonada=UI._pruebas.estado();ok(pendientesRed.length===2,'se lanzan únicamente dos lecturas');
+ box.closeModal();ok(abandonada.abortLectura.signal.aborted,'salir cancela el controlador de lectura');
+ rpc=servidor;iniciar();await tick(80);const vigente=UI._pruebas.estado();for(const resolver of pendientesRed)resolver();await tick(20);
+ ok(UI._pruebas.estado()===vigente&&vigente.calculado&&vigente.filas.length===275,'respuestas anteriores ignoradas al reabrir');
+ // Cambiar parámetros invalida la caché parcial y vuelve a leer el alcance completo.
+ eq(llamadas.filter(c=>c.args.p_accion==='CONTEXTO').at(-1).args.p_datos.alcance,'CICLO_VIGENTE_V1','RPC explícita de ciclo vigente');
+ console.log(`MG sintético:275 personas,6 solicitudes,concurrencia2,${Date.now()-tMG}ms incluidas pruebas de reintento; no es medición de Supabase.`);
+ console.log(`PASS aguinaldo UI: ${n} comprobaciones; filtros, ciclo vigente, fiscal anual, volumen, reintento y cancelación; regresión de ficha, finiquito y proyecciones.`);
 })().catch(e=>{console.error(e);process.exit(1);});

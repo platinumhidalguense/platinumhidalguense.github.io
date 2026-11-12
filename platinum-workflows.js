@@ -250,6 +250,7 @@
  }catch(e){cfg.toast(e.message,'err');}}
  async function retirar(id){return operation(async()=>{if(!root.confirm('¿Retirar sólo la aplicación? El comprobante y la bitácora se conservan.'))return;if(root.prompt('Escribe RETIRAR APLICACION')!=='RETIRAR APLICACION')return;const motivo=root.prompt('Motivo (mínimo 10 caracteres):');if(motivo===null)return;await call('RETIRAR_APLICACION',{aplicacion_id:id,motivo,confirmacion:'RETIRAR APLICACION'});await abrirCierre(state.id);});}
  async function transferencia(wid,sem){
+  if(root.PLATINUM_IMPORTACION_BANCARIA)return root.PLATINUM_IMPORTACION_BANCARIA.abrir({obra_id:context().obra?.id,semana:sem,concepto:'FINIQUITO',trabajador_id:wid});
   try{
    await loadPermissions();if(!permissions.transferencia)throw Error('Sin permiso para esta excepción.');
    const {workers}=context(),w=workers.find(x=>x.id===wid);if(!w)throw Error('Abre la obra correspondiente al trabajador.');

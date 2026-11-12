@@ -5,8 +5,8 @@
    paginado, navegación al detalle (ficha, obligación, cierre, pago,
    evidencia autorizada), regreso con filtros y desplazamiento, y
    exportación filtrada del tablero (distinta del respaldo integral).
-   No calcula medidas: las define 76-tablero-modelo.js y las calcula el
-   servidor; la pintura es de 77-tablero-vista.js. Ver docs del equipo.
+   No calcula medidas: las define 83-tablero-modelo.js y las calcula el
+   servidor; la pintura es de 84-tablero-vista.js. Ver docs del equipo.
    ===================================================================== */
 (function(G){
  'use strict';

@@ -10,7 +10,7 @@ async function proyLeerContextoHistorico(personal,descuentos,obraId,hasta){
     const out=[];ids=[...new Set(ids)];
     for(let i=0;i<ids.length;i+=80){
       const lote=ids.slice(i,i+80),r=await fetchAllRows(()=>{
-        let q=sb.from('historial').select(columns).eq('obra_id',obraId).in('trabajador_id',lote).in('accion',acciones);
+        let q=sb.from('historial_laboral_efectivo').select(columns).eq('obra_id',obraId).in('trabajador_id',lote).in('accion',acciones);
         if(antes)q=q.lte('fecha',corte);
         return q.order('fecha',{ascending:false}).order('id',{ascending:false});
       });

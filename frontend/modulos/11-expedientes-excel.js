@@ -62,7 +62,7 @@ function expedienteCampos(w){
     ['Contratista',w.contratista],
     ['Cuadrilla',cu?cu.nombre:null],
     ['Cabeza de la cuadrilla',cu?cuadLider(cu):null],
-    ['Puesto',w.puesto],
+    ['Puesto',puestoNombre(w)],
     ['Funciones',w.funciones],
     ['Turno',w.turno],
     'ALTA, BAJA Y CONTRATO',

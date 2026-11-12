@@ -127,19 +127,21 @@ function renderHist(){
       diff=chs.length?`<div class="hist-diff">${chs.join('')}</div>`:'';
     }
     const esCheque=h.accion.startsWith('CHEQUE');
-    const canRestore=h.datos_antes&&!h.accion.includes('ALTA')&&!h.accion.startsWith('DESCUENTO')&&!h.accion.startsWith('DOCUMENTO')&&!h.accion.startsWith('VACACION')&&!h.accion.startsWith('ACTA');
+    const revertida=(window._HIST||[]).some(r=>r.accion==='BAJA_REVERTIDA'&&String(r.datos_despues?.reversion_historial_id)===String(h.id));
+    const canRestore=!revertida&&h.accion!=='BAJA_REVERTIDA'&&h.datos_antes&&!h.accion.includes('ALTA')&&!h.accion.startsWith('DESCUENTO')&&!h.accion.startsWith('DOCUMENTO')&&!h.accion.startsWith('VACACION')&&!h.accion.startsWith('ACTA');
     return `<div class="hist-item">
       <div class="hist-top">
-        <span class="badge acc-${h.accion}">${h.accion}</span>
+        <span class="badge acc-${h.accion}">${revertida?'BAJA REVERTIDA':h.accion}</span>
         <span class="who">${esc(h.trabajador_nombre)}</span>
         <span class="when">${new Date(h.fecha).toLocaleString('es-MX')} · por ${esc(h.usuario||'sistema')}</span>
-        ${canRestore?`<button class="btn" style="margin-left:auto;padding:4px 10px;font-size:12px" onclick="restoreVersion(${h.id},${esCheque})">↩ Restaurar</button>`:''}
+        ${canRestore?`<button class="btn" style="margin-left:auto;padding:4px 10px;font-size:12px" onclick="restoreVersion(${h.id},${esCheque})">${!esCheque&&h.datos_despues?.estatus==='BAJA'&&['ACTIVO','PENDIENTE'].includes(h.datos_antes?.estatus)?'Revertir baja por error':'↩ Restaurar'}</button>`:''}
       </div>${diff}</div>`;
   }).join('');
   $('hist-body').innerHTML=items||'<div class="empty">Sin movimientos con ese filtro.</div>';
 }
 async function restoreVersion(histId,esCheque){
   const h=window._HIST.find(x=>x.id===histId); if(!h||!h.datos_antes)return;
+  if(!esCheque&&h.datos_despues?.estatus==='BAJA'&&['ACTIVO','PENDIENTE'].includes(h.datos_antes.estatus))return abrirReversionBaja(h.trabajador_id,h.id);
   if(!confirm(`¿Restaurar "${h.trabajador_nombre}" a como estaba antes de este cambio (${new Date(h.fecha).toLocaleString('es-MX')})?`))return;
   const prev={...h.datos_antes};
   IGNORE_H.forEach(k=>delete prev[k]);

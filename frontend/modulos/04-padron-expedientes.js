@@ -3,10 +3,10 @@ function baseFiltered(personal=WORKERS){
   const q=$('q').value.trim().toUpperCase(), fc=$('flt-contratista').value, fp=$('f-periodo').value, fs=$('f-semana').value, fpu=$('flt-puesto')?$('flt-puesto').value:'';
   return personal.filter(w=>{
     if(fc&&w.contratista!==fc)return false;
-    if(fpu&&w.puesto!==fpu)return false;
+    if(fpu&&puestoNombre(w)!==fpu)return false;
     if(fp&&(w.periodo_pago||'SEMANAL')!==fp)return false;
     if(fs&&w.semana_ingreso!==fs)return false;
-    if(q){const hay=[fullName(w),w.no_trab,w.curp,w.rfc,w.nss,w.puesto,w.contratista,w.telefono,w.correo,w.semana_ingreso].join(' ').toUpperCase();if(!hay.includes(q))return false;}
+    if(q){const hay=[fullName(w),w.no_trab,w.curp,w.rfc,w.nss,w.puesto,puestoNombre(w),w.contratista,w.telefono,w.correo,w.semana_ingreso].join(' ').toUpperCase();if(!hay.includes(q))return false;}
     return true;
   });
 }
@@ -135,7 +135,7 @@ function openResumen(){
     <div class="m-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`,'md');
 }
 function resumenPuestosHTML(){
-  const m={};WORKERS.filter(w=>w.estatus==='ACTIVO').forEach(w=>{const k=w.puesto||'(SIN PUESTO)';m[k]=(m[k]||0)+1;});
+  const m={};WORKERS.filter(w=>w.estatus==='ACTIVO').forEach(w=>{const k=puestoNombre(w)||'(SIN PUESTO)';m[k]=(m[k]||0)+1;});
   return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="kv"><b>${esc(k)}</b><span>${v}</span></div>`).join('');
 }
 function filtrarContratista(c){
@@ -260,7 +260,7 @@ function fichaResumenHTML(w,verificado=false){
   const cuad=CUADS.find(c=>c.id===w.id_cuadrilla);
   const programado=window.PLATINUM_PADRON?.programado(w);
   const item=(k,v)=>`<div><dt>${esc(k)}</dt><dd>${esc(v||'—')}</dd></div>`;
-  return `<section class="worker-block"><h3>Relación laboral</h3><dl>${item('Puesto',w.puesto)}${item('Contratista',w.contratista)}${item('Cuadrilla',cuad?.nombre)}${item('Estatus registrado',w.estatus)}${item('Alta inicial',fmtD(w.fecha_alta))}${item('Última baja',fmtD(w.fecha_baja))}${item('Reingreso efectivo',fmtD(w.fecha_reingreso))}${programado?item('Vigencia',programado):''}</dl></section>
+  return `<section class="worker-block"><h3>Relación laboral</h3><dl>${item('Puesto',puestoNombre(w))}${item('Contratista',w.contratista)}${item('Cuadrilla',cuad?.nombre)}${item('Estatus registrado',w.estatus)}${item('Alta inicial',fmtD(w.fecha_alta))}${item('Última baja',fmtD(w.fecha_baja))}${item('Reingreso efectivo',fmtD(w.fecha_reingreso))}${programado?item('Vigencia',programado):''}</dl></section>
   <section class="worker-block"><h3>Estado del expediente</h3>${marcadoresIMSS(w)}${verificado&&w.estatus==='PENDIENTE'?`<div style="background:var(--amber-bg);border:1px solid #ecd9a0;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px"><b style="color:var(--amber)">⏳ PENDIENTE</b> — ${(function(){if(w.pendiente_manual)return 'Pausado manualmente — <b>'+esc(w.motivo_pendiente||'SIN MOTIVO')+'</b>. No sale en proyección ni requisición y NO se reactiva solo: usa "Marcar ACTIVO" cuando se resuelva.';const f=datosFaltantes(w);return f.length?'Falta capturar: <b>'+f.join(', ')+'</b>. Al completarlo pasará a ACTIVO solo, o usa el botón "Marcar ACTIVO".':'Ya tiene todos los datos: usa el botón "Marcar ACTIVO".';})()}</div>`:''}</section>`;
 }
 function agruparExpedienteFicha(w,seccion){
@@ -269,7 +269,7 @@ function agruparExpedienteFicha(w,seccion){
   if(seccion==="identidad")return `<div class="sect">Datos personales <button class="btn" onclick="openValidar('${w.id}')">Validar identidad</button></div>
       ${kv('CURP',esc(w.curp))}${kv('RFC',esc(w.rfc))}${kv('NSS',esc(w.nss))}${kv('Fecha de nacimiento',fmtD(w.fecha_nacimiento)+(w.fecha_nacimiento?' ('+edad(w.fecha_nacimiento)+' años)':''))}${kv('Género',esc(w.genero))}${kv('Estado civil',esc(w.estado_civil))}${kv('Escolaridad',esc(w.escolaridad))}${kv('Nacionalidad',esc(w.nacionalidad))}${kv('Edo. nacimiento',esc(w.edo_nacimiento))}${kv('Dirección',esc(w.direccion))}${kv('C.P.',esc(w.cp))}${kv('Teléfono',esc(w.telefono))}${kv('Correo',esc(w.correo))}${kv('Beneficiario',esc(w.beneficiario)+((w.benef_parentesco||w.benef_telefono||(w.benef_porcentaje!=null&&w.benef_porcentaje!==''))?` <span style="color:var(--mut);font-size:11.5px">(${[w.benef_parentesco?esc(w.benef_parentesco):'',w.benef_telefono?'tel. '+esc(w.benef_telefono):'',(w.benef_porcentaje!=null&&w.benef_porcentaje!=='')?esc(w.benef_porcentaje)+'%':''].filter(Boolean).join(' · ')})</span>`:''))}`;
   if(seccion==="contratacion")return `<div class="sect">Obra y puesto</div>
-      ${kv('Obra',esc(OBRA.nombre))}${kv('Contratista',esc(w.contratista))}${kv('No. trabajador',w.no_trab)}${kv('Puesto',esc(w.puesto))}${kv('Funciones',esc(w.funciones))}${kv('Turno',esc(w.turno))}${kv('Semana de ingreso',esc(w.semana_ingreso))}${kv('Fecha alta',fmtD(w.fecha_alta))}${w.fecha_reingreso?kv('Fecha de reingreso',fmtD(w.fecha_reingreso)+' (la antigüedad cuenta desde aquí)'):''}${kv('Tipo de contrato',esc(w.tipo_contrato||'OBRA DETERMINADA')+(w.fecha_fin_contrato?' · vence '+fmtD(w.fecha_fin_contrato):''))}${(w.estatus==='BAJA'||w.fecha_baja)?kv('Fecha baja'+(w.estatus!=='BAJA'?' anterior':''),fmtD(w.fecha_baja))+(w.estatus==='BAJA'?kv('Monto finiquito',w.monto_finiquito!=null?'$'+money(w.monto_finiquito):''):''):''}
+      ${kv('Obra',esc(OBRA.nombre))}${kv('Contratista',esc(w.contratista))}${kv('No. trabajador',w.no_trab)}${kv('Puesto',esc(puestoNombre(w)))}${kv('Funciones',esc(w.funciones))}${kv('Turno',esc(w.turno))}${kv('Semana de ingreso',esc(w.semana_ingreso))}${kv('Fecha alta',fmtD(w.fecha_alta))}${w.fecha_reingreso?kv('Fecha de reingreso',fmtD(w.fecha_reingreso)+' (la antigüedad cuenta desde aquí)'):''}${kv('Tipo de contrato',esc(w.tipo_contrato||'OBRA DETERMINADA')+(w.fecha_fin_contrato?' · vence '+fmtD(w.fecha_fin_contrato):''))}${(w.estatus==='BAJA'||w.fecha_baja)?kv('Fecha baja'+(w.estatus!=='BAJA'?' anterior':''),fmtD(w.fecha_baja))+(w.estatus==='BAJA'?kv('Monto finiquito',w.monto_finiquito!=null?'$'+money(w.monto_finiquito):''):''):''}
 ${kv('Cuadrilla',esc(CUADS.find(c=>c.id===w.id_cuadrilla)?.nombre))}
 <div class="ficha-section-actions">      <button class="btn" onclick="openContrato('${w.id}')">📄 Contrato</button>
       <button class="btn" onclick="openConstanciaLaboral('${w.id}')">📜 Constancia laboral</button>
@@ -277,8 +277,7 @@ ${kv('Cuadrilla',esc(CUADS.find(c=>c.id===w.id_cuadrilla)?.nombre))}
       ${w.estatus==='ACTIVO'?`<button class="btn" style="color:#8a6d1a;border-color:#ecd9a0" onclick="openPendiente('${w.id}')">⏸ Pasar a PENDIENTE</button>
       <button class="btn" onclick="openTransferencia('${w.id}')">🔁 Transferir de obra</button>`:''}
       ${w.estatus!=='BAJA'
-        ?`<button class="btn" onclick="openSeparacionDoc('${w.id}')">📄 Documento de separación</button>
-           <button class="btn danger" onclick="openBaja('${w.id}')">Dar de BAJA</button>`
+        ?`<button class="btn" onclick="openSeparacionDoc('${w.id}')">📄 Documento de separación</button>`
         :`<button class="btn" onclick="openRenuncia('${w.id}')">📄 Renuncia y finiquito</button>
            <button class="btn" onclick="doReactivar('${w.id}')">Reactivar (nueva alta)</button>`}
       ${esAdmin()?`<button class="btn danger" style="background:#7a1414;border-color:#7a1414" onclick="openEliminarTrabajador('${w.id}')">🗑 Eliminar (papelera)</button>`:''}</div>`;
@@ -306,7 +305,7 @@ ${kv('Cuadrilla',esc(CUADS.find(c=>c.id===w.id_cuadrilla)?.nombre))}
       ${chq.length?`<div class="sect">Cheques de este trabajador (${chq.length})</div>
         ${chq.map(c=>`<div class="kv"><b>${esc(c.semana)} · ${esc(c.tipo_pago)}</b><span>$${money(c.importe)} · ${c.num_cheque?'Cheque '+esc(c.num_cheque):'sin número'} · <span class="badge ${c.estatus}">${c.estatus}</span></span></div>`).join('')}`:''}
 <div class="ficha-section-actions">      ${window.PLATINUM_RRHH?`<button class="btn" onclick="PLATINUM_RRHH.abrir('importe','${w.id}')">🔎 Explicar nómina</button>`:''}      ${window.PLATINUM_RECORRIDO?`<button class="btn" onclick="PLATINUM_RECORRIDO.abrir(null,'${w.id}',null,'${periodoPago(w)}')">Preparación de nómina</button>`:''}</div>`;
-  if(seccion==="incidencias")return `<div class="ficha-section-actions">      <button class="btn" onclick="fichaPrestaciones('${w.id}')">🧮 Prestaciones</button></div>
+  if(seccion==="incidencias")return `<div class="ficha-section-actions"><button class="btn" onclick="openPapelesFiniquito()">Papeles de prestaciones</button><button class="btn" onclick="fichaPrestaciones('${w.id}')">Simular prestaciones para revisión</button></div>
       ${(function(){
         const fijos=DESC.filter(d=>d.trabajador_id===w.id&&d.recurrente&&d.activo);
         const inc=DESC.filter(d=>d.trabajador_id===w.id&&!d.recurrente&&d.activo).sort((a,b)=>String(b.semana).localeCompare(String(a.semana))).slice(0,8);
@@ -342,7 +341,7 @@ ${kv('Cuadrilla',esc(CUADS.find(c=>c.id===w.id_cuadrilla)?.nombre))}
 function openDetail(id,mesCalendario,navegacion){
   return window.PLATINUM_FICHA?.abrir(id,mesCalendario,navegacion);
 }
-function fichaPrestaciones(id){return conCentroCompleto(()=>{if(window.PLATINUM_FICHA?.actual(id))openPrestaciones(id);});}
+function fichaPrestaciones(id){return conCentroCompleto(()=>{if(window.PLATINUM_FICHA?.actual(id))openPrestaciones(id,{consulta:true});});}
 function fichaExportar(id){return conCentroCompleto(()=>{if(window.PLATINUM_FICHA?.actual(id))exportExpediente(id);});}
 /* v20: eliminar = mover a la papelera (eliminado=true). Solo visible/permitido
    para el administrador (esAdmin()). Pide escribir el nombre EXACTO para evitar

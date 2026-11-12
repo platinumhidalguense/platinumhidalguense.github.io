@@ -90,6 +90,7 @@ if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cierres_legado_pre
 suites.push('test_calendario_motor','test_calendario_trabajador_ui');
 if(fs.existsSync('supabase/migrations/20261106155915_calendario_trabajador_captura_unificada.sql'))suites.push('test_calendario_trabajador_pg');
 else console.log('ALCANCE PÚBLICO CALENDARIO: motor y DOM sintéticos; las pruebas PostgreSQL requieren la migración SQL privada.');
+suites.push('test_banco_historico_servicio','test_banco_historico_ui','test_banco_historico_pg','test_banco_historico_edge');
 suites.push('test_conciliador_core','test_conciliador_persistencia','test_conciliador_general_ui','test_conciliador_compatibilidad');
 if(fs.existsSync('supabase/migrations/20261106195853_conciliador_general_persistente.sql'))suites.push('test_conciliador_general_pg','test_conciliador_cheques_pg','test_conciliador_banco_edge');
 else console.log('ALCANCE PÚBLICO CONCILIADOR: SQL y Edge privados; las pruebas de servidor se ejecutan con el paquete local.');
@@ -111,9 +112,15 @@ if(fs.existsSync('supabase/migrations/20261107154700_padron_realtime_fuentes_rap
 else console.log('ALCANCE PÚBLICO RENDIMIENTO: se verifica la UI en dos sesiones sintéticas; la migración privada se verifica localmente.');
 // Aguinaldo y faltas históricas: núcleo e interfaz siempre; PostgreSQL con la migración privada.
 const aguinaldoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_aguinaldo_faltas_historicas.sql'));
-suites.push('test_aguinaldo_nucleo','test_aguinaldo_ui');
+suites.push('test_aguinaldo_nucleo','test_aguinaldo_ui','test_aguinaldo_revision_core','test_aguinaldo_evidencias_ui');
+if(fs.existsSync('../revision/esquema_ag_actual.json')&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_aguinaldo_revision_reingresos.sql')))suites.push('test_aguinaldo_revision_pg');
+suites.push('test_baja_finiquito_ui','test_reversion_baja_ui');
+if(fs.existsSync('work/baja_finiquito_20261110/funciones_vigentes.json')&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_baja_finiquito_unificado.sql'))){
+ suites.push('test_baja_finiquito_pg');
+}
 if(aguinaldoPrivate)suites.push('test_aguinaldo_pg');
 else console.log('ALCANCE PÚBLICO AGUINALDO: núcleo e interfaz se prueban; las comprobaciones PostgreSQL de faltas históricas y aplicación requieren la migración privada.');
+suites.push('test_puestos_prestaciones');
 const tableroPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_tablero_indicadores.sql'));
 const respaldoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_respaldo_marcas.sql'))&&fs.existsSync('work/respaldo_20261111/generar_prod_base.cjs');
 suites.push('test_tablero_modelo','test_tablero_vista','test_tablero_ui','test_respaldo_integral','test_revision_tablero_respaldo');

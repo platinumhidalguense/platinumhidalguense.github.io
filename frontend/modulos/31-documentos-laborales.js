@@ -135,7 +135,7 @@ async function emitirConstanciaLaboral(id){
   if(!$('cl-confirma').checked){toast('Confirma la solicitud y la verificación de datos antes de emitir.','err');return;}
 
   const snapshot={
-    version:'CONSTANCIA-LFT-2026.1',
+    version:'CONSTANCIA-LFT-2026.1',resolucion_puesto:puestoResolver(w),
     empresa:{codigo,razon:e.razon,rfc:e.rfc,domicilio:e.domicilio||'',representante:firmante,cargo,logo:codigo},
     centro:{id:obra.id,nombre:obra.nombre,ubicacion:obra.ubicacion||'',registro_patronal:rpDe(w),siroc:obra.registro_siroc||''},
     trabajador:{id:w.id,no_trab:w.no_trab,nombre:fullName(w),puesto:w.puesto||'',funciones:incFunc?(w.funciones||''):'',estatus:w.estatus,fecha_alta:w.fecha_alta||null,fecha_reingreso:w.fecha_reingreso||null,fecha_baja:w.fecha_baja||null,tipo_contrato:w.tipo_contrato||'',curp:incCurp?(w.curp||''):null,rfc:incRfc?(w.rfc||''):null,nss:incNss?(w.nss||''):null},
@@ -173,7 +173,7 @@ function constanciaLaboralHTML(reg){
   const periodo=vigente?`desde el <b>${clFechaLarga(d.periodo_desde)}</b> y mantiene una relación laboral vigente a la fecha de expedición`:`del <b>${clFechaLarga(d.periodo_desde)}</b> al <b>${clFechaLarga(d.periodo_hasta)}</b>`;
   const detalle=tipo==='DIAS_SALARIO'
     ?`Durante el periodo comprendido del <b>${clFechaLarga(d.periodo_desde)}</b> al <b>${clFechaLarga(d.periodo_hasta)}</b>, constan <b>${esc(dias)} día(s) efectivamente trabajado(s)</b> y un salario <b>${esc(String(periodicidad||'').toLowerCase())} de $${money(salario)} M.N.</b>, según los registros de nómina y asistencia de la empresa.`
-    :`La persona trabajadora presta${vigente?'':'ó'} sus servicios ${periodo}, desempeñando el puesto de <b>${esc(w.puesto||'NO ESPECIFICADO')}</b> en el centro de trabajo <b>${esc(c.nombre||'')}</b>${c.ubicacion?', ubicado en '+esc(c.ubicacion):''}.`;
+    :`La persona trabajadora presta${vigente?'':'ó'} sus servicios ${periodo}, desempeñando el puesto de <b>${esc(s.resolucion_puesto?.descripcion||w.puesto||'NO ESPECIFICADO')}</b> en el centro de trabajo <b>${esc(c.nombre||'')}</b>${c.ubicacion?', ubicado en '+esc(c.ubicacion):''}.`;
   const salarioExtra=tipo==='SERVICIOS'&&d.incluir_salario?`<p>Percibe un salario <b>${esc(String(periodicidad||'').toLowerCase())} de $${money(salario)} M.N.</b>.</p>`:'';
   const funciones=d.incluir_funciones&&w.funciones?`<p>Las funciones registradas para el puesto son: ${esc(w.funciones)}.</p>`:'';
   const finalidad=d.proposito?` para <b>${esc(d.proposito)}</b>`:' para los fines legales y administrativos que a su interés convengan';
@@ -306,7 +306,7 @@ async function generarContrato(id,opciones={}){
   <p><b>III. Declaran "LAS PARTES"</b></p>
   <p><b>a)</b> Que es su voluntad celebrar el presente contrato individual de trabajo y estar de acuerdo con lo aqu&iacute; expresamente pactado quedando insubsistente cualquier acuerdo verbal que se haya dado entre ellos. Asimismo, est&aacute;n de acuerdo en sujetar el presente contrato al tenor de las siguientes:</p>
   <h2>C L &Aacute; U S U L A S:</h2>
-  <p><b>PRIMERA. -</b> "EL TRABAJADOR" se obliga a prestar sus servicios personales a "EL PATR&Oacute;N", subordin&aacute;ndose jur&iacute;dicamente para ocupar el puesto de <b>${BL(w.puesto)}</b>, conviniendo que este trabajo deber&aacute; ejecutarlo con cuidado, esmero, eficiencia y en la forma, tiempo y lugar convenido, por lo que queda expresamente pactado que acatar&aacute; en el desempe&ntilde;o de su trabajo todas las disposiciones del Reglamento Interior de Trabajo, todas las &oacute;rdenes, circulares y disposiciones que dicte "EL PATR&Oacute;N" y todos los ordenamientos legales que le sean aplicables, sobremanera lo se&ntilde;alado por el art&iacute;culo 27 de la Ley Federal del Trabajo, adem&aacute;s las actividades que ejecutar&aacute; son las de ${BL(w.funciones)}, se&ntilde;al&aacute;ndose de manera enunciativa y no limitativa.</p>
+  <p><b>PRIMERA. -</b> "EL TRABAJADOR" se obliga a prestar sus servicios personales a "EL PATR&Oacute;N", subordin&aacute;ndose jur&iacute;dicamente para ocupar el puesto de <b>${BL(puestoNombre(w))}</b>, conviniendo que este trabajo deber&aacute; ejecutarlo con cuidado, esmero, eficiencia y en la forma, tiempo y lugar convenido, por lo que queda expresamente pactado que acatar&aacute; en el desempe&ntilde;o de su trabajo todas las disposiciones del Reglamento Interior de Trabajo, todas las &oacute;rdenes, circulares y disposiciones que dicte "EL PATR&Oacute;N" y todos los ordenamientos legales que le sean aplicables, sobremanera lo se&ntilde;alado por el art&iacute;culo 27 de la Ley Federal del Trabajo, adem&aacute;s las actividades que ejecutar&aacute; son las de ${BL(w.funciones)}, se&ntilde;al&aacute;ndose de manera enunciativa y no limitativa.</p>
   <p>"EL TRABAJADOR" realizar&aacute; sus servicios personales bajo la direcci&oacute;n, dependencia y subordinaci&oacute;n de "EL PATR&Oacute;N" as&iacute; como de las personas que se encuentren bajo la direcci&oacute;n y subordinaci&oacute;n de &eacute;ste y que tengan facultades de mando en el centro de trabajo ejecutando todas las labores inherentes al puesto mencionado, todas aquellas que se le relacionen directa e indirectamente de acuerdo con el uso y la costumbre y/o aquellas actividades que se relacionen con otros puestos similares al suyo y las relativas a la ley, respetando los sistemas de trabajo y pol&iacute;ticas de "EL PATR&Oacute;N".</p>
   <p><b>SEGUNDA. -</b> "EL TRABAJADOR" deber&aacute; ejecutar su trabajo en el lugar donde "EL PATR&Oacute;N" ordene desempe&ntilde;ar las actividades. "EL TRABAJADOR" se obliga a desempe&ntilde;ar dentro de su jornada de trabajo, s&oacute;lo las actividades que correspondan con su puesto y dem&aacute;s relacionadas con el mismo, las cuales &uacute;nicamente ser&aacute;n asignadas por "EL PATR&Oacute;N".</p>
   <p><b>TERCERA. -</b> ${tercera}</p>
@@ -388,7 +388,7 @@ h1{font-size:15px;text-align:center;letter-spacing:1px;margin-bottom:26px}
 function renunciaPagesHTML(w,o){
   const fmtL=d=>{const x=new Date((d||today())+'T12:00');return `${x.getDate()} de ${MES[x.getMonth()].toLowerCase()} del ${x.getFullYear()}`;};
   const EMP=`&ldquo;<b>${esc(o.razon)}</b>&rdquo; ${esc(o.sufijo||'')}`;
-  const nom=esc(fullName(w)), puesto=esc(w.puesto||'TRABAJADOR'), monto=Number(o.monto)||0;
+  const nom=esc(fullName(w)), puesto=esc(puestoNombre(w)||'TRABAJADOR'), monto=Number(o.monto)||0;
   return `<div class="pg">
     <h1>CARTA DE RENUNCIA</h1>
     <div class="fecha">${esc(o.lugar)} a ${fmtL(o.f1)}</div>

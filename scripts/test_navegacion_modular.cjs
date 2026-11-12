@@ -59,7 +59,7 @@ const c={document,window,$,MutationObserver:window.MutationObserver,
 };
 window.PLATINUM_CONCILIADOR={estaCapturando:()=>enCaptura};
 window.PLATINUM_CONCILIADOR_SEMANAL={pestana:()=>tab,cheques(){tab='cheques';c.setView('conciliador');},flujo(){tab='flujo';c.setView('conciliador');}};
-vm.createContext(c);vm.runInContext(funciones+'\n'+sesion.slice(migas.start,migas.end),c);
+vm.createContext(require('./soporte_puestos_vistas.cjs').instalar(c)||c);vm.runInContext(funciones+'\n'+sesion.slice(migas.start,migas.end),c);
 const alta=botones.find(b=>b.dataset.navPermiso==='edicion');
 const crearCentro=botones.find(b=>b.dataset.navPermiso==='admin');
 const proyeccion=botones.find(b=>b.dataset.navLabel==='Proyección de nómina');

@@ -35,6 +35,27 @@ supabase/migrations/*_firmantes_contratos_empresas.sql
 # Aguinaldo aplicado a nómina y faltas históricas: SQL operativo privado.
 supabase/migrations/*_aguinaldo_faltas_historicas.sql
 
+# Revisión de aguinaldo: SQL y metadatos sólo locales.
+supabase/migrations/*_aguinaldo_revision_reingresos.sql
+supabase/.temp/
+
+# Importación bancaria histórica: migración operativa privada.
+supabase/migrations/*_pagos_historicos_conciliados.sql
+
+supabase/migrations/*_pagos_historicos_ciclo_documentado.sql
+
+# Catálogo y fuentes de prestaciones: SQL operativo privado.
+supabase/migrations/*_catalogo_puestos_y_faltas_disponibles.sql
+
+# Reversión de bajas: SQL operativo privado.
+supabase/migrations/*_reversion_bajas_y_servicio_cero.sql
+
+# SQL operativo privado: ciclo vigente de aguinaldo.
+supabase/migrations/*_aguinaldo_ciclo_vigente_y_contexto_acotado.sql
+
+# Fuente fiscal privada de prestaciones.
+supabase/migrations/*_prestaciones_exento_desde_cfdi_verificado.sql
+
 # Tablero ejecutivo y respaldo integral: SQL operativo privado.
 supabase/migrations/*_tablero_indicadores.sql
 supabase/migrations/*_respaldo_marcas.sql

@@ -138,79 +138,8 @@ function bajaCortaPreview(id){
   const fecha=$('b-fecha')?.value||'';
   el.style.display=altaBajaMismaSemana(w,fecha)?'block':'none';
 }
-function openBaja(id){
-  const w=WORKERS.find(x=>x.id===id);
-  modal(`
-    <div class="m-head"><h2>Dar de baja · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
-    <div class="m-body">
-      <p style="margin-bottom:14px;color:var(--mut)">El registro <b>no se elimina</b>: cambia a BAJA con su motivo legal y se genera el documento que corresponde (renuncia, convenio de terminación o aviso de rescisión).</p>
-      <div class="grid" style="grid-template-columns:1fr 1fr">
-        <div><label>Fecha de baja *</label><input id="b-fecha" type="date" value="${today()}" oninput="bajaCortaPreview('${id}')"></div>
-        <div><label>Motivo (define el documento) *</label><select id="b-motivo-cat">${MOTIVOS_BAJA.map(m=>`<option>${m}</option>`).join('')}</select></div>
-        <div><label>Monto finiquito ($)</label><input id="b-finiquito" type="number" step="0.01" placeholder="0.00" oninput="$('b-chq-wrap').style.opacity=this.value>0?1:.45"></div>
-        <div><label>Detalle / observación</label><input id="b-motivo" placeholder="Detalle adicional (opcional)"></div>
-      </div>
-      <div id="b-corta-alert" class="fhint" style="display:none;margin-top:12px;color:var(--amber)">⚠ El alta y la baja corresponden a la misma semana de esta obra. Al confirmar, el caso aparecerá automáticamente en <b>Centro de control → Altas y bajas sin servicio</b>, con estado <b>PENDIENTE de verificar</b>. No se asumirá que no trabajó: revisa horas, acuses IDSE y NOI antes de confirmar esa clasificación.</div>
-      <div id="b-chq-wrap" style="margin-top:14px;background:var(--amber-bg);border-radius:8px;padding:12px 14px;opacity:.45">
-        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;color:var(--txt)">
-          <input type="checkbox" id="b-cheque" checked style="width:auto">
-          Registrar el finiquito como <b>CHEQUE PENDIENTE</b> en la sección de cheques
-        </label>
-      </div>
-      <p style="margin-top:10px;font-size:11.5px;color:var(--mut)">Renuncia → carta de renuncia + recibo · Término de contrato/obra o mutuo acuerdo → convenio de terminación (art. 53 LFT) + recibo · Despido justificado → aviso de rescisión (art. 47: entregar por escrito o dar aviso al Tribunal en 5 días) · Abandono → acta de hechos · Defunción → pago a beneficiarios (art. 115).</p>
-    </div>
-    <div class="m-foot">
-      <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn danger" id="baja-btn" onclick="doBaja('${id}')">Confirmar BAJA</button>
-    </div>`,'md');
-  bajaCortaPreview(id);
-}
-async function doBaja(id){
-  const f=$('b-fecha').value; if(!f){toast('Indica la fecha de baja.','err');return;}
-  const cat=$('b-motivo-cat').value;
-  const w=WORKERS.find(x=>x.id===id);
-  if(!w||w.obra_id!==OBRA?.id)return;
-  const corta=altaBajaMismaSemana(w,f);
-  if(!confirm(corta
-    ?`¿Confirmas la BAJA por ${cat}?\n\nAlta y baja en la misma semana: se abrirá automáticamente un caso PENDIENTE en el Centro de control. Solo después de verificar que no hubo trabajo efectivo se podrá marcar «sin servicio confirmado».`
-    :'¿Confirmas la BAJA por '+cat+'?'))return;
-  const fin=$('b-finiquito').value?parseFloat($('b-finiquito').value):null;
-  const validacionSeparacion=globalThis._PR_AUDIT&&globalThis._PR_AUDIT.trabajador_id===id&&globalThis._PR_AUDIT.entradas&&globalThis._PR_AUDIT.entradas.separacion_legal?globalThis._PR_AUDIT:null;
-  if(validacionSeparacion&&(!esAdmin()||w.estatus==='BAJA'||validacionSeparacion.requiere_revision_legal||validacionSeparacion.periodo!==f||cat!==prMotivoSeparacion(validacionSeparacion.entradas.escenario_separacion)||!$('b-motivo').value.trim().toUpperCase().startsWith('SEPARACION LFT ['+validacionSeparacion.entradas.escenario_separacion+']')||!Number.isFinite(fin)||redondearCentavos(fin)!==validacionSeparacion.monto_aplicado)){
-    toast('La separación validada cambió o ya existe una baja. Recalcula y concilia con NOI antes de aplicarla.','err');return;
-  }
-  const det=$('b-motivo').value.trim().toUpperCase();
-  const conCheque=$('b-cheque').checked&&fin>0;
-  const obs=((w.observaciones?w.observaciones+' | ':'')+'BAJA: '+cat+(det?' — '+det:''));
-  markWrite();
-  const datos=window.PLATINUM_DATOS,upd={estatus:'BAJA',fecha_baja:f,monto_finiquito:fin,motivo_baja:cat,observaciones:obs},form=$('b-fecha'),uid=USER?.id;
-  const guardar=()=>{let q=sb.from('trabajadores').update(upd).eq('id',id).eq('obra_id',w.obra_id);if(w.updated_at)q=q.eq('updated_at',w.updated_at);return q.select('*').single();};
-  try{
-    if(datos)await datos.optimista('trabajadores',w,upd,guardar);
-    else{const r=await guardar();if(r.error)throw Error(r.error.message);}
-  }catch(error){toast('Error: '+error.message,'err');return;}
-  let pendienteCheque=false;
-  if(conCheque){
-    const semBaja=isoWeek(new Date(f+'T12:00'));
-    const r=await sb.from('cheques').insert({obra_id:w.obra_id,trabajador_id:w.id,no_trab:w.no_trab,contratista:w.contratista,
-      nombre:fullName(w),puesto:w.puesto,curp:w.curp,semana:'S'+semBaja,
-      periodo:periodoCorto(semBaja),importe:fin,tipo_pago:'FINIQUITO',estatus:'PENDIENTE',observaciones:cat,creado_por:USER.email}).select('*').single();
-    if(r.error||!r.data){pendienteCheque=true;toast('Baja guardada; el cheque no se confirmó: '+(r.error?.message||'respuesta incompleta'),'err');}
-    else if(USER?.id===uid)datos?.aplicar({table:'cheques',eventType:'INSERT',new:r.data});
-  }
-  const previo=globalThis._PR_AUDIT&&globalThis._PR_AUDIT.trabajador_id===id?globalThis._PR_AUDIT:null;
-  const modelo=previo?previo.monto_modelo:null,aplicado=fin==null?0:redondearCentavos(fin);
-  await registrarBitacoraNomina([previo?{...previo,tipo_calculo:'FINIQUITO_APLICADO',periodo:f,monto_aplicado:aplicado,
-    ajuste_noi:modelo==null?null:redondearCentavos(aplicado-modelo),resultado:{...previo.resultado,monto_aplicado:aplicado,motivo_baja:cat,cheque_pendiente:conCheque&&!pendienteCheque}}
-    :{obra_id:w.obra_id,empresa_codigo:empresaDeTrabajador(w),trabajador_id:w.id,trabajador_numero:w.no_trab,trabajador_nombre:fullName(w),
-      tipo_calculo:'FINIQUITO_APLICADO',periodo:f,entradas:{origen:'captura_directa',motivo_baja:cat},resultado:{monto_aplicado:aplicado,cheque_pendiente:conCheque&&!pendienteCheque},
-      monto_modelo:null,monto_aplicado:aplicado,ajuste_noi:null}],{silencioso:false});
-  globalThis._PR_AUDIT=null;
-  if(OBRA?.id!==w.obra_id||USER?.id!==uid||$('b-fecha')!==form)return;
-  closeModal();toast('Baja por '+cat+' registrada. Generando documento...','ok');
-  if(!datos)await loadObraData(w.obra_id);
-  if(OBRA?.id===w.obra_id&&USER?.id===uid)generarBajaDoc(id);
-}
+function openBaja(id,opciones={}){return window.PLATINUM_BAJA.abrir(id,opciones);}
+async function doBaja(id){return window.PLATINUM_BAJA.confirmar(id);}
 function generarBajaDoc(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
   const cat=w.motivo_baja||'RENUNCIA VOLUNTARIA';
@@ -479,7 +408,7 @@ function openAltasNOI(){
         <div><label>Altas del día</label><input id="na-d1" type="date" value="${d1}" oninput="naLista()"></div>
         <div><label>al día</label><input id="na-d2" type="date" value="${d2}" oninput="naLista()"></div>
       </div>
-      <div class="fhint">Las claves elegidas aquí sólo se usan al exportar; no modifican la ficha del trabajador.</div>
+      <div class="fhint">Las equivalencias provienen del catálogo central; no modifican el puesto original. <button type="button" class="btn" onclick="abrirCatalogoPuestos()">Catálogo y equivalencias</button></div>
       <div id="na-lista" style="margin-top:12px"></div>
     </div>
     <div class="m-foot">
@@ -496,14 +425,12 @@ function naLista(){
   window._NA=ws;
   $('na-lista').innerHTML=ws.length?`<div class="sect">${ws.length} alta(s) en el rango — desmarca las que no quieras incluir</div>`+
     ws.map((w,i)=>{
-      const falta=['nss','rfc','curp'].filter(k=>!w[k]),sinSdi=!(Number(w.sdi)>0),clave=noiPuestoClave(w.puesto);
+      const falta=['nss','rfc','curp'].filter(k=>!w[k]),sinSdi=!(Number(w.sdi)>0),resolucion=puestoResolver(w),clave=resolucion.clave;
       return `<div style="padding:8px 2px;border-bottom:1px solid var(--border)">
       <label style="display:block;font-size:12.5px${(falta.length||sinSdi)?';color:var(--red)':''}">
       <input type="checkbox" id="na-${i}" ${falta.length?'':'checked'}> #${w.no_trab??'—'} ${esc(fullName(w))} · ${esc(w.puesto||'sin puesto')} · alta ${fmtD(w.fecha_alta)} · SDI $${money(w.sdi||0)}${falta.length?` ⚠ falta ${falta.join(', ').toUpperCase()}`:''}${sinSdi?' ⚠ SIN SDI':''}${w.estatus==='PENDIENTE'?' · PENDIENTE':''}</label>
-      ${clave?`<div class="fhint">Puesto NOI: ${clave} · ${esc(NOI_PUESTOS_ALTAS[clave-1])}</div>`:
-        `<div class="fhint" style="color:var(--amber)">Sin equivalencia automática. Elige la clave para el Excel:</div>
-        <select id="na-puesto-${i}" aria-label="Clave de puesto NOI para trabajador ${w.no_trab??i+1}">
-        <option value="">Seleccionar puesto NOI…</option>${NOI_PUESTOS_ALTAS.map((p,k)=>`<option value="${k+1}">${k+1} · ${esc(p)}</option>`).join('')}</select>`}
+      ${clave?`<div class="fhint">${esc(w.puesto)} → ${clave} · ${esc(resolucion.descripcion)}</div>`:
+        `<div class="fhint" style="color:var(--amber)">${esc(w.puesto)} → Sin equivalencia respaldada. Configúrala una sola vez en el catálogo central.</div>`}
       </div>`;
     }).join('')
     :'<p style="color:var(--mut)">No hay altas en ese rango de fechas.</p>';

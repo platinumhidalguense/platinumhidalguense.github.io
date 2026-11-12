@@ -672,7 +672,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
   .ia-msgs{scroll-behavior:auto}
 }
 </style>
-<link rel="stylesheet" href="assets/platinum-cinta.css?v=20261111.1">
+<link rel="stylesheet" href="assets/platinum-cinta.css?v=20261112.3">
 <link rel="stylesheet" href="assets/platinum-tablero.css?v=20261111.1">
 </head>
 <body>
@@ -841,7 +841,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
   <h3 id="nav-grupo-pagos-recibos">Recibos de nómina</h3>
 </section>
 <section class="nav-group" data-nav-section="Pagos y cheques" aria-labelledby="nav-grupo-pagos-1">
-  <div class="nav-tools"><button type="button" class="sb-item" data-nav-label="Pagos y comprobantes bancarios · Conciliador" onclick="sbGo(()=>openImportPago(),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-wallet" /></svg><span class="nav-action-label">Pagos y comprobantes bancarios · Conciliador</span></button>
+  <div class="nav-tools"><button type="button" class="sb-item" data-nav-label="Importar pagos bancarios" onclick="sbGo(()=>openImportPago(),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-wallet" /></svg><span class="nav-action-label">Importar pagos bancarios</span></button>
     <button data-nav-primary="" type="button" class="sb-item" id="vb-cheques" data-nav-label="Gestión de Cheques" onclick="navGestionCheques()"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-wallet" /></svg><span class="nav-action-label">Gestión de Cheques</span></button>
     <button type="button" class="sb-item" data-nav-label="Revisión de pagos del sábado" onclick="sbGo(()=>PLATINUM_PAGOS_SABADO.abrir(),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-wallet" /></svg><span class="nav-action-label">Revisión de pagos del sábado</span></button></div>
   <h3 id="nav-grupo-pagos-1">Pagos y cheques</h3>
@@ -1105,9 +1105,9 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 </div>
 
 <script src="platinum-sync.js?v=20261107.1"></script>
-<script src="platinum-workflows.js?v=20261109.2"></script>
+<script src="platinum-workflows.js?v=20261112.2"></script>
 <script src="platinum-rrhh.js?v=20261108.2"></script>
-<script src="platinum-pagos-sabado.js?v=20261023.2"></script>
+<script src="platinum-pagos-sabado.js?v=20261112.2"></script>
 <aside id="act-live-panel" class="act-live-panel" data-actividad-panel hidden aria-label="Actividad en vivo, sólo administrador"><div class="act-live-head"><h2>Actividad de usuarios</h2><button type="button" class="btn" onclick="PLATINUM_ACTIVIDAD.abrir()" aria-label="Actualizar actividad">↻</button><button type="button" class="btn" onclick="PLATINUM_ACTIVIDAD.cerrar()" aria-label="Cerrar actividad">×</button></div><div id="act-live-body" class="act-live-body"></div></aside>
 <!-- PLATINUM_APP -->
 <script src="concentrado-contratistas.js"></script>
