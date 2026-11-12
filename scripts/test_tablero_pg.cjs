@@ -133,11 +133,11 @@ const TABLAS={obras:'obras',trabajadores:'trabajadores',cuadrillas:'cuadrillas',
   select ('b2000000-0000-4000-8000-'||lpad(t::text,12,'0'))::uuid,('a2000000-0000-4000-8000-00000000000'||case when t<=800 then 1 when t<=900 then 2 else 3 end)::uuid,t,'PERSONA '||t,'FICTICIA',
    case when t%9=0 then 'BAJA' else 'ACTIVO' end,case when t%25=0 then 'QUINCENAL' else 'SEMANAL' end,'C'||(t%9),'2026-04-06',case when t%9=0 then date '2026-09-01'+(t%40) end from generate_series(1,980) t;
  insert into public.control_cierres_nomina(id,obra_id,semana,periodo,estado,formula_version,snapshot,snapshot_sha256,creado_por)
-  select ('c2000000-0000-4000-8000-'||lpad(s::text,12,'0'))::uuid,'a2000000-0000-4000-8000-000000000001',s,'SEMANAL',case when s=30 then 'BORRADOR' else 'TIMBRADO' end,'V',
+  select ('c2000000-0000-4000-8000-'||lpad(s::text,12,'0'))::uuid,'a2000000-0000-4000-8000-000000000001'::uuid,s,'SEMANAL',case when s=30 then 'BORRADOR' else 'TIMBRADO' end,'V',
    jsonb_build_object('semana',s,'modelo',jsonb_build_object('filas',(select jsonb_agg(jsonb_build_object('w',jsonb_build_object('id',w.id,'contratista',w.contratista,'periodo_pago',w.periodo_pago,
-    'obra_id',w.obra_id,'relleno',repeat('x',400)),'neto',1000,'items',jsonb_build_array(repeat('y',300))) order by w.no_trab) from public.trabajadores w where w.no_trab<=115))),'x','10000000-0000-4000-8000-000000000001'
+    'obra_id',w.obra_id,'relleno',repeat('x',400)),'neto',1000,'items',jsonb_build_array(repeat('y',300))) order by w.no_trab) from public.trabajadores w where w.no_trab<=115))),'x','10000000-0000-4000-8000-000000000001'::uuid
   from generate_series(11,30) s
-  union all select 'c2000000-0000-4000-8000-000000000999','a2000000-0000-4000-8000-000000000002',20,'SEMANAL','AUTORIZADO','V','{}','x','10000000-0000-4000-8000-000000000001';
+  union all select 'c2000000-0000-4000-8000-000000000999'::uuid,'a2000000-0000-4000-8000-000000000002'::uuid,20,'SEMANAL','AUTORIZADO','V','{}'::jsonb,'x','10000000-0000-4000-8000-000000000001';
  insert into public.control_cierre_versiones(id,cierre_origen,obra_id,version,estado_origen,snapshot,snapshot_sha256,fuente_sha256,actor_id) select id,id,obra_id,1,'AUTORIZADO',snapshot,'x','x','10000000-0000-4000-8000-000000000001' from public.control_cierres_nomina;
  insert into public.control_flujo_cierres(cierre_id,obra_id,sucio,version_id) select id,obra_id,semana=30,id from public.control_cierres_nomina;
  insert into public.control_obligaciones_pago(id,cierre_origen,cierre_id,version_id,obra_id,trabajador_id,semana,tipo,numero,nombre,contratista,importe,metodo)
