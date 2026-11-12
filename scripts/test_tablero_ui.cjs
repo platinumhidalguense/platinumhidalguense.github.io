@@ -180,6 +180,8 @@ const tiempos={};
  tecla(q('section[aria-labelledby$="-det-t"] h3'),'Escape');await tick();
  ok(!T.estado().detalle&&document.activeElement.getAttribute('data-foco')==='kpi-neto_conciliado','Escape cierra el detalle y devuelve el foco a la cifra');
  click(q('[data-accion="detalle"][data-dim="obra"][data-valor="O2"]'));await tick(20);eq(llamadas.at(-1).datos.obras,['O2'],'desde una barra: detalle del centro elegido');
+ {await T.acciones.abrirDetalle('neto_conciliado',{dimension:'metodo_planeado',valor:'TRANSFERENCIA',etiqueta:'Transferencia',origen:'grafica'});await tick(20);const dm=llamadas.at(-1).datos;
+  eq([dm.medios,T.estado().detalle.total],[['TRANSFERENCIA'],MOD.detalle(fuentes.admin,{...P.filtrosRPC(),medios:['TRANSFERENCIA']},{grano:'OBLIGACION'}).total],'N4: barra por método planeado (PERIODO) filtra el detalle por ese método');}
  click(q('[data-tablero-accion="cargar-excepciones"]'));await tick(20);eq([llamadas.at(-1).accion,llamadas.at(-1).datos.pagina],['EXCEPCIONES',1],'excepciones paginadas sólo al pedirlas');
 
  // ---------- 7. Navegación al detalle y regreso ----------

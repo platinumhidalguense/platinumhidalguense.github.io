@@ -323,6 +323,8 @@
    case 'obra':return {obras:[String(valor)]};
    case 'contratista':return {contratistas:[String(valor)]};
    case 'medio':return {medios:[String(valor)]};
+   // PERIODO: el filtro `medios` del modelo/RPC se aplica al método planeado de la obligación (pasaDims(o,a,'metodo')).
+   case 'metodo_planeado':case 'metodo':return {medios:[String(valor)]};
    case 'cuadrilla':return {cuadrillas:[String(valor)]};
    case 'concepto':return {conceptos:[String(valor)]};
    case 'periodo':{if(fechaOK(valor))return {desde:String(valor),hasta:sumarDias(String(valor),6),preset:'PERSONALIZADO'};

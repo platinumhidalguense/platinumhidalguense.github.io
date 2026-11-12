@@ -381,6 +381,8 @@
    return r;
   }
  }
+ const ALCANCE_MARCA={COMPLETA:'Huella de cada fila completa: detecta cualquier alta, baja o edición durante la exportación.',
+  LIGERA:'Bitácora de sólo inserción: conteo, llave y fechas máximas y huella de llaves; detecta altas y bajas.'};
  const firma=m=>m?[m.filas,m.max_actualizado,m.max_creado,m.huella].join('|'):'';
 
  /* ---------- lectura ---------- */
@@ -539,7 +541,7 @@
   for(const f of activas){
    const d=datos.get(f.clave),m=ultima&&ultima.marcas[f.clave];
    const reg={estado:d.error?'ERROR':d.inconsistente||(d.sinMarca?'LEIDA_SIN_MARCA':'LEIDA'),filas:d.filas.length,filas_servidor:m&&m.filas!=null?Number(m.filas):null,huella:m&&m.huella||null,
-    max_actualizado:m?m.max_actualizado:null,paginas:d.est.paginas,reintentos:d.est.reintentos,error:d.error||null,por_obra:m&&m.por_obra||null};
+    max_actualizado:m?m.max_actualizado:null,tipo_marca:m&&m.tipo||null,paginas:d.est.paginas,reintentos:d.est.reintentos,error:d.error||null,por_obra:m&&m.por_obra||null};
    R.fuentes[f.clave]=reg;
    if(d.error){motivo('ERROR_LECTURA');R.errores.push([f.clave,d.error]);}
    else if(d.sinMarca){motivo('SIN_MARCA_TABLA');}
@@ -866,6 +868,7 @@
    const r=R.fuentes[fu.clave];if(!r)continue;
    add('FUENTE',fu.clave,r.estado,r.error||r.motivo||null,fu.hoja,fu.tabla,null,r.filas??null,r.filas_servidor??null,fu.dominio);
    if(r.huella)add('FUENTE_HUELLA',fu.clave,r.huella,'max_actualizado='+(r.max_actualizado||'∅')+' · páginas='+r.paginas+' · reintentos='+r.reintentos);
+   if(r.estado!=='OMITIDA_PERMISO')add('FUENTE_MARCA',fu.clave,r.tipo_marca||'SIN_MARCA',ALCANCE_MARCA[r.tipo_marca]||'Sin marca del servidor: no se verificó consistencia de esta fuente.');
   }
   for(const [obj,m] of EXCLUSIONES)add('EXCLUSION',obj,null,m);
   for(const [h,c,m] of R.omitidos)add('CAMPO_OMITIDO',h+'.'+c,null,m);
