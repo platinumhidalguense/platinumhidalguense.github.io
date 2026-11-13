@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-13.3",
-  "entry": "assets/platinum-app.bb9ec5e58d079cc1.js",
-  "sha256": "bb9ec5e58d079cc17142212455fbe955ac9ef014a4ca7421ba4521409008c69e",
-  "integrity": "sha384-gMUDgeff6qEeFihgpOd8jsLN13C2NL9E/r236dOwjrK6DwwxAGMM94lUMBrJo/cF",
+  "version": "2026-11-13.4",
+  "entry": "assets/platinum-app.2d7a8a32828d1f20.js",
+  "sha256": "2d7a8a32828d1f204c9190ca20cd62c6bf558c2f99a4ff00f9239bb37d228591",
+  "integrity": "sha384-lPLQAdhcD1h2it2i15kCe4XLkZnMMb2krzuW5RSD1GUBIydxSanpArQqbq4D5cEr",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "5ec8cee2ddd6d020e2507321d71caf7d8825efb5e7f49ff4720a71ea829a2a5c"
+      "sha256": "e913ca1d32bc64113f189cc834ce3ec7fb54cf304eb455604b1baa40009a754d"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -22,11 +22,11 @@
     },
     {
       "path": "frontend/modulos/04-padron-expedientes.js",
-      "sha256": "abdd0b4d2991af127e1ffb2aceca62c0f9dd59487600a68f406f432793b38785"
+      "sha256": "50cc828cc0958196ed28fa3adcc007fc3350c65ead16a52debd4eb7efefb3a27"
     },
     {
       "path": "frontend/modulos/05-alta-edicion.js",
-      "sha256": "52ef3ff59c9e45330d8c66fe34c0c1f27a87ee2f179d601068384f75b7dc88ca"
+      "sha256": "cd84c7ab83b7c63f9f84a971f6bf34985567a9b0a1c3157448bd37791a8bd3c1"
     },
     {
       "path": "frontend/modulos/06-movimientos-historial.js",
@@ -50,7 +50,7 @@
     },
     {
       "path": "frontend/modulos/11-expedientes-excel.js",
-      "sha256": "e8d5bb59c90ee0ee1c23b2144bdf9702b4ab4ae39592009403bb28ef85e13b2a"
+      "sha256": "78621323570626779b0fa291e05af4630549bf887edd60cdf6354bee3c22f6f6"
     },
     {
       "path": "frontend/modulos/12-bloques-entregas.js",
@@ -130,7 +130,7 @@
     },
     {
       "path": "frontend/modulos/31-documentos-laborales.js",
-      "sha256": "492dd0d789d8c018e9d2207cb02a82544677f0a587f7febbb541faed62875017"
+      "sha256": "f58b20c3ed3f8ef255ed318802ae39c71a7f640f2a0c9a995d4845ef789dbf93"
     },
     {
       "path": "frontend/modulos/32-legajos.js",

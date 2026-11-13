@@ -35,6 +35,7 @@ function dibujarFormularioTrabajador(id){
   if(id&&!w){toast('No se encontró el trabajador. Actualiza el centro antes de editar.','err');return;}
   if(!OBRA){toast('Selecciona primero un centro de trabajo.','err');return;}
   const d=(w&&w.docs)||{};
+  const contratoFormulario=camposContratoTrabajador(w||{},OBRA),contratoFijo=OBRA.empresa_codigo==='PLATINUM';
   const nextNo=Math.max(0,...WORKERS.map(x=>x.no_trab||0))+1;
   const cuentaCrear=w?String(w.cuenta).toUpperCase()==='CREAR':true;
   const obrasAlta=obrasEmpresa(empresaDeObra(OBRA));
@@ -76,8 +77,8 @@ function dibujarFormularioTrabajador(id){
             <div><label>Motivo de baja</label><select id="f-motivo_baja">${MOTIVOS_BAJA.map(m2=>`<option ${(w.motivo_baja||'')===m2?'selected':''}>${m2}</option>`).join('')}</select></div>
           </div>
         </div>`:''}
-        <div class="c2"><label>Tipo de contrato</label><select id="f-tipo_contrato">${['OBRA DETERMINADA','TIEMPO INDETERMINADO','TIEMPO DETERMINADO'].map(t2=>`<option ${((w&&w.tipo_contrato)||(OBRA.tipo==='OFICINA'?'TIEMPO INDETERMINADO':'OBRA DETERMINADA'))===t2?'selected':''}>${t2}</option>`).join('')}</select></div>
-        ${fld('fecha_fin_contrato','Fin contrato (si es det.)',w?(w.fecha_fin_contrato||''):'',{type:'date'})}
+        <div class="c2"><label>Tipo de contrato</label><select id="f-tipo_contrato" ${contratoFijo?'disabled':''}>${['OBRA DETERMINADA','TIEMPO INDETERMINADO','TIEMPO DETERMINADO'].map(t2=>`<option ${contratoFormulario.tipo_contrato===t2?'selected':''}>${t2}</option>`).join('')}</select></div>
+        ${fld('fecha_fin_contrato','Fin contrato (si es det.)',contratoFormulario.fecha_fin_contrato,{type:'date',extra:contratoFijo?'readonly':''})}
         <div><label>SD ($)</label><input id="f-sd" type="number" step="0.01" value="${esc(w?(w.sd??''):'')}">
           <div class="fhint" id="h-sd">Mín. CONASAMI 2026: $315.04 · 
           <a href="#" onclick="event.preventDefault();smAssist(10)">SM+10</a> · <a href="#" onclick="event.preventDefault();smAssist(20)">SM+20</a> · <a href="#" onclick="event.preventDefault();smAssist(30)">SM+30</a></div></div>
@@ -624,6 +625,7 @@ function collectForm(){
   if($('f-benef_parentesco'))out.benef_parentesco=g('benef_parentesco').toUpperCase()||null;
   if($('f-benef_telefono'))out.benef_telefono=g('benef_telefono').replace(/\D/g,'')||null;
   if($('f-benef_porcentaje'))out.benef_porcentaje=g('benef_porcentaje')!==''?parseFloat(g('benef_porcentaje')):null;
+  if(OBRA?.empresa_codigo==='PLATINUM')Object.assign(out,camposContratoTrabajador(out,OBRA));
   return out;
 }
 function validateWorker(w,editId){
@@ -654,6 +656,7 @@ function validateWorker(w,editId){
     warns.push('El inicio de la CURP y el RFC no coincide. Puede ser correcto (hay casos válidos así en RENAPO y SAT); solo verifica que ambos estén bien capturados.');
   const dup=WORKERS.find(x=>x.curp&&w.curp&&x.curp===w.curp&&x.id!==editId);
   if(dup&&!editId)errs.push(`Ya existe un trabajador con esa CURP en esta obra: ${fullName(dup)} (${dup.estatus}).`);
+  if(OBRA?.empresa_codigo==='PLATINUM'&&(w.fecha_reingreso||w.fecha_alta)>(w.fecha_fin_contrato||'2026-12-31'))warns.push('El inicio contractual supera el 31/12/2026. Resuelve la vigencia antes de generar su contrato.');
   return {errs,warns};
 }
 /* Campos que deben estar completos para que un alta quede ACTIVO */

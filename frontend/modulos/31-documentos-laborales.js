@@ -198,6 +198,13 @@ function datosEmpresaContrato(codigo, base=CFGEMP['empresa_'+codigo]||{}){
   const contrato=base.contrato||CFGEMP['contrato_empresa_'+codigo]||{};
   return {base,contrato,empresa:{...base,...contrato}};
 }
+function camposContratoTrabajador(w={},obra=OBRA){
+  if((obra?.empresa_codigo||w.empresa_codigo)==='PLATINUM'){
+    const {contrato}=datosEmpresaContrato('PLATINUM');
+    return {tipo_contrato:'TIEMPO DETERMINADO',fecha_fin_contrato:contrato.fecha_fin_contrato||'2026-12-31'};
+  }
+  return {tipo_contrato:w.tipo_contrato||(obra?.tipo==='OFICINA'?'TIEMPO INDETERMINADO':'OBRA DETERMINADA'),fecha_fin_contrato:w.fecha_fin_contrato||''};
+}
 function condicionesContrato(codigo,w,datos={},contrato={}){
   const platinum=codigo==='PLATINUM';
   const tipo=platinum?'TIEMPO DETERMINADO':(datos.tipo||w.tipo_contrato||'OBRA DETERMINADA');

@@ -130,6 +130,7 @@ const key=(target,k)=>{
   modal:html=>{$('modals').innerHTML='<div class="overlay"><div class="modal worker-form">'+html+'</div></div>';},
   conCentroCompleto:f=>f()
  });
+ require('./soporte_contratos_campos.cjs').instalar(c);
  c.OBRA={...c.OBRA,empresa_codigo:'JIRE'};
  vm.runInContext(form.match(/^const WF_SECCIONES=.*;$/m)[0]+'\n'+funcionesForm,c);
  c.boton=alta;
