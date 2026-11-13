@@ -390,9 +390,14 @@ async function seccionRespaldoExportar(){
  const box={console,Date,Math,JSON,Number,String,Array,Object,Set,Map,WeakMap,Promise,Error,RegExp,Symbol,Intl,BigInt,TextEncoder,Uint8Array,setTimeout,clearTimeout,crypto:require('node:crypto').webcrypto};box.window=box;box.globalThis=box;vm.createContext(box);
  for(const m of ['83-tablero-modelo','86-respaldo-integral'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
  const {I,f}=fuentesBase(),oF=f.obligaciones.find(o=>o.id===I.O1f);
+ // Baja revertida: el respaldo exporta el historial crudo y la tabla de reversiones; el tablero usa el historial efectivo.
+ const hRaw=[...f.historial,{id:100,trabajador_id:W(11),obra_id:X1,accion:'MODIFICACION',fecha:'2026-03-13T18:00:00Z',datos_antes:{contratista:'CONTR HIST'},datos_despues:{contratista:'CONTR BAJA',estatus:'BAJA'}}];
+ const revs=[{id:U(850),historial_id:3,obra_id:X1,trabajador_id:W(11),estado:'APLICADA',created_at:'2026-03-20T00:00:00Z',restaurar:{estatus:'ACTIVO',fecha_baja:null,contratista:'CONTR REST'}}];
+ const efectivo=(hs,rv)=>{const fuera=new Set(rv.map(r=>r.historial_id));return hs.filter(h=>!fuera.has(h.id)).map(h=>{const r=rv.find(r=>{const b=hs.find(x=>x.id===r.historial_id);return h.accion==='MODIFICACION'&&r.trabajador_id===h.trabajador_id&&b&&h.fecha>b.fecha&&h.fecha<r.created_at;});
+  return r?{...h,datos_despues:{...h.datos_despues,...r.restaurar}}:h;});};
  const exc={id:U(800),cierre_id:oF.cierre_id,trabajador_id:oF.trabajador_id,finiquito_efectivo:'500.00',neto_original:'1500.00',nomina_transferencia:'1000.00',registrado_en:'2026-03-13T18:00:00Z'};
  const tablas={obras:f.obras,trabajadores:f.trabajadores,control_cierres_nomina:f.cierres,control_cierre_versiones:f.versiones,control_obligaciones_pago:f.obligaciones,
-  control_evidencias_pago:f.evidencias,control_pago_aplicaciones:f.aplicaciones,pagos:f.pagos,cheques:f.cheques,historial:f.historial},internas={excepciones_noi_individuales:[exc]};
+  control_evidencias_pago:f.evidencias,control_pago_aplicaciones:f.aplicaciones,pagos:f.pagos,cheques:f.cheques,historial:hRaw,control_reversiones_baja:revs},internas={excepciones_noi_individuales:[exc]};
  const filasDe=k=>tablas[k]||internas[k]||[],TAB=Object.fromEntries(box.PLATINUM_RESPALDO.fuentes().map(x=>[x.tabla,x.clave]));
  let lento=true;const marca=k=>({tipo:'COMPLETA',filas:filasDe(k).length,max_actualizado:null,max_creado:null,huella:'h'+filasDe(k).length,por_obra:{}});
  const sb={rpc:async(fn,a)=>{
@@ -415,6 +420,13 @@ async function seccionRespaldoExportar(){
  const conE=M.calcular({...base,efectivo_autorizado:[{obligacion_id:oF.id,importe:'500.00',fecha:'2026-03-13'}]},rango),sinE=M.calcular({...base,efectivo_autorizado:[]},rango);
  reg('H3',conE.huella!==sinE.huella&&['pendiente_conciliacion','excedentes','saldo_por_cubrir','pagado_registrado'].every(k=>fila(k,'PERIODO')===String(c(val(conE,k)))),
   'CONTROL del respaldo cuadra con el tablero incluyendo el finiquito en efectivo autorizado (pendiente '+fila('pendiente_conciliacion','PERIODO')+' centavos)');
+ // Con baja revertida: las medidas monetarias y la huella del CONTROL (historial crudo) = tablero (historial efectivo).
+ const efe=M.calcular({...base,historial:efectivo(hRaw,revs),efectivo_autorizado:[{obligacion_id:oF.id,importe:'500.00',fecha:'2026-03-13'}]},rango);
+ const huellaCtl=(r2.cuadre.filas.find(x=>x[1]==='huella_tablero'&&/PERIODO/.test(x[2]))||[])[12]||'';
+ ok(['neto_conciliado','pagado_registrado','pagado_conciliado','saldo_por_cubrir','excedentes','sin_asignar','pendiente_conciliacion'].every(k=>fila(k,'PERIODO')===String(c(val(efe,k))))&&huellaCtl.endsWith(efe.huella),
+  'baja revertida: el CONTROL del respaldo (historial crudo) cuadra en dinero y huella con el tablero (historial efectivo)');
+ const dE=M.calcular({...base,historial:efectivo(hRaw,revs)},{...rango,obras:[X1]}),dR=M.calcular({...base,historial:hRaw},{...rango,obras:[X1]});
+ ok(dE.medidas.bajas.valor!==dR.medidas.bajas.valor,'con historial crudo el modelo contaría la baja revertida (bajas/rotación/adscripción difieren; no forman parte del CONTROL)');
 }
 
 /* Marca LIGERA del respaldo (> 5,000 filas): ¿detecta ediciones concurrentes en tablas que sí se editan? */
@@ -536,6 +548,13 @@ async function seccionPG(base,sqls){
  const xml=d=>d.formato==='XML';
  await insertar('documentos',base.f.cfdi.map(d=>({id:d.documento_id,obra_id:d.obra_id,trabajador_id:d.trabajador_id,categoria:xml(d)?'CFDI_NOMINA':'RECIBO_NOMINA',archivo:'ficticio/'+d.documento_id,hash:'',cfdi_uuid:xml(d)?d.uuid:null,cfdi_total:xml(d)?d.neto:null,nomina_tipo:d.tipo,periodo_inicio:d.desde,periodo_fin:d.hasta,anulado:false})));
  for(const d of base.f.cfdi.filter(x=>!xml(x)))await db.query(`insert into platinum_internal.lecturas_fiscales_documentos(documento_id,obra_id,trabajador_id,archivo,hash,uuid,neto,desde,hasta,tipo,concepto_estado,datos,lote_id) values($1,$2,$3,$4,'',$5,$6,$7,$8,$9,'UNICO','{}',$1)`,[d.documento_id,d.obra_id,d.trabajador_id,'ficticio/'+d.documento_id,d.uuid,d.neto,d.desde,d.hasta,d.tipo]);
+ // Baja revertida (producción 2026-11-12): la BAJA de W11 (historial 3) se revierte el 20/03; una MODIFICACION del 13/03
+ // (posterior a la baja y anterior a la reversión) dejó otro contratista y la vista efectiva la reescribe con `restaurar`.
+ const revisable=!!(await db.query("select to_regclass('public.control_reversiones_baja') r,to_regclass('public.historial_laboral_efectivo') v")).rows.every(x=>x.r&&x.v);
+ if(revisable){
+  await db.query(`insert into public.historial(id,trabajador_id,obra_id,accion,fecha,datos_antes,datos_despues) values(100,$1,$2,'MODIFICACION','2026-03-13T18:00:00Z','{"contratista":"CONTR HIST","estatus":"BAJA"}','{"contratista":"CONTR BAJA","estatus":"BAJA"}')`,[W(11),X1]);
+  await db.query(`insert into public.control_reversiones_baja(historial_id,obra_id,trabajador_id,estado,created_at,restaurar) values(3,$1,$2,'APLICADA','2026-03-20T00:00:00Z','{"estatus":"ACTIVO","fecha_baja":null,"contratista":"CONTR REST"}')`,[X1,W(11)]);
+ }
  await db.exec('set session_replication_role=origin');
  const usuario=async(k,p)=>{const id=U(9000+k);await db.query('insert into auth.users(id) values($1) on conflict do nothing',[id]);
   await db.query(`insert into public.app_usuarios(user_id,email,rol,activo,full_access,puede_escribir,puede_eliminar,empresas_permitidas,obras_permitidas) values($1,$2,$3,true,$4,false,false,$5,$6) on conflict do nothing`,[id,'r'+k+'@prueba.test',p.vip?'ADMIN':'CONSULTA',!!p.vip,['PLATINUM'],p.obras||[]]);return id;};
@@ -567,8 +586,13 @@ async function seccionPG(base,sqls){
  ok(!(iny instanceof Error)||!/syntax/i.test(iny.message),'SQL: filtros con comillas no alteran la consulta');
  ok((await db.query('select count(*)::int n from public.obras')).rows[0].n===nObras&&nObras>=2,'SQL: tablas intactas tras filtros hostiles');
  eq(dif,[],'SQL (A3) = valores calculados a mano y totales del modelo');
+ if(revisable){
+  const o11=(await llamarInt(uV,'DETALLE',{filtros:MARZO,opciones:{grano:'OBLIGACION',por_pagina:500}})).filas.find(x=>x.trabajador_id===W(11));
+  const plE=(await llamarInt(uV,'PLANTILLA',{filtros:MARZO,opciones:{}})).medidas;
+  eq([o11&&o11.contratista,plE.bajas.valor,plE.reingresos.valor],['CONTR REST',0,1],'baja revertida: adscripción con la MODIFICACION reescrita por `restaurar` y la baja revertida fuera de bajas/rotación');
+ }
  // SQL = modelo en todas las acciones y rangos (incluye la poda por periodo de H4 con un comprobante de otra semana).
- const leidas={};for(const [k,t] of Object.entries(T))leidas[k]=(await db.query(`select coalesce(jsonb_agg(to_jsonb(x)),'[]') j from public.${t} x`)).rows[0].j;
+ const leidas={};for(const [k,t] of Object.entries(T))leidas[k]=(await db.query(`select coalesce(jsonb_agg(to_jsonb(x)),'[]') j from public.${t==='historial'&&revisable?'historial_laboral_efectivo':t} x`)).rows[0].j; // el modelo recibe el historial efectivo
  const canon=v=>Array.isArray(v)?'['+v.map(canon).join(',')+']':v&&typeof v==='object'?'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}':JSON.stringify(v===undefined?null:v);
  const primera=(a,b,p='$')=>{if(canon(a)===canon(b))return null;if(a&&b&&typeof a==='object'&&typeof b==='object'){for(const k of new Set([...Object.keys(a),...Object.keys(b)])){const d=primera(a[k],b[k],p+'.'+k);if(d)return d;}}return p+': SQL '+JSON.stringify(a)?.slice(0,160)+' ≠ JS '+JSON.stringify(b)?.slice(0,160);};
  const FN={RESUMEN:'calcular',TENDENCIA:'tendencia',COMPARATIVOS:'comparativos',EXCEPCIONES:'excepciones',DETALLE:'detalle',PLANTILLA:'plantilla',CATALOGOS:'catalogos'};
@@ -580,11 +604,32 @@ async function seccionPG(base,sqls){
   const js=clon(M[FN[acc]]({...base.f,...leidas,ahora:sq.actualizado_en||base.f.ahora,permisos:p},fl,op));
   const df=primera(clon(sq),js);if(df)difs.push(`${acc} ${op.grano||''} ${persp} ${d}…${h} ${p.vip?'VIP':'REST'}: ${df}`);n++;
  }
- eq(difs.slice(0,3),[],'SQL = modelo JS al centavo en 128 consultas (4 rangos × 2 perspectivas × 2 perfiles × 8 acciones, con bitácora)');
+ eq(difs.slice(0,3),[],'SQL acotado = modelo JS con la vista efectiva COMPLETA, al centavo, en 128 consultas (4 rangos × 2 perspectivas × 2 perfiles × 8 acciones, con bitácora y baja revertida)');
+ if(revisable){ // Reversión cuyo trabajador_id no coincide con la fila revertida (nulo): la vista la excluye por historial_id.
+  await db.exec('set session_replication_role=replica');
+  await db.query(`insert into public.historial(id,trabajador_id,obra_id,accion,fecha,datos_antes,datos_despues) values(5000,$1,$2,'BAJA','2026-03-10T18:00:00Z','{"estatus":"ACTIVO"}','{"estatus":"BAJA","fecha_baja":"2026-03-10"}')`,[W(5),X1]);
+  await db.query(`insert into public.control_reversiones_baja(historial_id,obra_id,trabajador_id,estado,created_at,restaurar) values(5000,$1,null,'APLICADA','2026-03-21T00:00:00Z','{"estatus":"ACTIVO"}')`,[X1]);
+  await db.exec('set session_replication_role=origin');
+  const hv=(await db.query(`select coalesce(jsonb_agg(to_jsonb(x)),'[]') j from public.historial_laboral_efectivo x`)).rows[0].j;
+  const sqP=await llamarInt(uV,'PLANTILLA',{filtros:MARZO,opciones:{por_pagina:500}}),jsP=clon(M.plantilla({...base.f,...leidas,historial:hv,ahora:base.f.ahora,permisos:VIP},MARZO,{por_pagina:500}));
+  abierto('N5',sqP.medidas.bajas.valor!==jsP.medidas.bajas.valor,`reversión con trabajador_id nulo o distinto del de la fila revertida: la lectura acotada (personas de control_reversiones_baja.trabajador_id) cuenta la baja revertida (SQL ${sqP.medidas.bajas.valor} vs vista ${jsP.medidas.bajas.valor}); confirmar NOT NULL/coincidencia en producción o derivar las personas uniendo historial por historial_id`);
+ }
  // Dependencias: ningún objeto o columna que sólo exista en los fixtures (inventario de producción de A4 + vista verificada por A7).
  const prodF='work/respaldo_20261111/prod_columnas.json';
  if(fs.existsSync(prodF)){
-  const prod=JSON.parse(fs.readFileSync(prodF,'utf8')),colsProd=(sch,t)=>prod[sch]&&prod[sch][t]?new Set(String(prod[sch][t]).split(/\s+/).map(x=>x.split(':')[0]).filter(Boolean)):null;
+  const prod=JSON.parse(fs.readFileSync(prodF,'utf8'));
+  // Cambios de producción del 2026-11-12 (work/equipo_20261111/cambios_produccion_20261112.md, sólo metadatos):
+  // tablas, vistas y columnas nuevas que el inventario de A4 (2026-11-11) aún no tenía.
+  const NUEVAS={control_reversiones_baja:'id historial_id obra_id trabajador_id estado transaccion actor_id actor_email created_at antes restaurar efectos resultado',
+   control_banco_resoluciones:'id archivo_id fila operacion_id obra_id trabajador_id pago_id obligacion_id cheque_id aplicacion_id estado revision propuesta resultado actor_id created_at updated_at',
+   control_importaciones_bancarias:'id obra_id empresa_codigo contexto nombre sha256 ruta tamano mime padre_id paginas estado propuesta revision error creado_por created_at updated_at',
+   control_aguinaldo_conciliaciones:'id operacion_id empresa_codigo obra_id trabajador_id ejercicio fecha_baja version anterior_id estado estado_operacion importe_bruto exento fecha_pago fuente_clave respaldo_clave motivo referencia fuente respaldo firma_solicitud actor_id actor_email created_at',
+   control_puestos_catalogo:'clave descripcion activo referencia revision updated_at actor_id',control_puestos_equivalencias:'empresa variante especialidad clave referencia revision updated_at actor_id',
+   historial_laboral_efectivo:String(prod.public.historial)};
+  for(const [t,c] of Object.entries(NUEVAS))prod.public[t]=c;
+  for(const [t,c] of [['pagos','banco_contexto banco_operacion_clave'],['control_obligaciones_pago','fuente_documentada'],['control_altas_bajas_cortas','baja_operacion_id reversion_baja_id'],['documentos','conciliacion_archivo_id']])
+   if(prod.public[t])prod.public[t]+=' '+c;
+  const colsProd=(sch,t)=>prod[sch]&&prod[sch][t]?new Set(String(prod[sch][t]).split(/\s+/).map(x=>x.split(':')[0]).filter(Boolean)):null;
   const sql=sqls.tablero.replace(/--[^\n]*/g,''),propias=new Set([...sql.matchAll(/create or replace function (?:public|platinum_internal)\.([a-z_0-9]+)/g)].map(m=>m[1]));
   const FUNC_PROD=new Set(['app_registrado','app_ve_obra','app_ve_empresa','app_es_vip','excepcion_noi']);
   const VISTA_FISCAL=['id','obra_id','trabajador_id','cfdi_uuid','categoria','cfdi_total','nomina_neto','periodo_inicio','periodo_fin','nomina_tipo','anulado']; // A7: columnas verificadas en producción
