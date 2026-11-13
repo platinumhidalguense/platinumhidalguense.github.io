@@ -44,7 +44,7 @@ const TABLAS={obras:'obras',trabajadores:'trabajadores',cuadrillas:'cuadrillas',
  }
  async function cargar(f){
   await db.exec('reset role');await db.exec('set session_replication_role=replica');
-  await db.exec(`truncate ${[...Object.values(TABLAS),'documentos'].map(t=>'public.'+t).join(',')},platinum_internal.excepciones_noi_individuales,platinum_internal.lecturas_fiscales_documentos cascade`);
+  await db.exec(`truncate ${[...Object.values(TABLAS),'documentos'].map(t=>'public.'+t).join(',')},platinum_internal.excepciones_noi_individuales,platinum_internal.lecturas_fiscales_documentos,public.control_reversiones_baja cascade`);
   for(const [k,t] of Object.entries(TABLAS))await insertar(t,f[k]||[]);
   const cf=f.cfdi||[],xml=d=>d.formato==='XML';
   await insertar('documentos',cf.map(d=>({id:d.documento_id,obra_id:d.obra_id,trabajador_id:d.trabajador_id,categoria:xml(d)?'CFDI_NOMINA':'RECIBO_NOMINA',archivo:'ficticio/'+d.documento_id,hash:'',
@@ -55,7 +55,8 @@ const TABLAS={obras:'obras',trabajadores:'trabajadores',cuadrillas:'cuadrillas',
   await db.exec('set session_replication_role=origin');
  }
  async function fuentesDeBase(){ // el modelo lee exactamente las filas que quedaron en PostgreSQL
-  const f={};for(const [k,t] of Object.entries(TABLAS))f[k]=(await db.query(`select coalesce(jsonb_agg(to_jsonb(x) order by coalesce(to_jsonb(x)->>'id',to_jsonb(x)->>'cierre_id')),'[]') j from public.${t} x`)).rows[0].j;
+  const f={};for(const [k,t] of Object.entries(TABLAS))f[k]=(await db.query(`select coalesce(jsonb_agg(to_jsonb(x) order by coalesce(to_jsonb(x)->>'id',to_jsonb(x)->>'cierre_id')),'[]') j from public.${t==='historial'?'historial_laboral_efectivo':t} x`)).rows[0].j;
+  // Regla común (A1/A5): el modelo recibe el historial EFECTIVO (sin bajas revertidas), igual que el servidor.
   f.cfdi=(await db.query(`select coalesce(jsonb_agg(jsonb_build_object('documento_id',d.id,'obra_id',d.obra_id,'trabajador_id',d.trabajador_id,'uuid',d.cfdi_uuid,
    'neto',case when d.categoria='CFDI_NOMINA' then d.cfdi_total else coalesce(d.nomina_neto,d.cfdi_total) end,'desde',d.periodo_inicio,'hasta',d.periodo_fin,'tipo',d.nomina_tipo,
    'formato',case when d.categoria='CFDI_NOMINA' then 'XML' else 'PDF' end,'anulado',coalesce(d.anulado,false)) order by d.id),'[]') j
@@ -93,6 +94,23 @@ const TABLAS={obras:'obras',trabajadores:'trabajadores',cuadrillas:'cuadrillas',
     if(esp===AUSENTE)eq(v,undefined,`${et} ${ruta} no debe existir`);else eq(plano(v),esp,`${et} ${ruta} (esperado de A1)`);esperadas++;
    }
   }
+ }
+ // ---------- Baja revertida (control_reversiones_baja + historial_laboral_efectivo) ----------
+ {const O='a3000000-0000-4000-8000-000000000001',W='b3000000-0000-4000-8000-000000000001',ahora='2026-11-11T18:00:00Z',u=await usuario({vip:true});
+  const f={obras:[{id:O,nombre:'CENTRO REVERSION',empresa_codigo:'PLATINUM',fecha_inicio:'2026-03-30'}],
+   trabajadores:[{id:W,obra_id:O,no_trab:1,nombres:'PERSONA',primer_apellido:'FICTICIA',estatus:'ACTIVO',eliminado:false,periodo_pago:'SEMANAL',contratista:'ALFA',fecha_alta:'2026-04-06'}],
+   historial:[{id:9001,trabajador_id:W,obra_id:O,accion:'ALTA',fecha:'2026-04-06T15:00:00Z',datos_despues:{estatus:'ACTIVO',fecha_alta:'2026-04-06',contratista:'ALFA',id_cuadrilla:null}},
+    {id:9002,trabajador_id:W,obra_id:O,accion:'BAJA',fecha:'2026-10-10T15:00:00Z',datos_antes:{estatus:'ACTIVO'},datos_despues:{estatus:'BAJA',fecha_baja:'2026-10-09',contratista:'BETA'}},
+    {id:9003,trabajador_id:W,obra_id:O,accion:'MODIFICACION',fecha:'2026-10-12T15:00:00Z',datos_antes:{estatus:'BAJA',fecha_baja:'2026-10-09'},datos_despues:{estatus:'BAJA',fecha_baja:'2026-10-11',contratista:'BETA'}}]};
+  await cargar(f);const filt={desde:'2026-10-01',hasta:'2026-10-31'};
+  const cruce=async(acc,m)=>{const r=await rpcInterna(u,acc,filt,ahora);const b=await fuentesDeBase();eq(diferencia(r,plano(M[FN[acc]]({...b,ahora:r.actualizado_en||ahora,permisos:{vip:true}},filt))),null,m);return r;};
+  eq((await cruce('PLANTILLA','baja vigente: SQL = modelo')).medidas.bajas.valor,1,'antes de revertir cuenta la baja (corregida al 2026-10-11)');
+  await db.query(`insert into public.control_reversiones_baja(historial_id,obra_id,trabajador_id,estado,created_at,restaurar) values(9002,$1,$2,'APLICADA','2026-10-15T00:00:00Z','{"estatus":"ACTIVO","fecha_baja":null,"contratista":"ALFA"}')`,[O,W]);
+  const r=await cruce('PLANTILLA','baja revertida: SQL = modelo con historial efectivo');
+  eq([r.medidas.bajas.valor,r.eventos.filas.filter(e=>e.tipo==='BAJA').length],[0,0],'la baja revertida no cuenta en bajas ni en eventos');
+  const rr=await cruce('RESUMEN','baja revertida: RESUMEN = modelo');eq([rr.medidas.bajas.valor,rr.medidas.rotacion.desglose.bajas],[0,0],'rotación sin la baja revertida');
+  const crudo=(await db.query(`select jsonb_agg(to_jsonb(h) order by h.id) j from public.historial h`)).rows[0].j,b=await fuentesDeBase();
+  eq(M.plantilla({...b,historial:crudo,ahora,permisos:{vip:true}},filt).medidas.bajas.valor,1,'con historial crudo el modelo contaría la baja: el cliente debe pasar el historial efectivo');
  }
  // ---------- Permisos en servidor (RPC público, rol authenticated) ----------
  const caso=datos.casos.find(x=>x.id==='usuario_restringido');await cargar(caso.fuentes);
@@ -171,6 +189,8 @@ const TABLAS={obras:'obras',trabajadores:'trabajadores',cuadrillas:'cuadrillas',
   select q.trabajador_id,q.obra_id,a.accion,q.created_at+g*interval '1 hour',case when a.accion='CHEQUE-MODIFICACION' then jsonb_build_object('id',q.id,'estatus',case when g=1 then 'PENDIENTE' else 'EXPEDIDO' end,'relleno',repeat('c',700)) end,
    jsonb_build_object('id',q.id,'estatus',case when g=1 and a.accion='CHEQUE-MODIFICACION' then 'EXPEDIDO' when a.accion='CHEQUE-ALTA' then 'PENDIENTE' else q.estatus end,'relleno',repeat('c',800))
   from public.cheques q cross join(values('CHEQUE-ALTA',1),('CHEQUE-MODIFICACION',2)) a(accion,veces) cross join lateral generate_series(1,a.veces) g;`);
+ await db.exec(`insert into public.control_reversiones_baja(historial_id,obra_id,trabajador_id,estado,created_at,restaurar)
+  select h.id,h.obra_id,h.trabajador_id,'APLICADA',h.fecha+interval '3 day','{"estatus":"ACTIVO","fecha_baja":null}' from public.historial h where h.accion='BAJA' order by h.id limit 2`);
  await db.exec('set session_replication_role=origin');await db.exec('analyze');
  const rv0=(await db.query(`select (select count(*) from public.historial) h,(select count(*) from public.trabajadores) w,(select count(*) from public.control_obligaciones_pago) o,
   (select count(*) from public.pagos) p,(select count(*) from public.cheques) q,(select count(*) from public.control_pago_aplicaciones) a`)).rows[0];
@@ -226,4 +246,4 @@ const TABLAS={obras:'obras',trabajadores:'trabajadores',cuadrillas:'cuadrillas',
  console.log(`escenario grande PGlite (ms) con ${vol.o} obligaciones, ${vol.e} evidencias, ${vol.a} aplicaciones: ${JSON.stringify(grande)}`);
  console.log(`PASS tablero PostgreSQL: ${n} comprobaciones; ${consultas} consultas de ${datos.casos.length} casos de A1 idénticas al modelo al centavo (${esperadas} valores esperados), permisos en servidor, paginación ≤ 500 y volumen real medido con límite de 8 s.`);
  await db.close();
-})().catch(e=>{console.error(e.message||e);process.exit(1);});
+})().catch(e=>{console.error(e.stack||e);process.exit(1);});

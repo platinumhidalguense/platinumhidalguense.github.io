@@ -35,6 +35,8 @@
   P('catalogo_incidencias','catalogo_incidencias','CAT_INCIDENCIAS','ESTRUCTURA','global',{desc:'Catálogo de incidencias del calendario.'}),
   P('catalogo_percepciones_extra','catalogo_percepciones_extra','CAT_PERCEPCIONES','ESTRUCTURA','global',{desc:'Catálogo de percepciones extraordinarias.'}),
   P('puesto_sinonimos','puesto_sinonimos','CAT_PUESTOS','ESTRUCTURA','global',{pk:['variante'],desc:'Normalización de puestos.'}),
+  P('control_puestos_catalogo','control_puestos_catalogo','CAT_PUESTOS_CLAVE','ESTRUCTURA','global',{pk:['clave'],desc:'Catálogo de puestos por clave.'}),
+  P('control_puestos_equivalencias','control_puestos_equivalencias','CAT_PUESTOS_EQUIV','ESTRUCTURA','global',{pk:['empresa','variante','especialidad'],desc:'Equivalencias de puesto por razón social.'}),
   P('trabajadores','trabajadores','PADRON','PADRON','obra',{precision:['sd','sdi','sal_semanal','prima_rt','monto_finiquito','benef_porcentaje'],totales:['sal_semanal'],
    filtro:(q,c)=>c.permisos.admin?q:q.eq('eliminado',false),rel:{id_cuadrilla:'CUADRILLAS'},
    desc:'Padrón: identidad, contacto, domicilio, beneficiarios, puesto, periodicidad, forma de pago y fecha_reingreso vigente. Papelera sólo administrador.'}),
@@ -43,6 +45,7 @@
   P('control_movimientos_seguridad_social','control_movimientos_seguridad_social','MOVIMIENTOS_IMSS','MOVIMIENTOS','obra',{desc:'Movimientos afiliatorios IMSS con fecha efectiva, estado y evidencia.'}),
   P('control_altas_bajas_cortas','control_altas_bajas_cortas','ALTAS_BAJAS_CORTAS','MOVIMIENTOS','obra',{precision:['neto_noi','faltas_modelo_noi','dias_pagados_noi'],desc:'Altas y bajas en la misma semana con sus fuentes.'}),
   P('control_expedientes_pendientes','control_expedientes_pendientes','EXPEDIENTES_PEND','MOVIMIENTOS','obra',{desc:'Expedientes pendientes de entregar.'}),
+  P('control_reversiones_baja','control_reversiones_baja','REVERSIONES_BAJA','MOVIMIENTOS','obra',{rel:{historial_id:'HISTORIAL'},desc:'Bajas revertidas: evento de historial revertido, antes, restauración, efectos y resultado. El historial crudo no se altera.'}),
   P('rrhh_plantillas','rrhh_plantillas','RRHH_PLANTILLAS','MOVIMIENTOS','global',{desc:'Plantillas versionadas de procesos de RRHH.'}),
   P('rrhh_procesos','rrhh_procesos','RRHH_PROCESOS','MOVIMIENTOS','obra',{rel:{plantilla_id:'RRHH_PLANTILLAS'},desc:'Procesos de RRHH (alta, baja, etc.). Incapacidades sólo con permiso de salud.'}),
   P('rrhh_tareas','rrhh_tareas','RRHH_TAREAS','MOVIMIENTOS','obra',{rel:{proceso_id:'RRHH_PROCESOS'},desc:'Tareas de cada proceso con su comprobación.'}),
@@ -62,6 +65,7 @@
   P('control_aguinaldo_lineas','control_aguinaldo_lineas','AGUINALDO_LINEAS','AGUINALDO','obra',{precision:['salario_base','dias_pactados','dias_computables','bruto_causado','acreditado_previo','bruto','exento','gravado','isr','neto','uma','exento_usado'],
    totales:['bruto','isr','neto'],rel:{lote_id:'AGUINALDO_LOTES'},desc:'Líneas de aguinaldo con desglose; aplicadas y retiradas.'}),
   P('control_aguinaldo_lotes','control_aguinaldo_lotes','AGUINALDO_LOTES','AGUINALDO','padre',{padre:{fuente:'control_aguinaldo_lineas',campo:'lote_id',destino:'id'},totales:['total_bruto','total_isr','total_neto'],desc:'Lotes de aplicación de aguinaldo.'}),
+  P('control_aguinaldo_conciliaciones','control_aguinaldo_conciliaciones','AGUINALDO_CONCILIACION','AGUINALDO','obra',{totales:['importe_bruto'],rel:{anterior_id:'AGUINALDO_CONCILIACION'},desc:'Conciliación de aguinaldo de bajas: versiones, fuente y respaldo.'}),
   P('prestaciones_papeles','prestaciones_papeles','PAPELES_PRESTACIONES','BAJAS','obra',{rel:{anterior_id:'PAPELES_PRESTACIONES'},desc:'Papeles de prestaciones/finiquito: revisiones, entradas, resultado, D001 y huellas.'}),
   P('prestaciones_archivos_historicos','prestaciones_archivos_historicos','PRESTACIONES_HIST','BAJAS','obra',{desc:'Contenido histórico leído de archivos de prestaciones.'}),
   P('prestaciones_fuentes_historicas','prestaciones_fuentes_historicas','PRESTACIONES_FUENTES','BAJAS','obra',{pk:['obra_id','sha256'],select:'obra_id,sha256,archivo,created_at',omitidos:{contenido_base64:'Archivo original: permanece en la base privada; no se incrusta.'},desc:'Metadatos de archivos fuente de prestaciones.'}),
@@ -89,6 +93,8 @@
   P('control_pago_aplicaciones','control_pago_aplicaciones','APLICACIONES','PAGOS','obra',{totales:['importe'],rel:{obligacion_id:'OBLIGACIONES',evidencia_id:'EVIDENCIAS',version_id:'CIERRE_VERSIONES'},
    desc:'Aplicaciones de evidencia a obligación, incluidas las retiradas (retirado_en).'}),
   P('pagos','pagos','PAGOS','PAGOS','obra',{totales:['importe'],rel:{conciliacion_archivo_id:'ARCHIVOS_CONCILIACION'},desc:'Pagos registrados con medio, estado, fecha, referencias y huella.'}),
+  P('control_importaciones_bancarias','control_importaciones_bancarias','IMPORTACIONES_BANCO','PAGOS','obra',{rel:{padre_id:'IMPORTACIONES_BANCO'},desc:'Archivos bancarios importados: ruta lógica privada en Storage (nunca contenido), huella, estado y propuesta.'}),
+  P('control_banco_resoluciones','control_banco_resoluciones','BANCO_RESOLUCIONES','PAGOS','obra',{rel:{archivo_id:'IMPORTACIONES_BANCO',pago_id:'PAGOS',obligacion_id:'OBLIGACIONES',cheque_id:'CHEQUES',aplicacion_id:'APLICACIONES'},desc:'Resolución por fila de archivo bancario con su vínculo a pago, obligación, cheque o aplicación.'}),
   P('cheques','cheques','CHEQUES','CHEQUES','obra',{totales:['importe'],filtro:(q,c)=>c.permisos.admin?q:q.eq('eliminado',false),
    rel:{cierre_id:'CIERRES',lote_nomina_id:'LOTES_CHEQUES',reemplaza_cheque_id:'CHEQUES'},desc:'Cheques: folios, consecutivos, estados, cancelaciones y reposiciones. Papelera sólo administrador.'}),
   P('bloques_cheques','bloques_cheques','BLOQUES_CHEQUES','CHEQUES','obra',{desc:'Bloques de entrega de cheques.'}),
@@ -247,7 +253,8 @@
  }
 
  /* ---------- movimientos laborales: un evento por movimiento documentado ---------- */
- function movimientosLaborales(trabajadores,historial,nombreCentro){
+ function movimientosLaborales(trabajadores,historial,nombreCentro,reversiones=[]){
+  const revertidas=new Map((reversiones||[]).filter(r=>texto(r.estado).toUpperCase()==='APLICADA'&&r.historial_id!=null).map(r=>[String(r.historial_id),r]));
   const f10=v=>v?String(v).slice(0,10):null,eventos=[],porId=new Map(trabajadores.map(w=>[w.id,w]));
   for(const h of historial){
    if(!h||!h.trabajador_id)continue;
@@ -305,15 +312,16 @@
     const parcial=ciclo===1&&!conAlta;
     salida.push({...e,ciclo,no_trab:w?w.no_trab??null:null,nombre:w?[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolean).join(' '):e.nombre_historial,
      centro:nombreCentro(e.obra_id),evidencia:e.fuente==='HISTORIAL'?(parcial?'HISTORIAL_SIN_ALTA_PREVIA':'HISTORIAL'):'SOLO_PADRON_VIGENTE',
-     observacion:e.fuente==='PADRON_VIGENTE'?'Fecha vigente del padrón sin evento en historial; no sustituye ciclos anteriores.':(parcial?'Ciclo antiguo sin alta documentada: se conserva lo disponible.':null)});
+     revertida:e.historial_id&&revertidas.has(e.historial_id)?'SI':null,reversion_id:e.historial_id&&revertidas.has(e.historial_id)?revertidas.get(e.historial_id).id:null,
+     observacion:e.historial_id&&revertidas.has(e.historial_id)?'Baja revertida (REVERSIONES_BAJA); el evento se conserva tal como quedó en el historial.':e.fuente==='PADRON_VIGENTE'?'Fecha vigente del padrón sin evento en historial; no sustituye ciclos anteriores.':(parcial?'Ciclo antiguo sin alta documentada: se conserva lo disponible.':null)});
    }
    if(lista.length&&!conAlta)ciclosSinAlta++;
   }
   salida.sort((x,y)=>(Number(x.no_trab)||9e9)-(Number(y.no_trab)||9e9)||texto(x.trabajador_id).localeCompare(texto(y.trabajador_id))||x.ciclo-y.ciclo);
   return {eventos:salida,limitaciones:{sin_evidencia:sinEvidencia,ciclos_sin_alta:ciclosSinAlta}};
  }
- const COLS_MOV=['evento_id','trabajador_id','obra_id','centro','no_trab','nombre','ciclo','tipo_evento','fecha_efectiva','fecha_anterior','estatus_antes','estatus_despues','obra_antes','obra_despues','fecha_registro','usuario','fuente','historial_id','accion_origen','evidencia','observacion'];
- const TIPOS_MOV={evento_id:'TEXTO',trabajador_id:'ID',obra_id:'ID',obra_antes:'ID',obra_despues:'ID',historial_id:'ID',no_trab:'ENTERO',ciclo:'ENTERO',fecha_efectiva:'FECHA',fecha_anterior:'FECHA',fecha_registro:'FECHA_HORA'};
+ const COLS_MOV=['evento_id','trabajador_id','obra_id','centro','no_trab','nombre','ciclo','tipo_evento','fecha_efectiva','fecha_anterior','estatus_antes','estatus_despues','obra_antes','obra_despues','fecha_registro','usuario','fuente','historial_id','accion_origen','evidencia','revertida','reversion_id','observacion'];
+ const TIPOS_MOV={evento_id:'TEXTO',trabajador_id:'ID',obra_id:'ID',obra_antes:'ID',obra_despues:'ID',historial_id:'ID',reversion_id:'ID',no_trab:'ENTERO',ciclo:'ENTERO',fecha_efectiva:'FECHA',fecha_anterior:'FECHA',fecha_registro:'FECHA_HORA'};
 
  /* ---------- ambiente (inyectable para pruebas) ---------- */
  function ambiente(op){
@@ -605,7 +613,7 @@
     if(c==='obra_id')cols.push({campo:'centro',tipo:'TEXTO',origen:'DERIVADO: CENTROS.nombre',derivado:true});
     if((f.precision||[]).includes(c))cols.push({campo:c+'__origen',tipo:'TEXTO',origen:'TEXTO_ORIGEN: '+f.tabla+'.'+c+'::text',precisionDe:c});
    }
-   if(f.clave==='trabajadores')cols.push({campo:'docs_entregados',tipo:'ENTERO',origen:'DERIVADO: docs',derivado:true});
+   if(f.clave==='trabajadores'){cols.push({campo:'docs_entregados',tipo:'ENTERO',origen:'DERIVADO: docs',derivado:true});cols.push({campo:'bajas_revertidas',tipo:'ENTERO',origen:'DERIVADO: REVERSIONES_BAJA (estado APLICADA)',derivado:true});}
    if(f.clave==='documentos'){cols.push({campo:'estado_documento',tipo:'TEXTO',origen:'DERIVADO: anulado',derivado:true});cols.push({campo:'almacenamiento',tipo:'TEXTO',origen:'DERIVADO: archivo',derivado:true});}
    if(f.clave==='historial')cols.push({campo:'campos_cambiados',tipo:'TEXTO',origen:'DERIVADO: datos_antes vs datos_despues',derivado:true});
    for(const c of cols){
@@ -614,6 +622,8 @@
     if(rel&&!c.clave){c.clave='FK';c.relacion=rel+'.id';}
     c.permiso=f.permiso||null;c.desc=DESC[c.campo]||null;
    }
+   const RVt=datos.get('control_reversiones_baja'),revPorTrab=new Map();
+   for(const r of RVt&&!RVt.error?RVt.filas:[])if(texto(r.estado).toUpperCase()==='APLICADA')revPorTrab.set(r.trabajador_id,(revPorTrab.get(r.trabajador_id)||0)+1);
    const urlCampo=new Set(cols.filter(c=>/url|link|evidencia|archivo|ruta/.test(c.campo)).map(c=>c.campo));
    const docsBase=am.docs;
    const salida=new Array(filas.length);
@@ -623,6 +633,7 @@
      const c=cols[k];let v;
      if(c.campo==='centro')v=nombreCentro(x.obra_id);
      else if(c.precisionDe)v=x[c.campo]===undefined?null:x[c.campo];
+     else if(c.campo==='bajas_revertidas')v=revPorTrab.get(x.id)||0;
      else if(c.campo==='docs_entregados'){const dd=x.docs&&typeof x.docs==='object'?x.docs:{};v=docsBase.length?docsBase.filter(k2=>dd[k2]==='ENTREGADO').length:Object.values(dd).filter(y=>y==='ENTREGADO').length;}
      else if(c.campo==='estado_documento')v=x.anulado?'ANULADO':'VIGENTE';
      else if(c.campo==='almacenamiento')v=x.archivo?'STORAGE_PRIVADO':null;
@@ -642,7 +653,8 @@
   // Movimientos laborales derivados (reingresos por evento).
   const T=datos.get('trabajadores'),H=datos.get('historial');let mov=null;
   if(T&&H){
-   mov=movimientosLaborales(T.filas,H.filas,nombreCentro);
+   const RV=datos.get('control_reversiones_baja');
+   mov=movimientosLaborales(T.filas,H.filas,nombreCentro,RV&&!RV.error?RV.filas:[]);
    const cols=COLS_MOV.map(c=>({campo:c,tipo:TIPOS_MOV[c]||'TEXTO',origen:'DERIVADO: HISTORIAL y PADRON',derivado:true,clave:c==='evento_id'?'PK':(['trabajador_id','obra_id','historial_id'].includes(c)?'FK':null),
     relacion:{trabajador_id:'PADRON.id',obra_id:'CENTROS.id',historial_id:'HISTORIAL.id'}[c]||null,desc:{ciclo:'Ciclo laboral (1 = alta original; cada reingreso abre uno nuevo).',fecha_efectiva:'Fecha efectiva del movimiento.',
      fuente:'HISTORIAL (evento documentado) o PADRON_VIGENTE (fecha vigente sin evento).',evidencia:'Calidad de la evidencia del evento.'}[c]||DESC[c]||null}));

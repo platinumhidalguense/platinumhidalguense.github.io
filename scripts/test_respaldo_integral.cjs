@@ -94,7 +94,8 @@ function crearBase(V){
  // Casos especiales en O1.
  const W=db.trabajadores.filter(w=>w.obra_id===O1);
  const w1=W[0];Object.assign(w1,{fecha_reingreso:'2026-08-03',estatus:'ACTIVO',fecha_baja:'2026-07-15'});
- hist(w1,'BAJA',snap(w1,{estatus:'ACTIVO',fecha_baja:null}),snap(w1,{estatus:'BAJA',fecha_baja:'2026-05-10'}),ts(40));
+ const bajaRev=hist(w1,'BAJA',snap(w1,{estatus:'ACTIVO',fecha_baja:null}),snap(w1,{estatus:'BAJA',fecha_baja:'2026-05-10'}),ts(40));
+ ins('control_reversiones_baja',{id:id('w'),historial_id:bajaRev.id,obra_id:O1,trabajador_id:w1.id,estado:'APLICADA',transaccion:123456789,actor_id:USUARIOS.admin.id,actor_email:'admin@prueba.test',created_at:ts(41),antes:{estatus:'BAJA'},restaurar:{estatus:'ACTIVO'},efectos:{papeles:1},resultado:{ok:true}});
  hist(w1,'REACTIVACION',snap(w1,{estatus:'BAJA',fecha_reingreso:null}),snap(w1,{estatus:'ACTIVO',fecha_reingreso:'2026-06-01'}),ts(61));
  hist(w1,'BAJA',snap(w1,{estatus:'ACTIVO',fecha_baja:'2026-05-10'}),snap(w1,{estatus:'BAJA',fecha_baja:'2026-07-15'}),ts(105));
  hist(w1,'REACTIVACION',snap(w1,{estatus:'BAJA',fecha_reingreso:'2026-06-01'}),snap(w1,{estatus:'ACTIVO',fecha_reingreso:'2026-08-03'}),ts(124));
@@ -146,6 +147,12 @@ function crearBase(V){
  ins('platinum_internal.bajas_operaciones',{id:id('u'),obra_id:O1,trabajador_id:W[12].id,inicio_ciclo:'2026-04-06',fecha_baja:'2026-06-30',actor:USUARIOS.admin.id,firma_solicitud:'f',resultado:{finiquito:1234.5},created_at:ts(90)});
  ins('platinum_internal.bajas_operaciones',{id:id('u'),obra_id:O3,trabajador_id:db.trabajadores.find(w=>w.obra_id===O3).id,inicio_ciclo:'2026-04-06',fecha_baja:'2026-06-30',actor:USUARIOS.admin.id,firma_solicitud:'f',resultado:{},created_at:ts(90)});
  ins('platinum_internal.excepciones_noi_individuales',{id:id('u'),cierre_id:cierre.id,trabajador_id:W[5].id,archivo_sha256:'s',neto_original:3200.15,nomina_transferencia:3000,finiquito_efectivo:200.15,pago_nomina_id:null,autorizacion_origen:'CORREO',autorizacion_texto:'AUTORIZADO',registrado_en:ts(95)});
+ const imb=ins('control_importaciones_bancarias',{id:id('j'),obra_id:O1,empresa_codigo:'PLATINUM',contexto:{banco:'BANAMEX'},nombre:'estado.pdf',sha256:'abc',ruta:O1+'/banco/estado.pdf',tamano:1024,mime:'application/pdf',padre_id:null,paginas:['1','2'],estado:'APLICADO',propuesta:{filas:2},revision:1,error:null,creado_por:USUARIOS.admin.id,created_at:ts(60),updated_at:ts(61)});
+ ins('control_banco_resoluciones',{id:id('j'),archivo_id:imb.id,fila:1,operacion_id:id('k'),obra_id:O1,trabajador_id:W[5].id,pago_id:db.pagos[0].id,obligacion_id:null,cheque_id:null,aplicacion_id:null,estado:'RESUELTA',revision:1,propuesta:{},resultado:{},actor_id:USUARIOS.admin.id,created_at:ts(61),updated_at:ts(61)});
+ ins('control_aguinaldo_conciliaciones',{id:id('j'),operacion_id:id('k'),empresa_codigo:'PLATINUM',obra_id:O1,trabajador_id:W[12].id,ejercicio:2026,fecha_baja:'2026-06-30',version:1,anterior_id:null,estado:'VIGENTE',estado_operacion:'CONCILIADO',importe_bruto:1234.56,exento:1234.56,fecha_pago:'2026-07-03',fuente_clave:'F1',respaldo_clave:'R1',motivo:'BAJA',referencia:'',fuente:{a:1},respaldo:{b:2},firma_solicitud:'f',actor_id:USUARIOS.admin.id,actor_email:'a',created_at:ts(92)});
+ ins('control_puestos_catalogo',{clave:7,descripcion:'AYUDANTE',activo:true,referencia:null,revision:1,updated_at:ts(1),actor_id:null});
+ ins('control_puestos_equivalencias',{empresa:'PLATINUM',variante:'AYUDANTE GRAL',especialidad:'',clave:7,referencia:null,revision:1,updated_at:ts(1),actor_id:null});
+ Object.assign(db.pagos[0],{banco_contexto:{archivo:imb.id,fila:1},banco_operacion_clave:'000123'});
  ins('control_bitacora',{id:id('t'),obra_id:O1,modulo:'CIERRE_NOMINA',accion:'AUTORIZAR',entidad_tipo:'control_cierres_nomina',entidad_id:cierre.id,detalle:{antes:{estado:'REVISADO'},despues:{estado:'AUTORIZADO'}},actor_id:USUARIOS.admin.id,actor_email:'a',created_at:ts(31)});
  for(const t of Object.keys(db))for(const r of db[t])if(r.__txt===undefined)Object.defineProperty(r,'__txt',{value:undefined,enumerable:false,writable:true});
  for(const t of Object.keys(db))for(const r of db[t])if(r.__txt)Object.defineProperty(r,'__txt',{value:r.__txt,enumerable:false,writable:true});
@@ -178,7 +185,7 @@ function servidor(db,usuario,op={}){
    case 'excepciones_noi_individuales':case 'correcciones_centavos_aprobadas':return r=>(db.control_cierres_nomina||[]).some(x=>x.id===r.cierre_id&&c.obras.has(x.obra_id));
    case 'estado_conciliacion_nomina':return r=>enO(r)&&(r.cierre_id!=null||u.admin);
    case 'config':return r=>Object.keys(T.CONFIG_PERMITIDA(c.empresa)).includes(r.clave);
-   case 'catalogo_incidencias':case 'catalogo_percepciones_extra':case 'puesto_sinonimos':case 'rrhh_plantillas':case 'folios_cheque':case 'historial_automatizaciones':case 'app_usuarios':case 'control_permisos_cheques':return ()=>true;
+   case 'control_puestos_catalogo':case 'control_puestos_equivalencias':case 'catalogo_incidencias':case 'catalogo_percepciones_extra':case 'puesto_sinonimos':case 'rrhh_plantillas':case 'folios_cheque':case 'historial_automatizaciones':case 'app_usuarios':case 'control_permisos_cheques':return ()=>true;
    default:return enO;
   }
  };
@@ -324,6 +331,12 @@ const manif=wb=>hoja(wb,'MANIFIESTO');
  const mov=hoja(wb,'MOVIMIENTOS_LABORALES'),m1=mov.filter(x=>x.trabajador_id===db.trabajadores.filter(w=>w.obra_id===O1)[0].id);
  eq(m1.map(x=>[x.ciclo,x.tipo_evento,x.fecha_efectiva,x.fuente]),[[1,'ALTA','2026-04-06','HISTORIAL'],[1,'BAJA','2026-05-10','HISTORIAL'],[2,'REINGRESO','2026-06-01','HISTORIAL'],[2,'BAJA','2026-07-15','HISTORIAL'],[3,'REINGRESO','2026-08-03','HISTORIAL']]
   .map(x=>x),'reingresos múltiples: un evento por movimiento con su fecha y ciclo; la fecha vigente no sustituye la anterior');
+ const rev=db.control_reversiones_baja[0],mr=mov.find(x=>x.historial_id===String(rev.historial_id));
+ eq([mr.tipo_evento,mr.revertida,mr.reversion_id],['BAJA','SI',rev.id],'baja revertida señalada en movimientos');
+ ok(hist.some(h=>h.id===String(rev.historial_id)&&h.accion==='BAJA'),'el historial crudo conserva la baja revertida');
+ eq(padron.find(x=>x.id===rev.trabajador_id).bajas_revertidas,1,'padrón con conteo de bajas revertidas');
+ eq(hoja(wb,'PAGOS').find(x=>x.id===db.pagos[0].id).banco_operacion_clave,'000123','columna nueva de pagos como texto');
+ ok(['REVERSIONES_BAJA','BANCO_RESOLUCIONES','IMPORTACIONES_BANCO','AGUINALDO_CONCILIACION','CAT_PUESTOS_CLAVE','CAT_PUESTOS_EQUIV'].every(h=>wb.SheetNames.includes(h)),'tablas nuevas de producción respaldadas');
  const w4=db.trabajadores.filter(w=>w.obra_id===O1)[3];
  eq(mov.filter(x=>x.trabajador_id===w4.id&&x.tipo_evento==='REINGRESO').map(x=>[x.fecha_efectiva,x.fuente,x.evidencia]),[['2026-09-01','PADRON_VIGENTE','SOLO_PADRON_VIGENTE']],'reingreso sin evento: se conserva y se marca la limitación');
  const largos=hoja(wb,'TEXTOS_LARGOS');ok(largos.length>=3,'textos largos en partes');

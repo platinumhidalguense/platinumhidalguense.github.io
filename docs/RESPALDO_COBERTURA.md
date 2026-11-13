@@ -172,6 +172,19 @@ Permiso «operativo» = el alcance normal del usuario por centro y razón social
 | CONFIGURACION | tabla | config | operativo · opcional | No exportado |
 | ACCESOS | tabla | global | admin_vip · opcional | No exportado |
 
+### Fuentes agregadas (cambios de producción del 2026-11-12)
+
+| Hoja | Origen | Alcance | Permiso | Antes (V0) |
+|---|---|---|---|---|
+| REVERSIONES_BAJA | tabla | obra | operativo | No exportado |
+| IMPORTACIONES_BANCO | tabla (ruta lógica privada, sin contenido) | obra | operativo | No exportado |
+| BANCO_RESOLUCIONES | tabla | obra | operativo | No exportado |
+| AGUINALDO_CONCILIACION | tabla | obra | operativo | No exportado |
+| CAT_PUESTOS_CLAVE | tabla | global | operativo | No exportado |
+| CAT_PUESTOS_EQUIV | tabla | global | operativo | No exportado |
+
+Las columnas nuevas (referencias bancarias de pagos, fuente documentada de obligaciones, vínculos de baja en altas/bajas cortas) salen solas porque cada hoja exporta todas las columnas de su fuente. Las bajas revertidas se señalan en MOVIMIENTOS_LABORALES (`revertida`, `reversion_id`) y en PADRON (`bajas_revertidas`); el HISTORIAL se conserva tal cual.
+
 ## Fuera del respaldo (visible en el MANIFIESTO)
 | Objeto | Motivo |
 |---|---|

@@ -50,6 +50,10 @@ async function falla(db,who,acc,datos,re,m){let e=null;try{await rpc(db,who,acc,
   await ins('public.control_cierres_eliminados','id,obra_id,semana,periodo,estado_anterior,motivo,snapshot_sha256,cierre,conciliacion,cheques_vinculados,actor_id,actor_email',[u(k++),o,1,'SEMANAL','BORRADOR','DUPLICADO DE PRUEBA','x','{}','[]','[]',ids.admin,'admin@prueba.test']);
   await ins('public.rrhh_procesos','id,obra_id,tipo,estado',[u(k++),o,'INCAPACIDAD','ABIERTO']);
   await ins('public.rrhh_procesos','id,obra_id,tipo,estado',[u(k++),o,'ALTA','ABIERTO']);
+  await ins('public.control_reversiones_baja','id,historial_id,obra_id,trabajador_id,estado,created_at',[u(k++),k,o,ids.w,'APLICADA','2026-06-01T00:00:00Z']);
+  const imb=u(k++);await ins('public.control_importaciones_bancarias','id,obra_id,empresa_codigo,nombre,ruta,estado,created_at,updated_at',[imb,o,'PLATINUM','e.pdf','r/e.pdf','APLICADO','2026-06-01T00:00:00Z','2026-06-01T00:00:00Z']);
+  await ins('public.control_banco_resoluciones','id,archivo_id,obra_id,pago_id,estado,created_at,updated_at',[u(k++),imb,o,pg,'RESUELTA','2026-06-01T00:00:00Z','2026-06-01T00:00:00Z']);
+  await ins('public.control_aguinaldo_conciliaciones','id,obra_id,trabajador_id,estado,importe_bruto,created_at',[u(k++),o,ids.w,'VIGENTE',100,'2026-06-01T00:00:00Z']);
   await ins('platinum_internal.bajas_operaciones','id,obra_id,trabajador_id,fecha_baja',[u(k++),o,ids.w,'2026-06-30']);
   await ins('platinum_internal.bajas_operaciones','id,obra_id,trabajador_id,fecha_baja',[u(k++),o,ids.w2,'2026-07-30']);
   await ins('platinum_internal.imss_auditoria_integraciones','id,obra_id,trabajador_id',[u(k++),o,ids.w]);
@@ -62,6 +66,7 @@ async function falla(db,who,acc,datos,re,m){let e=null;try{await rpc(db,who,acc,
  await ins('public.reunion_cheques_entrega','id,reunion_id,cheque_id,origen,entregado,activo',[u(k++),re,u(1),'M',false,true]);
  const imp=u(k++);await ins('public.infonavit_avisos_importaciones','id,empresa_codigo,registro_patronal,archivo_nombre,archivo_sha256,estado',[imp,'PLATINUM','A1234567101','a','s','OK']);
  await ins('public.infonavit_avisos_archivos','importacion_id,contenido',[imp,Buffer.from('PK')]);
+ await ins('public.control_puestos_catalogo','clave,descripcion,activo',[7,'AYUDANTE',true]);await ins('public.control_puestos_equivalencias','empresa,variante,clave',['PLATINUM','AYUDANTE GRAL',7]);
  await ins('public.config','clave,valor',['correo_creados','{"pwd":"x"}']);await ins('public.config','clave,valor',['fiscal','{"uma":117.31}']);
  await owner(db,"set session_replication_role=origin");
  // Consulta del cliente: alcance + filtros explícitos del módulo; la RLS de producción hace el resto.
