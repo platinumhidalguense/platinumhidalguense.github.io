@@ -48,10 +48,11 @@ const settle=()=>new Promise(r=>setImmediate(r));
  box.CFGEMP.contrato_empresa_PLATINUM=poder;
  for(const caso of [w,{...w,id:'alta-nueva',fecha_alta:'2026-11-13'},{...w,id:'reingreso',fecha_reingreso:'2026-10-12'}]){
   const doc=await box.generarContrato(caso.id,{devolverHTML:true,trabajador:{...caso,direccion:'DOMICILIO PROPIO TRABAJADOR'},obra:box.OBRA,empresa:e,datos:{emp:'PLATINUM',tipo:'OBRA DETERMINADA'}});
-  for(const valor of ['27,149','433','3 de julio de 2026',poder.poder_notario,poder.domicilio,'DOMICILIO PROPIO TRABAJADOR','31 de diciembre de 2026','TIEMPO DETERMINADO','art&iacute;culo 39'])assert(doc.includes(valor),valor);
+  for(const valor of ['27,149','433','3 de julio de 2026',poder.poder_notario,poder.domicilio,'DOMICILIO PROPIO TRABAJADOR','31 de diciembre de 2026','TIEMPO DETERMINADO'])assert(doc.includes(valor),valor);
   assert(doc.includes('instrumento 27,149 descrito en el inciso a)'));
   assert(doc.includes(firma.instrumento)&&doc.includes(firma.notario),'Constitutiva conservada');
   assert(!doc.includes('extingui&eacute;ndose la relaci&oacute;n de trabajo al concluir la obra'));
+  const tercera=doc.match(/<p><b>TERCERA\. -<\/b> ([\s\S]*?)<\/p>/)[1];assert(tercera.endsWith('extingui&eacute;ndose la relaci&oacute;n de trabajo al concluir la fecha del contrato firmado por "EL TRABAJADOR"'));assert(!tercera.includes('art&iacute;culo 39')&&!tercera.includes('supuestos aplicables'));
   if(caso.fecha_reingreso)assert(doc.includes('12 de octubre de 2026'));
  }
  await assert.rejects(box.generarContrato(w.id,{devolverHTML:true,trabajador:{...w,fecha_alta:'2027-01-01'},empresa:e,obra:box.OBRA,datos:{emp:'PLATINUM'}}),/posterior al t/);
