@@ -8,7 +8,7 @@ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'SEMANA FICTIC
 const bytes=XLSX.write(wb,{type:'buffer',bookType:'xlsx'}),sha=crypto.createHash('sha256').update(bytes).digest('hex');
 let checks=0,acepta=false,falla=false,lecturaMala=false,vinculos=0,recalculados=0,consultas=0;
 const eq=(a,b,m)=>{assert.deepEqual(a,b,m);checks++;},ok=(a,m)=>{assert(a,m);checks++;};
-const tick=async()=>{for(let i=0;i<80;i++)await new Promise(r=>setImmediate(r));};
+const tick=async()=>{for(let i=0;i<14;i++)await new Promise(r=>setImmediate(r));await new Promise(r=>setTimeout(r,60));for(let i=0;i<14;i++)await new Promise(r=>setImmediate(r));};
 const datos={trabajador_id:'W',huella:'FUENTES_1',permisos:{captura:true,correccion:true},bajas:[{fecha_baja:'2026-08-03',ciclo_desde:'2026-04-20',version:0,estado:'PENDIENTE',fuentes:[
  {clave:'PAPEL:P',tipo:'PAPEL',id:'P',aguinaldo:1772.37,neto:3507.85,exento:null,fuente_sha256:sha,hoja:'SEMANA FICTICIA',fila:2,datos:{aguinaldo:{celda:'G11'}}}],
  respaldos:[{clave:'CHEQUE:C',tipo:'CHEQUE',neto:3507.85,estado:'PAGADO',fecha_pago:'2026-08-07'}]}]};

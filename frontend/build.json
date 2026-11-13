@@ -1,8 +1,8 @@
 {
   "version": "2026-11-12.3",
-  "entry": "assets/platinum-app.4cd994e92ee617d1.js",
-  "sha256": "4cd994e92ee617d1be2e4371afd7bf759be0dc87dc2d30b1be8254e4bf981fd9",
-  "integrity": "sha384-958dbjQWd+j2+P4klBlxAxu914vBZv92D+FD+GEPjPeNInK0nzAylFCrVQ3fa6ET",
+  "entry": "assets/platinum-app.37d3207480db8427.js",
+  "sha256": "37d3207480db84273c9be319ed9f86ac598750bd77bb725337dda3315c4e667a",
+  "integrity": "sha384-BSh55l1GgwIEaJ9DZ/hluTxIVtTXz+yCbFEM3b/ft0pJWUFEblgsN2XKZF7577Rr",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -350,7 +350,7 @@
     },
     {
       "path": "frontend/modulos/86-respaldo-integral.js",
-      "sha256": "bf97fcd496e438c3bb7a285f7ec978f0a84c5a13fe987f262564d26480d1fb5c"
+      "sha256": "d0fb41e223356c80f4e4419eaa5e5fc75b8b4d7c395633fac3cc0abfbd6cb701"
     }
   ]
 }
