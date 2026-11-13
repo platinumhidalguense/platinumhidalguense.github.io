@@ -1,8 +1,8 @@
 {
   "version": "2026-11-13.4",
-  "entry": "assets/platinum-app.2d7a8a32828d1f20.js",
-  "sha256": "2d7a8a32828d1f204c9190ca20cd62c6bf558c2f99a4ff00f9239bb37d228591",
-  "integrity": "sha384-lPLQAdhcD1h2it2i15kCe4XLkZnMMb2krzuW5RSD1GUBIydxSanpArQqbq4D5cEr",
+  "entry": "assets/platinum-app.64be4fa33887317f.js",
+  "sha256": "64be4fa33887317f76df59f9b7f2e57d39ee931590a77bc0551b64f746aa191c",
+  "integrity": "sha384-63kbAx2r00SKW9t7b1pFR0WSjJHskaNsb/Gyo9fkfZA6LekzhicvP+ErKWGLg9rV",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -130,7 +130,7 @@
     },
     {
       "path": "frontend/modulos/31-documentos-laborales.js",
-      "sha256": "f58b20c3ed3f8ef255ed318802ae39c71a7f640f2a0c9a995d4845ef789dbf93"
+      "sha256": "0f56450bf4393cd35f8827e9ca1d8dbc18361c82de84b06cce609718d3455983"
     },
     {
       "path": "frontend/modulos/32-legajos.js",

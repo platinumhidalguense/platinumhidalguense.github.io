@@ -1,7 +1,7 @@
 // VM/DOM sintético: no navegador, red, usuarios ni expedientes reales.
 const fs=require('fs'),vm=require('vm'),acorn=require('acorn'),assert=require('node:assert/strict'),{parseHTML}=require('linkedom');
 const texto=fs.readFileSync('frontend/modulos/31-documentos-laborales.js','utf8');
-const funciones=acorn.parse(texto,{ecmaVersion:'latest'}).body.filter(n=>n.type==='FunctionDeclaration'&&['datosEmpresaContrato','condicionesContrato','generarContrato'].includes(n.id.name)).map(n=>texto.slice(n.start,n.end)).join('\n');
+const funciones=acorn.parse(texto,{ecmaVersion:'latest'}).body.filter(n=>n.type==='FunctionDeclaration'&&['datosEmpresaContrato','condicionesContrato','openContrato','generarContrato'].includes(n.id.name)).map(n=>texto.slice(n.start,n.end)).join('\n');
 let escrituras=0,impresiones=[],descargas=[],llamadas=[];
 const {document,window}=parseHTML('<html><body><div id="scr-app"></div><div id="scr-login"></div></body></html>');
 // linkedom no implementa la selección de formularios del navegador.
@@ -56,6 +56,7 @@ const settle=()=>new Promise(r=>setImmediate(r));
  }
  await assert.rejects(box.generarContrato(w.id,{devolverHTML:true,trabajador:{...w,fecha_alta:'2027-01-01'},empresa:e,obra:box.OBRA,datos:{emp:'PLATINUM'}}),/posterior al t/);
  assert.equal(escrituras,0,'Ni documentos ni error de fecha modifican fichas');
+ const errores=[];box.toast=m=>errores.push(m);box.empresaDeTrabajador=()=> 'PLATINUM';box.WORKERS.push({...w,id:'futuro-incompatible',fecha_alta:'2027-01-01'});box.openContrato('futuro-incompatible');assert(errores.at(-1).includes('posterior al término'),'Aviso visible desde ficha antes de abrir impresión');
  // Comparación exacta del documento JIRE con la plantilla previa.
  const cp=require('node:child_process'),previo=cp.execFileSync('git',['show','HEAD:frontend/modulos/31-documentos-laborales.js'],{encoding:'utf8'});
  const original=box.generarContrato;vm.runInContext(acorn.parse(previo,{ecmaVersion:'latest'}).body.filter(n=>n.type==='FunctionDeclaration'&&n.id.name==='generarContrato').map(n=>previo.slice(n.start,n.end)).join('\n'),box);
