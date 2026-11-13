@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-13.2",
-  "entry": "assets/platinum-app.225e87f2e6f35049.js",
-  "sha256": "225e87f2e6f3504910d3b56b5ea0d5168abd890faec3641ff2fe9d638d1c97f8",
-  "integrity": "sha384-mqXnLTA1IHrF9IKMiDFKR3hqiSxq2ck7Nr8c0Q4g4dx8wO0Iiqs93BTmFWo8Xtih",
+  "version": "2026-11-13.3",
+  "entry": "assets/platinum-app.bb9ec5e58d079cc1.js",
+  "sha256": "bb9ec5e58d079cc17142212455fbe955ac9ef014a4ca7421ba4521409008c69e",
+  "integrity": "sha384-gMUDgeff6qEeFihgpOd8jsLN13C2NL9E/r236dOwjrK6DwwxAGMM94lUMBrJo/cF",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "b7496f1e87347cef3b618893a78b9d3b5ae388c748e1173247a495ddd4bf98fe"
+      "sha256": "5ec8cee2ddd6d020e2507321d71caf7d8825efb5e7f49ff4720a71ea829a2a5c"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -130,7 +130,7 @@
     },
     {
       "path": "frontend/modulos/31-documentos-laborales.js",
-      "sha256": "daec93da46c968a6cae16b6587cb15e2aff4fb70f334d06ca9fadd083f6c6cf1"
+      "sha256": "492dd0d789d8c018e9d2207cb02a82544677f0a587f7febbb541faed62875017"
     },
     {
       "path": "frontend/modulos/32-legajos.js",
@@ -226,7 +226,7 @@
     },
     {
       "path": "frontend/modulos/55-contratos-consulta.js",
-      "sha256": "06c0bc3375e984fbb43b35b3877cdb09511d78612199514395315fc4de7b1348"
+      "sha256": "a1659fba00d2a3b044f343b7085dec8e776315cee9a709e71e95be038f0b67c0"
     },
     {
       "path": "frontend/modulos/56-calendario-core.js",
