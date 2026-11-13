@@ -180,17 +180,22 @@ function chqMostrarRespaldo(r,existente=false){
       b.onclick=()=>{if(confirm('Se abrirá el cierre sin guardar esta captura. Los números que acabas de escribir no se han registrado. ¿Continuar?'))window.PLATINUM_FLOWS.abrirCierre(r.expedicion.cierre_id);};aviso.appendChild(b);}
   }
 }
+function chqTrabajadorCaptura(c,nombre){
+  if(c?.reemplaza_cheque_id&&c.trabajador_id)return WORKERS.find(w=>w.id===c.trabajador_id)||{id:c.trabajador_id};
+  return WORKERS.find(w=>fullName(w).toUpperCase()===String(nombre||'').trim().toUpperCase());
+}
 async function chqTraerRecibo(){
-  const nom=($('c-nombre')?.value||'').trim().toUpperCase(),w=WORKERS.find(x=>fullName(x).toUpperCase()===nom);
+  const previo=CHEQUES.find(c=>c.id===$('c-save')?.dataset?.chequeId);
+  const nom=($('c-nombre')?.value||'').trim().toUpperCase(),w=chqTrabajadorCaptura(previo,nom);
   if(!w){toast('Elige primero un trabajador registrado.','err');return;}
   const rec={obra_id:OBRA.id,trabajador_id:w.id,semana:$('f-c-semana')?.value,tipo_pago:$('c-tipo')?.value};
-  const previo=CHEQUES.find(c=>c.id===$('c-save')?.dataset?.chequeId);
   if(previo?.obra_id===rec.obra_id&&previo.trabajador_id===rec.trabajador_id&&normSem(previo.semana)===normSem(rec.semana)&&previo.tipo_pago===rec.tipo_pago)
     Object.assign(rec,{id:previo.id,cierre_id:previo.cierre_id});
   const aviso=$('c-neto-fuente'),r=await chqResolverNeto(rec),input=$('f-c-importe');
-  if(!aviso||aviso!==$('c-neto-fuente')||rec.obra_id!==OBRA?.id||rec.trabajador_id!==(WORKERS.find(x=>fullName(x).toUpperCase()===($('c-nombre')?.value||'').trim().toUpperCase())?.id)||rec.semana!==$('f-c-semana')?.value||rec.tipo_pago!==$('c-tipo')?.value)return;
+  if(!aviso||aviso!==$('c-neto-fuente')||rec.obra_id!==OBRA?.id||rec.trabajador_id!==chqTrabajadorCaptura(previo,$('c-nombre')?.value)?.id||rec.semana!==$('f-c-semana')?.value||rec.tipo_pago!==$('c-tipo')?.value)return;
   if(r.error)aviso.textContent=r.error;
   else{
+   if(previo?.reemplaza_cheque_id&&Number(previo.importe)!==Number(r.neto)){aviso.textContent='El respaldo difiere del instrumento original. La reposición conserva $'+money(previo.importe)+'. Revisa sus fuentes antes de expedir.';return;}
    if(input)input.value=r.neto.toFixed(2);
    chqMostrarRespaldo(r,chqCapturaExistente(previo,w,rec.semana,rec.tipo_pago,r.neto));
   }
@@ -243,15 +248,16 @@ function openChequeForm(id){
         <div><label>Tipo de pago</label><select id="c-tipo" onchange="chqTraerRecibo()">${['CHEQUE','FINIQUITO'].map(t=>`<option ${(c&&c.tipo_pago)===t?'selected':''}>${t}</option>`).join('')}</select></div>
         ${fld('c-num','Número de cheque',c?c.num_cheque:'',{hint:'Al capturarlo, el estatus pasa a EXPEDIDO automáticamente.'})}
         ${fld('c-consec','No. consecutivo',c?c.consecutivo:'')}
-        <div><label>Estatus</label><select id="c-estatus">${['PENDIENTE','EXPEDIDO','ENTREGADO','CANCELADO'].map(s2=>`<option ${((c&&c.estatus)||'PENDIENTE')===s2?'selected':''}>${s2}</option>`).join('')}</select></div>
+        <div><label>Estatus</label><select id="c-estatus">${['PENDIENTE','EXPEDIDO','ENTREGADO',...(c?.estatus==='CANCELADO'?['CANCELADO']:[])].map(s2=>`<option ${((c&&c.estatus)||'PENDIENTE')===s2?'selected':''}>${s2}</option>`).join('')}</select></div>
         ${fld('c-obs','Observaciones',c?c.observaciones:'',{cls:'c3'})}
       </div>
       <datalist id="dl-trab">${WORKERS.map(w=>`<option data-id="${w.id}">${esc(fullName(w))}</option>`).join('')}</datalist>
-      <p style="margin-top:12px;font-size:12px;color:var(--mut)">Un cheque expedido puede marcarse <b>CANCELADO</b>. Si hubo un error de captura o en el cheque físico, <b>Eliminar</b> lo retira del listado con auditoría. Los folios capturados requieren confirmar que no fue entregado ni cobrado; se conservan en la papelera.</p>
+      <p style="margin-top:12px;font-size:12px;color:var(--mut)">Usa <b>Cancelar cheque</b> para sustituir un físico expedido o entregado y crear su reposición pendiente. Si hubo un error de captura o en el cheque físico, <b>Eliminar</b> lo retira del listado con auditoría. Los folios capturados requieren confirmar que no fue entregado ni cobrado; se conservan en la papelera.</p>
     </div>
     <div class="m-foot">
       ${c&&puedeEliminarCheque()?`<button class="btn danger" style="background:#7a1414;border-color:#7a1414;margin-right:auto" onclick="eliminarChequeErroneo('${c.id}')">🗑 Eliminar (captura errónea)</button>`:''}
-      <button class="btn" onclick="closeModal()">Cancelar</button>
+      ${c&&puedeEditarTrabajador()&&['EXPEDIDO','ENTREGADO'].includes(c.estatus)?`<button class="btn danger" onclick="PLATINUM_CHEQUES_REPOSICION.cancelar('${c.id}')">Cancelar cheque</button>`:''}
+      <button class="btn" onclick="closeModal()">Volver</button>
       <button class="btn dark" id="c-save" data-cheque-id="${esc(c?.id||'')}" onclick="saveCheque(${c?`'${c.id}'`:'null'})">💾 Guardar</button>
     </div>`,'md');
   /* v36.1 · BUG CORREGIDO: `fld()` crea los inputs con el prefijo `f-`
@@ -260,6 +266,10 @@ function openChequeForm(id){
      llenaba solo al escribir la semana. */
   const elSem=$('f-c-semana'), elPer=$('f-c-periodo');
   if(elSem&&elPer){elSem.oninput=()=>{const n=parseInt(String(elSem.value).replace(/\D/g,''));if(n>0)elPer.value=periodoCorto(n);};elSem.onchange=()=>chqTraerRecibo();}
+  if(c?.reemplaza_cheque_id){
+    for(const id of ['c-nombre','f-c-no_trab','f-c-contratista','f-c-puesto','f-c-curp','f-c-semana','f-c-periodo','f-c-importe'])if($(id))$(id).readOnly=true;
+    $('c-tipo').disabled=true;
+  }
   if(c&&c.estatus==='PENDIENTE'&&$('c-neto-fuente'))$('c-neto-fuente').textContent='Importe guardado: $'+money(c.importe)+'. Verifica el neto antes de expedir. La corrección manual requiere el permiso de cheques.';
 }
 function chqAutofill(){
@@ -303,10 +313,11 @@ async function saveCheque(id){
     try{await window.PLATINUM_GESTION_CHEQUES.guardarFolios(id,g('c-num'),g('c-consec'));if(OBRA?.id===contextoInicial.obra&&$('c-save')===contextoInicial.form){closeModal();toast('Folios corregidos. Importe y nómina intactos.','ok');window.PLATINUM_GESTION_CHEQUES.refrescar();}}catch(e){toast(e.message,'err');}return;
   }
   let estatus=$('c-estatus').value;
+  if(id&&estatus==='CANCELADO'&&fisico?.estatus!=='CANCELADO')return window.PLATINUM_CHEQUES_REPOSICION.cancelar(id);
   if(estatus==='CANCELADO'&&(!g('c-num')||!g('c-consec'))){toast('Sólo se cancela un cheque físico con número y consecutivo. Si nunca se llenó, elimina la captura.','err');return;}
   if(g('c-num')&&estatus==='PENDIENTE')estatus='EXPEDIDO';
-  const w=WORKERS.find(x=>fullName(x).toUpperCase()===g('c-nombre').toUpperCase());
   const previo=id?CHEQUES.find(x=>x.id===id):null;
+  const w=chqTrabajadorCaptura(previo,g('c-nombre'));
   let reemplaza=previo?.reemplaza_cheque_id||null;
   let neto=Number(g('c-importe'));
   if(!previo||previo.estatus==='PENDIENTE'){
@@ -339,7 +350,8 @@ async function saveCheque(id){
     reemplaza_cheque_id:reemplaza,
     num_cheque:g('c-num'), consecutivo:g('c-consec'), estatus, observaciones:g('c-obs').toUpperCase()
   };
-  const dupNum=rec.num_cheque&&CHEQUES.find(x=>x.num_cheque===rec.num_cheque&&x.id!==id&&x.estatus!=='CANCELADO');
+  if(previo?.reemplaza_cheque_id)for(const key of ['obra_id','trabajador_id','nombre','no_trab','contratista','puesto','curp','semana','periodo','tipo_pago','cierre_id','lote_nomina_id'])rec[key]=previo[key];
+  const dupNum=rec.num_cheque&&CHEQUES.find(x=>x.num_cheque===rec.num_cheque&&x.id!==id&&!x.eliminado);
   if(dupNum){toast(`El número de cheque ${rec.num_cheque} ya está registrado para ${dupNum.nombre}.`,'err');return;}
   /* v36 · REGLA ABSOLUTA (Script 52): por trabajador y semana solo puede haber
      1 cheque de SUELDO y 1 de FINIQUITO. La base lo impide con un índice único

@@ -19,3 +19,12 @@ Pruebas de clasificación: `node scripts/test_clasificacion_documental.cjs`.
 Pruebas de captura: `node scripts/test_reposicion_cheque_ui.cjs`.
 
 El paquete privado también contiene pruebas PostgreSQL de las rutas del servicio y de los vínculos de reposición. La batería pública las omite cuando no dispone de esas migraciones; no declara que se ejecutaron.
+
+## Cancelación y reposición en una operación
+Gestión de Cheques y la captura individual comparten «Cancelar cheque». Un operador con escritura y alcance puede sustituir un físico EXPEDIDO o ENTREGADO, incluso histórico, sin solicitar autorización adicional. El diálogo identifica número, consecutivo, persona, centro, año, semana, concepto e importe y solicita motivo.
+
+La RPC cancela y crea el pendiente en una transacción con versión, bloqueo e identidad de operación. Conserva el instrumento original, sus folios y entrega; copia el contexto histórico al reemplazo, sin tomar el sueldo, contratista o centro actuales. Retira auditadamente sólo la cobertura del instrumento sustituido, conserva la misma obligación y evita sucesores activos duplicados. Permite cadenas y reintentos; un fallo revierte todo.
+
+Los folios de un cancelado siguen ocupados. El pendiente muestra la referencia al sustituido y «Capturar nuevo cheque» abre su captura. Sus datos históricos permanecen bloqueados; se asignan nuevos folios y se conserva la comprobación fiscal existente. Una entrega no equivale a cobro efectivo. Otras operaciones bancarias exitosas o aplicaciones contradictorias se muestran con identificador, fecha, folio, importe y procedimiento.
+
+«Sustituido por transferencia conciliada» conserva su flujo específico de importación bancaria y no crea otro pendiente. No se modifica la fotografía ni se genera una obligación nueva por sustituir el instrumento.

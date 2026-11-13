@@ -50,7 +50,7 @@
  }
  function fila(c){
   return `<tr data-cheque="${escape(c.id)}">
-   <td class="gq-nombre"><button type="button" class="gq-trabajador" data-gq="detalle" data-id="${escape(c.id)}" title="Ver detalle"><small>#${escape(c.no_trab??'—')}</small> <b>${escape(c.nombre)}</b></button></td>
+   <td class="gq-nombre"><button type="button" class="gq-trabajador" data-gq="detalle" data-id="${escape(c.id)}" title="Ver detalle"><small>#${escape(c.no_trab??'—')}</small> <b>${escape(c.nombre)}</b></button>${c.reemplaza_cheque_id?`<small style="display:block">Reposición del cheque ${escape(CHEQUES.find(q=>q.id===c.reemplaza_cheque_id)?.num_cheque||c.reemplaza_cheque_id.slice(0,8))}</small>`:''}</td>
    <td class="gq-sec">${escape(c.contratista)}</td><td class="gq-sec"><b>${escape(c.semana)}</b> <span class="gq-fechas">${escape(c.periodo)}</span></td>
    <td class="gq-importe">$${money(c.importe)}</td><td class="gq-sec">${escape(c.tipo_pago)}</td>
    <td class="gq-sec">${folio(c.num_cheque,'Sin número de cheque')}</td><td class="gq-sec">${folio(c.consecutivo,'Sin consecutivo')}</td>
@@ -93,6 +93,7 @@
   const q=buscar(b.dataset.id);
   const filaVisible=window.PLATINUM_DATOS?.vista('cheques',[q])?.[0]||q;
   return [['Corregir folios','editar',!permiso()||filaVisible._pendiente_visual],
+   ...(['EXPEDIDO','ENTREGADO'].includes(q.estatus)?[['Cancelar cheque','cancelar-reponer',!permiso()||filaVisible._pendiente_visual]]:[]),
    ...(window.PLATINUM_ARCHIVO_RECIBOS?[['Revisar fuentes','fuentes',!permiso()||ocupado]]:[]),
    ['Verificar neto','uno',!permiso()||ocupado]];
  }
@@ -264,7 +265,7 @@
   if(a==='asistente')return typeof sbGo==='function'?sbGo(iaAbrir):iaAbrir();
   if(a==='importar'||a==='actualizar'||a==='preparacion')return accesos[a]?.();
   if(a==='exportar')return exportCheques(filas());if(a==='chequeras')return openChequerasFisicas();if(!permiso())throw Error('Tu cuenta es de consulta');if(a==='detener')return detener();
-  if(a==='editar')return editar(b.dataset.id);if(a==='uno')return verificar([buscar(b.dataset.id)]);if(a==='verificar')return verificar(filas());if(a==='captura')return openChequeForm(buscar(b.dataset.id).id);if(a==='nuevo')return openChequeForm(null);if(a==='folios')return openControlFolios();if(a==='reuniones')return openReunionesEntrega();if(a==='tradicional')return PLATINUM_RECIBOS_VERIFICACION.abrir(Number(filtros.semana)||0);if(a==='fuentes')return revisarFuentes(b.dataset.id);if(a==='fuentes-lista')return revisarLista();
+  if(a==='cancelar-reponer')return window.PLATINUM_CHEQUES_REPOSICION.cancelar(b.dataset.id);if(a==='editar')return editar(b.dataset.id);if(a==='uno')return verificar([buscar(b.dataset.id)]);if(a==='verificar')return verificar(filas());if(a==='captura')return openChequeForm(buscar(b.dataset.id).id);if(a==='nuevo')return openChequeForm(null);if(a==='folios')return openControlFolios();if(a==='reuniones')return openReunionesEntrega();if(a==='tradicional')return PLATINUM_RECIBOS_VERIFICACION.abrir(Number(filtros.semana)||0);if(a==='fuentes')return revisarFuentes(b.dataset.id);if(a==='fuentes-lista')return revisarLista();
  }
  function refrescar(){if(!root||!vigente(ctx))return;if(!$('gq-tbody'))return montar(root.id);
   const qs=fuente();

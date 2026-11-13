@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-13.1",
-  "entry": "assets/platinum-app.3dba0ecfdee2085a.js",
-  "sha256": "3dba0ecfdee2085acebcae8a957e401e1e62e444b6edf9cfc90da25b41fcfa48",
-  "integrity": "sha384-tAOrULb5prm68M88wlGFeVATWQwyXi2z4SCJKX2cmZijPKDFCOO9q3w+v6mjtvmz",
+  "version": "2026-11-13.2",
+  "entry": "assets/platinum-app.225e87f2e6f35049.js",
+  "sha256": "225e87f2e6f3504910d3b56b5ea0d5168abd890faec3641ff2fe9d638d1c97f8",
+  "integrity": "sha384-mqXnLTA1IHrF9IKMiDFKR3hqiSxq2ck7Nr8c0Q4g4dx8wO0Iiqs93BTmFWo8Xtih",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "f00061618a1903747c710ef0c5f96f13eb74cad8691ce79e7b55db1702ef5b04"
+      "sha256": "b7496f1e87347cef3b618893a78b9d3b5ae388c748e1173247a495ddd4bf98fe"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -66,7 +66,7 @@
     },
     {
       "path": "frontend/modulos/15-banca-conciliacion.js",
-      "sha256": "3db3d2c56a60a9d9c004324b239add32cfc4e870e9efa6c4df1a16d92e8339b9"
+      "sha256": "a9c9112927b81171e2279c3c09991954e95e951c9c9383594eaf3040a9324f7b"
     },
     {
       "path": "frontend/modulos/16-control-pagos-folios.js",
@@ -82,7 +82,7 @@
     },
     {
       "path": "frontend/modulos/19-cheques.js",
-      "sha256": "6a7a15808c13b2fe3911483b0ce9707605d0c908260a9c63690ad2d7fa2f7247"
+      "sha256": "b89d6f25fdf1c85610bb6ddac6035cad99ce4f1de22ca9d5515e173fc6db635b"
     },
     {
       "path": "frontend/modulos/20-movimientos-semanales.js",
@@ -258,7 +258,7 @@
     },
     {
       "path": "frontend/modulos/63-gestion-cheques.js",
-      "sha256": "7d212e1130bcf27c7035b5fbeebf6d74c8b0c355a0bb4a8cf7a90e10e3a1ee8b"
+      "sha256": "eab396ca1978c7905b040e2af58c74be8b0cf67d26cbd6253dc17d334d237031"
     },
     {
       "path": "frontend/modulos/64-datos-centro-en-vivo.js",
@@ -347,6 +347,10 @@
     {
       "path": "frontend/modulos/85-lectura-asistida.js",
       "sha256": "616122165396bdab698c46f9cff0bc299898a975f3bf000c5ba90ab03c771140"
+    },
+    {
+      "path": "frontend/modulos/86-cancelacion-reposicion-cheques.js",
+      "sha256": "64c6b6ed0e8bf53dde2d7997f5c3f3592adbdc8b523f2203fbc3fea8c06992fe"
     }
   ]
 }
