@@ -111,6 +111,10 @@ const TABLAS={obras:'obras',trabajadores:'trabajadores',cuadrillas:'cuadrillas',
   const rr=await cruce('RESUMEN','baja revertida: RESUMEN = modelo');eq([rr.medidas.bajas.valor,rr.medidas.rotacion.desglose.bajas],[0,0],'rotación sin la baja revertida');
   const crudo=(await db.query(`select jsonb_agg(to_jsonb(h) order by h.id) j from public.historial h`)).rows[0].j,b=await fuentesDeBase();
   eq(M.plantilla({...b,historial:crudo,ahora,permisos:{vip:true}},filt).medidas.bajas.valor,1,'con historial crudo el modelo contaría la baja: el cliente debe pasar el historial efectivo');
+  // N5: la reversión sin trabajador_id (nulo) también excluye la baja (persona tomada de la fila revertida).
+  await db.query('update public.control_reversiones_baja set trabajador_id=null');
+  const rn=await cruce('PLANTILLA','reversión con trabajador_id nulo: SQL = modelo');eq(rn.medidas.bajas.valor,0,'reversión sin trabajador_id: la baja revertida no cuenta');
+  eq((await cruce('RESUMEN','reversión con trabajador_id nulo: RESUMEN = modelo')).medidas.bajas.valor,0,'RESUMEN sin la baja revertida (trabajador_id nulo)');
  }
  // ---------- Permisos en servidor (RPC público, rol authenticated) ----------
  const caso=datos.casos.find(x=>x.id==='usuario_restringido');await cargar(caso.fuentes);
