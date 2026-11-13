@@ -6,7 +6,7 @@ const root=path.resolve(__dirname,'..'),priv=path.join(root,'work/respaldo_20261
 if(!fs.existsSync(mig)||!fs.existsSync(path.join(priv,'generar_prod_base.cjs'))){console.log('ALCANCE PÚBLICO RESPALDO: la prueba PostgreSQL requiere la migración privada de marcas; no se cuenta como ejecutada.');process.exit(0);}
 require(path.join(priv,'generar_prod_base.cjs'));
 const {makeDatabase,ids,actor,owner}=require('./soporte_flujo_pg.cjs');
-require(path.join(root,'frontend/modulos/86-respaldo-integral.js'));
+require(path.join(root,'frontend/modulos/93-respaldo-integral.js'));
 const FU=globalThis.PLATINUM_RESPALDO.fuentes(),CLAVES=FU.map(f=>f.clave);
 const TIEMPOS=[];let n=0;const ok=(c,m)=>{assert.ok(c,m);n++;},eq=(a,b,m)=>{assert.deepEqual(a,b,m);n++;};
 const u=i=>'50000000-0000-4000-8000-'+String(i).padStart(12,'0');

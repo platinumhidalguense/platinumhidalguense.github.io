@@ -24,7 +24,7 @@ const calls=[],uploaded=[],reserved=new Map(),returnWeeks=[];
 const fiscals=new Set();
 let consulta=false,fail=true,periodosActivos=periodos,ahora=Date.now(),fragmentos=0;
 class Reloj extends Date{static now(){return ahora;}}
-const s={window,document,$,DOMParser,Uint8Array,TextDecoder,Date:Reloj,OBRA:{id:'p',nombre:'INFONAVIT FICTICIO'},USER:{id:'u'},
+const s={window,document,$,DOMParser,Uint8Array,TextDecoder,Date:Reloj,OBRA:{id:'p',nombre:'INFONAVIT FICTICIO'},USER:{id:'u'},AbortController,setTimeout,clearTimeout,confirm:()=>true,
  esc:x=>String(x??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),
  razonSocialEmpresa:()=>'PLATINUM FICTICIO',toast:assert.fail,
  modal:html=>{$('modals').innerHTML=html;},closeModal:()=>{$('modals').innerHTML='';},
@@ -65,7 +65,7 @@ const s={window,document,$,DOMParser,Uint8Array,TextDecoder,Date:Reloj,OBRA:{id:
  },functions:{invoke:async(name,{body})=>{
   if(name==='gemini-extract'){
    assert.deepEqual(Object.keys(body).sort(),['huella','obra_id','region','tipo']);
-   assert.equal(body.region.texto,'RFC del receptor PRUP 900101 AA1');
+   assert.equal(body.region.texto,'RFC PRUP 900101 AA1');
    return ++fragmentos===1?{error:{context:{status:503}}}:{data:{ok:true,literal:'PRUP 900101 AA1'}};
   }
   assert.equal(name,'lectura-documental');assert(body.individual);fiscals.add(body.lote_id);return{data:{correctos:1}};
@@ -74,7 +74,7 @@ const s={window,document,$,DOMParser,Uint8Array,TextDecoder,Date:Reloj,OBRA:{id:
  }};}}}
 };
 window.PLATINUM_CONCILIADOR_SEMANAL={abrir:(...a)=>returnWeeks.push(a)};
-vm.createContext(s);
+vm.createContext(s);vm.runInContext(src('85-lectura-asistida.js'),s);
 vm.runInContext([
  src('44-respaldo-recibos.js'),extraer(src('25-validaciones-cfdi.js'),'openCfdiImport','cfdiTotalImportado'),
  extraer(src('32-legajos.js'),'openFaltanRecibos'),src('67-archivo-recibos.js'),src('68-lectura-contextual-recibos.js')
@@ -106,11 +106,11 @@ const click=async accion=>{const n=$('ar-recibos');return n.onclick({target:n.qu
  assert(!$('ar-files'));assert.match($('ar-recibos').textContent,/Selecciona el cierre correspondiente a S32/);
  periodosActivos=periodos;
  await s.openCfdiImport({semana:32});
- const incompleto=pdf.replace('FIC221209AA1 PRUP900101AA1 12345678901','RFC del emisor: FIC221209AA1\nRFC del receptor: PRUP 900101 AA1\nNSS: 12345678901\n');
+ const incompleto=pdf.replace('FIC221209AA1 PRUP900101AA1 12345678901','RFC del emisor: FIC221209AA1\nRFC del receptor:\nPRUP 900101 AA1\nNSS: 12345678901\n');
  const pendiente=$('ar-files');Object.defineProperty(pendiente,'files',{value:[archivo('parcial.pdf',incompleto)]});
  await $('ar-recibos').onchange({target:pendiente});
  assert.match($('ar-recibos').textContent,/rfc · Valor ilegible/);
- await click('revisar');await click('gemini');assert.match($('ar-recibos').textContent,/temporalmente ocupado/);
+ await click('revisar');Object.defineProperty($('ar-recibos').querySelector('[data-ar-region]'),'value',{value:'0'});await click('region');await click('gemini');assert.match($('ar-recibos').textContent,/Reintenta/);
  await click('gemini');assert.equal(fragmentos,1);
  ahora+=46000;await click('gemini');assert.equal(fragmentos,2);
  assert.match($('ar-recibos').textContent,/parcial.pdf.*Listo para archivar/s);

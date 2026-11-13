@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-12.3",
-  "entry": "assets/platinum-app.37d3207480db8427.js",
-  "sha256": "37d3207480db84273c9be319ed9f86ac598750bd77bb725337dda3315c4e667a",
-  "integrity": "sha384-BSh55l1GgwIEaJ9DZ/hluTxIVtTXz+yCbFEM3b/ft0pJWUFEblgsN2XKZF7577Rr",
+  "version": "2026-11-13.2",
+  "entry": "assets/platinum-app.4faed3cf87c534cc.js",
+  "sha256": "4faed3cf87c534cc0ce656c34a2cafe77e5e3dd53d66db7216ed51e16f7ec325",
+  "integrity": "sha384-LsHDt4eb6YBxW4+qX6dSZq3SM1DTcfFJyTbGC4dkIEGtC2X7Ld8qrKqik9k2mtSU",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "06096b10479ba088d9d1b9c059280126b567323b4cc9b5caea2ad0045dc91336"
+      "sha256": "93e1656fc0b2f3a282e683de90d7cad30b8856f555033540d9fc186bb99f3322"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -46,7 +46,7 @@
     },
     {
       "path": "frontend/modulos/10-proyeccion-nomina.js",
-      "sha256": "a4c63fc4bfb50189810c9f7d99695a2f907c8148e1fb520a0c6cc82a07a373de"
+      "sha256": "d1f6980faf3de6dcb229eab477f58c65c0674b11fa4c72b8b5cd619e6a9a0ed0"
     },
     {
       "path": "frontend/modulos/11-expedientes-excel.js",
@@ -202,7 +202,7 @@
     },
     {
       "path": "frontend/modulos/49-chequeras-fisicas.js",
-      "sha256": "767f8d311ca9718ee11365a43bee6f35fcfc42766f8310b2ac2ddd7b58925cc9"
+      "sha256": "7368da4f828ca9d37c1bd18ba473611608f5518f88e9790d67db07e70aa27c6d"
     },
     {
       "path": "frontend/modulos/50-cheques-importes.js",
@@ -274,11 +274,11 @@
     },
     {
       "path": "frontend/modulos/67-archivo-recibos.js",
-      "sha256": "92cdb90e327aa17b4d375fed8195b70c7258b4c0ae8a043a2adb9e081a669e7c"
+      "sha256": "b11fdcee7f4997469d6d0cc4deba974b9f3618b415ada9d70b6486ae9acb19c6"
     },
     {
       "path": "frontend/modulos/68-lectura-contextual-recibos.js",
-      "sha256": "2b294bba0050bc6c1cbeef253d4c406fcd4635dd8ff94040375d25fb4ac4e1e7"
+      "sha256": "98d11e23226600ce32e27a576b0b04bae847146b542bcf9a55c0d6724787acb7"
     },
     {
       "path": "frontend/modulos/69-personal-lecturas.js",
@@ -322,7 +322,7 @@
     },
     {
       "path": "frontend/modulos/79-importacion-bancaria-interfaz.js",
-      "sha256": "5ded0919922a13b68580af96da5158c6e18b73ecad6067add9189bfb1ff4cc1f"
+      "sha256": "ff254bf71100aab6e0b7b446bcb5b732ebbee97c91cad68b459e29f4c802152d"
     },
     {
       "path": "frontend/modulos/80-puestos-central.js",
@@ -337,19 +337,31 @@
       "sha256": "bfc74db7bdcac35ce1f448a488e3f443c1b162c7e596262151deb3fdc08baa47"
     },
     {
-      "path": "frontend/modulos/83-tablero-modelo.js",
+      "path": "frontend/modulos/83-recibos-contexto-servicio.js",
+      "sha256": "fa21c49f49213554a71476307833e047f90e28246cf5747861a7827074726038"
+    },
+    {
+      "path": "frontend/modulos/84-recibos-contexto-interfaz.js",
+      "sha256": "6fcd04ccaf8c021323313e68c960df094d4226bfe4f11a590f4fd6fd28f68cda"
+    },
+    {
+      "path": "frontend/modulos/85-lectura-asistida.js",
+      "sha256": "616122165396bdab698c46f9cff0bc299898a975f3bf000c5ba90ab03c771140"
+    },
+    {
+      "path": "frontend/modulos/90-tablero-modelo.js",
       "sha256": "270c85ccdd44b08fd3c3503a5ce751c5df748c7a0fae9d0a401f8847f1ce1e84"
     },
     {
-      "path": "frontend/modulos/84-tablero-vista.js",
-      "sha256": "f0b9d8a68229d8e7c5002487f10f6a3ec6856ed3030291fed8a8b1944467ba50"
+      "path": "frontend/modulos/91-tablero-vista.js",
+      "sha256": "296d688e5284e6af091939115bc77f1aa57efcb621c7f940a64506e4349c3c97"
     },
     {
-      "path": "frontend/modulos/85-tablero-ejecutivo.js",
-      "sha256": "12b7522c6ebbe04f67cf08daa040c6a357d5572ce1021efb25137e9a11679ce8"
+      "path": "frontend/modulos/92-tablero-ejecutivo.js",
+      "sha256": "f9f0e75a129e74b5b63f6397bde6662ef1749a985c20878740c9800a2bdc735a"
     },
     {
-      "path": "frontend/modulos/86-respaldo-integral.js",
+      "path": "frontend/modulos/93-respaldo-integral.js",
       "sha256": "d0fb41e223356c80f4e4419eaa5e5fc75b8b4d7c395633fac3cc0abfbd6cb701"
     }
   ]

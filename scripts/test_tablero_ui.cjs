@@ -2,7 +2,7 @@
 // modelo real (76) como servidor simulado de `control_tablero`. Datos ficticios.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),acorn=require('acorn'),{parseHTML}=require('linkedom'),XLSX=require('xlsx-js-style');
 const {performance}=require('node:perf_hooks');
-const MOD=require('../frontend/modulos/83-tablero-modelo.js');
+const MOD=require('../frontend/modulos/90-tablero-modelo.js');
 const {window,document}=parseHTML('<html><head></head><body><div id="modals"></div><div id="toasts"></div><div id="tbody"></div></body></html>');
 Object.defineProperty(window.HTMLSelectElement.prototype,'value',{configurable:true,get(){return this._valor??this.querySelector('option[selected]')?.getAttribute('value')??this.querySelector('option')?.getAttribute('value')??'';},set(v){this._valor=v;}});
 let activo=null;Object.defineProperty(document,'activeElement',{configurable:true,get(){return activo&&activo.isConnected?activo:document.body;}});
@@ -82,8 +82,8 @@ const money=v=>v==null||v===''?'':Number(v).toLocaleString('es-MX',{minimumFract
 const fmtD=v=>{if(!v)return'';const[y,m,d]=String(v).slice(0,10).split('-');return d+'/'+m+'/'+y;};
 const today=()=>'2026-11-11';
 `+code.join('\n'),box);
-const existe={m76:fs.existsSync('frontend/modulos/83-tablero-modelo.js'),m77:fs.existsSync('frontend/modulos/84-tablero-vista.js')};
-for(const m of ['69-personal-lecturas','71-ficha-personal','83-tablero-modelo','84-tablero-vista','85-tablero-ejecutivo'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
+const existe={m76:fs.existsSync('frontend/modulos/90-tablero-modelo.js'),m77:fs.existsSync('frontend/modulos/91-tablero-vista.js')};
+for(const m of ['69-personal-lecturas','71-ficha-personal','90-tablero-modelo','91-tablero-vista','92-tablero-ejecutivo'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
 Object.assign(box,{toast:(s,t)=>toasts.push({s,t}),esVip:()=>box.USER.id==='u-admin',esAdmin:()=>box.USER.id==='u-admin',puedeEditarTrabajador:()=>false,razonSocialEmpresa:c=>'RAZÓN '+c,
  fichaResumenHTML:w=>'<p>Resumen ficticio de '+w.id+'</p>',agruparExpedienteFicha:()=>'<p>Sección ficticia</p>',navTrabajadores:()=>[],
  dl:async(wb,nombre)=>{descargas.push({wb,nombre});},

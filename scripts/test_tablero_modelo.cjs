@@ -1,9 +1,9 @@
-// Modelo común de indicadores del tablero (83-tablero-modelo.js): casos financieros del
+// Modelo común de indicadores del tablero (90-tablero-modelo.js): casos financieros del
 // contrato con resultados esperados (scripts/fixtures/tablero/casos.json). Datos ficticios.
 // Además comprueba que el módulo sea UMD puro: sin DOM, sin red y sin funciones globales.
 const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('node:assert/strict');
 process.chdir(path.resolve(__dirname,'..'));
-const archivo='frontend/modulos/83-tablero-modelo.js',codigo=fs.readFileSync(archivo,'utf8');
+const archivo='frontend/modulos/90-tablero-modelo.js',codigo=fs.readFileSync(archivo,'utf8');
 const M=require('../'+archivo);
 const datos=JSON.parse(fs.readFileSync('scripts/fixtures/tablero/casos.json','utf8'));
 let n=0;const ok=(c,m)=>{assert.ok(c,m);n++;},eq=(a,b,m)=>{assert.deepStrictEqual(a,b,m);n++;};

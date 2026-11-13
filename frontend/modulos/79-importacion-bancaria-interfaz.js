@@ -14,11 +14,11 @@
    <div class="m-body" style="min-height:0;overflow:auto"><p>Globales e individuales, también de periodos anteriores. Se registra y concilia evidencia; esta operación no envía dinero al banco.</p>
     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px" data-bh-contexto>
      <label>Razón social<select data-bh-empresa>${[...new Set(OBRAS.map(obraEmpresa))].map(e=>`<option value="${esc(e)}" ${e===obraEmpresa(obra)?'selected':''}>${esc(EMPRESAS[e]?.corto||e)}</option>`).join('')}</select></label>
-     <label>Centro<select data-bh-obra></select></label><label>Año<input type="number" min="2020" max="2100" data-bh-anio value="${new Date().getFullYear()}"></label>
+     <label>Centro<select data-bh-obra></select></label><label>Año<input type="number" min="2020" max="2100" data-bh-anio value="${Number(opciones.anio)||new Date().getFullYear()}"></label>
      <label>Periodicidad<select data-bh-per><option value="SEMANAL">Semanal</option><option value="QUINCENAL" ${opciones.periodicidad==='QUINCENAL'?'selected':''}>Quincenal</option></select></label>
      <label data-bh-semana-label>Semana<select data-bh-semana><option value="">Varios periodos · resolver por operación</option>${Array.from({length:53},(_,i)=>`<option value="${i+1}" ${i+1===Number(opciones.semana||semObra())?'selected':''}>S${i+1}</option>`).join('')}</select></label>
-     <label data-bh-mes-label hidden>Mes<select data-bh-mes>${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i===new Date().getMonth()?'selected':''}>${i+1}</option>`).join('')}</select></label>
-     <label data-bh-quincena-label hidden>Quincena<select data-bh-quincena><option value="1">Primera</option><option value="2">Segunda</option><option value="">Varias · resolver por operación</option></select></label>
+     <label data-bh-mes-label hidden>Mes<select data-bh-mes>${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i+1===Number(opciones.mes||new Date().getMonth()+1)?'selected':''}>${i+1}</option>`).join('')}</select></label>
+     <label data-bh-quincena-label hidden>Quincena<select data-bh-quincena><option value="1" ${Number(opciones.quincena)!==2?'selected':''}>Primera</option><option value="2" ${Number(opciones.quincena)===2?'selected':''}>Segunda</option><option value="">Varias · resolver por operación</option></select></label>
      <label>Concepto<select data-bh-concepto>${[['TODOS','Mixto · resolver por operación'],['NOMINA','Nómina'],['FINIQUITO','Finiquitos'],['PREVISION_SOCIAL','Previsión social']].map(([k,t])=>`<option value="${k}" ${opciones.concepto===k?'selected':''}>${t}</option>`).join('')}</select></label>
     </div><button type="button" class="btn" data-bh="contexto" style="margin:10px 0">Cargar contexto y archivos</button>
     <p class="fhint">La fecha de transferencia se conserva separada del periodo laboral. Puedes incorporar evidencia sin fotografía; las nóminas autorizadas conservan sus importes y controles.</p>

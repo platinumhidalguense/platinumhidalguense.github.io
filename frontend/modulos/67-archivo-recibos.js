@@ -10,7 +10,7 @@
   VERIFICADO:'Evidencia fiscal verificada',PENDIENTE:'Archivado · lectura pendiente',
   FUERA_CONTEXTO:'Fuera del cotejo'
  };
- let activo=null,pausaIA=0,lecturaIA=false;
+ let activo=null;
  const visible=s=>activo===s&&OBRA?.id===s.obra&&USER?.id===s.usuario&&!!$('ar-recibos');
  const aviso=e=>e?.message||'No se completó la operación.';
  async function api(s,accion,datos={}){
@@ -75,12 +75,12 @@
  }
  function inspeccion(f,i,s){
   if(s.revisando!==i||!f.lectura)return '';
-  return `<div class="fhint"><p>Revisa los valores en el original. Sólo se incorpora una transcripción que aparezca en la región.</p>
+  return `<div class="fhint"><p role="status" aria-live="polite">${esc(f.asistencia?.texto||'')}</p><p>Revisa los valores en el original. Sólo se incorpora una transcripción que aparezca en la región.</p>
    ${(f.lectura.bloques||[]).map(x=>`<p>Página ${esc(x.pagina)} · ${esc(x.datos.rfc)} · ${esc(x.datos.periodo_inicio)} a ${esc(x.datos.periodo_fin)} · $${esc(x.datos.neto)}</p>`).join('')}
    ${f.lectura.pendientes.map((p,k)=>`<p><b>${esc(p.campo)}</b> · ${esc(p.causa)}${p.region?` · página ${esc(p.region.pagina)}<br><code>${esc(p.region.texto)}</code><br>
     <label>Transcripción literal <input data-ar-literal="${i}-${k}" maxlength="110"></label>
     <button type="button" class="btn" data-ar="literal" data-i="${i}" data-k="${k}" ${s.ocupado?'disabled':''}>Usar transcripción</button>
-    <button type="button" class="btn" data-ar="gemini" data-i="${i}" data-k="${k}" ${s.ocupado?'disabled':''}>Transcribir con Gemini</button>`:' · región no identificada'}</p>`).join('')}
+    <button type="button" class="btn" data-ar="gemini" data-i="${i}" data-k="${k}" ${s.ocupado?'disabled':''}>Transcribir con Gemini</button>`:`<br><label>Región del original<select data-ar-region="${i}-${k}">${root.PLATINUM_CAMPOS_RECIBO.regiones(f.lectura,p.campo).map((r,j)=>`<option value="${j}">Página ${r.pagina} · ${esc(r.texto_original)}</option>`).join('')}</select></label><button class="btn" data-ar="region" data-i="${i}" data-k="${k}">Seleccionar región</button><small>Si no hay valor legible, revisa el original o XML; el campo sigue pendiente.</small>`}</p>`).join('')}
    </div>`;
  }
  function resumenCheque(s){
@@ -244,17 +244,7 @@
  async function transcribir(s,f,p,literal,usarIA){
   if(!p?.region)throw Error('No se aisló el campo en el original.');
   if(usarIA){
-   if(lecturaIA||Date.now()<pausaIA)throw Error('Lectura asistida en pausa. Espera y reintenta el campo.');
-   lecturaIA=true;
-   try{
-    const {data,error}=await sb.functions.invoke('gemini-extract',{body:{tipo:'recibo_fragmento',obra_id:s.obra,huella:f.huella,region:p.region}});
-    if([429,503].includes(error?.context?.status)||data?.temporal){
-     pausaIA=Date.now()+45000;
-     throw Error('Gemini está temporalmente ocupado. Los resultados del lote se conservaron.');
-    }
-    if(error||!data?.ok)throw Error(data?.error||'No se obtuvo una transcripción comprobable.');
-    literal=data.literal;
-   }finally{lecturaIA=false;}
+   literal=await root.PLATINUM_LECTURA_ASISTIDA.leer({usuario:s.usuario,obra_id:s.obra,huella:f.huella,region:p.region},(body,signal)=>sb.functions.invoke('gemini-extract',{body,signal}),progreso=>{f.asistencia=progreso;pintar(s);});
   }
   if(!visible(s))return;
   const evidencia={region:p.region,literal};
@@ -299,6 +289,11 @@
    if(!f)return;
    if(a==='revisar')return ejecutar(s,()=>revisarFila(s,f,i));
    if(a==='original')return ejecutar(s,()=>verOriginal(s,f,i));
+   if(a==='region'){
+    const k=Number(b.dataset.k),p=f.lectura.pendientes[k],j=Number(n.querySelector('[data-ar-region="'+i+'-'+k+'"]').value),r=root.PLATINUM_CAMPOS_RECIBO.regiones(f.lectura,p.campo)[j];
+    if(!r){s.error='No hay región legible. Conserva el pendiente y revisa el original o XML.';return pintar(s);}
+    if(confirm('¿Confirmas el campo '+p.campo+' en la página '+r.pagina+' del original?'))root.PLATINUM_CAMPOS_RECIBO.recuperar(f.lectura,p.campo,r);return pintar(s);
+   }
    if(a==='literal'||a==='gemini'){
     const k=Number(b.dataset.k),literal=n.querySelector('[data-ar-literal="'+i+'-'+k+'"]')?.value;
     return ejecutar(s,()=>transcribir(s,f,f.lectura.pendientes[k],literal,a==='gemini'));
@@ -343,5 +338,5 @@
     !s.periodos.length?'No hay cierres para este centro.':semana?'Selecciona el cierre correspondiente a S'+semana+'.':'Elige el cierre de destino.';
   });
  }
- root.PLATINUM_ARCHIVO_RECIBOS=Object.freeze({abrir,cotejar,abrirCheque});
+ root.PLATINUM_ARCHIVO_RECIBOS=Object.freeze({abrir:ctx=>root.PLATINUM_ARCHIVO_LIBRE?root.PLATINUM_ARCHIVO_LIBRE.abrir(ctx):abrir(ctx),abrirPorCierre:abrir,leerArchivo:leer,actualizarDatos:datosArchivo,cotejar,abrirCheque});
 })(window);

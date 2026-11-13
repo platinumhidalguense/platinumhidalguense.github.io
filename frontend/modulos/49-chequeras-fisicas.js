@@ -33,8 +33,7 @@ function cqPlan(cheques,bloques,incluirEntregados,obra){
     if(!cqFisico(c)||!(c.estatus==='EXPEDIDO'||(incluirEntregados&&c.estatus==='ENTREGADO'))){omitidos.push({...c});continue;}
     if(consec.get(cqNumero(c.consecutivo))!==1||folios.get(String(c.num_cheque).trim())!==1)errores.push('Folio o consecutivo repetido: '+c.consecutivo+'. Revisa sus capturas.');
     if(!Number.isFinite(Number(c.importe))||Number(c.importe)<=0)errores.push('Importe no válido en '+c.consecutivo+'.');
-    if(!c.trabajador_id)errores.push('Falta vincular al trabajador del consecutivo '+c.consecutivo+'.');
-    try{activos.push({...c,calendario:cqPeriodo(c,obra)});}catch(e){errores.push(e.message);}
+    try{activos.push({...c,calendario:cqPeriodo(c,obra)});}catch(e){activos.push({...c,calendario:null,pendiente_legajo:e.message});}
   }
   const ordenar=(a,b)=>cqNumero(a.consecutivo)-cqNumero(b.consecutivo)||String(a.id).localeCompare(String(b.id));
   activos.sort(ordenar);cancelados.sort(ordenar);omitidos.sort(ordenar);
@@ -56,8 +55,8 @@ async function openChequerasFisicas(){
     <label style="display:flex;gap:9px;align-items:center;margin:12px 0"><input id="cq-entregados" type="checkbox" onchange="cqInvalidar()">Incluir entregados para reimpresión</label>
     <div style="display:flex;gap:8px;margin:10px 0"><button class="btn" onclick="cqSeleccionarTodos(true)">Seleccionar todos los bloques</button><button class="btn" onclick="cqSeleccionarTodos(false)">Quitar selección</button></div>
     <div id="cq-bloques" style="max-height:260px;overflow:auto"><span class="spin"></span> Consultando chequeras...</div><div id="cq-resumen" role="status" style="margin:12px 0"></div>
-    <button class="btn" id="cq-preparar" onclick="cqPreparar()">Revisar selección y recibos</button><div id="cq-previa" style="margin-top:12px;max-height:360px;overflow:auto"></div></div>
-    <div class="m-foot" style="flex-wrap:wrap"><button class="btn" onclick="closeModal()">Cerrar</button><button class="btn" id="cq-excel" onclick="cqGenerar('excel')">⬇ Liberación Excel</button><button class="btn" id="cq-pdf" onclick="cqGenerar('pdf')">⬇ Legajos PDF</button><button class="btn dark" id="cq-ambos" onclick="cqGenerar('ambos')">⬇ Ambos archivos (ZIP)</button></div>`,'lg');
+    <button class="btn" id="cq-preparar" onclick="cqPreparar()">Revisar selección y recibos</button><button class="btn" id="cq-solo-pendientes" onclick="cqSoloPendientes()">Seleccionar sólo pendientes del último archivo</button><div id="cq-previa" style="margin-top:12px;max-height:360px;overflow:auto"></div></div>
+    <div class="m-foot" style="flex-wrap:wrap"><button class="btn" onclick="closeModal()">Cerrar</button><button class="btn" id="cq-control" onclick="cqDescargarControl()">⬇ Control de incluidos y pendientes</button><button class="btn" id="cq-excel" onclick="cqGenerar('excel')">⬇ Liberación Excel</button><button class="btn" id="cq-pdf" onclick="cqGenerar('pdf')">Generar legajos disponibles</button><button class="btn dark" id="cq-ambos" onclick="cqGenerar('ambos')">⬇ Ambos archivos (ZIP)</button></div>`,'lg');
   try{e.cheques=await cqLeerCheques(e.obra);cqContexto(e);cqPintarBloques();}catch(err){if(window._CQ===e&&$('cq-bloques'))$('cq-bloques').textContent='No se pudieron consultar los cheques: '+err.message;}
 }
 function cqPintarBloques(){
@@ -65,14 +64,14 @@ function cqPintarBloques(){
   $('cq-bloques').innerHTML=bs.length?bs.map(b=>`<label style="display:flex;gap:10px;align-items:center;border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:7px;cursor:pointer"><input type="checkbox" class="cq-bloque" value="${b.inicio}" ${e.seleccion.has(b.inicio)?'checked':''} onchange="cqSeleccionar(${b.inicio},this.checked)"><span><b>Consecutivos ${cqEtiqueta(b.inicio)}</b><small style="display:block;color:var(--mut)">${b.expedidos} expedidos · ${b.entregados} entregados · ${b.cancelados} cancelados · ${b.pendientes} sin expedir · ${b.sinRegistro} sin registro físico</small></span></label>`).join(''):'<div class="empty">No hay cheques con número y consecutivo capturados en este centro.</div>';
   cqResumen();
 }
-function cqInvalidar(){const e=window._CQ;if(!e||e.ocupado)return;e.plan=null;if($('cq-previa'))$('cq-previa').innerHTML='';cqResumen();}
+function cqInvalidar(){const e=window._CQ;if(!e||e.ocupado)return;e.plan=null;e.soloPendientes=null;e.ultimoResultado=null;if($('cq-previa'))$('cq-previa').innerHTML='';cqResumen();}
 function cqSeleccionar(n,checked){const e=window._CQ;if(!e||e.ocupado)return;if(checked)e.seleccion.add(n);else e.seleccion.delete(n);cqInvalidar();}
 function cqSeleccionarTodos(checked){const e=window._CQ;if(!e||e.ocupado)return;e.seleccion=new Set(checked?cqCatalogo(e.cheques,e.obra).map(b=>b.inicio):[]);cqInvalidar();cqPintarBloques();}
 function cqResumen(){
   const e=window._CQ;if(!e||!$('cq-resumen'))return;const p=cqPlan(e.cheques,[...e.seleccion],!!$('cq-entregados')?.checked,e.obra);
   $('cq-resumen').textContent=p.bloques.length+' bloque(s) · '+p.activos.length+' cheques · $'+money(p.activos.reduce((n,c)=>n+Math.round(Number(c.importe||0)*100),0)/100)+' · '+p.cancelados.length+' cancelados excluidos.';
 }
-function cqOcupado(e,valor){e.ocupado=valor;if(window._CQ===e)document.querySelectorAll('#cq-bloques input,#cq-entregados,#cq-preparar,#cq-excel,#cq-pdf,#cq-ambos,.cq-recibo').forEach(el=>el.disabled=valor);}
+function cqOcupado(e,valor){e.ocupado=valor;if(window._CQ===e)document.querySelectorAll('#cq-bloques input,#cq-entregados,#cq-preparar,#cq-excel,#cq-pdf,#cq-ambos,#cq-control,#cq-solo-pendientes,.cq-recibo,.cq-legajo').forEach(el=>el.disabled=valor);}
 async function cqLeerExpedientes(p){
   const ids=[...new Set(p.activos.map(c=>c.trabajador_id).filter(Boolean))],workers=[],docs=[];
   for(let i=0;i<ids.length;i+=100){
@@ -81,10 +80,12 @@ async function cqLeerExpedientes(p){
       fetchAllRows(()=>sb.from('documentos').select('id,trabajador_id,categoria,semana,archivo,nombre_archivo,hash,anulado,periodo_inicio,periodo_fin,nomina_neto').in('trabajador_id',lote).eq('categoria','RECIBO_NOMINA').or('anulado.eq.false,anulado.is.null'))
     ]);if(wr.error||dr.error)throw wr.error||dr.error;workers.push(...(wr.data||[]));docs.push(...(dr.data||[]));
   }
+  const fiscales=new Map(),docIds=[...new Set(docs.map(d=>d.id))];
+  for(let i=0;i<docIds.length;i+=100){const r=await sb.rpc('control_revision_recibo',{p_accion:'LEGAJOS',p_datos:{obra_id:p.obra.id,documentos:docIds.slice(i,i+100)}});if(r.error)throw Error('No se pudo comprobar la lectura fiscal guardada: '+r.error.message);for(const x of r.data||[])fiscales.set(x.id,x);}
   const byId=new Map(workers.map(w=>[w.id,w]));
-  p.filas=p.activos.map(c=>{const vistos=new Set(),recs=docs.filter(d=>d.trabajador_id===c.trabajador_id&&normSem(d.semana)===c.calendario.semana&&!d.anulado&&d.archivo)
+  p.filas=p.activos.map(c=>{const vistos=new Set(),recs=docs.filter(d=>d.trabajador_id===c.trabajador_id&&normSem(d.semana)===(c.calendario?.semana||normSem(c.semana))&&!d.anulado&&d.archivo)
     .sort((a,b)=>String(a.id).localeCompare(String(b.id))).filter(d=>{const k=d.hash||d.archivo;if(vistos.has(k))return false;vistos.add(k);return true;});
-    return {cheque:c,w:byId.get(c.trabajador_id)||null,recs,reciboId:recs.length===1?recs[0].id:''};});return p;
+    return {cheque:c,w:byId.get(c.trabajador_id)||null,recs,fiscales:Object.fromEntries(recs.map(d=>[d.id,fiscales.get(d.id)||null])),reciboId:recs.length===1?recs[0].id:'',seleccionada:true,estado:'PENDIENTE',motivo:'Pendiente de comprobar'};});return p;
 }
 async function cqPreparar(){
   const e=window._CQ;if(!e||e.ocupado)return false;if(!e.seleccion.size){toast('Selecciona al menos un bloque físico.','err');return false;}
@@ -93,17 +94,22 @@ async function cqPreparar(){
     cqContexto(e);const cheques=await cqLeerCheques(e.obra);cqContexto(e);e.cheques=cheques;
     const p=cqPlan(cheques,[...e.seleccion],!!$('cq-entregados')?.checked,e.obra);if(p.errores.length)throw Error(p.errores.join(' '));
     if(!p.activos.length&&!p.cancelados.length)throw Error('No hay cheques expedidos en estos bloques. Revisa la opción de reimpresión.');
-    await cqLeerExpedientes(p);cqContexto(e);e.plan=p;cqPintarBloques();cqPintarPrevia();return true;
+    await cqLeerExpedientes(p);cqContexto(e);if(e.soloPendientes)p.filas.forEach(f=>f.seleccionada=e.soloPendientes.has(f.cheque.id));
+    try{await cqPrepararDisponibles(await pfCargarPDF(),p,(i,n)=>{cqContexto(e);if($('cq-resumen'))$('cq-resumen').textContent='Revisando legajo '+i+' de '+n;});}
+    catch(err){p.filas.forEach(f=>{f.estado='PENDIENTE';f.motivo='No se pudo cargar el generador PDF: '+err.message;});}
+    cqContexto(e);e.plan=p;cqPintarBloques();cqPintarPrevia();return true;
   }catch(err){if(window._CQ===e&&$('cq-previa'))$('cq-previa').textContent='No se pudo preparar: '+err.message;toast(err.message,'err');return false;}
   finally{cqOcupado(e,false);}
 }
-function cqElegirRecibo(id,reciboId){const e=window._CQ;if(!e||e.ocupado)return;const f=e.plan?.filas.find(r=>r.cheque.id===id);if(f)f.reciboId=f.recs.some(d=>d.id===reciboId)?reciboId:'';}
+function cqElegirRecibo(id,reciboId){const e=window._CQ;if(!e||e.ocupado)return;const f=e.plan?.filas.find(r=>r.cheque.id===id);if(f){f.reciboId=f.recs.some(d=>d.id===reciboId)?reciboId:'';f.preparado=null;f.estado='PENDIENTE';f.motivo='Recibo cambiado; se comprobará al generar.';cqPintarPrevia();}}
+function cqElegirLegajo(id,valor){const e=window._CQ;if(!e||e.ocupado)return;const f=e.plan?.filas.find(r=>r.cheque.id===id);if(f)f.seleccionada=valor;}
+async function cqSoloPendientes(){const e=window._CQ;if(!e||e.ocupado)return;const ids=(e.ultimoResultado?.omitidos||[]).filter(x=>x.estado!=='NO_SELECCIONADO').map(x=>x.cheque_id);if(!ids.length){toast('No hay pendientes del último PDF en esta selección.','err');return;}e.soloPendientes=new Set(ids);await cqPreparar();}
 function cqPintarPrevia(){
-  const p=window._CQ?.plan;if(!p||!$('cq-previa'))return;const faltan=p.filas.filter(f=>!f.w||!f.reciboId).length;
-  $('cq-previa').innerHTML=`<p><b>${p.activos.length} legajos en orden de consecutivo</b> · ${p.activos.filter(c=>c.tipo_pago==='FINIQUITO').length} finiquitos${faltan?' · '+faltan+' pendientes de recibo o ficha':''}.</p>
+  const p=window._CQ?.plan;if(!p||!$('cq-previa'))return;const seleccion=p.filas.filter(f=>f.seleccionada!==false),completos=seleccion.filter(f=>f.estado==='COMPLETO').length,faltan=seleccion.length-completos;
+  $('cq-previa').innerHTML=`<p><b>${completos} legajos completos disponibles</b> · ${faltan} pendientes de recibo, lectura, identidad u otra documentación. Conservan su consecutivo físico.</p>
     ${p.omitidos.length?`<p>${p.omitidos.length} capturas pendientes o entregadas no seleccionadas quedan fuera.</p>`:''}
-    <table class="tb"><thead><tr><th>Consecutivo</th><th>Trabajador / semana</th><th>Separación</th><th>Recibo PDF</th></tr></thead><tbody>${p.filas.map(f=>{const c=f.cheque;return `<tr><td>${esc(c.consecutivo)}</td><td><b>${esc(c.nombre)}</b><br>S${c.calendario.semana} · $${money(c.importe)}</td><td>${c.tipo_pago==='FINIQUITO'?'Carta + finiquito<br>'+fmtD(c.calendario.hasta):'Sólo recibo'}</td><td>${!f.w?'No se pudo consultar la ficha':!f.recs.length?'Falta importar recibo de esta semana':f.recs.length===1?esc(f.recs[0].nombre_archivo||'Recibo archivado'):`<select class="cq-recibo" aria-label="Recibo del consecutivo ${esc(c.consecutivo)}" onchange="cqElegirRecibo('${c.id}',this.value)"><option value="">Elige el recibo correspondiente</option>${f.recs.map(d=>`<option value="${d.id}"${f.reciboId===d.id?' selected':''}>${esc(d.nombre_archivo||d.archivo)}</option>`).join('')}</select>`}</td></tr>`;}).join('')}</tbody></table>
-    <p style="font-size:12px;color:var(--mut)">Se conservan las páginas originales del recibo y se validan identidad, periodo y huella. Si falta alguno, la liberación puede descargarse; el legajo completo espera su documentación.</p>`;
+    <table class="tb"><thead><tr><th>Incluir / consecutivo</th><th>Trabajador / semana</th><th>Separación</th><th>Recibo PDF / resultado</th></tr></thead><tbody>${p.filas.map(f=>{const c=f.cheque;return `<tr><td><input type="checkbox" class="cq-legajo" ${window._CQ?.ocupado?'disabled':''} ${f.seleccionada!==false?'checked':''} aria-label="Incluir legajo ${esc(c.consecutivo)}" onchange="cqElegirLegajo('${c.id}',this.checked)"> ${esc(c.consecutivo)}</td><td><b>${esc(c.nombre)}</b><br>${esc(c.semana)} · $${money(c.importe)}</td><td>${c.tipo_pago==='FINIQUITO'?'Carta + finiquito<br>'+fmtD(c.calendario?.hasta):'Sólo recibo'}</td><td>${!f.w?'No se pudo consultar la ficha':!f.recs.length?'Falta importar recibo de esta semana':f.recs.length===1?esc(f.recs[0].nombre_archivo||'Recibo archivado'):`<select class="cq-recibo" ${window._CQ?.ocupado?'disabled':''} aria-label="Recibo del consecutivo ${esc(c.consecutivo)}" onchange="cqElegirRecibo('${c.id}',this.value)"><option value="">Elige el recibo correspondiente</option>${f.recs.map(d=>`<option value="${d.id}"${f.reciboId===d.id?' selected':''}>${esc(d.nombre_archivo||d.archivo)}</option>`).join('')}</select>`}<p><b>${f.estado==='COMPLETO'?'Completo y verificado':'Pendiente'}</b> · ${esc(f.motivo||'')}</p></td></tr>`;}).join('')}</tbody></table>
+    <p style="font-size:12px;color:var(--mut)">Sólo se imprimen legajos completos. El control de incluidos y omitidos se descarga aparte. La liberación Excel conserva todos los cheques elegibles de los bloques, aunque su legajo esté pendiente.</p>`;
 }
 function cqLibro(p){
   const wb=XLSX.utils.book_new(),head=['NO. TRAB.','CONTRATISTA','NOMBRE COMPLETO','PUESTO','CURP','SEMANA','PERIODO','IMPORTE','TIPO PAGO','NÚMERO DE CHEQUE','CONSECUTIVO','ESTATUS'];
@@ -117,7 +123,9 @@ function cqLibro(p){
     ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:1,c:0},e:{r:list.length+1,c:11}})};XLSX.utils.book_append_sheet(wb,ws,name);
   }
   const rows=[['CONTROL DE BLOQUES FÍSICOS — '+p.obra.nombre],['BLOQUE','EXPEDIDOS','ENTREGADOS','CANCELADOS','SIN EXPEDIR','SIN REGISTRO FÍSICO'],...p.catalogo.map(b=>[cqEtiqueta(b.inicio),b.expedidos,b.entregados,b.cancelados,b.pendientes,b.sinRegistro])];
-  XLSX.utils.book_append_sheet(wb,buildSheet(rows,[ST.title,ST.head,...p.catalogo.map(()=>Array(6).fill(ST.cellC))],[22,14,14,14,16,26],[{s:{r:0,c:0},e:{r:0,c:5}}],[{hpt:28},{hpt:28}]),'BLOQUES');wb.__auditObraIds=[p.obra.id];return wb;
+  XLSX.utils.book_append_sheet(wb,buildSheet(rows,[ST.title,ST.head,...p.catalogo.map(()=>Array(6).fill(ST.cellC))],[22,14,14,14,16,26],[{s:{r:0,c:0},e:{r:0,c:5}}],[{hpt:28},{hpt:28}]),'BLOQUES');
+  const control=cqControlFilas(p,p.resultado),cr=[['CONTROL DOCUMENTAL · '+(p.resultado?.parcial?'GENERACIÓN PARCIAL':'LEGAJOS')],['CONSECUTIVO','TRABAJADOR','SEMANA','RESULTADO','MOTIVO','PÁGINAS'],...control.map(x=>[x.consecutivo,x.trabajador,x.semana,x.estado,x.motivo,x.desde?x.desde+'–'+x.hasta:''])];
+  XLSX.utils.book_append_sheet(wb,buildSheet(cr,[ST.title,ST.head,...control.map(()=>Array(6).fill(ST.cell))],[16,42,12,23,70,13],[{s:{r:0,c:0},e:{r:0,c:5}}]),'LEGAJOS');wb.__auditObraIds=[p.obra.id];return wb;
 }
 async function cqExcelBytes(wb){
   if(!window.JSZip)throw Error('No está disponible el componente ZIP. Actualiza la plataforma.');
@@ -129,6 +137,7 @@ function cqValidarRecibo(info,f,obra=OBRA){
   const d=info?.datos,c=f.cheque,w=f.w,n=s=>String(s||'').toUpperCase().replace(/\s/g,'');
   if(info?.errores?.length)throw Error(info.errores.join('; '));
   if(!d||d.recibos!==1||!Number.isFinite(info.neto))throw Error('No se pudo identificar un único recibo con neto. Revisa la lectura de este PDF.');
+  if(Math.round(info.neto*100)!==Math.round(Number(c.importe)*100))throw Error('El neto del recibo no coincide al centavo con el cheque. Revisa sus fuentes.');
   const ids=new Set((d.identificadores||[]).map(n));if(![w.rfc,w.curp,w.nss,c.curp].map(n).filter(Boolean).some(id=>ids.has(id)))throw Error('El recibo no acredita la identidad del trabajador.');
   const emisor=n((CFGEMP['empresa_'+empresaDeObra(obra)]||{}).rfc);if(emisor&&d.rfc_emisor&&n(d.rfc_emisor)!==emisor)throw Error('El recibo pertenece a otra razón social.');
   if(!d.periodo_inicio||!d.periodo_fin||d.periodo_inicio>d.periodo_fin||d.periodo_inicio<c.calendario.desde||d.periodo_fin>c.calendario.hasta)throw Error('El periodo del recibo no corresponde a S'+c.calendario.semana+' ('+c.calendario.desde+' al '+c.calendario.hasta+').');
@@ -169,22 +178,77 @@ async function cqSeparacionPDF(doc,lib,f,obra,fonts){
 }
 async function cqConstruirLegajos(lib,p,progreso=()=>{}){
   if(!p.activos.length)throw Error('No hay cheques vigentes para preparar legajos.');
-  const faltan=p.filas.filter(f=>!f.w||!f.reciboId);if(faltan.length)throw Error('Completa ficha y recibo de '+faltan.length+' trabajador(es) en la vista previa.');
-  const doc=await lib.PDFDocument.create(),fonts={normal:await doc.embedFont(lib.StandardFonts.TimesRoman),bold:await doc.embedFont(lib.StandardFonts.TimesRomanBold)},indice=[];
+  const doc=await lib.PDFDocument.create(),indice=[],omitidos=[];
   for(const [i,f]of p.filas.entries()){
-    const c=f.cheque,d=f.recs.find(d=>d.id===f.reciboId),label='Consecutivo '+c.consecutivo+' · '+c.nombre+' · S'+c.calendario.semana;progreso(i+1,p.filas.length,label);
+    const c=f.cheque,label='Consecutivo '+c.consecutivo+' · '+c.nombre+' · '+c.semana,antes=doc.getPageCount();progreso(i+1,p.filas.length,label);
+    if(f.seleccionada===false){omitidos.push(cqControlItem(f,'NO_SELECCIONADO','No seleccionado para este PDF.'));continue;}
     try{
-      const r=await sb.storage.from('expedientes').download(d.archivo);if(r.error||!r.data)throw Error('No se pudo descargar el recibo privado.');
-      const bytes=new Uint8Array(await r.data.arrayBuffer());if(d.hash&&(await sha256Hex(bytes)).toLowerCase()!==String(d.hash).toLowerCase())throw Error('La huella del archivo difiere de su registro.');
-      const parsear=window.PLATINUM_RESPALDO_RECIBO?.parsear;if(!parsear)throw Error('No está disponible el lector de recibos.');
-      cqValidarRecibo(parsear(await pdfBytesToText(bytes.slice())),f,p.obra);
-      const origen=await lib.PDFDocument.load(bytes),desde=doc.getPageCount()+1;if(!origen.getPageCount())throw Error('El recibo no tiene páginas.');
+      await cqPrepararLegajo(lib,f,p.obra);
+      const origen=await lib.PDFDocument.load(f.preparado.bytes),desde=doc.getPageCount()+1;
       for(const page of await doc.copyPages(origen,origen.getPageIndices()))doc.addPage(page);
-      if(c.tipo_pago==='FINIQUITO')await cqSeparacionPDF(doc,lib,f,p.obra,fonts);
-      indice.push({consecutivo:c.consecutivo,semana:c.calendario.semana,desde,hasta:doc.getPageCount(),documento_id:d.id});
-    }catch(err){throw Error(label+': '+err.message);}
+      indice.push({...cqControlItem(f,'INCLUIDO','Legajo completo y verificado.'),desde,hasta:doc.getPageCount(),documento_id:f.reciboId});
+    }catch(err){while(doc.getPageCount()>antes)doc.removePage(doc.getPageCount()-1);f.estado='PENDIENTE';f.motivo=err.message;f.preparado=null;omitidos.push(cqControlItem(f,'PENDIENTE',err.message));}
   }
-  doc.setTitle('Legajos para entrega de cheques - '+p.obra.nombre);doc.setSubject('Bloques '+p.bloques.map(cqEtiqueta).join(', '));return {bytes:await doc.save(),indice,paginas:doc.getPageCount()};
+  const parcial=indice.length!==p.activos.length;
+  doc.setTitle((parcial?'PARCIAL - ':'')+'Legajos para entrega de cheques - '+p.obra.nombre);doc.setSubject('Bloques '+p.bloques.map(cqEtiqueta).join(', '));return {bytes:indice.length?await doc.save():null,indice,omitidos,parcial,paginas:doc.getPageCount()};
+}
+function cqControlItem(f,estado,motivo){const c=f.cheque;return {cheque_id:c.id,consecutivo:c.consecutivo,trabajador:c.nombre,semana:c.semana,estado,motivo};}
+function cqSelloLegajo(f){return JSON.stringify([f.cheque,f.w,f.recs.find(x=>x.id===f.reciboId)||null,f.fiscales?.[f.reciboId]?.revision||null]);}
+async function cqPrepararLegajo(lib,f,obra){
+  if(f.impedido)throw Error(f.impedido);
+  if(!f.w)throw Error('Falta consultar o vincular la ficha del trabajador.');
+  if(!f.cheque.calendario)throw Error(f.cheque.pendiente_legajo||'Calendario del cheque pendiente.');
+  const d=f.recs.find(x=>x.id===f.reciboId);if(!d)throw Error(f.recs.length?'Elige el recibo correspondiente.':'Falta importar el recibo PDF de esta semana.');
+  const sello=cqSelloLegajo(f);if(f.preparado?.sello===sello)return f.preparado;
+  const r=await sb.storage.from('expedientes').download(d.archivo);if(r.error||!r.data)throw Error('No se pudo descargar el recibo privado: '+(r.error?.message||'sin respuesta'));
+  const bytes=new Uint8Array(await r.data.arrayBuffer()),huella=await sha256Hex(bytes);
+  if(d.hash&&huella.toLowerCase()!==String(d.hash).toLowerCase())throw Error('La huella del archivo difiere de su registro.');
+  const fiscal=f.fiscales?.[d.id];let info;
+  if(fiscal?.estado==='VERIFICADO'){
+    if(fiscal.hash!==huella||fiscal.ruta!==d.archivo||fiscal.trabajador_id!==f.w.id||!fiscal.revision||!fiscal.lectura)throw Error('La lectura verificada pertenece a otro original. Revisa su vínculo.');
+    info=fiscal.lectura;
+  }else{
+    const leer=window.PLATINUM_ARCHIVO_RECIBOS?.leerArchivo;if(!leer)throw Error('No está disponible el lector compartido de recibos.');
+    const original={file:new File([bytes.slice()],d.nombre_archivo||'recibo.pdf',{type:'application/pdf'})};await leer(original);
+    if(original.lectura.pendientes?.length)throw Error('Completa la lectura del original: '+original.lectura.pendientes.map(x=>x.campo).join(', '));
+    info={...original.lectura,neto:original.lectura.datos.neto};
+  }
+  cqValidarRecibo(info,f,obra);
+  const doc=await lib.PDFDocument.create(),origen=await lib.PDFDocument.load(bytes);if(!origen.getPageCount())throw Error('El recibo no tiene páginas.');
+  for(const page of await doc.copyPages(origen,origen.getPageIndices()))doc.addPage(page);
+  if(f.cheque.tipo_pago==='FINIQUITO')await cqSeparacionPDF(doc,lib,f,obra,{normal:await doc.embedFont(lib.StandardFonts.TimesRoman),bold:await doc.embedFont(lib.StandardFonts.TimesRomanBold)});
+  f.preparado={bytes:await doc.save(),huella,sello};f.estado='COMPLETO';f.motivo='Todas las páginas y documentos comprobados.';return f.preparado;
+}
+async function cqPrepararDisponibles(lib,p,progreso=()=>{}){
+  for(const [i,f]of p.filas.entries()){
+    if(f.seleccionada===false)continue;progreso(i+1,p.filas.length,f.cheque.nombre);
+    try{await cqPrepararLegajo(lib,f,p.obra);}catch(err){f.preparado=null;f.estado='PENDIENTE';f.motivo=err.message;}
+  }
+}
+function cqControlFilas(p,resultado){
+  const filas=resultado?[...resultado.indice,...resultado.omitidos]:p.filas.map(f=>cqControlItem(f,f.estado==='COMPLETO'?'DISPONIBLE':'PENDIENTE',f.motivo||'Pendiente de comprobar.'));
+  for(const c of p.cancelados)filas.push({consecutivo:c.consecutivo,trabajador:c.nombre,semana:c.semana,estado:'CANCELADO',motivo:'Excluido: cheque cancelado.'});
+  for(const c of p.omitidos)filas.push({consecutivo:c.consecutivo,trabajador:c.nombre,semana:c.semana,estado:c.estatus,motivo:c.estatus==='ENTREGADO'?'Reimpresión no seleccionada.':'Sin expedir; fuera de los legajos.'});
+  return filas.sort((a,b)=>cqNumero(a.consecutivo)-cqNumero(b.consecutivo));
+}
+function cqControlCSV(p,resultado){const celda=v=>'"'+String(v??'').replace(/^[=+\-@\t\r]/,"'$&").replace(/"/g,'""')+'"';return '\uFEFF'+[['CONSECUTIVO','TRABAJADOR','SEMANA','RESULTADO','MOTIVO','PAGINA INICIAL','PAGINA FINAL'],...cqControlFilas(p,resultado).map(x=>[x.consecutivo,x.trabajador,x.semana,x.estado,x.motivo,x.desde||'',x.hasta||''])].map(r=>r.map(celda).join(',')).join('\r\n');}
+function cqDescargarControl(){const e=window._CQ;if(!e?.plan||e.ocupado)return;const csv=cqControlCSV(e.plan,e.ultimoResultado||e.plan.resultado);cqDescargar(csv,'CONTROL_LEGAJOS_'+cqArchivoBase(e.plan)+'.csv','text/csv;charset=utf-8');}
+async function cqRevalidarDisponibles(e,p,lib){
+  cqContexto(e);const fresh=cqPlan(await cqLeerCheques(p.obra),p.bloques,p.incluirEntregados,p.obra);cqContexto(e);await cqLeerExpedientes(fresh);cqContexto(e);
+  const cambios=[];
+  for(const f of p.filas.filter(x=>x.seleccionada!==false&&x.preparado)){
+    const actual=fresh.filas.find(x=>x.cheque.id===f.cheque.id),d=f.recs.find(x=>x.id===f.reciboId);
+    if(!actual||JSON.stringify(actual.cheque)!==JSON.stringify(f.cheque)||fresh.errores.length){f.impedido='Cambió el cheque o sus folios. Revisa esta captura y vuelve a preparar el legajo.';f.preparado=null;f.estado='PENDIENTE';f.motivo=f.impedido;cambios.push(f.cheque.consecutivo);continue;}
+    const actualDoc=actual.recs.find(x=>x.id===d.id);actual.reciboId=actualDoc?.id||actual.reciboId;
+    if(cqSelloLegajo(actual)!==cqSelloLegajo(f)){
+      f.w=actual.w;f.recs=actual.recs;f.fiscales=actual.fiscales;f.reciboId=actual.reciboId;f.preparado=null;
+      try{await cqPrepararLegajo(lib,f,p.obra);}catch(err){f.estado='PENDIENTE';f.motivo=err.message;}cambios.push(f.cheque.consecutivo);
+    }else{
+      try{const r=await sb.storage.from('expedientes').download(d.archivo);if(r.error||!r.data)throw Error('No se pudo revalidar el original privado.');const h=await sha256Hex(new Uint8Array(await r.data.arrayBuffer()));if(h!==f.preparado.huella)throw Error('El original cambió durante la generación; solicita reprocesar su lectura.');}
+      catch(err){f.preparado=null;f.impedido=err.message;f.estado='PENDIENTE';f.motivo=err.message;cambios.push(f.cheque.consecutivo);}
+    }
+  }
+  return cambios;
 }
 async function cqRevalidar(e,p,conRecibos){
   cqContexto(e);const fresh=cqPlan(await cqLeerCheques(p.obra),p.bloques,p.incluirEntregados,p.obra);cqContexto(e);
@@ -201,14 +265,28 @@ async function cqGenerar(destino){
   if(!['excel','pdf','ambos'].includes(destino))return;const e=window._CQ;if(!e||e.ocupado)return;if(!e.plan&&!await cqPreparar())return;
   const p=e.plan;if(!p)return;cqOcupado(e,true);
   try{
-    cqContexto(e);await cqRevalidar(e,p,false);
-    const excel=destino!=='pdf',pdf=destino!=='excel',base=cqArchivoBase(p),wb=excel?cqLibro(p):null;
-    const xbytes=excel?await cqExcelBytes(wb):null,legajos=pdf?await cqConstruirLegajos(await pfCargarPDF(),p,(i,n,t)=>{cqContexto(e);if($('cq-resumen'))$('cq-resumen').textContent='Preparando '+i+' de '+n+' · '+t;}):null;
-    await cqRevalidar(e,p,pdf);
-    if(destino==='ambos'){const zip=new JSZip();zip.file('LIBERACION_CHEQUES_'+base+'.xlsx',xbytes);zip.file('LEGAJOS_CHEQUES_'+base+'.pdf',legajos.bytes);const bytes=await zip.generateAsync({type:'uint8array'});cqContexto(e);cqDescargar(bytes,'CHEQUERAS_'+base+'.zip','application/zip');}
-    else if(excel)cqDescargar(xbytes,'LIBERACION_CHEQUES_'+base+'.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');else cqDescargar(legajos.bytes,'LEGAJOS_CHEQUES_'+base+'.pdf','application/pdf');
+    cqContexto(e);
+    const excel=destino!=='pdf',pdf=destino!=='excel',base=cqArchivoBase(p);let legajos=null;
+    if(pdf){
+      const lib=await pfCargarPDF();await cqPrepararDisponibles(lib,p);
+      const disponibles=p.filas.filter(f=>f.seleccionada!==false&&f.estado==='COMPLETO').length;
+      if(typeof confirm==='function'&&!confirm('Se generarán sólo los legajos completos disponibles ('+disponibles+'). Los pendientes y no seleccionados quedarán identificados en un control separado. ¿Continuar?'))return;
+      const progreso=(i,n,t)=>{cqContexto(e);if($('cq-resumen'))$('cq-resumen').textContent='Preparando '+i+' de '+n+' · '+t;};
+      await cqRevalidarDisponibles(e,p,lib);
+      legajos=await cqConstruirLegajos(lib,p,progreso);
+      const cambios=await cqRevalidarDisponibles(e,p,lib);
+      if(cambios.length){legajos=await cqConstruirLegajos(lib,p,progreso);const otraVez=await cqRevalidarDisponibles(e,p,lib);if(otraVez.length){for(const f of p.filas.filter(f=>otraVez.includes(f.cheque.consecutivo))){f.impedido='Cambio concurrente repetido; vuelve a preparar este legajo.';f.preparado=null;}legajos=await cqConstruirLegajos(lib,p,progreso);}}
+      p.resultado=legajos;e.ultimoResultado=legajos;cqPintarPrevia();
+      if(!legajos.indice.length&&destino==='pdf'){if($('cq-resumen'))$('cq-resumen').textContent='No hay legajos completos. Consulta y descarga el control de pendientes.';toast('No hay legajos completos; el control identifica los motivos.','err');return;}
+    }
+    if(excel)await cqRevalidar(e,p,false);
+    const wb=excel?cqLibro(p):null,xbytes=excel?await cqExcelBytes(wb):null,marca=legajos?.parcial?'PARCIAL_':'';
+    const csv=cqControlCSV(p,legajos),nombreControl='CONTROL_LEGAJOS_'+base+'.csv';cqContexto(e);
+    if(destino==='ambos'){const zip=new JSZip();zip.file('LIBERACION_CHEQUES_'+base+'.xlsx',xbytes);if(legajos.bytes)zip.file('LEGAJOS_'+marca+'CHEQUES_'+base+'.pdf',legajos.bytes);zip.file(nombreControl,csv);const bytes=await zip.generateAsync({type:'uint8array'});cqContexto(e);cqDescargar(bytes,'CHEQUERAS_'+marca+base+'.zip','application/zip');}
+    else if(excel)cqDescargar(xbytes,'LIBERACION_CHEQUES_'+base+'.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');else{cqDescargar(legajos.bytes,'LEGAJOS_'+marca+'CHEQUES_'+base+'.pdf','application/pdf');cqDescargar(csv,nombreControl,'text/csv;charset=utf-8');}
     if(excel)await registrarExportacion(wb,'LIBERACION_CHEQUES_'+base+'.xlsx');
-    toast('Archivo generado: '+p.activos.length+' cheques'+(legajos?' · '+legajos.paginas+' páginas de legajos':'')+'.','ok');
+    if(legajos&&$('cq-resumen'))$('cq-resumen').textContent=(legajos.parcial?'Generación PARCIAL: ':'Generación completa: ')+legajos.indice.length+' incluidos · '+legajos.omitidos.length+' omitidos · '+legajos.paginas+' páginas. Descarga el control para consultar los motivos.';
+    toast('Archivo generado'+(legajos?.parcial?' PARCIAL':'')+': '+p.activos.length+' cheques en liberación'+(legajos?' · '+legajos.indice.length+' legajos completos · '+legajos.omitidos.length+' omitidos':'')+'.','ok');
   }catch(err){toast('No se generó el archivo: '+err.message,'err');if(window._CQ===e&&$('cq-resumen'))$('cq-resumen').textContent=err.message;}
   finally{cqOcupado(e,false);}
 }

@@ -1,5 +1,5 @@
 // Tablero ejecutivo en PostgreSQL local (pglite), datos ficticios: public.control_tablero
-// cuadra al centavo con PLATINUM_TABLERO_MODELO (83-tablero-modelo.js) en todos los casos de
+// cuadra al centavo con PLATINUM_TABLERO_MODELO (90-tablero-modelo.js) en todos los casos de
 // scripts/fixtures/tablero/casos.json, respeta permisos en servidor y mide volumen.
 // Requiere el paquete SQL privado (migración *_tablero_indicadores.sql y work/tablero_20261111).
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
@@ -8,7 +8,7 @@ const mig=fs.existsSync(dir)&&fs.readdirSync(dir).find(n=>n.endsWith('_tablero_i
 const bases=[path.join(root,'work/aguinaldo_20261110/prod_base.sql'),path.join(priv,'prod_base.sql'),path.join(priv,'prod_base_a3.sql')];
 if(!mig||!fs.existsSync(bases[0])||!fs.existsSync(bases[2])){console.log('ALCANCE PÚBLICO TABLERO: las pruebas PostgreSQL requieren el paquete privado; no se cuentan como ejecutadas.');process.exit(0);}
 const {makeDatabase,ids,actor}=require('./soporte_flujo_pg.cjs');
-const M=require('../frontend/modulos/83-tablero-modelo.js');
+const M=require('../frontend/modulos/90-tablero-modelo.js');
 const datos=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/tablero/casos.json'),'utf8'));
 let n=0;const ok=(c,m)=>{assert.ok(c,m);n++;},eq=(a,b,m)=>{assert.deepStrictEqual(a,b,m);n++;};
 const plano=x=>JSON.parse(JSON.stringify(x===undefined?null:x));

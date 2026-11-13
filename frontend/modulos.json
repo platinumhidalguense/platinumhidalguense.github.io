@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "version": "2026-11-12.3",
+  "version": "2026-11-13.2",
   "modules": [
     "frontend/modulos/00-configuracion-utilidades.js",
     "frontend/modulos/01-sesion-centros-sincronizacion.js",
@@ -85,10 +85,13 @@
     "frontend/modulos/80-puestos-central.js",
     "frontend/modulos/81-prestaciones-fuentes.js",
     "frontend/modulos/82-reversion-bajas.js",
-    "frontend/modulos/83-tablero-modelo.js",
-    "frontend/modulos/84-tablero-vista.js",
-    "frontend/modulos/85-tablero-ejecutivo.js",
-    "frontend/modulos/86-respaldo-integral.js"
+    "frontend/modulos/83-recibos-contexto-servicio.js",
+    "frontend/modulos/84-recibos-contexto-interfaz.js",
+    "frontend/modulos/85-lectura-asistida.js",
+    "frontend/modulos/90-tablero-modelo.js",
+    "frontend/modulos/91-tablero-vista.js",
+    "frontend/modulos/92-tablero-ejecutivo.js",
+    "frontend/modulos/93-respaldo-integral.js"
   ],
   "originalSha256": "9c8d55e50d79a8c1d4dda73f83ff26f8b1c9f200e3f6e8c6b96624b12857af04"
 }

@@ -3,7 +3,7 @@
 Documento público: describe qué cubre el respaldo, cómo se verifica y qué queda fuera. No contiene datos personales ni consultas del servidor.
 
 ## Qué es
-«Respaldo Excel» genera un libro por razón social con todas las fuentes operativas que el usuario está autorizado a ver, relacionadas por IDs estables. Es distinto de la exportación filtrada del tablero: no aplica filtros de fecha ni de vista. El módulo `frontend/modulos/86-respaldo-integral.js` expone `window.PLATINUM_RESPALDO` (`abrir`, `exportar`, `fuentes`).
+«Respaldo Excel» genera un libro por razón social con todas las fuentes operativas que el usuario está autorizado a ver, relacionadas por IDs estables. Es distinto de la exportación filtrada del tablero: no aplica filtros de fecha ni de vista. El módulo `frontend/modulos/93-respaldo-integral.js` expone `window.PLATINUM_RESPALDO` (`abrir`, `exportar`, `fuentes`).
 
 ## Garantías
 - **Completo**: cada fuente se lee con paginación ordenada por llave, reintentos y detección de filas repetidas; el conteo leído se compara con el del servidor. Si una fuente falla, el respaldo se marca **INCOMPLETO** (también en el nombre del archivo) y se ofrece reintentar.

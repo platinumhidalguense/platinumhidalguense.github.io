@@ -2,7 +2,7 @@
 
 Definición común de las medidas del **Dashboard ejecutivo** y del cuadre del
 **Respaldo integral**. La implementación de referencia es
-`frontend/modulos/83-tablero-modelo.js` (`window.PLATINUM_TABLERO_MODELO`): funciones
+`frontend/modulos/90-tablero-modelo.js` (`window.PLATINUM_TABLERO_MODELO`): funciones
 puras, sin DOM ni red, que reciben filas crudas y devuelven exactamente el JSON de
 las acciones del servicio del tablero. El servidor debe reproducir los mismos
 valores al centavo; los escenarios de aceptación están en
