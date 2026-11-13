@@ -2,7 +2,7 @@
 (function(root){
  'use strict';
  function crear(dep){
-  let generacion=0,estado=null,ocupado=false,cerrado=false,pausaIA=0;
+  let generacion=0,estado=null,ocupado=false,cerrado=false;
   const valido=g=>!cerrado&&g===generacion&&dep.vigente();
   const emitir=()=>{if(!cerrado&&dep.vigente())dep.cambio(estado,ocupado);};
   async function rpc(accion,datos={}){
@@ -81,10 +81,7 @@
    const g=generacion,f=estado.archivos.find(x=>x.id===id),region=f?.lectura?.pendientes?.[k]?.region;
    if(!region)throw Error('Relee el original para aislar el campo pendiente.');
    if(ia){
-    if(Date.now()<pausaIA)throw Error('Lectura asistida en pausa; espera y reintenta sólo este campo.');
-    const r=await dep.fragmento({tipo:'recibo_fragmento',obra_id:estado.obra_id,huella:f.huella,region});
-    if([429,503].includes(r.error?.context?.status)||r.data?.temporal){pausaIA=Date.now()+45000;throw Error('Gemini temporalmente ocupado. El original y las lecturas correctas se conservaron.');}
-    if(r.error||!r.data?.ok)throw Error(r.data?.error||r.error?.message||'No se obtuvo transcripción comprobable.');literal=r.data.literal;
+    literal=await root.PLATINUM_LECTURA_ASISTIDA.leer({usuario:dep.usuario?.()||'',obra_id:estado.obra_id,huella:f.huella,region},dep.fragmento,progreso=>{f.asistencia=progreso;emitir();});
    }
    if(!valido(g))return;const evidencia={region,literal};dep.incorporar(f,evidencia);(f.transcripciones??=[]).push(evidencia);await lecturaGuardar(f,g);
   });}

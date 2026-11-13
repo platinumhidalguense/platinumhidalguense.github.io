@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-12.6",
-  "entry": "assets/platinum-app.a8eeb31e7b5290fd.js",
-  "sha256": "a8eeb31e7b5290fdc0e5ca0ebdcdba417656ca35e8e737492a8ba550e3b1d109",
-  "integrity": "sha384-zzMbCW/Jtd4XlpwaAPSeHZ1vNRkLRhcOl/Y7A2gqflxJSNS8RsSwKGkP1/f1zgaE",
+  "version": "2026-11-13.1",
+  "entry": "assets/platinum-app.3dba0ecfdee2085a.js",
+  "sha256": "3dba0ecfdee2085acebcae8a957e401e1e62e444b6edf9cfc90da25b41fcfa48",
+  "integrity": "sha384-tAOrULb5prm68M88wlGFeVATWQwyXi2z4SCJKX2cmZijPKDFCOO9q3w+v6mjtvmz",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "926e68b2fc6777eaf30b076832e4e5424af4042a6ffa8805ac9a9a0c9104c901"
+      "sha256": "f00061618a1903747c710ef0c5f96f13eb74cad8691ce79e7b55db1702ef5b04"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -202,7 +202,7 @@
     },
     {
       "path": "frontend/modulos/49-chequeras-fisicas.js",
-      "sha256": "ce94211830a20e78d33bcba7e6c8fe91ffc465adc82d09c41e8a2805c3083cee"
+      "sha256": "7368da4f828ca9d37c1bd18ba473611608f5518f88e9790d67db07e70aa27c6d"
     },
     {
       "path": "frontend/modulos/50-cheques-importes.js",
@@ -274,11 +274,11 @@
     },
     {
       "path": "frontend/modulos/67-archivo-recibos.js",
-      "sha256": "0ec6a8de6e69db7a0dffccda1ef34be05fea2f6a40e981ef845ac03f2653ee97"
+      "sha256": "b11fdcee7f4997469d6d0cc4deba974b9f3618b415ada9d70b6486ae9acb19c6"
     },
     {
       "path": "frontend/modulos/68-lectura-contextual-recibos.js",
-      "sha256": "2b294bba0050bc6c1cbeef253d4c406fcd4635dd8ff94040375d25fb4ac4e1e7"
+      "sha256": "98d11e23226600ce32e27a576b0b04bae847146b542bcf9a55c0d6724787acb7"
     },
     {
       "path": "frontend/modulos/69-personal-lecturas.js",
@@ -338,11 +338,15 @@
     },
     {
       "path": "frontend/modulos/83-recibos-contexto-servicio.js",
-      "sha256": "5eb48df0256735e4ec1c50275a05213ecb285746ebd481546a92ab254e219652"
+      "sha256": "fa21c49f49213554a71476307833e047f90e28246cf5747861a7827074726038"
     },
     {
       "path": "frontend/modulos/84-recibos-contexto-interfaz.js",
-      "sha256": "8f5e9e53ee77732495ff3756fcaea64c7bbb00252ffff04c780cf387a2bb2c48"
+      "sha256": "6fcd04ccaf8c021323313e68c960df094d4226bfe4f11a590f4fd6fd28f68cda"
+    },
+    {
+      "path": "frontend/modulos/85-lectura-asistida.js",
+      "sha256": "616122165396bdab698c46f9cff0bc299898a975f3bf000c5ba90ab03c771140"
     }
   ]
 }

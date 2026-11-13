@@ -10,9 +10,9 @@ const cheque=(id,n,extra={})=>({id,obra_id:obra.id,trabajador_id:'w'+id,no_trab:
 let rows=[cheque('b',552,{semana:'S31',importe:200.02}),cheque('a',452),cheque('c',553,{semana:'S31',tipo_pago:'NOMINA',importe:300.03}),
  cheque('x',453,{estatus:'CANCELADO'}),cheque('z',454,{estatus:'CANCELADO',eliminado:true}),cheque('d',455,{eliminado:true}),
  cheque('e',456,{estatus:'ENTREGADO'}),cheque('p',457,{estatus:'PENDIENTE'}),cheque('o',458,{obra_id:'otra'}),cheque('sin',459,{consecutivo:'',num_cheque:''})];
-let workers=[],docs=[];
+let workers=[],docs=[];const canonicos={};
 const money=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-const box={window:{PDFLib:lib,JSZip},OBRA:obra,OBRAS:[obra],SEMANA1:'2026-03-30',Date,Number,Math,String,Map,Set,Error,Promise,Uint8Array,Blob,DOMParser,console,XLSX,JSZip,
+const box={window:{PDFLib:lib,JSZip},OBRA:obra,OBRAS:[obra],SEMANA1:'2026-03-30',Date,Number,Math,String,Map,Set,Error,Promise,Uint8Array,Blob,File,DOMParser,console,XLSX,JSZip,
  CFGEMP:{empresa_PLATINUM:{razon:'EMPRESA FICTICIA PLATINUM'},empresa_JIRE:{razon:'EMPRESA FICTICIA JIRE'}},
  MES:['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'],
  $:id=>els[id]||null,money,esc:s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),
@@ -23,7 +23,7 @@ const box={window:{PDFLib:lib,JSZip},OBRA:obra,OBRAS:[obra],SEMANA1:'2026-03-30'
  sha256Hex:async bytes=>crypto.createHash('sha256').update(bytes).digest('hex'),pdfBytesToText:async bytes=>textos.get(await box.sha256Hex(bytes)),
  fetchAllRows:async make=>{const q=make();queries.push(q);if(failTable===q.table)return {error:Error('Lectura denegada'),data:[]};
   const src=q.table==='cheques'?rows:q.table==='trabajadores'?workers:docs;return {data:src.filter(x=>q.tests.every(t=>t(x))).map(x=>({...x}))};},
- sb:{from:table=>{const q={table,tests:[],select(){return this;},eq(k,v){this.tests.push(x=>x[k]===v);return this;},in(k,vs){this.tests.push(x=>vs.includes(x[k]));return this;},or(){return this;}};return q;},
+ sb:{rpc:async(name,{p_accion,p_datos})=>{equal(name,'control_revision_recibo','RPC sólo documental');equal(p_accion,'LEGAJOS','Acción sólo lectura');return{data:p_datos.documentos.map(id=>canonicos[id]).filter(Boolean)};},from:table=>{const q={table,tests:[],select(){return this;},eq(k,v){this.tests.push(x=>x[k]===v);return this;},in(k,vs){this.tests.push(x=>vs.includes(x[k]));return this;},or(){return this;}};return q;},
  storage:{from:bucket=>({download:async archivo=>{equal(bucket,'expedientes','Bucket privado');return failDownload?{error:Error('503 simulado')}:{data:new Blob([receipts.get(archivo)])};}})}},
  registrarExportacion:async()=>{},pfCargarPDF:async()=>lib};
 require('./soporte_puestos_vistas.cjs').instalar(box);
@@ -47,6 +47,7 @@ async function seed(){
   docs.push({id:'doc'+c.id,trabajador_id:w.id,categoria:'RECIBO_NOMINA',semana:c.semana,archivo,nombre_archivo:archivo,hash,anulado:false,periodo_inicio:cal.desde,periodo_fin:cal.hasta,nomina_neto:c.importe});
  }
 }
+box.window.PLATINUM_ARCHIVO_RECIBOS={leerArchivo:async f=>{const r=box.window.PLATINUM_RESPALDO_RECIBO.parsear(textos.get(await box.sha256Hex(new Uint8Array(await f.file.arrayBuffer()))));f.lectura={...r,pendientes:[]};}};
 (async()=>{
  for(const [n,b]of [[1,1],[50,1],[51,51],[100,51],[451,451],[500,451],[501,501],[550,501],[551,551],[600,551]])equal(box.cqBloque(n),b,'Límites de bloque');
  for(const v of [0,-1,'','abc','45A','1e2','2.5',null])equal(box.cqBloque(v),null,'Consecutivo inválido');
@@ -76,6 +77,17 @@ async function seed(){
  box.CFGEMP.empresa_PLATINUM.rfc='AAA010101AAA';assert.throws(()=>box.cqValidarRecibo({...info,datos:{...info.datos,rfc_emisor:'BBB010101BBB'}},f),/razón social/);count++;
  const pdf=await box.cqConstruirLegajos(lib,p),loaded=await lib.PDFDocument.load(pdf.bytes);equal(loaded.getPageCount(),7,'3 recibos y 4 hojas de separación');equal(pdf.indice.map(i=>[i.consecutivo,i.desde,i.hasta]),[['0000452',1,3],['0000552',4,6],['0000553',7,7]],'Legajo completo por trabajador sin portadas intermedias');
  fs.writeFileSync(path.join(output,'legajos_ficticios.pdf'),pdf.bytes);
+ // Un campo corregido y confirmado se consume sin volver al parseo crudo.
+ const fiscalDoc=f.recs.find(d=>d.id===f.reciboId),sharedReader=box.window.PLATINUM_ARCHIVO_RECIBOS;
+ f.fiscales={[fiscalDoc.id]:{id:fiscalDoc.id,estado:'VERIFICADO',hash:fiscalDoc.hash,ruta:fiscalDoc.archivo,trabajador_id:f.w.id,revision:'r1',lectura:info}};
+ canonicos[fiscalDoc.id]=f.fiscales[fiscalDoc.id];f.preparado=null;
+ box.window.PLATINUM_ARCHIVO_RECIBOS={leerArchivo:async()=>{throw Error('No debe descartar corrección fiscal guardada');}};
+ await box.cqPrepararLegajo(lib,f,p.obra);ok(f.preparado&&f.estado==='COMPLETO','Usa evidencia canónica con huella exacta');
+ const sello=f.preparado.sello;canonicos[fiscalDoc.id]={...canonicos[fiscalDoc.id],revision:'r2'};
+ await box.cqRevalidarDisponibles(box.window._CQ,p,lib);ok(f.preparado&&f.preparado.sello!==sello,'Reprepara al cambiar la versión fiscal');
+ f.preparado=null;f.fiscales[fiscalDoc.id].hash='b'.repeat(64);await assert.rejects(box.cqPrepararLegajo(lib,f,p.obra),/otro original/);count++;
+ delete canonicos[fiscalDoc.id];f.fiscales={};box.window.PLATINUM_ARCHIVO_RECIBOS=sharedReader;
+
  const jire={...obra,id:'jire-ficticio',empresa_codigo:'JIRE'},oldObras=box.OBRAS;box.OBRAS=[...oldObras,jire];
  const largo={...p.filas[0],w:{...p.filas[0].w,nombres:'MARÍA ÁNGELA FICTICIA DE PRUEBA',primer_apellido:'HERNÁNDEZ DE LA CRUZ',segundo_apellido:'MUÑOZ DEL RÍO'},cheque:{...p.filas[0].cheque,puesto:'OFICIAL CARPINTERO Y PERSONAL DE APOYO'}};
  const longDoc=await lib.PDFDocument.create(),longFonts={normal:await longDoc.embedFont(lib.StandardFonts.TimesRoman),bold:await longDoc.embedFont(lib.StandardFonts.TimesRomanBold)};
@@ -95,7 +107,7 @@ async function seed(){
  equal(queries.filter(q=>q.table==='cheques').every(q=>q.tests.length===1),true,'Lecturas por centro');
  const l=fs.readFileSync('frontend/modulos/32-legajos.js','utf8'),b=fs.readFileSync('frontend/modulos/12-bloques-entregas.js','utf8'),html=fs.readFileSync('frontend/index.template.html','utf8');
  ok(l.includes('openChequerasFisicas')&&b.includes('openChequerasFisicas')&&fs.readFileSync('frontend/modulos/62-conciliador-semanal-interfaz.js','utf8').includes('openChequerasFisicas()'),'Accesos conservados desde legajos, bloques y Herramientas de Pago');
- ok(!/\.rpc\(|\.update\(|\.insert\(/.test(source)&&!source.replace(/e\.seleccion\.delete\(n\)/g,'').includes('.delete('),'No mutaciones de pagos, trabajadores o cheques');
+ ok(!/\.update\(|\.insert\(/.test(source)&&[...source.matchAll(/\.rpc\('([^']+)'/g)].every(m=>m[1]==='control_revision_recibo')&&!source.replace(/e\.seleccion\.delete\(n\)/g,'').includes('.delete('),'No mutaciones de pagos, trabajadores o cheques');
 
  // Bloque físico 751–800: cuatro pendientes no impiden los otros 46.
  rows=Array.from({length:50},(_,i)=>cheque('bloque'+(751+i),751+i,{semana:'S33',tipo_pago:i===0?'FINIQUITO':'NOMINA'}));await seed();

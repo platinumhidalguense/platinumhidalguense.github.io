@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');let pruebas=0;
-const eq=(a,b,m)=>{assert.deepEqual(a,b,m);pruebas++;};const window={};vm.runInNewContext(fs.readFileSync('frontend/modulos/83-recibos-contexto-servicio.js','utf8'),{window,Uint8Array,Date});
+const eq=(a,b,m)=>{assert.deepEqual(a,b,m);pruebas++;};const window={},box=vm.createContext({window,Uint8Array,Date,AbortController,setTimeout,clearTimeout});for(const n of ['85-lectura-asistida','83-recibos-contexto-servicio'])vm.runInContext(fs.readFileSync('frontend/modulos/'+n+'.js','utf8'),box);
 (async()=>{
  const llamadas=[],originales=new Map();let s,busy,up=0,read=0,fail=false,vigente=true,gemini=0,verif=0,guardadas=[],enviadas=[];
  const dep={vigente:()=>vigente,cambio:(e,b)=>{s=e;busy=b;},hash:async()=> 'a'.repeat(64),archivo:(data,name)=>({name,size:3,arrayBuffer:async()=>new Uint8Array([1,2,3]).buffer}),
@@ -23,7 +23,7 @@ const eq=(a,b,m)=>{assert.deepEqual(a,b,m);pruebas++;};const window={};vm.runInN
  await svc.subir([file]);eq(up,1,'reimportación no sustituye original');
  await svc.reanudar('a');eq(read,3);eq((await svc.vincular('a','c')).estado,'VINCULO_PROPUESTO');eq((await svc.vincular('a','c',true)).estado,'VINCULADO');
  fail=true;await svc.reanudar('a');eq(s.archivos[0].estado,'REVISAR');eq(llamadas.at(-1),'LECTURA','fallo queda registrado');
- s.archivos[0].lectura.pendientes=[{region:{texto:'RFC por leer'}}];await assert.rejects(svc.completar('a',0,'',true),/temporalmente ocupado/);pruebas++;
+ s.archivos[0].lectura.pendientes=[{region:{texto:'RFC por leer'}}];await assert.rejects(svc.completar('a',0,'',true),/reintenta|Reintenta/);pruebas++;
  await assert.rejects(svc.completar('a',0,'',true),/pausa/);pruebas++;eq(gemini,1,'no bucle IA');
  await svc.completar('a',0,'RFC por leer',false);eq(guardadas.length,1,'transcripción persistida con la lectura');await svc.verificar('a');eq(enviadas.length,1,'misma evidencia llega a verificación fiscal');eq(enviadas[0].literal,'RFC por leer');
  let resolver;const rpc=dep.rpc;dep.rpc=async(...a)=>{if(a[1].p_accion==='CONTEXTO'&&a[1].p_datos.contexto.semana===10)await new Promise(r=>resolver=r);return rpc(...a);};

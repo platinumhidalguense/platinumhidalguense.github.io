@@ -103,7 +103,8 @@ else console.log('ALCANCE PÚBLICO FOLIOS: la prueba PostgreSQL requiere la migr
 suites.push('test_realtime_deltas_ui');
 suites.push('test_navegacion_modular');
 suites.push('test_archivo_recibos_ui','test_recibos_contexto_servicio','test_recibos_contexto_ui');
-suites.push('test_recibo_fragmento');
+suites.push('test_recibo_fragmento','test_lectura_asistida');
+if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_recibos_regiones_legajos_verificados.sql')))suites.push('test_legajos_fuente_pg');
 if(fs.existsSync('supabase/migrations/20261109210000_archivo_documental_recibos_periodo.sql'))suites.push('test_archivo_recibos_pg');
 if(fs.existsSync('supabase/migrations/20261109223000_revision_recibos_por_documento.sql'))suites.push('test_revision_recibos_pg');
 suites.push('test_recorrido_operativo');

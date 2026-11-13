@@ -22,3 +22,8 @@ Verificar un CFDI no paga ni autoriza una nómina. Los comprobantes históricos 
 Pruebas PostgreSQL con 70 PDF ficticios: paginación sin omisiones al disminuir pendientes, permisos, centro, huella, errores persistentes, clasificación pendiente y lectura de un cierre autorizado sin cambiar su fotografía ni marcarlo pagado.
 
 Pruebas VM: concurrencia máxima de tres, pausa/reanudación, reintento de fallidos, cambio de sesión/centro, importación con reutilización de bytes, acuses sin alteraciones y exclusión de versiones archivadas de los totales. No se ejecutaron pruebas de navegador ni se incorporan datos reales en estos casos.
+
+## Lectura contextual y asistencia por campo
+El lector separa las columnas vecinas de Aspel y distingue emisor, receptor y RFC del pie fiscal. Reúne únicamente separadores observados; no sustituye letras y números. Conserva página, posición y texto original. Los campos opcionales realmente ausentes no inventan datos; los valores contradictorios siguen pendientes.
+
+La lectura asistida muestra preparación, lectura, validación y resultado. Informa errores de permiso, conexión y 503, con hora de reintento y sin repetir todo el lote. Si falta una región, puede seleccionarse un valor presente en una página concreta, confirmando su campo y cotejando el original. Un valor ilegible conserva revisión; Gemini no decide identidades ni verifica un CFDI. Las transcripciones confirmadas se revalidan contra el mismo hash. Los legajos consultan por lotes esa evidencia canónica.

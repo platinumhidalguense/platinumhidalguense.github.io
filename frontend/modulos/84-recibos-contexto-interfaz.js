@@ -32,7 +32,7 @@
   centros(inicial.id);periodos();
   v.servicio=root.PLATINUM_RECIBOS_CONTEXTO.crear({vigente:actual,rpc:(...a)=>sb.rpc(...a),get storage(){return sb.storage;},hash:sha256Hex,
    leer:root.PLATINUM_ARCHIVO_RECIBOS.leerArchivo,archivo:(b,n)=>new File([b],n,{type:b.type}),
-   verificar:body=>sb.functions.invoke('lectura-documental',{body}),fragmento:body=>sb.functions.invoke('gemini-extract',{body}),
+   verificar:body=>sb.functions.invoke('lectura-documental',{body}),fragmento:(body,signal)=>sb.functions.invoke('gemini-extract',{body,signal}),usuario:()=>uid,
    incorporar:(f,x)=>{root.PLATINUM_CAMPOS_RECIBO.incorporar(f.lectura,x,root.PLATINUM_RESPALDO_RECIBO);root.PLATINUM_ARCHIVO_RECIBOS.actualizarDatos(f);},
    cambio:(s,busy)=>{v.ocupado=busy;if(actual())pintar(s);}});
   function pintar(s){
@@ -45,11 +45,11 @@
     const d=f.datos||{},r=d.resultado||f,trab=r.trabajador||'Identidad por revisar';
     return `<tr><td>${esc(d.nombre||f.file?.name||'Original')}<br><button class="btn" data-rl="original" data-id="${esc(f.id||'')}" ${!f.id?'disabled':''}>Ver original</button></td>
      <td>${esc(trab)}<br>${esc(d.desde||'—')} al ${esc(d.hasta||'—')} · ${esc(d.concepto||'concepto pendiente')}</td><td>${d.neto==null?'—':'$'+esc(d.neto)}<br><small>${esc(d.uuid||'')}</small></td>
-     <td><b>${esc(etiquetas[f.estado]||f.estado)}</b><p class="fhint">${esc(f.motivo||d.resultado?.motivo||d.motivo||'')}</p>
+     <td><p role="status" aria-live="polite">${esc(f.asistencia?.texto||'')}</p><b>${esc(etiquetas[f.estado]||f.estado)}</b><p class="fhint">${esc(f.motivo||d.resultado?.motivo||d.motivo||'')}</p>
       ${s.escritura?`<button class="btn" data-rl="releer" data-id="${esc(f.id||'')}" ${!f.id?'disabled':''}>Releer original</button>
        ${f.documento_id?`<button class="btn" data-rl="verificar" data-id="${esc(f.id)}">Verificar timbrado</button>`:r.estado==='VALIDO'||f.estado==='VALIDO'?`<button class="btn dark" data-rl="confirmar" data-id="${esc(f.id)}">Confirmar registro</button>`:''}
        ${f.documento_id&&s.cierres.length?`<button class="btn" data-rl="vincular" data-id="${esc(f.id)}">Revisar vínculo con fotografía</button>`:''}`:''}
-      ${(f.lectura?.pendientes||[]).map((p,k)=>p.region?`<details><summary>${esc(p.campo)} · ${esc(p.causa)}</summary><code>${esc(p.region.texto)}</code><input data-rl-literal="${esc(f.id)}-${k}" aria-label="Transcripción literal"><button class="btn" data-rl="literal" data-id="${esc(f.id)}" data-k="${k}">Usar transcripción</button><button class="btn" data-rl="gemini" data-id="${esc(f.id)}" data-k="${k}">Completar sólo este campo con Gemini</button></details>`:'').join('')}
+      ${(f.lectura?.pendientes||[]).map((p,k)=>p.region?`<details><summary>${esc(p.campo)} · ${esc(p.causa)}</summary><code>${esc(p.region.texto)}</code><input data-rl-literal="${esc(f.id)}-${k}" aria-label="Transcripción literal"><button class="btn" data-rl="literal" data-id="${esc(f.id)}" data-k="${k}">Usar transcripción</button><button class="btn" data-rl="gemini" data-id="${esc(f.id)}" data-k="${k}">Completar sólo este campo con Gemini</button></details>`:`<details><summary>${esc(p.campo)} · seleccionar región del original</summary><p>Abre el original, verifica la página y confirma el valor. No se inventarán caracteres.</p><select data-rl-region="${esc(f.id)}-${k}">${root.PLATINUM_CAMPOS_RECIBO.regiones(f.lectura,p.campo).map((r,j)=>`<option value="${j}">Página ${r.pagina} · ${esc(r.texto_original)}</option>`).join('')}</select><button class="btn" data-rl="region" data-id="${esc(f.id)}" data-k="${k}">Usar región seleccionada</button><p>Si no aparece una región legible, conserva el pendiente y revisa el PDF original o su XML.</p></details>`).join('')}
      </td></tr>`;}).join('')||'<tr><td colspan="4">No hay originales archivados en este periodo.</td></tr>'}</tbody></table></div>
     ${total>1?`<button class="btn" data-rl="pagina" data-page="${v.pagina-1}" ${v.pagina===0?'disabled':''}>Anterior</button> ${v.pagina+1} de ${total} <button class="btn" data-rl="pagina" data-page="${v.pagina+1}" ${v.pagina+1===total?'disabled':''}>Siguiente</button>`:''}`;
    if(v.ocupado)for(const b of host.querySelectorAll('button'))b.disabled=true;
@@ -69,6 +69,11 @@
    if(a==='releer')await v.servicio.reanudar(archivo);
    if(a==='confirmar'&&confirm('¿Confirmas la identidad, el concepto y las fechas leídas del original? No se registrará un pago ni se modificará el cierre.'))await v.servicio.confirmar(archivo);
    if(a==='verificar')await v.servicio.verificar(archivo);
+   if(a==='region'){
+    const f=v.servicio.estado().archivos.find(f=>f.id===archivo),p=f.lectura.pendientes[Number(b.dataset.k)],j=Number(q('[data-rl-region="'+archivo+'-'+b.dataset.k+'"]').value),r=root.PLATINUM_CAMPOS_RECIBO.regiones(f.lectura,p.campo)[j];
+    if(!r)throw Error('No hay región legible. Conserva el pendiente y coteja el original o XML.');
+    if(confirm('¿Confirmas que '+p.campo+' corresponde al valor seleccionado de la página '+r.pagina+' del original?')){root.PLATINUM_CAMPOS_RECIBO.recuperar(f.lectura,p.campo,r);pintar(v.servicio.estado());}
+   }
    if(a==='literal'||a==='gemini')await v.servicio.completar(archivo,Number(b.dataset.k),q('[data-rl-literal="'+archivo+'-'+b.dataset.k+'"]')?.value,a==='gemini');
    if(a==='vincular'){
     const cierres=v.servicio.estado().cierres;if(cierres.length!==1)throw Error('Hay varias fotografías compatibles; revisa su contexto antes de vincular.');

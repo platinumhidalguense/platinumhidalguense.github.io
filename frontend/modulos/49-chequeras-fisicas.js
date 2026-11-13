@@ -80,10 +80,12 @@ async function cqLeerExpedientes(p){
       fetchAllRows(()=>sb.from('documentos').select('id,trabajador_id,categoria,semana,archivo,nombre_archivo,hash,anulado,periodo_inicio,periodo_fin,nomina_neto').in('trabajador_id',lote).eq('categoria','RECIBO_NOMINA').or('anulado.eq.false,anulado.is.null'))
     ]);if(wr.error||dr.error)throw wr.error||dr.error;workers.push(...(wr.data||[]));docs.push(...(dr.data||[]));
   }
+  const fiscales=new Map(),docIds=[...new Set(docs.map(d=>d.id))];
+  for(let i=0;i<docIds.length;i+=100){const r=await sb.rpc('control_revision_recibo',{p_accion:'LEGAJOS',p_datos:{obra_id:p.obra.id,documentos:docIds.slice(i,i+100)}});if(r.error)throw Error('No se pudo comprobar la lectura fiscal guardada: '+r.error.message);for(const x of r.data||[])fiscales.set(x.id,x);}
   const byId=new Map(workers.map(w=>[w.id,w]));
   p.filas=p.activos.map(c=>{const vistos=new Set(),recs=docs.filter(d=>d.trabajador_id===c.trabajador_id&&normSem(d.semana)===(c.calendario?.semana||normSem(c.semana))&&!d.anulado&&d.archivo)
     .sort((a,b)=>String(a.id).localeCompare(String(b.id))).filter(d=>{const k=d.hash||d.archivo;if(vistos.has(k))return false;vistos.add(k);return true;});
-    return {cheque:c,w:byId.get(c.trabajador_id)||null,recs,reciboId:recs.length===1?recs[0].id:'',seleccionada:true,estado:'PENDIENTE',motivo:'Pendiente de comprobar'};});return p;
+    return {cheque:c,w:byId.get(c.trabajador_id)||null,recs,fiscales:Object.fromEntries(recs.map(d=>[d.id,fiscales.get(d.id)||null])),reciboId:recs.length===1?recs[0].id:'',seleccionada:true,estado:'PENDIENTE',motivo:'Pendiente de comprobar'};});return p;
 }
 async function cqPreparar(){
   const e=window._CQ;if(!e||e.ocupado)return false;if(!e.seleccion.size){toast('Selecciona al menos un bloque físico.','err');return false;}
@@ -191,7 +193,7 @@ async function cqConstruirLegajos(lib,p,progreso=()=>{}){
   doc.setTitle((parcial?'PARCIAL - ':'')+'Legajos para entrega de cheques - '+p.obra.nombre);doc.setSubject('Bloques '+p.bloques.map(cqEtiqueta).join(', '));return {bytes:indice.length?await doc.save():null,indice,omitidos,parcial,paginas:doc.getPageCount()};
 }
 function cqControlItem(f,estado,motivo){const c=f.cheque;return {cheque_id:c.id,consecutivo:c.consecutivo,trabajador:c.nombre,semana:c.semana,estado,motivo};}
-function cqSelloLegajo(f){return JSON.stringify([f.cheque,f.w,f.recs.find(x=>x.id===f.reciboId)||null]);}
+function cqSelloLegajo(f){return JSON.stringify([f.cheque,f.w,f.recs.find(x=>x.id===f.reciboId)||null,f.fiscales?.[f.reciboId]?.revision||null]);}
 async function cqPrepararLegajo(lib,f,obra){
   if(f.impedido)throw Error(f.impedido);
   if(!f.w)throw Error('Falta consultar o vincular la ficha del trabajador.');
@@ -201,8 +203,17 @@ async function cqPrepararLegajo(lib,f,obra){
   const r=await sb.storage.from('expedientes').download(d.archivo);if(r.error||!r.data)throw Error('No se pudo descargar el recibo privado: '+(r.error?.message||'sin respuesta'));
   const bytes=new Uint8Array(await r.data.arrayBuffer()),huella=await sha256Hex(bytes);
   if(d.hash&&huella.toLowerCase()!==String(d.hash).toLowerCase())throw Error('La huella del archivo difiere de su registro.');
-  const parsear=window.PLATINUM_RESPALDO_RECIBO?.parsear;if(!parsear)throw Error('No está disponible el lector de recibos.');
-  cqValidarRecibo(parsear(await pdfBytesToText(bytes.slice())),f,obra);
+  const fiscal=f.fiscales?.[d.id];let info;
+  if(fiscal?.estado==='VERIFICADO'){
+    if(fiscal.hash!==huella||fiscal.ruta!==d.archivo||fiscal.trabajador_id!==f.w.id||!fiscal.revision||!fiscal.lectura)throw Error('La lectura verificada pertenece a otro original. Revisa su vínculo.');
+    info=fiscal.lectura;
+  }else{
+    const leer=window.PLATINUM_ARCHIVO_RECIBOS?.leerArchivo;if(!leer)throw Error('No está disponible el lector compartido de recibos.');
+    const original={file:new File([bytes.slice()],d.nombre_archivo||'recibo.pdf',{type:'application/pdf'})};await leer(original);
+    if(original.lectura.pendientes?.length)throw Error('Completa la lectura del original: '+original.lectura.pendientes.map(x=>x.campo).join(', '));
+    info={...original.lectura,neto:original.lectura.datos.neto};
+  }
+  cqValidarRecibo(info,f,obra);
   const doc=await lib.PDFDocument.create(),origen=await lib.PDFDocument.load(bytes);if(!origen.getPageCount())throw Error('El recibo no tiene páginas.');
   for(const page of await doc.copyPages(origen,origen.getPageIndices()))doc.addPage(page);
   if(f.cheque.tipo_pago==='FINIQUITO')await cqSeparacionPDF(doc,lib,f,obra,{normal:await doc.embedFont(lib.StandardFonts.TimesRoman),bold:await doc.embedFont(lib.StandardFonts.TimesRomanBold)});
@@ -230,7 +241,7 @@ async function cqRevalidarDisponibles(e,p,lib){
     if(!actual||JSON.stringify(actual.cheque)!==JSON.stringify(f.cheque)||fresh.errores.length){f.impedido='Cambió el cheque o sus folios. Revisa esta captura y vuelve a preparar el legajo.';f.preparado=null;f.estado='PENDIENTE';f.motivo=f.impedido;cambios.push(f.cheque.consecutivo);continue;}
     const actualDoc=actual.recs.find(x=>x.id===d.id);actual.reciboId=actualDoc?.id||actual.reciboId;
     if(cqSelloLegajo(actual)!==cqSelloLegajo(f)){
-      f.w=actual.w;f.recs=actual.recs;f.reciboId=actual.reciboId;f.preparado=null;
+      f.w=actual.w;f.recs=actual.recs;f.fiscales=actual.fiscales;f.reciboId=actual.reciboId;f.preparado=null;
       try{await cqPrepararLegajo(lib,f,p.obra);}catch(err){f.estado='PENDIENTE';f.motivo=err.message;}cambios.push(f.cheque.consecutivo);
     }else{
       try{const r=await sb.storage.from('expedientes').download(d.archivo);if(r.error||!r.data)throw Error('No se pudo revalidar el original privado.');const h=await sha256Hex(new Uint8Array(await r.data.arrayBuffer()));if(h!==f.preparado.huella)throw Error('El original cambió durante la generación; solicita reprocesar su lectura.');}

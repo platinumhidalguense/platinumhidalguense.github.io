@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "version": "2026-11-12.6",
+  "version": "2026-11-13.1",
   "modules": [
     "frontend/modulos/00-configuracion-utilidades.js",
     "frontend/modulos/01-sesion-centros-sincronizacion.js",
@@ -86,7 +86,8 @@
     "frontend/modulos/81-prestaciones-fuentes.js",
     "frontend/modulos/82-reversion-bajas.js",
     "frontend/modulos/83-recibos-contexto-servicio.js",
-    "frontend/modulos/84-recibos-contexto-interfaz.js"
+    "frontend/modulos/84-recibos-contexto-interfaz.js",
+    "frontend/modulos/85-lectura-asistida.js"
   ],
   "originalSha256": "9c8d55e50d79a8c1d4dda73f83ff26f8b1c9f200e3f6e8c6b96624b12857af04"
 }
