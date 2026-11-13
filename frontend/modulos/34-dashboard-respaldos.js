@@ -5,7 +5,6 @@ function _paletaObras(n){
   const out=[];for(let i=0;i<n;i++)out.push(base[i%base.length]);return out;
 }
 async function openDashboard(){
-  if(window.PLATINUM_TABLERO)return window.PLATINUM_TABLERO.abrir();
   toast('Calculando indicadores...');
   const [{data:tw,error:eTw},{data:ch},{data:ds}]=await Promise.all([
     fetchAllRows(()=>sb.from('trabajadores').select('*').eq('eliminado',false)),fetchAllRows(()=>sb.from('cheques').select('*')),fetchAllRows(()=>sb.from('descuentos').select('*').eq('activo',true))]);

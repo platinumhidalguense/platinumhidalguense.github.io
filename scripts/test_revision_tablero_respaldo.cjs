@@ -486,7 +486,8 @@ function seccionRegresiones(){
  const sha=s=>crypto.createHash('sha256').update(s).digest('hex');
  const alteradas=Object.keys(orig).filter(k=>funcs.has(k)&&sha(funcs.get(k))!==orig[k]);
  eq(alteradas.filter(k=>!(k in rev)),[],'toda función original alterada está en revision-auditada.json');
- ok(alteradas.includes('openDashboard')&&alteradas.includes('exportRespaldo')&&rev.openDashboard&&rev.exportRespaldo,'openDashboard y exportRespaldo alteradas y registradas');
+ // 2026-11-13: el tablero nuevo queda sin publicar (rendimiento en producción); openDashboard conserva el tablero anterior.
+ ok(!alteradas.includes('openDashboard')&&alteradas.includes('exportRespaldo')&&rev.exportRespaldo,'exportRespaldo alterada y registrada; openDashboard sin cambios');
  const protegidas=['proyModelo','calcPrestaciones','retencionEvaluada','descuentosDe','calcularPrestaciones','fonacotMontoPeriodo','infonavitRetencionPeriodo'];
  for(const k of protegidas)if(funcs.has(k)){const s=funcs.get(k);ok(!/PLATINUM_TABLERO|PLATINUM_RESPALDO/.test(s)&&(!(k in orig)||sha(s)===orig[k]||(k in rev)),'función protegida sin cambios del tablero/respaldo: '+k);}
  const g=(cmd)=>{try{return require('node:child_process').execSync(cmd,{encoding:'utf8',stdio:['ignore','pipe','ignore']});}catch(e){return null;}};
@@ -495,7 +496,7 @@ function seccionRegresiones(){
   const cambiados=(g('git diff --name-only fe00009 -- frontend/modulos')||'').trim().split('\n').filter(Boolean).sort();
   eq(cambiados,['frontend/modulos/01-sesion-centros-sincronizacion.js','frontend/modulos/34-dashboard-respaldos.js',...nuevos].sort(),'sólo 01 y 34 cambian entre los módulos existentes');}
  // Seguridad de publicación.
- const ign=g('git check-ignore -q supabase/migrations/20261111100000_tablero_indicadores.sql && git check-ignore -q supabase/migrations/20261111100100_respaldo_marcas.sql && git check-ignore -q work/x && echo si');
+ const ign=g('git check-ignore -q supabase/migrations/20990101000000_tablero_indicadores.sql && git check-ignore -q supabase/migrations/20990101000000_respaldo_marcas.sql && git check-ignore -q work/x && echo si');
  if(ign!==null)eq((ign||'').trim(),'si','migraciones privadas y work/ ignoradas por git');
  const tracked=g('git ls-files');
  if(tracked!==null){

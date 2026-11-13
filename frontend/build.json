@@ -1,8 +1,8 @@
 {
   "version": "2026-11-13.2",
-  "entry": "assets/platinum-app.4faed3cf87c534cc.js",
-  "sha256": "4faed3cf87c534cc0ce656c34a2cafe77e5e3dd53d66db7216ed51e16f7ec325",
-  "integrity": "sha384-LsHDt4eb6YBxW4+qX6dSZq3SM1DTcfFJyTbGC4dkIEGtC2X7Ld8qrKqik9k2mtSU",
+  "entry": "assets/platinum-app.7e59037613f59c20.js",
+  "sha256": "7e59037613f59c201da042e22c93904b380274761caf378159d45dd8c1c76665",
+  "integrity": "sha384-TTVZAavLDRFi9PwnaGPKKLlpyqy1YJJM58FtkLzydPEpdBxiObqyYXgQNaXNTkrp",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -142,7 +142,7 @@
     },
     {
       "path": "frontend/modulos/34-dashboard-respaldos.js",
-      "sha256": "ac7dd4b0a67a5b5d88a08f344808d25184ea0899024de97353553b0f753f01fe"
+      "sha256": "f0769fc231b2a8cbfd2b6cfe5b62f4d7f1308a9b17f2859bcf3365b9fe09b8f5"
     },
     {
       "path": "frontend/modulos/35-centro-control.js",
@@ -362,7 +362,7 @@
     },
     {
       "path": "frontend/modulos/93-respaldo-integral.js",
-      "sha256": "d0fb41e223356c80f4e4419eaa5e5fc75b8b4d7c395633fac3cc0abfbd6cb701"
+      "sha256": "ea6fb87bd556aa35428845ba6ad279aca96843de30bb4f277f5afc9adb9eaa41"
     }
   ]
 }

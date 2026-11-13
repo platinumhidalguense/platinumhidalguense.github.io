@@ -368,7 +368,8 @@
    if(error)throw error;if(!data||typeof data!=='object'||!data.marcas)throw Error('Respuesta de marcas inválida');return data;
   };
   const esTiempo=e=>/57014|timeout|tiempo|canceling statement/i.test(texto(e&&e.code)+' '+errTexto(e));
-  try{return await conReintento(()=>pedir(claves),{...am,intentos:2});}
+  // Producción (2026-11-13): 15 fuentes ≈ 4.7 s frente al límite de 8 s; con más de 8 fuentes se piden por grupos desde el inicio.
+  try{if(claves.length>8)throw Object.assign(Error('canceling statement: marcas por grupos'),{code:'57014'});return await conReintento(()=>pedir(claves),{...am,intentos:2});}
   catch(e){
    if(esFaltaRpc(e)||!esTiempo(e))throw e;
    // Tiempo agotado (statement_timeout): por grupos y, si un grupo sigue excediendo, tabla por tabla.

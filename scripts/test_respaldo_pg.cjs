@@ -2,7 +2,7 @@
 // políticas SELECT de producción (work/respaldo_20261111/prod_base.sql). Datos ficticios.
 // Verifica que MARCAS cuente exactamente lo que cada usuario obtiene por RLS + filtros del cliente.
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-const root=path.resolve(__dirname,'..'),priv=path.join(root,'work/respaldo_20261111'),mig=path.join(root,'supabase/migrations/20261111100100_respaldo_marcas.sql');
+const root=path.resolve(__dirname,'..'),priv=path.join(root,'work/respaldo_20261111'),mig=path.join(root,'supabase/migrations',(fs.existsSync(path.join(root,'supabase/migrations'))&&fs.readdirSync(path.join(root,'supabase/migrations')).find(n=>n.endsWith('_respaldo_marcas.sql')))||'_respaldo_marcas.sql');
 if(!fs.existsSync(mig)||!fs.existsSync(path.join(priv,'generar_prod_base.cjs'))){console.log('ALCANCE PÚBLICO RESPALDO: la prueba PostgreSQL requiere la migración privada de marcas; no se cuenta como ejecutada.');process.exit(0);}
 require(path.join(priv,'generar_prod_base.cjs'));
 const {makeDatabase,ids,actor,owner}=require('./soporte_flujo_pg.cjs');
