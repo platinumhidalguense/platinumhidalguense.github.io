@@ -63,6 +63,7 @@ vm.createContext(require('./soporte_puestos_vistas.cjs').instalar(c)||c);
 cargar('00-configuracion-utilidades.js',['RX','isoADMY','dmyAiso','edad','fetchAllRows']);
 cargar('01-sesion-centros-sincronizacion.js',['conCentroCompleto']);
 cargar('03-navegacion-presentacion.js',['sbGo']);
+require('./soporte_contratos_campos.cjs').instalar(c);
 cargar('04-padron-expedientes.js');
 cargar('05-alta-edicion.js');
 cargar('06-movimientos-historial.js',['doReactivar','saveReingreso']);
@@ -113,7 +114,7 @@ const movimientos=[
  cero=false;await c.saveReingreso();assert.equal(guardas,0);
  const rea=escrituras.at(-1);assert.equal(rea.update.estatus,'ACTIVO');assert.equal(rea.update.fecha_reingreso,'2026-11-25');assert(rea.ops.some(p=>p[0]==='updated_at'));
  c.openForm(null);assert($('worker-form-body'));await paso();await paso();assert.equal(guardas,0);
- assert.equal($('worker-form-body').querySelectorAll('.wf-panel').length,8);
+ assert.equal($('worker-form-body').querySelectorAll('.wf-panel').length,8);assert.equal($('f-tipo_contrato').querySelector('[selected]').textContent,'TIEMPO DETERMINADO');assert($('f-tipo_contrato').hasAttribute('disabled'));assert.equal($('f-fecha_fin_contrato').value,'2026-12-31');assert($('f-fecha_fin_contrato').hasAttribute('readonly'));
  $('f-nombres').value='ALTA FICTICIA';$('f-curp').value='FICT000111MMCRRSA1';
  c.curpAssist();assert.equal($('f-fecha_nacimiento').value,'11/01/2000');assert.equal($('f-rfc').value,'FICT000111');
  assert.match($('h-rfc').textContent,/homoclave/);assert.match($('wf-edad').textContent,/\d+ años/);

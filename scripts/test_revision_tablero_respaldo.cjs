@@ -491,9 +491,9 @@ function seccionRegresiones(){
  const protegidas=['proyModelo','calcPrestaciones','retencionEvaluada','descuentosDe','calcularPrestaciones','fonacotMontoPeriodo','infonavitRetencionPeriodo'];
  for(const k of protegidas)if(funcs.has(k)){const s=funcs.get(k);ok(!/PLATINUM_TABLERO|PLATINUM_RESPALDO/.test(s)&&(!(k in orig)||sha(s)===orig[k]||(k in rev)),'función protegida sin cambios del tablero/respaldo: '+k);}
  const g=(cmd)=>{try{return require('node:child_process').execSync(cmd,{encoding:'utf8',stdio:['ignore','pipe','ignore']});}catch(e){return null;}};
- const base=g('git rev-parse --verify -q fe00009');
- if(base){for(const m of ['52','53']){const fs2=fs.readdirSync('frontend/modulos').filter(x=>x.startsWith(m+'-'));for(const x of fs2)eq(g('git show fe00009:frontend/modulos/'+x),fs.readFileSync('frontend/modulos/'+x,'utf8'),'motor '+x+' byte-idéntico a la base');}
-  const cambiados=(g('git diff --name-only fe00009 -- frontend/modulos')||'').trim().split('\n').filter(Boolean).sort();
+ const base=g('git rev-parse --verify -q 96090da');
+ if(base){for(const m of ['52','53']){const fs2=fs.readdirSync('frontend/modulos').filter(x=>x.startsWith(m+'-'));for(const x of fs2)eq(g('git show 96090da:frontend/modulos/'+x),fs.readFileSync('frontend/modulos/'+x,'utf8'),'motor '+x+' byte-idéntico a la base');}
+  const cambiados=(g('git diff --name-only 96090da -- frontend/modulos')||'').trim().split('\n').filter(Boolean).sort();
   eq(cambiados,['frontend/modulos/01-sesion-centros-sincronizacion.js','frontend/modulos/34-dashboard-respaldos.js',...nuevos].sort(),'sólo 01 y 34 cambian entre los módulos existentes');}
  // Seguridad de publicación.
  const ign=g('git check-ignore -q supabase/migrations/20990101000000_tablero_indicadores.sql && git check-ignore -q supabase/migrations/20990101000000_respaldo_marcas.sql && git check-ignore -q work/x && echo si');

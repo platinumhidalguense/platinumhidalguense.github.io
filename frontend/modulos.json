@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "version": "2026-11-13.2",
+  "version": "2026-11-13.5",
   "modules": [
     "frontend/modulos/00-configuracion-utilidades.js",
     "frontend/modulos/01-sesion-centros-sincronizacion.js",
@@ -88,6 +88,7 @@
     "frontend/modulos/83-recibos-contexto-servicio.js",
     "frontend/modulos/84-recibos-contexto-interfaz.js",
     "frontend/modulos/85-lectura-asistida.js",
+    "frontend/modulos/86-cancelacion-reposicion-cheques.js",
     "frontend/modulos/90-tablero-modelo.js",
     "frontend/modulos/91-tablero-vista.js",
     "frontend/modulos/92-tablero-ejecutivo.js",

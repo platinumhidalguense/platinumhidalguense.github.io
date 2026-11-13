@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),acorn=require('acorn'),assert=require('node:assert/strict');
-const src=fs.readFileSync('frontend/modulos/19-cheques.js','utf8'),names=['chqCapturaExistente','chqMostrarRespaldo','saveCheque'];
+const src=fs.readFileSync('frontend/modulos/19-cheques.js','utf8'),names=['chqTrabajadorCaptura','chqCapturaExistente','chqMostrarRespaldo','saveCheque'];
 const code=acorn.parse(src,{ecmaVersion:'latest'}).body.filter(n=>n.type==='FunctionDeclaration'&&names.includes(n.id.name)).map(n=>src.slice(n.start,n.end)).join('\n');
 let confirmed=false,saved=null,writes=0;const els={};
 for(const[k,value]of Object.entries({'c-nombre':'PERSONA FICTICIA','c-estatus':'PENDIENTE','c-tipo':'FINIQUITO','f-c-num':'NUEVO','f-c-consec':'NUEVO','f-c-importe':'300','f-c-semana':'S17'}))els[k]={value};

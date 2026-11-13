@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-13.2",
-  "entry": "assets/platinum-app.7e59037613f59c20.js",
-  "sha256": "7e59037613f59c201da042e22c93904b380274761caf378159d45dd8c1c76665",
-  "integrity": "sha384-TTVZAavLDRFi9PwnaGPKKLlpyqy1YJJM58FtkLzydPEpdBxiObqyYXgQNaXNTkrp",
+  "version": "2026-11-13.5",
+  "entry": "assets/platinum-app.5d655bbfa6b2ab34.js",
+  "sha256": "5d655bbfa6b2ab3489be9738ff69d33a56b5dcdb0b1dc086e91c1c2162075ca8",
+  "integrity": "sha384-boK6hzkdEkQhCJ44F/l2KywxwfvOJhEFx48oiNL/8lWy9sBOsIcPmvPi2DcIrWlB",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "93e1656fc0b2f3a282e683de90d7cad30b8856f555033540d9fc186bb99f3322"
+      "sha256": "e45bf1d60f1329672c75deec10c7b52814b1b6a6137c164132c84d05b84cbc64"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -22,11 +22,11 @@
     },
     {
       "path": "frontend/modulos/04-padron-expedientes.js",
-      "sha256": "abdd0b4d2991af127e1ffb2aceca62c0f9dd59487600a68f406f432793b38785"
+      "sha256": "50cc828cc0958196ed28fa3adcc007fc3350c65ead16a52debd4eb7efefb3a27"
     },
     {
       "path": "frontend/modulos/05-alta-edicion.js",
-      "sha256": "52ef3ff59c9e45330d8c66fe34c0c1f27a87ee2f179d601068384f75b7dc88ca"
+      "sha256": "cd84c7ab83b7c63f9f84a971f6bf34985567a9b0a1c3157448bd37791a8bd3c1"
     },
     {
       "path": "frontend/modulos/06-movimientos-historial.js",
@@ -50,7 +50,7 @@
     },
     {
       "path": "frontend/modulos/11-expedientes-excel.js",
-      "sha256": "e8d5bb59c90ee0ee1c23b2144bdf9702b4ab4ae39592009403bb28ef85e13b2a"
+      "sha256": "78621323570626779b0fa291e05af4630549bf887edd60cdf6354bee3c22f6f6"
     },
     {
       "path": "frontend/modulos/12-bloques-entregas.js",
@@ -66,7 +66,7 @@
     },
     {
       "path": "frontend/modulos/15-banca-conciliacion.js",
-      "sha256": "3db3d2c56a60a9d9c004324b239add32cfc4e870e9efa6c4df1a16d92e8339b9"
+      "sha256": "a9c9112927b81171e2279c3c09991954e95e951c9c9383594eaf3040a9324f7b"
     },
     {
       "path": "frontend/modulos/16-control-pagos-folios.js",
@@ -82,7 +82,7 @@
     },
     {
       "path": "frontend/modulos/19-cheques.js",
-      "sha256": "6a7a15808c13b2fe3911483b0ce9707605d0c908260a9c63690ad2d7fa2f7247"
+      "sha256": "b89d6f25fdf1c85610bb6ddac6035cad99ce4f1de22ca9d5515e173fc6db635b"
     },
     {
       "path": "frontend/modulos/20-movimientos-semanales.js",
@@ -130,7 +130,7 @@
     },
     {
       "path": "frontend/modulos/31-documentos-laborales.js",
-      "sha256": "daec93da46c968a6cae16b6587cb15e2aff4fb70f334d06ca9fadd083f6c6cf1"
+      "sha256": "0f56450bf4393cd35f8827e9ca1d8dbc18361c82de84b06cce609718d3455983"
     },
     {
       "path": "frontend/modulos/32-legajos.js",
@@ -226,7 +226,7 @@
     },
     {
       "path": "frontend/modulos/55-contratos-consulta.js",
-      "sha256": "06c0bc3375e984fbb43b35b3877cdb09511d78612199514395315fc4de7b1348"
+      "sha256": "a1659fba00d2a3b044f343b7085dec8e776315cee9a709e71e95be038f0b67c0"
     },
     {
       "path": "frontend/modulos/56-calendario-core.js",
@@ -258,7 +258,7 @@
     },
     {
       "path": "frontend/modulos/63-gestion-cheques.js",
-      "sha256": "7d212e1130bcf27c7035b5fbeebf6d74c8b0c355a0bb4a8cf7a90e10e3a1ee8b"
+      "sha256": "eab396ca1978c7905b040e2af58c74be8b0cf67d26cbd6253dc17d334d237031"
     },
     {
       "path": "frontend/modulos/64-datos-centro-en-vivo.js",
@@ -347,6 +347,10 @@
     {
       "path": "frontend/modulos/85-lectura-asistida.js",
       "sha256": "616122165396bdab698c46f9cff0bc299898a975f3bf000c5ba90ab03c771140"
+    },
+    {
+      "path": "frontend/modulos/86-cancelacion-reposicion-cheques.js",
+      "sha256": "64c6b6ed0e8bf53dde2d7997f5c3f3592adbdc8b523f2203fbc3fea8c06992fe"
     },
     {
       "path": "frontend/modulos/90-tablero-modelo.js",

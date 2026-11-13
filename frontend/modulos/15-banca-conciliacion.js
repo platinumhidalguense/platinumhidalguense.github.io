@@ -1203,27 +1203,10 @@ function exportPagoLote(){
 
 /* El finiquito cambia por el flujo conciliado, nunca por borrar sin vínculo. */
 async function pagoCancelarCheque(id){
-  const c=(CHEQUES||[]).find(x=>x.id===id); if(!c){toast('Cheque no encontrado.','err');return;}
-  if(c.tipo_pago==='FINIQUITO'){
-    if(c.estatus!=='PENDIENTE'||String(c.num_cheque||'').trim()||String(c.consecutivo||'').trim()){
-      toast('Es un cheque físico. No se elimina ni se sustituye automáticamente; revisa la posible transferencia duplicada.','err');return;
-    }
-    if(!window.PLATINUM_PAGOS_SABADO){toast('No está disponible la conciliación de finiquitos. Recarga la versión actual.','err');return;}
-    return window.PLATINUM_PAGOS_SABADO.abrir(Number(normSem(c.semana)),'FINIQUITOS');
-  }
-  if(!String(c.num_cheque||'').trim()&&!String(c.consecutivo||'').trim()){
-    return eliminarChequeErroneo(id);
-  }
-  if(!String(c.num_cheque||'').trim()||!String(c.consecutivo||'').trim()){
-    toast('Completa el número y consecutivo del cheque físico antes de cancelarlo. No se eliminó ni canceló nada.','err');return;
-  }
-  if(!confirm(`¿CANCELAR el cheque${c.num_cheque?' #'+c.num_cheque:''} de ${c.nombre||''} (semana ${c.semana}, $${money(c.importe)})?\n\nQueda marcado como CANCELADO (no se borra) porque a este trabajador ya se le pagó por transferencia esa semana.`))return;
-  markWrite();
-  const obs=(c.observaciones?c.observaciones+' · ':'')+'CANCELADO: ya pagado por transferencia (control de pagos '+today()+')';
-  const {error}=await sb.from('cheques').update({estatus:'CANCELADO',observaciones:obs}).eq('id',id);
-  if(error){toast('Error al cancelar el cheque: '+error.message,'err');return;}
-  toast('Cheque marcado como CANCELADO.','ok');
-  await loadObraData(OBRA.id);
-  if($('pg-out')&&PAGOIMP)pgRender();
-  else if($('cp-out'))cpBuild();
+  const c=(CHEQUES||[]).find(x=>x.id===id);if(!c){toast('Cheque no encontrado.','err');return;}
+  if(!String(c.num_cheque||'').trim()&&!String(c.consecutivo||'').trim()&&c.tipo_pago!=='FINIQUITO')return eliminarChequeErroneo(id);
+  if((c.num_cheque||c.consecutivo)&&(!String(c.num_cheque||'').trim()||!String(c.consecutivo||'').trim())){toast('Completa el número y consecutivo del cheque físico antes de revisarlo.','err');return;}
+  if(!window.PLATINUM_IMPORTACION_BANCARIA){toast('Recarga la plataforma para conciliar la transferencia.','err');return;}
+  // Esta ruta proviene de un comprobante bancario: nunca crea una reposición pendiente.
+  return window.PLATINUM_IMPORTACION_BANCARIA.abrir({obra_id:c.obra_id,semana:Number(normSem(c.semana)),anio:Number(String(c.created_at||today()).slice(0,4))});
 }

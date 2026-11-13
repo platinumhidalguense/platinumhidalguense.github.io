@@ -122,6 +122,8 @@ if(fs.existsSync('work/baja_finiquito_20261110/funciones_vigentes.json')&&fs.rea
 if(aguinaldoPrivate)suites.push('test_aguinaldo_pg');
 else console.log('ALCANCE PÚBLICO AGUINALDO: núcleo e interfaz se prueban; las comprobaciones PostgreSQL de faltas históricas y aplicación requieren la migración privada.');
 suites.push('test_puestos_prestaciones');
+suites.push('test_cancelacion_reposicion_ui');
+if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cancelacion_reposicion_atomica.sql'))&&fs.existsSync('../funciones_vivas.json'))suites.push('test_cancelacion_reposicion_pg');
 const tableroPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_tablero_indicadores.sql'));
 const respaldoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_respaldo_marcas.sql'))&&fs.existsSync('work/respaldo_20261111/generar_prod_base.cjs');
 suites.push('test_tablero_modelo','test_tablero_vista','test_tablero_ui','test_respaldo_integral','test_revision_tablero_respaldo');

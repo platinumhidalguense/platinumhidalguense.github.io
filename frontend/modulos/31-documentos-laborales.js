@@ -198,22 +198,39 @@ function datosEmpresaContrato(codigo, base=CFGEMP['empresa_'+codigo]||{}){
   const contrato=base.contrato||CFGEMP['contrato_empresa_'+codigo]||{};
   return {base,contrato,empresa:{...base,...contrato}};
 }
+function camposContratoTrabajador(w={},obra=OBRA){
+  if((obra?.empresa_codigo||w.empresa_codigo)==='PLATINUM'){
+    const {contrato}=datosEmpresaContrato('PLATINUM');
+    return {tipo_contrato:'TIEMPO DETERMINADO',fecha_fin_contrato:contrato.fecha_fin_contrato||'2026-12-31'};
+  }
+  return {tipo_contrato:w.tipo_contrato||(obra?.tipo==='OFICINA'?'TIEMPO INDETERMINADO':'OBRA DETERMINADA'),fecha_fin_contrato:w.fecha_fin_contrato||''};
+}
+function condicionesContrato(codigo,w,datos={},contrato={}){
+  const platinum=codigo==='PLATINUM';
+  const tipo=platinum?'TIEMPO DETERMINADO':(datos.tipo||w.tipo_contrato||'OBRA DETERMINADA');
+  const fin=platinum?(contrato.fecha_fin_contrato||'2026-12-31'):(datos.fin||w.fecha_fin_contrato||'');
+  const fecha=datos.fecha||w.fecha_reingreso||w.fecha_alta||today();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)||!Number.isFinite(new Date(fecha+'T12:00').getTime()))throw Error('Verifica la fecha de inicio contractual.');
+  if(tipo==='TIEMPO DETERMINADO'&&(!fin||fecha>fin))throw Error('El inicio contractual '+fecha+' es posterior al término '+(fin||'sin definir')+'. Resuelve las fechas antes de generar el contrato.');
+  return {tipo,fecha,fin,platinum};
+}
 function openContrato(id){
   const w=WORKERS.find(x=>x.id===id); if(!w)return;
   const empDefault=empresaDeTrabajador(w);
   const {empresa:e,contrato}=datosEmpresaContrato(empDefault);
+  let c;try{c=condicionesContrato(empDefault,w);}catch(e){toast(e.message,'err');return;}
   modal(`
     <div class="m-head"><h2>📄 Contrato individual · ${esc(fullName(w))}</h2><button class="x" onclick="closeModal()">×</button></div>
     <div class="m-body">
       <div class="grid" style="grid-template-columns:1fr 1fr">
         <div><label>Empresa (patrón)</label><select id="ct-emp" onchange="ctEmpChange()"><option value="PLATINUM" ${empDefault==='PLATINUM'?'selected':''}>PLATINUM</option><option value="JIRE" ${empDefault==='JIRE'?'selected':''}>JIRE</option></select></div>
-        <div><label>Tipo de contrato</label><select id="ct-tipo">${['TIEMPO INDETERMINADO','TIEMPO DETERMINADO','OBRA DETERMINADA','PERIODO A PRUEBA'].map(t=>`<option ${(w.tipo_contrato||'TIEMPO INDETERMINADO')===t?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div><label>Tipo de contrato</label><select id="ct-tipo" ${c.platinum?'disabled':''}>${['TIEMPO INDETERMINADO','TIEMPO DETERMINADO','OBRA DETERMINADA','PERIODO A PRUEBA'].map(t=>`<option ${c.tipo===t?'selected':''}>${t}</option>`).join('')}</select></div>
         <div class="c2" style="grid-column:span 2"><label>Razón social</label><input id="ct-razon" value="${esc(e.razon)}" ${contrato.razon?'readonly':''}></div>
         <div><label>RFC empresa</label><input id="ct-rfc" value="${esc(e.rfc)}"></div>
         <div><label>Firmante del patrón</label><input id="ct-rep" value="${esc(e.representante)}" placeholder="NOMBRE DE QUIEN FIRMA" ${contrato.representante?'readonly':''}><small id="ct-rep-cargo">${esc(e.repCargo||'')}</small></div>
-        <div class="c2" style="grid-column:span 2"><label>Domicilio fiscal de la empresa</label><input id="ct-dom" value="${esc(e.domicilio)}"></div>
-        <div><label>Fecha del contrato</label><input id="ct-fecha" type="date" value="${w.fecha_alta||today()}"></div>
-        <div><label>Fin (solo tiempo determinado)</label><input id="ct-fin" type="date" value="${w.fecha_fin_contrato||''}"></div>
+        <div class="c2" style="grid-column:span 2"><label>Domicilio fiscal de la empresa</label><input id="ct-dom" value="${esc(e.domicilio)}" ${contrato.domicilio?'readonly':''}></div>
+        <div><label>Fecha del contrato</label><input id="ct-fecha" type="date" value="${c.fecha}"></div>
+        <div><label>Fin (solo tiempo determinado)</label><input id="ct-fin" type="date" value="${c.fin}" ${c.platinum?'readonly':''}></div>
       </div>
       <p style="margin-top:12px;font-size:12px;color:var(--mut)">El formato toma los datos legales y el firmante de la empresa seleccionada. Revisa el documento antes de firmarlo.</p>
     </div>
@@ -223,7 +240,9 @@ function openContrato(id){
     </div>`,'md');
 }
 function ctEmpChange(){
-  const {empresa:e,contrato}=datosEmpresaContrato($('ct-emp').value);
+  const codigo=$('ct-emp').value,{empresa:e,contrato}=datosEmpresaContrato(codigo);
+  $('ct-tipo').disabled=codigo==='PLATINUM';$('ct-fin').readOnly=codigo==='PLATINUM';$('ct-dom').readOnly=Boolean(contrato.domicilio);
+  if(codigo==='PLATINUM'){$('ct-tipo').value='TIEMPO DETERMINADO';$('ct-fin').value=contrato.fecha_fin_contrato||'2026-12-31';}
   $('ct-razon').value=e.razon||'';$('ct-rfc').value=e.rfc||'';$('ct-rep').value=e.representante||'';$('ct-dom').value=e.domicilio||'';
   $('ct-razon').readOnly=Boolean(contrato.razon);
   $('ct-rep').readOnly=Boolean(contrato.representante);
@@ -242,8 +261,9 @@ async function generarContrato(id,opciones={}){
   if(!contrato.razon)captura.razon=valor('razon').trim().toUpperCase();
   if(!contrato.representante)captura.representante=valor('rep').trim().toUpperCase();
   const emp={...captura,...contrato};
-  const tipo=valor('tipo'), fecha=valor('fecha')||today(), fin=valor('fin');
-  if(!soloLectura){
+  let condiciones;try{condiciones=condicionesContrato(empKey,w,{tipo:valor('tipo'),fecha:valor('fecha'),fin:valor('fin')},contrato);}catch(e){if(opciones.devolverHTML)throw e;toast(e.message,'err');return;}
+  const {tipo,fecha,fin}=condiciones;
+  if(!soloLectura&&empKey!=='PLATINUM'){
   CFGEMP[clave]=captura;
   try{await sb.from('config').upsert({clave,valor:captura,actualizado_por:USER.email});}catch(e){}
   // actualizar tipo de contrato del trabajador
@@ -262,11 +282,14 @@ async function generarContrato(id,opciones={}){
     instrumento:emp.instrumento,volumen:emp.volumen,esc_fecha:emp.escritura_fecha,notario:emp.notario,
     notaria:emp.notaria_num,ciudad:emp.notaria_ciudad,rppc:emp.rppc,folio:emp.folio_mercantil,inscr:emp.inscripcion_fecha};
   const poderEnConstitutiva=contrato.representante?contrato.poder_en_constitutiva===true:true;
-  const referenciaPoder=poderEnConstitutiva
+  const poderSeparado=empKey==='PLATINUM'&&contrato.poder_instrumento;
+  const parrafoPoder=poderSeparado?`<p>Las facultades de <b>${BL(L.rep)}</b>, como <b>${BL(L.cargo)}</b>, constan en el Instrumento N&uacute;mero <b>${BL(contrato.poder_instrumento)}</b>, Volumen N&uacute;mero ${BL(contrato.poder_volumen)}, de fecha ${BL(contrato.poder_fecha)}, ante la fe del notario titular Lic. ${BL(contrato.poder_notario)}, Notario P&uacute;blico N&uacute;mero ${BL(contrato.poder_notaria_num)}, de ${BL(contrato.poder_notaria_ciudad)}; inscrito en el Registro P&uacute;blico de la Propiedad de ${BL(contrato.poder_rppc)}, bajo el folio mercantil ${BL(contrato.poder_folio_mercantil)}. Este instrumento acredita el poder y es distinto del instrumento constitutivo antes descrito.</p>`:'';
+  const referenciaPoder=poderSeparado?`, personalidad que acredita mediante el <b>instrumento ${BL(contrato.poder_instrumento)} descrito en el inciso a)</b>, cuyas facultades declara vigentes a la firma del presente contrato`:poderEnConstitutiva
     ? ', personalidad que acredita en t&eacute;rminos del Instrumento notarial de referencia en el inciso a) que precede, la cual no le ha sido modificada, ni revocada en forma alguna a la fecha de firma del presente contrato'
     : '';
   let tercera;
-  if(tipo==='TIEMPO DETERMINADO') tercera=`Este contrato se celebra por <b>tiempo determinado</b>, con vigencia del <b>${fmtL(fecha)}</b> al <b>${fmtL(fin)}</b>, conforme al art&iacute;culo 37 de la Ley Federal del Trabajo, por as&iacute; exigirlo la naturaleza del trabajo a desarrollar.`;
+  if(empKey==='PLATINUM') tercera=`Este contrato se celebra por <b>TIEMPO DETERMINADO</b>, con inicio contractual el <b>${fmtL(fecha)}</b> y t&eacute;rmino el <b>${fmtL(fin)}</b>. La modalidad temporal se sujeta a los supuestos aplicables de los art&iacute;culos 35 a 38 de la Ley Federal del Trabajo; la fijaci&oacute;n de esta fecha no sustituye la acreditaci&oacute;n del supuesto legal que corresponda al caso concreto. Conforme al art&iacute;culo 39, si al vencimiento subsiste la materia del trabajo, la relaci&oacute;n quedar&aacute; prorrogada por todo el tiempo que perdure dicha circunstancia. La fecha de t&eacute;rmino no implica por s&iacute; sola la extinci&oacute;n autom&aacute;tica de la relaci&oacute;n laboral, ni afecta la antig&uuml;edad o los derechos adquiridos.`;
+  else if(tipo==='TIEMPO DETERMINADO') tercera=`Este contrato se celebra por <b>tiempo determinado</b>, con vigencia del <b>${fmtL(fecha)}</b> al <b>${fmtL(fin)}</b>, conforme al art&iacute;culo 37 de la Ley Federal del Trabajo, por as&iacute; exigirlo la naturaleza del trabajo a desarrollar.`;
   else if(tipo==='OBRA DETERMINADA') tercera=`Este contrato se celebra por <b>obra determinada</b>, conforme al art&iacute;culo 36 de la Ley Federal del Trabajo; su duraci&oacute;n ser&aacute; la que exija la ejecuci&oacute;n de los trabajos de la obra denominada <b>${esc(obraContrato.nombre)}</b>${obraContrato.ubicacion?', ubicada en '+esc(obraContrato.ubicacion):''}, extingui&eacute;ndose la relaci&oacute;n de trabajo al concluir la obra o la etapa de la misma para la que fue contratado "EL TRABAJADOR".`;
   else if(tipo==='PERIODO A PRUEBA') tercera='La relaci&oacute;n de trabajo se pacta por <b>tiempo indeterminado</b> y se sujeta a un <b>periodo a prueba de treinta d&iacute;as</b>, conforme al art&iacute;culo 39-A de la Ley Federal del Trabajo, con el fin de verificar que "EL TRABAJADOR" cumple con los requisitos y conocimientos necesarios para desarrollar el trabajo. De no acreditarlos, a juicio de "EL PATR&Oacute;N" y tomando en cuenta la opini&oacute;n de la Comisi&oacute;n Mixta de Productividad, Capacitaci&oacute;n y Adiestramiento, se dar&aacute; por terminada la relaci&oacute;n de trabajo sin responsabilidad para "EL PATR&Oacute;N".';
   else tercera='Este contrato se celebra por <b>tiempo indeterminado</b>, conforme a lo se&ntilde;alado en el art&iacute;culo 35 de la Ley Federal del Trabajo.';
@@ -296,7 +319,7 @@ async function generarContrato(id,opciones={}){
   <h2>D E C L A R A C I O N E S:</h2>
   <p><b>I. DECLARA "EL PATR&Oacute;N"</b></p>
   <p><b>a)</b> Para los efectos de los art&iacute;culos 10, 11, 12, 13, 14, 16, 24 y 25 de la Ley Federal del Trabajo, que su representada denominada <b>${BL(emp.razon)}</b> est&aacute; legalmente constituida de conformidad con las leyes de la Rep&uacute;blica Mexicana, situaci&oacute;n que se corrobora en el Instrumento N&uacute;mero ${BL(L.instrumento)}, Volumen N&uacute;mero ${BL(L.volumen)}, de fecha ${BL(L.esc_fecha)}, pasado ante la fe del Licenciado ${BL(L.notario)}, Notario P&uacute;blico N&uacute;mero ${BL(L.notaria)} en la Ciudad ${BL(L.ciudad)}; el cual qued&oacute; inscrito en el Registro P&uacute;blico de la Propiedad y de Comercio de ${BL(L.rppc)}, bajo el folio mercantil ${BL(L.folio)} con fecha ${BL(L.inscr)}.</p>
-  <p><b>b)</b> Que comparece a la celebraci&oacute;n del presente contrato en su car&aacute;cter de <b>${BL(L.cargo)}</b>${referenciaPoder}.</p>
+  ${parrafoPoder?parrafoPoder+'\n  ':''}<p><b>b)</b> Que comparece a la celebraci&oacute;n del presente contrato en su car&aacute;cter de <b>${BL(L.cargo)}</b>${referenciaPoder}.</p>
   <p><b>c)</b> Que la empresa tiene su domicilio ubicado en ${BL(L.dom)}, y contar con Registro Federal de Contribuyentes ${BL(L.rfc)}.</p>
   <p><b>II. DECLARA "EL TRABAJADOR"</b></p>
   <p><b>a)</b> Para los efectos de los art&iacute;culos 8, 24 y 25 de la Ley Federal del Trabajo, "EL TRABAJADOR" declara llamarse <b>${esc(fullName(w))}</b>, sexo ${BL(w.genero)}, escolaridad ${BL(w.escolaridad)}, nacido en ${BL(w.edo_nacimiento)} que cuenta con ${edad!=null?edad:'<span class="bl">____</span>'} a&ntilde;os de edad, de nacionalidad ${BL(w.nacionalidad||'MEXICANA')} estado civil ${BL(w.estado_civil)}, con n&uacute;mero de seguridad social ${BL(w.nss)}.</p>
