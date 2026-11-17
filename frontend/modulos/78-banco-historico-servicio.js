@@ -24,9 +24,54 @@
   function exigir(t){if(!vigente(t))throw Error('Cambió el centro o la sesión. Vuelve a abrir el archivo en su contexto.');}
   async function rpc(accion,j,t=secuencia){exigir(t);const r=await cfg.rpc('control_importacion_bancaria',{p_accion:accion,p_datos:j});exigir(t);if(r.error)throw Error(r.error.message||'No se confirmó la operación bancaria');if(!r.data)throw Error('Respuesta bancaria incompleta');return r.data;}
   async function tarea(fn){if(ocupado)throw Error('Espera a que termine la operación actual');const t=secuencia;ocupado=true;avisar();try{return await fn(t);}finally{ocupado=false;avisar();}}
-  async function abrir(contexto){const c=scope(),t=++secuencia;estado={...c,contexto:copia(contexto),archivos:[],archivo:null,previa:null,resultados:[]};cacheBytes.clear();
-   const d=await rpc('CONTEXTO',{obra_id:c.obra_id,anio:contexto.anio,periodicidad:contexto.periodicidad},t);Object.assign(estado,d);avisar();return estado;}
-  async function seleccionar(id){return tarea(async t=>{estado.archivo=await rpc('ABRIR',{archivo_id:id},t);estado.previa=null;estado.resultados=estado.archivo.resoluciones?.map(r=>r.resultado)||[];avisar();return estado.archivo;});}
+  // Contexto por secciones: permisos mínimos primero; personas, archivos, originales anteriores y fuentes
+ // se consultan por separado, paginados, con estado propio y sin bloquear el archivo de comprobantes.
+ const CTX='control_importacion_contexto';
+ const faltaRpc=e=>/PGRST202|42883/.test(String(e?.code||''))||/could not find the function|does not exist/i.test(String(e?.message||''));
+ async function rpcCtx(accion,j,t){exigir(t);const c=estado.contexto;const r=await cfg.rpc(CTX,{p_accion:accion,p_datos:{obra_id:estado.obra_id,anio:c.anio,periodicidad:c.periodicidad,...j}});exigir(t);
+  if(r.error){const e=Error(r.error.message||'No se consultó el contexto bancario');e.code=r.error.code;throw e;}if(!r.data)throw Error('Respuesta de contexto incompleta');return r.data;}
+ function marcar(sec,cambios,t){if(!vigente(t))return;estado.secciones[sec]={...estado.secciones[sec],...cambios};avisar();}
+ async function seccion(sec,t,fn){if(!vigente(t))return false;marcar(sec,{estado:'CARGANDO',error:null},t);
+  try{await fn();marcar(sec,{estado:'LISTO'},t);return true;}catch(e){if(vigente(t))marcar(sec,{estado:'ERROR',error:e.message},t);return false;}}
+ const cargadores={
+  async personas(t){const todas=[];let despues=null,n=0;do{const r=await rpcCtx('PERSONAS',{despues,limite:500},t);todas.push(...r.filas);despues=r.siguiente||null;if(++n>200)throw Error('Paginación de personas sin fin');}while(despues);
+   estado.personas=todas;const total=estado.totales?.personas;marcar('personas',{total:todas.length,aviso:total!=null&&total!==todas.length?'El padrón cambió durante la consulta ('+todas.length+' de '+total+'); reintenta para actualizar.':null},t);},
+  async archivos(t,mas){const r=await rpcCtx('ARCHIVOS',{...(mas?estado.archivosSiguiente:{}),limite:50},t);const ids=new Set(estado.archivos.map(a=>a.id));for(const a of r.filas)if(!ids.has(a.id))estado.archivos.push(a);
+   estado.archivosSiguiente=r.siguiente||null;marcar('archivos',{total:estado.archivos.length,mas:!!r.siguiente},t);},
+  async anteriores(t,mas){const r=await rpcCtx('ANTERIORES',{...(mas?estado.anterioresSiguiente:{}),limite:50},t);const ids=new Set(estado.anteriores.map(a=>a.id));for(const a of r.filas)if(!ids.has(a.id))estado.anteriores.push(a);
+   estado.anterioresSiguiente=r.siguiente||null;marcar('anteriores',{total:estado.anteriores.length,mas:!!r.siguiente},t);}
+ };
+ function cargarSeccion(sec,t,mas){const p=seccion(sec,t,()=>cargadores[sec](t,mas));if(estado)estado.cargas[sec]=p;return p;}
+ function iso(d){return d.toISOString().slice(0,10);}
+ // Periodos a consultar: semana elegida; si no, las fechas de las operaciones leídas (lote mixto) o los días de la quincena.
+ function filtroFuentes(records){const c=estado.contexto,semanas=c.semana?[Number(c.semana)]:[];
+  let fechas=semanas.length?[]:[...new Set((records||[]).map(r=>r.fecha).filter(f=>/^\d{4}-\d{2}-\d{2}$/.test(f||'')))].sort();
+  if(!semanas.length&&!fechas.length&&c.periodicidad==='QUINCENAL'&&c.mes){const a=Number(c.anio),m=Number(c.mes)-1,fin=new Date(Date.UTC(a,m+1,0)).getUTCDate();
+   const d0=c.quincena===2?16:1,d1=c.quincena===1?15:fin;for(let d=d0;d<=d1;d+=6)fechas.push(iso(new Date(Date.UTC(a,m,d))));fechas.push(iso(new Date(Date.UTC(a,m,d1))));fechas=[...new Set(fechas)];}
+  return{semanas,fechas,concepto:c.concepto&&c.concepto!=='TODOS'?c.concepto:null};}
+ async function asegurarFuentes(records,t){if(estado.modo==='LEGADO')return true;const f=filtroFuentes(records);if(!f.semanas.length&&!f.fechas.length)return true;
+  const llave=JSON.stringify(f);if(estado.cacheFuentes.has(llave))return estado.cacheFuentes.get(llave);
+  const p=seccion('fuentes',t,async()=>{const r=await rpcCtx('FUENTES',f,t);const vistos=new Set(estado.fuentes.map(x=>x.clave));for(const x of r.fuentes||[])if(!vistos.has(x.clave)){vistos.add(x.clave);estado.fuentes.push(x);}
+   marcar('fuentes',{total:estado.fuentes.length,semanas:r.semanas||f.semanas},t);});
+  estado.cacheFuentes.set(llave,p);const ok=await p;if(!ok&&estado)estado.cacheFuentes.delete(llave);return ok;}
+ async function prepararAsociacion(records,t){if(estado.modo==='LEGADO')return;await estado.cargas.personas;exigir(t);await asegurarFuentes(records,t);exigir(t);}
+ async function abrir(contexto){const c=scope(),t=++secuencia;
+  estado={...c,contexto:copia(contexto),archivos:[],archivo:null,previa:null,resultados:[],personas:[],fuentes:[],anteriores:[],archivosSiguiente:null,anterioresSiguiente:null,
+   secciones:{contexto:{estado:'CARGANDO'},archivos:{estado:'PENDIENTE'},personas:{estado:'PENDIENTE'},anteriores:{estado:'PENDIENTE'},fuentes:{estado:'PENDIENTE'}},cacheFuentes:new Map(),cargas:{},modo:'SECCIONES'};
+  cacheBytes.clear();avisar();let d;
+  try{d=await rpcCtx('CONTEXTO',{},t);}
+  catch(e){if(!faltaRpc(e)){if(vigente(t))marcar('contexto',{estado:'ERROR',error:e.message},t);throw e;}
+   // Compatibilidad con un servidor sin contexto por secciones.
+   d=await rpc('CONTEXTO',{obra_id:c.obra_id,anio:contexto.anio,periodicidad:contexto.periodicidad},t);Object.assign(estado,d,{modo:'LEGADO'});
+   for(const k of ['archivos','personas','anteriores','fuentes'])estado.secciones[k]={estado:'LISTO',total:(d[k]||[]).length};estado.secciones.contexto={estado:'LISTO'};avisar();return estado;}
+  Object.assign(estado,{empresa_codigo:d.empresa_codigo,puede_importar:d.puede_importar,puede_conciliar:d.puede_conciliar,totales:d.totales||{},fecha_inicio:d.fecha_inicio});
+  estado.secciones.contexto={estado:'LISTO'};avisar();
+  cargarSeccion('personas',t);cargarSeccion('archivos',t);if(d.puede_importar)cargarSeccion('anteriores',t);asegurarFuentes([],t);
+  return estado;}
+ function reintentar(sec){const t=secuencia;if(!estado)return Promise.resolve(false);if(sec==='fuentes')return asegurarFuentes(estado.archivo?.propuesta?.records||[],t);if(!cargadores[sec])throw Error('Sección desconocida');
+  if(sec!=='personas'){if(sec==='archivos'){estado.archivos=estado.archivos.filter(a=>a.id===estado.archivo?.id);estado.archivosSiguiente=null;}else{estado.anteriores=[];estado.anterioresSiguiente=null;}}return cargarSeccion(sec,t);}
+ function mas(sec){if(!estado||!['archivos','anteriores'].includes(sec))return Promise.resolve(false);if(!estado[sec+'Siguiente'])return Promise.resolve(true);return cargarSeccion(sec,secuencia,true);}
+ async function seleccionar(id){return tarea(async t=>{estado.archivo=await rpc('ABRIR',{archivo_id:id},t);estado.previa=null;estado.resultados=estado.archivo.resoluciones?.map(r=>r.resultado)||[];avisar();return estado.archivo;});}
   async function guardar(propuesta,t=secuencia){const a=estado.archivo;estado.archivo=await rpc('PROPUESTA',{archivo_id:a.id,revision:a.revision,propuesta},t);estado.previa=null;avisar();return estado.archivo;}
   async function archivar(bytes,nombre,contexto,t,padre,pagina){
    const sha256=await cfg.hash(bytes);exigir(t);
@@ -55,7 +100,7 @@
     pg.records=combinarPagina(pg.records||[],lectura.records,cfg.core);pg.fragmento_id=f.id;pg.lector='TRADICIONAL_Y_COMPLEMENTARIO';pg.error=null;
     pg.pendiente=pg.records.some(r=>!cfg.core.revisarBanco({records:[r]}).ok);if(pg.pendiente)pg.error=lectura.validacion.errores.join('. ');
    }catch(e){pg.pendiente=true;pg.error=e.message;}
-   p.records=reunir(p);
+   await prepararAsociacion(p.paginas.flatMap(x=>x.records||[]),t);p.records=reunir(p);
    p.validacion=cfg.core.revisarBanco({...p,records:p.records},p.paginas.map(x=>x.texto||'').join('\n'));
    return guardar(p,t);
   }
@@ -71,7 +116,8 @@
     pp.push({numero:x.numero,texto:x.texto,records:r.records,lector:'TRADICIONAL',pendiente,error:pendiente?'Página con lectura pendiente':null});
    }
    let p={tipo,esperados:global?esperados:null,totalEsperado:global?totalEsperado:null,paginas:pp,records:[]};
-   p.records=asociar(pp.flatMap(pg=>pg.records.map((r,i)=>({...r,pagina:pg.numero,ordinal_pagina:i+1}))));p.validacion=cfg.core.revisarBanco(p,paginas.map(x=>x.texto).join('\n'));
+   const crudos=pp.flatMap(pg=>pg.records.map((r,i)=>({...r,pagina:pg.numero,ordinal_pagina:i+1})));await prepararAsociacion(crudos,t);
+   p.records=asociar(crudos);p.validacion=cfg.core.revisarBanco(p,paginas.map(x=>x.texto).join('\n'));
    await guardar(p,t);
    for(const pg of pp.filter(x=>x.pendiente)){exigir(t);await completarInterno(pg.numero,t);}
    return estado.archivo;
@@ -98,7 +144,7 @@
    }
    estado.resultados=r.resultados;estado.archivo=await rpc('ABRIR',{archivo_id:a.id},t);estado.previa=null;avisar();await cfg.onConfirmed?.(r,estado);return r;});}
   function cerrar(){secuencia++;estado=null;cacheBytes.clear();avisar();}
-  return Object.freeze({abrir,seleccionar,subir,completar,recuperar,reanudar,editar,revisar,confirmar,cerrar,estado:()=>estado,ocupado:()=>ocupado});
+  return Object.freeze({abrir,reintentar,mas,seleccionar,subir,completar,recuperar,reanudar,editar,revisar,confirmar,cerrar,estado:()=>estado,ocupado:()=>ocupado});
  }
  return Object.freeze({crear,combinarPagina,llave});
 });

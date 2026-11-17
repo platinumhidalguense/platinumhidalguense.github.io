@@ -7,7 +7,8 @@ const fuentes=[{trabajador_id:'A',nombre:'PERSONA PRUEBA',cuenta:'1234567890'},{
 const hash=async b=>crypto.createHash('sha256').update(Buffer.from(b)).digest('hex');
 const clone=x=>JSON.parse(JSON.stringify(x));
 const cfg={context:()=>alcance,core,hash,file:(b,name)=>({name,arrayBuffer:async()=>b}),legacy:{},
- rpc:async(fn,{p_accion:a,p_datos:j})=>{eq(fn,'control_importacion_bancaria','servicio único');eventos.push(a);let f=archivos.get(j.archivo_id);
+ rpc:async(fn,{p_accion:a,p_datos:j})=>{if(fn==='control_importacion_contexto')return{error:{code:'PGRST202',message:'Could not find the function'}}; // servidor anterior: contexto en una sola llamada
+  eq(fn,'control_importacion_bancaria','servicio único');eventos.push(a);let f=archivos.get(j.archivo_id);
   if(a==='CONTEXTO')return{data:{obra_id:alcance.obra_id,fuentes,archivos:[...archivos.values()].filter(f=>!f.padre_id).map(clone),puede_importar:true}};
   if(a==='INICIAR'){f=[...archivos.values()].find(f=>f.sha256===j.sha256);if(!f){f={id:'F'+(archivos.size+1),obra_id:j.obra_id,nombre:j.nombre,sha256:j.sha256,contexto:j.contexto,ruta:'R'+archivos.size,revision:1,estado:'SUBIENDO',propuesta:{},padre_id:j.padre_id};archivos.set(f.id,f);}return{data:clone(f)};}
   if(a==='ABRIR')return{data:clone(f)};

@@ -42,14 +42,19 @@
    mes:per==='QUINCENAL'?Number(q('[data-bh-mes]').value):null,quincena:per==='QUINCENAL'&&q('[data-bh-quincena]').value?Number(q('[data-bh-quincena]').value):null,concepto:q('[data-bh-concepto]').value};}
   function periodos(){const quin=q('[data-bh-per]').value==='QUINCENAL';q('[data-bh-semana-label]').hidden=quin;q('[data-bh-mes-label]').hidden=!quin;q('[data-bh-quincena-label]').hidden=!quin;}
   periodos();
-  async function cargar(){v.contextoSucio=false;mensaje('Consultando archivos y obligaciones históricas…');await v.servicio.abrir(contexto());mensaje('Contexto cargado. Puedes archivar comprobantes aunque falte su fotografía o su obligación.');}
+  async function cargar(){v.contextoSucio=false;mensaje('Validando permisos y contexto…');await v.servicio.abrir(contexto());
+   mensaje('Contexto autorizado. Puedes cargar comprobantes; archivos, personas y fuentes se consultan por sección y no bloquean el archivo del original.');}
+  const SECCIONES={archivos:'Archivos del periodo',personas:'Personas del centro',fuentes:'Fuentes de conciliación',anteriores:'Originales anteriores'};
+  function secciones(s){return '<ul class="fhint" data-bh-secciones style="margin:4px 0 8px;padding-left:18px">'+Object.entries(SECCIONES).filter(([k])=>k!=='anteriores'||s.puede_importar).map(([k,t])=>{const x=s.secciones?.[k]||{};
+    const txt=x.estado==='CARGANDO'?'Cargando…':x.estado==='ERROR'?'<span style="color:var(--red)">'+esc(x.error||'Error')+'</span> <button type="button" class="btn" data-bh="reintentar" data-sec="'+k+'">Reintentar</button>':x.estado==='LISTO'?'Listo'+(x.total!=null?' · '+x.total:''):(k==='fuentes'?'Se consultan con el periodo o las fechas del comprobante':'Pendiente');
+    return '<li data-bh-sec="'+k+'" data-estado="'+esc(x.estado||'PENDIENTE')+'">'+t+': '+txt+(x.aviso?' <span>'+esc(x.aviso)+'</span>':'')+(x.mas?' <button type="button" class="btn" data-bh="mas" data-sec="'+k+'">Cargar más</button>':'')+'</li>';}).join('')+'</ul>';}
   function pintar(s){
    for(const b of host.querySelectorAll('button,[data-bh-contexto] input,[data-bh-contexto] select'))b.disabled=v.ocupado;
    const archivo=s?.archivo,filas=archivo?.propuesta?.records||[],pre=s?.previa?.filas||[];
    q('[data-bh="previa"]').disabled=v.ocupado||v.contextoSucio||!filas.length;
    q('[data-bh="confirmar"]').disabled=v.ocupado||v.contextoSucio||!s?.previa||!s?.puede_importar;
    if(!s){q('[data-bh-lectura]').innerHTML='';return;}
-   q('[data-bh-archivos]').innerHTML=`<label>PDF globales o individuales<input data-bh-files type="file" accept=".pdf,application/pdf" multiple ${v.ocupado||!s.puede_importar?'disabled':''}></label>
+   q('[data-bh-archivos]').innerHTML=secciones(s)+`<label>PDF globales o individuales<input data-bh-files type="file" accept=".pdf,application/pdf" multiple ${v.ocupado||!s.puede_importar?'disabled':''}></label>
     <label>Continuar archivo archivado<select data-bh-archivo><option value="">Selecciona un original</option>${s.archivos.map(a=>`<option value="${a.id}" ${archivo?.id===a.id?'selected':''}>${esc(a.nombre)} · ${esc(etiqueta(a.estado))}</option>`).join('')}</select></label>${s.puede_importar&&(s.anteriores||[]).length?'<label>Recuperar originales del flujo anterior<select data-bh-anterior><option value="">Selecciona original archivado</option>'+(s.anteriores||[]).map(x=>'<option value="'+x.id+'">'+esc(x.nombre)+'</option>').join('')+'</select></label>':''}`;
    if(!archivo){q('[data-bh-lectura]').innerHTML='<p class="fhint">Selecciona o carga un original para continuar.</p>';return;}
    const pages=archivo.propuesta?.paginas||[],totPag=Math.max(1,Math.ceil(filas.length/50));v.pagina=Math.min(v.pagina,totPag-1);
@@ -99,7 +104,7 @@
   host.addEventListener('click',async e=>{const b=e.target.closest('[data-bh]');if(!b||!actual(v)||v.ocupado)return;try{
    const a=b.dataset.bh;
    if(a==='cerrar'){v.servicio.cerrar();vista=null;closeModal();return;}
-   if(a==='contexto')return await cargar();if(a==='previa')return await v.servicio.revisar();if(a==='resolver')return await resolver(Number(b.dataset.i));
+   if(a==='contexto')return await cargar();if(a==='reintentar')return await v.servicio.reintentar(b.dataset.sec);if(a==='mas')return await v.servicio.mas(b.dataset.sec);if(a==='previa')return await v.servicio.revisar();if(a==='resolver')return await resolver(Number(b.dataset.i));
    if(a==='reanudar')return await v.servicio.reanudar();if(a==='completar')return await v.servicio.completar(Number(b.dataset.pagina));if(a==='pagina'){v.pagina=Number(b.dataset.page);return pintar(v.servicio.estado());}
    if(a==='confirmar'){
     const s=v.servicio.estado(),cs=[];

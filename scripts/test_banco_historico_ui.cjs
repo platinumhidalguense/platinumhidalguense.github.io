@@ -5,7 +5,7 @@ Object.defineProperty(window.HTMLSelectElement.prototype,'value',{configurable:t
 let n=0,puede=true,preguntas=[],llamadas=[],archivo=null,decisiones=[],status='PENDIENTE';
 const eq=(a,b,m)=>{assert.deepEqual(a,b,m);n++;},ok=(a,m)=>{assert(a,m);n++;},tick=async()=>{for(let i=0;i<22;i++)await new Promise(r=>setImmediate(r));};
 const ws=[{id:'A',nombre:'PERSONA PRUEBA',cuenta:'1234567890'}],fu={clave:'OBLIGACION:O1',trabajador_id:'A',nombre:'PERSONA PRUEBA',importe:500,concepto:'FINIQUITO',semana:26,desde:'2026-09-21',hasta:'2026-09-27',fecha_baja:'2026-09-21',ciclo_desde:'2026-04-01',periodicidad:'SEMANAL'};
-const rpc=async(fn,{p_accion:a,p_datos:j})=>{llamadas.push({a,j});if(a==='CONTEXTO')return{data:{obra_id:j.obra_id,personas:ws,fuentes:[fu],archivos:archivo?[archivo]:[],puede_importar:puede}};
+const rpc=async(fn,{p_accion:a,p_datos:j})=>{if(fn==='control_importacion_contexto')return{error:{code:'PGRST202',message:'Could not find the function'}};llamadas.push({a,j});if(a==='CONTEXTO')return{data:{obra_id:j.obra_id,personas:ws,fuentes:[fu],archivos:archivo?[archivo]:[],puede_importar:puede}};
  if(a==='INICIAR'){archivo={id:'F',obra_id:j.obra_id,ruta:'ARCHIVO',nombre:j.nombre,sha256:j.sha256,contexto:j.contexto,revision:1,estado:'SUBIENDO',propuesta:{}};return{data:structuredClone(archivo)};}
  if(a==='ARCHIVADO'){archivo.estado='ARCHIVADO';archivo.revision++;return{data:structuredClone(archivo)};}
  if(a==='PROPUESTA'){archivo.propuesta=structuredClone(j.propuesta);archivo.revision++;return{data:structuredClone(archivo)};}
