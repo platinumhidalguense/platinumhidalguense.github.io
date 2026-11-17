@@ -433,6 +433,30 @@
   return fila;
  }
 
+ /* Desglose explicable de la exención (LISR 93-XIV) a partir de la fila calculada: pantalla y Excel usan
+    los mismos importes que valida el servidor (tope − usado del año = disponible; exento = mín(bruto, disponible)).
+    Referencias: CFDI timbrados con percepción SAT 002 exenta (uno por UUID). Reservado: aplicaciones de
+    aguinaldo en nóminas aún no autorizadas (ya comprometen el saldo, pero no están pagadas). El ISR art. 96
+    atribuible se separa en tarifa sobre el gravado y subsidio al empleo que deja de aplicar. */
+ function desgloseExencion(fila,fiscalAnual,aplicaciones){
+  const x=fila&&fila.fiscal;if(!x)return null;
+  let referencias;
+  if(fiscalAnual)referencias=(fiscalAnual.fuentes||[]).filter(f=>Number(f.exento)>0)
+   .map(f=>({tipo:'CFDI',uuid:f.uuid||null,documento_id:f.id||null,exento:r2(f.exento)}));
+  else referencias=((fila.conciliacion&&fila.conciliacion.detalle)||[]).filter(e=>e.clase==='ACREDITADO'&&Number(e.exento)>0)
+   .map(e=>({tipo:e.origen,uuid:null,documento_id:e.id||null,exento:r2(e.exento)}));
+  const cfdi=r2(referencias.reduce((t,f)=>t+f.exento,0));
+  const reservas=(aplicaciones||[]).filter(a=>a.estado==='APLICADO'&&!ESTADOS_ACREDITADOS.includes(a.estado_destino)&&Number(a.exento)>0)
+   .map(a=>({id:a.id,fecha_pago:a.fecha_pago||null,estado_destino:a.estado_destino||null,exento:r2(a.exento)}));
+  const reservado=r2(Math.min(Math.max(0,x.exento_usado-cfdi),reservas.reduce((t,a)=>t+a.exento,0)));
+  const d=x.isr_detalle||{},art96=d.metodo==='ART96',efecto=art96?r2(d.efecto_subsidio||0):0;
+  return {uma:x.uma,tope:x.tope,usado:x.exento_usado,consumido:r2(x.exento_usado-reservado),referencias,
+   aplicaciones_registradas:r2(Math.max(0,x.exento_usado-cfdi-reservado)),reservado,reservas,disponible:x.disponible,
+   bruto:r2(x.exento+x.gravado),exento:x.exento,gravado:x.gravado,cabe_completo:x.gravado===0,
+   isr:x.isr==null?null:x.isr,isr_tarifa:x.isr==null?null:r2(x.isr-efecto),efecto_subsidio:efecto,
+   isr_ordinario:art96?r2(d.isr_ordinario||0):null,metodo:d.metodo||null};
+ }
+
  /* Texto canónico (orden de llaves estable) para huellas reproducibles. */
  function canonico(v){
   if(Array.isArray(v))return '['+v.map(canonico).join(',')+']';
@@ -442,5 +466,5 @@
 
  return Object.freeze({VERSION,NATURALEZAS,UMA,naturalezaCatalogo,computaNaturaleza,eventosCorregidos,tramosServicio,recortar,activoEnFecha,seleccionar,
   ausenciasAplicables,calcularDerecho,conciliar,umaVigente,exencion,isrSemanalMotor,isrArt96Semanal,isrArt96Quincenal,
-  isrMensualTarifa,isrArt174,calcularFila,canonico,util:Object.freeze({fecha,iso,sumar,dias,diasAnio,r2})});
+  isrMensualTarifa,isrArt174,calcularFila,desgloseExencion,canonico,util:Object.freeze({fecha,iso,sumar,dias,diasAnio,r2})});
 });

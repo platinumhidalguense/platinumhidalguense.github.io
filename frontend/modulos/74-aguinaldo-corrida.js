@@ -385,7 +385,7 @@
  function desglose(i){
   const f=S.filas[i];if(!f)return;
   const d=f.fila.derecho,c=f.fila.conciliacion,x=f.fila.fiscal,lst=(xs,fn)=>xs&&xs.length?`<ul style="margin:4px 0 8px 18px">${xs.map(fn).join('')}</ul>`:'<p class="fhint">Ninguno.</p>';
-  const isr=x?.isr_detalle;
+  const isr=x?.isr_detalle,dx=x?A().desgloseExencion(f.fila,f.x?.fiscal_anual,f.x?.aplicaciones):null;
   modal2(`<div class="m-head"><h2>Desglose · #${esc(f.w.no_trab??'—')} ${esc(fullName(f.w))}</h2><button class="x" onclick="closeModal2()">×</button></div><div class="m-body" style="font-size:12.5px;line-height:1.6">
    ${d?`<div class="sect">Derecho (art. 87 LFT)</div>
    <p><b>Bruto = salario base × días pactados × días computables ÷ días del ejercicio</b><br>$${money(d.salario_base)} × ${d.dias_pactados} × ${d.dias_computables} ÷ ${d.denominador} = <b>$${money(d.bruto)}</b>
@@ -399,16 +399,33 @@
    ${c?`<p>Causado $${money(c.causado)} − acreditado $${money(c.acreditado)} − reservado en borradores $${money(c.reservado)} = saldo <b>${c.pendiente.length?'pendiente de confirmar':'$'+money(c.saldo)}</b>${!c.pendiente.length&&c.excedente?` · pagado de más $${money(c.excedente)}`:''}</p>
    ${lst(c.detalle,e=>`<li>${esc(e.origen)} · ${esc(e.estado||'')} · $${money(e.importe_bruto)} · ${esc(e.clase)}${e.exento!=null?' · exento $'+money(e.exento):''}${e.duplicados?.length?' · '+e.duplicados.length+' evidencia(s) de la misma operación no se suman':''}</li>`)}`:''}
    <div class="sect">Fiscal · pago ${fmtD(f.dest.fecha_pago)} (${esc(f.dest.periodicidad.toLowerCase())} ${fmtD(f.dest.desde)}–${fmtD(f.dest.hasta)})</div>
-   ${x&&f.puede_aplicar?`<p>UMA $${money(x.uma)} (${esc(x.uma_fuente)}) · tope 30 UMA $${money(x.tope)} · ya usado en el año $${money(x.exento_usado)} · disponible $${money(x.disponible)}<br>
-   Exento $${money(x.exento)} · gravado $${money(x.gravado)} (LISR art. 93 fr. XIV)</p>
+   ${x&&f.puede_aplicar?`<div data-agc-exencion>${vistaExencion(dx,x)}</div>
    ${isr?isr.metodo==='ART174'?`<p>Art. 174 RLISR: I. $${money(isr.gravado)} ÷ 365 × 30.4 = $${money(isr.mensualizado)}; II. ISR de $${money(isr.ingreso_mensual_ordinario+isr.mensualizado)} = $${money(isr.isr_con)}; III. ISR del ordinario $${money(isr.isr_sin)}; diferencia $${money(isr.diferencia)}; V. tasa ${(isr.tasa*100).toFixed(4)}%; IV. ISR = $${money(isr.isr)}.</p>`
-     :`<p>Art. 96 LISR (incremental): ISR con aguinaldo $${money(isr.isr_con_aguinaldo)} − ISR ordinario $${money(isr.isr_ordinario)} = <b>$${money(isr.isr)}</b>. Efecto en subsidio: $${money(isr.efecto_subsidio)} (se muestra una sola vez; ya está dentro del ISR incremental).</p>`:''}
+     :`<p>Art. 96 LISR (incremental): ISR con aguinaldo $${money(isr.isr_con_aguinaldo)} − ISR ordinario $${money(isr.isr_ordinario)} = <b>$${money(isr.isr)}</b>.</p>`:''}
    <p>Neto del aguinaldo: <b>$${money(x.neto)}</b>. El ajuste anual (art. 97 LISR) es un proceso aparte.</p>`:'<p class="fhint">Sin fiscal: revisa las observaciones.</p>'}
    <div class="sect">Observaciones</div>${lst(motivosDe(f),o=>`<li style="color:var(--red)">${esc(o)}</li>`)}${lst(f.fila.observaciones.filter(o=>!o.bloquea),o=>`<li style="color:var(--amber)">${esc(o.texto)}</li>`)}
    <p class="fhint">Reglas ${esc(A().VERSION)} · motor ${esc(MOTOR_NOMINA_VERSION)} · huella de fuentes ${esc(String(f.huella||'').slice(0,12))}</p></div>
    <div class="m-foot">${accionEvidencia(f,i)}<button class="btn" onclick="closeModal2()">Cerrar</button></div>`,'lg');
   const overlays=$('modals').querySelectorAll('.overlay');
   overlays[overlays.length-1].addEventListener('click',e=>{if(e.target.closest('[data-agc-acc]'))clic(e).catch(x=>toast(x.message,'err'));});
+ }
+
+ /* Exención explicada (LISR 93-XIV): tope, consumido con referencias, reservado, disponible, exento, gravado e ISR atribuible. */
+ function vistaExencion(dx,x){
+  if(!dx)return '';
+  const refs=dx.referencias.map(r=>`<li>${r.tipo==='CFDI'?'CFDI timbrado UUID '+esc(r.uuid||'sin UUID'):esc(String(r.tipo).replace(/_/g,' ').toLowerCase())+' '+esc(r.documento_id||'')} · aguinaldo exento (SAT 002) $${money(r.exento)}</li>`).join('');
+  const isr=dx.isr==null?'':dx.cabe_completo?`<p data-agc-isr><b>El aguinaldo cabe completo en la exención disponible:</b> todo el bruto es exento y el ISR atribuible al aguinaldo es $0.00.</p>`
+   :`<p data-agc-isr>ISR atribuible al aguinaldo <b>$${money(dx.isr)}</b>${dx.efecto_subsidio?` = ISR por tarifa sobre el gravado $${money(dx.isr_tarifa)} + subsidio al empleo que deja de aplicar en el periodo $${money(dx.efecto_subsidio)}`:''}.</p>`;
+  return `<table class="fhint" style="width:auto"><tbody>
+   <tr><td>Tope anual 30 UMA (${'$'+money(dx.uma)} × 30, ${esc(x.uma_fuente)})</td><td style="text-align:right">$${money(dx.tope)}</td></tr>
+   <tr><td>− Exención ya consumida en el año con este patrón</td><td style="text-align:right">$${money(dx.consumido)}</td></tr>
+   <tr><td>− Reservada en nóminas abiertas (aplicaciones de aguinaldo aún no autorizadas)</td><td style="text-align:right">$${money(dx.reservado)}</td></tr>
+   <tr><td><b>= Disponible</b></td><td style="text-align:right"><b>$${money(dx.disponible)}</b></td></tr>
+   <tr><td>Exento actual = mín(bruto $${money(dx.bruto)}, disponible)</td><td style="text-align:right"><b>$${money(dx.exento)}</b></td></tr>
+   <tr><td>Gravado = bruto − exento</td><td style="text-align:right"><b>$${money(dx.gravado)}</b></td></tr></tbody></table>
+   ${dx.consumido?`<p>Consumido, con referencias:</p><ul data-agc-referencias>${refs}${dx.aplicaciones_registradas?`<li>Aplicaciones de aguinaldo ya registradas · $${money(dx.aplicaciones_registradas)}</li>`:''}</ul>`:'<p>Sin exención consumida en el año: no hay CFDI timbrados con aguinaldo exento ni aplicaciones registradas.</p>'}
+   <p class="fhint">Sólo consumen exención los CFDI timbrados (un registro por UUID, aunque existan PDF y XML) y las aplicaciones registradas. Los papeles de cálculo y documentos pendientes no consumen exención. El límite no se prorratea por días ni se reinicia con el reingreso (LISR art. 93, fr. XIV).</p>
+   ${isr}${dx.isr_ordinario!=null?`<p class="fhint">ISR ordinario del periodo sin aguinaldo: $${money(dx.isr_ordinario)}. Se calcula y paga aparte; no forma parte del ISR del aguinaldo.</p>`:''}`;
  }
 
  /* ---------- Paso 3: conciliación ---------- */
@@ -545,20 +562,21 @@
   const fs=seleccionadas();if(!fs.length)throw Error('Selecciona personas para revisar y exportar el análisis.');
   const p=S.p,rows=[[`ANÁLISIS DE AGUINALDO ${p.ejercicio} · CORTE ${fmtD(p.corte)}`],
    [razonSocialEmpresa()+' · '+fmtD(today())],
-   ['NO.','TRABAJADOR','CENTRO','ESTADO','MOTIVO / DATO PENDIENTE','INGRESO / REINGRESO','TRAMOS DEL EJERCICIO','DÍAS COMPUTABLES','SALARIO BASE','BRUTO CALCULABLE','ACREDITADO','RESERVADO','SALDO CONFIRMADO','EXENTO','GRAVADO','ISR','NETO CONFIRMADO','REFERENCIAS','EJERCICIO','CORTE','DÍAS VÍNCULO','FALTAS QUE AFECTAN','DÍAS PROYECTADOS','HUELLA DE FUENTES']];
-  const styles=[ST.title,ST.sub,ST.head],dinero=[8,9,10,11,12,13,14,15,16];
+   ['NO.','TRABAJADOR','CENTRO','ESTADO','MOTIVO / DATO PENDIENTE','INGRESO / REINGRESO','TRAMOS DEL EJERCICIO','DÍAS COMPUTABLES','SALARIO BASE','BRUTO CALCULABLE','ACREDITADO','RESERVADO','SALDO CONFIRMADO','EXENTO','GRAVADO','ISR','NETO CONFIRMADO','REFERENCIAS','EJERCICIO','CORTE','DÍAS VÍNCULO','FALTAS QUE AFECTAN','DÍAS PROYECTADOS','HUELLA DE FUENTES','EXENCIÓN CONSUMIDA EN EL AÑO','EXENCIÓN RESERVADA','EXENCIÓN DISPONIBLE','ISR POR TARIFA','SUBSIDIO QUE DEJA DE APLICAR','REFERENCIAS FISCALES']];
+  const styles=[ST.title,ST.sub,ST.head],dinero=[8,9,10,11,12,13,14,15,16,24,25,26,27,28];
   for(const f of fs){
-   const d=f.fila.derecho,c=f.fila.conciliacion,x=f.fila.fiscal,confirmado=['LISTA','SIN_SALDO'].includes(f.fila.estado);
+   const d=f.fila.derecho,c=f.fila.conciliacion,x=f.fila.fiscal,confirmado=['LISTA','SIN_SALDO'].includes(f.fila.estado),dx=confirmado&&x?A().desgloseExencion(f.fila,f.x?.fiscal_anual,f.x?.aplicaciones):null;
    rows.push([f.w.no_trab??'',fullName(f.w),OBRAS.find(o=>o.id===f.w.obra_id)?.nombre||'',REVISION[f.estado_revision],
     motivosDe(f).join(' '),f.x.ciclo?.inicio||f.w.fecha_reingreso||f.w.fecha_alta||'',(d?.tramos||[]).map(t=>t.desde+' a '+t.hasta).join(' | '),
     d?.dias_computables??'',Number(f.w.sd)||'',d?.bruto??'',c?.acreditado??'',c?.reservado??'',
     confirmado?c?.saldo??'':'',confirmado?x?.exento??'':'',confirmado?x?.gravado??'':'',confirmado?x?.isr??'':'',confirmado?x?.neto??'':'',
-    (c?.detalle||[]).map(e=>[e.id,e.origen,e.fecha_pago,e.clase].filter(Boolean).join(' · ')).join(' | '),p.ejercicio,p.corte,d?.dias_vinculo??'',d?.faltas_afectan??'',d?.dias_proyectados??'',f.huella||'']);
-   styles.push(rows[2].map((_,i)=>dinero.includes(i)?ST.money:i===1||i===4||i===6||i===17?ST.cell:ST.cellC));
+    (c?.detalle||[]).map(e=>[e.id,e.origen,e.fecha_pago,e.clase].filter(Boolean).join(' · ')).join(' | '),p.ejercicio,p.corte,d?.dias_vinculo??'',d?.faltas_afectan??'',d?.dias_proyectados??'',f.huella||'',
+    dx?dx.consumido:'',dx?dx.reservado:'',dx?dx.disponible:'',dx?.isr_tarifa??'',dx?dx.efecto_subsidio:'',dx?dx.referencias.map(r=>(r.uuid||r.documento_id)+' exento '+r.exento.toFixed(2)).join(' | '):'']);
+   styles.push(rows[2].map((_,i)=>dinero.includes(i)?ST.money:i===1||i===4||i===6||i===17||i===29?ST.cell:ST.cellC));
   }
   rows.push(['Los campos de saldo, ISR o neto pendientes de confirmación se muestran vacíos. Consulta el motivo y resuelve sus fuentes antes de aplicar.']);styles.push(ST.sub);
-  const ws=buildSheet(rows,styles,[7,32,22,25,60,16,48,12,14,16,15,15,18,15,15,13,18,60,10,16,12,12,12,36],
-   [{s:{r:0,c:0},e:{r:0,c:23}},{s:{r:1,c:0},e:{r:1,c:23}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:23}}],
+  const ws=buildSheet(rows,styles,[7,32,22,25,60,16,48,12,14,16,15,15,18,15,15,13,18,60,10,16,12,12,12,36,16,15,15,13,16,60],
+   [{s:{r:0,c:0},e:{r:0,c:29}},{s:{r:1,c:0},e:{r:1,c:29}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:29}}],
    [{hpt:28},{hpt:20},{hpt:38},...fs.map(()=>({hpt:46})),{hpt:32}]);
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'ANÁLISIS');
   wb.__empresaPorHoja={'ANÁLISIS':S.empresa};
@@ -603,5 +621,5 @@
  }
  // Lectura común de fuentes: la ficha (faltas históricas) y el finiquito usan las mismas reglas.
  function antesCerrar(overlay){if(!S||overlay&&!overlay.querySelector('#agc'))return true;if(S.aplicando)return false;S.abortLectura?.abort();S.turno=++SECUENCIA;return true;}
- window.PLATINUM_AGUINALDO_UI=Object.freeze({abrir,antesCerrar,recalcularTrabajador,fuentes:Object.freeze({eventosDe,ausenciasDe,evidenciasDe,coberturaDe,cantidadFaltas}),_pruebas:{calcularPersona,evidenciasDe,ausenciasDe,cantidadFaltas,destinoDe,coberturaDe,lotesDe,lineaDe,seleccionadas,listasSeleccionadas,clasificar,estado:()=>S}});
+ window.PLATINUM_AGUINALDO_UI=Object.freeze({abrir,antesCerrar,recalcularTrabajador,fuentes:Object.freeze({eventosDe,ausenciasDe,evidenciasDe,coberturaDe,cantidadFaltas}),_pruebas:{calcularPersona,vistaExencion,evidenciasDe,ausenciasDe,cantidadFaltas,destinoDe,coberturaDe,lotesDe,lineaDe,seleccionadas,listasSeleccionadas,clasificar,estado:()=>S}});
 })();

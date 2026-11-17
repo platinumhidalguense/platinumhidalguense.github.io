@@ -190,6 +190,9 @@ function coalesceInicio(id){const w=bdd.trabajadores.find(w=>w.id===id);return w
  await UI.recalcularTrabajador('rev');await tick();
  ok(revision.sel.has('rev')&&JSON.stringify(revision.p)===parametrosAntes,'resolver conserva selección y filtros');
  ok(revision.filas[0].puede_aplicar,'el acumulado fiscal verificado resuelve la fila sin cambiar el derecho');
+ click(document.querySelector('[data-agc-acc="analisis"]'));await tick();
+ {const fx=revision.filas[0].fila.fiscal,dx=A.desgloseExencion(revision.filas[0].fila,revision.filas[0].x.fiscal_anual,revision.filas[0].x.aplicaciones),row=descargas.at(-1).wb.Sheets['ANÁLISIS']._rows[3];
+  eq([row[13],row[14],row[15],row[24],row[25],row[26],row[27],row[28]],[fx.exento,fx.gravado,fx.isr,dx.consumido,dx.reservado,dx.disponible,dx.isr_tarifa,dx.efecto_subsidio],'Excel de análisis = pantalla (exento, gravado, ISR, consumido, reservado, disponible, tarifa y subsidio)');}
  eq(llamadas.slice(lecturasAntes).filter(c=>c.args.p_accion==='CONTEXTO').map(c=>c.args.p_datos.trabajadores),[['rev']],'se recalcula únicamente la fila afectada');
  const rpcAntes=rpc;
  rpc=(fn,a)=>fn==='control_aguinaldo'&&a.p_accion==='CONTEXTO'?{error:{message:'RED_FICTICIA'}}:rpcAntes(fn,a);
@@ -341,6 +344,16 @@ function coalesceInicio(id){const w=bdd.trabajadores.find(w=>w.id===id);return w
  eq(UI._pruebas.lineaDe(externa).acreditado_externo,50,'contrato aplica el importe externo exacto');
  const pendienteFiscal=UI._pruebas.calcularPersona(rNormal.w,{...rNormal.x,fiscal_anual:{exento_usado:550.12,pendientes:[{motivo:'CFDI_SAT_002_INCOMPLETO'}]}},mg.p);
  eq([pendienteFiscal.puede_revisar,pendienteFiscal.puede_aplicar,pendienteFiscal.fila.derecho.dias_computables,pendienteFiscal.fila.fiscal],[true,false,123,null],'fiscal pendiente no elimina bruto ni posibilidad de selección');
+ // Exención explicada: reingresado con aguinaldo exento consumido por un CFDI de finiquito (caso tipo Salvador).
+ const salv=UI._pruebas.calcularPersona(rNormal.w,{...rNormal.x,fiscal_anual:{anio:2026,exento_usado:1772.37,pendientes:[],fuentes:[{id:'D1',uuid:'UUID-FINIQUITO',bruto:1772.37,exento:1772.37},{id:'D0',uuid:'UUID-NOMINA',bruto:0,exento:0}]}},mg.p);
+ const sx=salv.fila.fiscal,sd=A.desgloseExencion(salv.fila,salv.x.fiscal_anual,salv.x.aplicaciones),sl=UI._pruebas.lineaDe(salv);
+ eq([sx.tope,sx.exento_usado,sx.disponible],[3519.3,1772.37,1746.93],'tope 30 UMA sin prorrateo; consumido del CFDI; disponible');
+ eq([sl.exento_usado,sl.exento,sl.gravado,sl.isr],[sx.exento_usado,sx.exento,sx.gravado,sx.isr],'la línea enviada al servidor = pantalla');
+ const srvEx=Math.round(Math.min(sl.bruto,Math.max(0,Math.round(30*117.31*100)/100-sl.exento_usado))*100)/100;eq([srvEx,Math.round((sl.bruto-srvEx)*100)/100],[sl.exento,sl.gravado],'fórmula de validación del servidor = cliente');
+ const html=UI._pruebas.vistaExencion(sd,sx);ok(html.includes('UUID-FINIQUITO')&&!html.includes('UUID-NOMINA')&&html.includes('1,772.37')&&html.includes('1,746.93')&&html.includes('ni se reinicia con el reingreso'),'pantalla: consumido con referencia, sin CFDI de importe cero');
+ ok(sd.isr_tarifa!=null&&Math.round((sd.isr_tarifa+sd.efecto_subsidio)*100)/100===sx.isr,'ISR atribuible = tarifa + subsidio que deja de aplicar');
+ const cabe=UI._pruebas.calcularPersona(rNormal.w,{...rNormal.x,fiscal_anual:{anio:2026,exento_usado:0,pendientes:[],fuentes:[]}},mg.p),cd=A.desgloseExencion(cabe.fila,cabe.x.fiscal_anual,[]);
+ ok(cd.cabe_completo&&cd.gravado===0&&cd.exento===cabe.fila.bruto_a_pagar&&UI._pruebas.vistaExencion(cd,cabe.fila.fiscal).includes('cabe completo'),'bruto dentro de la exención: todo exento y ISR atribuible cero');
  // Un 57014 divide sólo el lote afectado y conserva los confirmados.
  let falloTimeout=true;const intentos=[];
  rpc=async(fn,a)=>{if(a.p_accion==='CONTEXTO'){intentos.push(a.p_datos.trabajadores.length);if(falloTimeout&&a.p_datos.trabajadores.length===48){falloTimeout=false;return {error:{code:'57014',message:'statement timeout ficticio'}};}}return servidor(fn,a);};
