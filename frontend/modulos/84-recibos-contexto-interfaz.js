@@ -51,6 +51,7 @@
    const files=s?.archivos||[],total=Math.max(1,Math.ceil(files.length/50));v.pagina=Math.min(v.pagina,total-1);
    const res=s?.escritura&&v.servicio?.resumen?v.servicio.resumen([...v.excluir]):null,elegibles=new Set(res?v.servicio.resumen([]).listos:[]),lote=s?.lote;
    const panel=res&&(elegibles.size||lote)?`<div data-rl-lote class="card" style="margin:8px 0;padding:8px">
+     <label><input type="checkbox" data-rl-todas ${elegibles.size&&![...v.excluir].some(x=>elegibles.has(x))?'checked':''} ${v.ocupado?'disabled':''}> Marcar o desmarcar todas las elegibles (${elegibles.size-[...v.excluir].filter(x=>elegibles.has(x)).length} de ${elegibles.size})</label>
      <button class="btn dark" data-rl="lote" ${res.listos.length&&!v.sucio?'':'disabled'}>Confirmar todos los registros listos (${res.listos.length})</button>
      <span class="fhint">${res.cfdi} CFDI · ${res.omitidos} excluidos por ti · ${res.registrados} ya registrados</span>
      ${Object.entries(CATEGORIAS).map(([k,t])=>res.excluidos[k].length?`<details data-rl-cat="${k}"><summary>${esc(t)}: ${res.excluidos[k].length}</summary><ul>${res.excluidos[k].map(x=>`<li>${esc(x.nombre)} · ${esc(x.motivo)}</li>`).join('')}</ul></details>`:'').join('')}
@@ -76,6 +77,7 @@
   async function cargar(){v.sucio=false;v.pagina=0;v.excluir.clear();await v.servicio.abrir(q('[data-rl-obra]').value,ctx());mensaje('Originales disponibles. Confirma los datos leídos antes de incorporarlos a la ficha.');}
   host.onchange=async e=>{if(!actual()||v.ocupado)return;try{
    if(e.target.closest('[data-rl-contexto]')){v.sucio=true;if(e.target.matches('[data-rl-empresa]'))centros();periodos();pintar(v.servicio.estado());mensaje('Cambió el contexto. Carga el periodo antes de continuar.');}
+   if(e.target.matches('[data-rl-todas]')){v.excluir.clear();if(!e.target.checked)for(const id of v.servicio.resumen([]).listos)v.excluir.add(id);return pintar(v.servicio.estado());}
    if(e.target.matches('[data-rl-incluir]')){const id=e.target.dataset.rlIncluir??e.target.getAttribute('data-rl-incluir');if(e.target.checked)v.excluir.delete(id);else v.excluir.add(id);return pintar(v.servicio.estado());}
    if(e.target.matches('[data-rl-files]')){mensaje('Conservando originales y leyendo…');await v.servicio.subir([...e.target.files]);mensaje('Revisa el resultado de cada original. Los pendientes quedan conservados.');}
   }catch(e){mensaje(e.message);}};

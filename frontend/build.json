@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-17.1",
-  "entry": "assets/platinum-app.8e0b90643347b5af.js",
-  "sha256": "8e0b90643347b5af0401581892bd6e002cd91f9535b63cb51481bf5e95152454",
-  "integrity": "sha384-noPjALOxoythjFaD6nuQtFQ7pmYsIbckJGnH4VIWKybbFQyAtlcfdEnrcWh6jDEJ",
+  "version": "2026-11-17.2",
+  "entry": "assets/platinum-app.a03c24868ec44a74.js",
+  "sha256": "a03c24868ec44a7464258cf4aa287530010329f0653c87ada068bce1cf07bed5",
+  "integrity": "sha384-O7P9dOnPh/GCYiEKh5r8Mfjzw0f9nj3tiUAITnvJELfl1OCQBjkq5Z4n7JoHE0MY",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "4ef599436e447876bacad96c59e17c358cb35e1996bb59380a25712d1df5af9d"
+      "sha256": "3c293d1ae08d7ed5fce7886630485b9aeaafda71a5f67acba5ad29985d035f5e"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -318,11 +318,11 @@
     },
     {
       "path": "frontend/modulos/78-banco-historico-servicio.js",
-      "sha256": "f8735515d72e2ad89231b48b76b7c7bbfb294170e960cfd6b8b040b43aafd877"
+      "sha256": "0f99210c772a202e4dd162152638fa2b4c2204b2acb4f391ba29a13fa281ee0c"
     },
     {
       "path": "frontend/modulos/79-importacion-bancaria-interfaz.js",
-      "sha256": "cf387ea38b4383df88066fef804b71356db0aa595a739cebac8bd0bb7b2fbdaa"
+      "sha256": "829bea6c6b2701f1feb0728f49abd442a6b5c416d9e12358c7307551a67abf79"
     },
     {
       "path": "frontend/modulos/80-puestos-central.js",
@@ -342,7 +342,7 @@
     },
     {
       "path": "frontend/modulos/84-recibos-contexto-interfaz.js",
-      "sha256": "a7dbdc176996fa35c3eb3ca3ba2233107d7c0f82f7518da3bf23f516245a9cc1"
+      "sha256": "58801f35505382627b7294ac23a82a1be7b2418287c04c5a166358acf611dd50"
     },
     {
       "path": "frontend/modulos/85-lectura-asistida.js",

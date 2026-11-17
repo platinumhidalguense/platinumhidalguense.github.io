@@ -122,5 +122,8 @@ const vista=t=>({docs:t.srv.docs.map(d=>({cat:d.categoria,trab:d.trab,uuid:d.cfd
  await host().onclick({target:q('[data-rl="reintentar-fallidos"]')});await tick();
  ok(/Confirmados 3 · ya existentes 0 · fallidos 0/.test(q('[data-rl-lote-estado]').textContent),'reintento de fallidos conserva éxitos');eq(preguntas.length,1,'reintento sin volver a preguntar por fila');
  ok(/\(0\)/.test(q('[data-rl="lote"]').textContent)&&q('[data-rl-incluir="C1"]')&&!q('[data-rl-incluir="C1"]').checked,'la fila excluida sigue elegible pero fuera del lote');eq(srv.filas.get('C1').documento_id,null,'excluida intacta');
+ const todas=q('[data-rl-todas]');ok(todas&&!todas.hasAttribute('checked'),'casilla marcar/desmarcar todas, desmarcada con una exclusión');
+ todas.checked=true;await host().onchange({target:todas});ok(/\(1\)/.test(q('[data-rl="lote"]').textContent)&&q('[data-rl-todas]').hasAttribute('checked'),'marcar todas incluye las elegibles');
+ q('[data-rl-todas]').checked=false;await host().onchange({target:q('[data-rl-todas]')});ok(/\(0\)/.test(q('[data-rl="lote"]').textContent),'desmarcar todas excluye las elegibles');
  console.log('PASS confirmación global de recibos: '+n+' comprobaciones (equivalencia con individual, mixto, PDF/XML por UUID, fallo intermedio, respuesta perdida, reintento, doble clic, versiones, permisos y sesión, interfaz).');
 })().catch(e=>{console.error(e);process.exitCode=1;});

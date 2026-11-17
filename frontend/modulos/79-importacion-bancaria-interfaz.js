@@ -2,6 +2,9 @@
 (function(){
  'use strict';let vista=null,contador=0;
  const etiquetas={LISTO:'Listo para conciliar',YA_CONCILIADO:'Ya conciliado · reutilizar pago',VINCULACION_PENDIENTE:'Vinculación pendiente',IDENTIDAD_POR_REVISAR:'Revisar identidad / cuenta',CICLO_POR_REVISAR:'Revisar ciclo laboral',PERIODO_POR_REVISAR:'Resolver periodo',PAGO_PARCIAL:'Pago parcial',EXCEDENTE:'Excedente por revisar',CONFIRMACION_PENDIENTE:'Confirmación de cheque pendiente',CHEQUE_PROTEGIDO:'Cheque entregado / protegido',VARIOS_CHEQUES:'Varios cheques por revisar',CHEQUE_CANCELADO:'Cheque cancelado y pago conciliado',CONCILIADO:'Conciliado',CONCILIADO_REUTILIZADO:'Conciliado con pago existente',ERROR_RECUPERABLE:'Error recuperable',RECHAZADO_REGISTRADO:'Rechazo archivado',BANCO_PENDIENTE:'Estado bancario pendiente',AUTORIZACION_PENDIENTE:'Pendiente de conciliador autorizado'};
+ const EXCLUIDAS={CHEQUE:'Requieren decisión de cheque (confírmalas con «Confirmar importación y conciliación»)',IMPORTE:'Importe por revisar (parcial o excedente)',REVISION:'Por revisar (identidad, periodo, ciclo o vínculo)',DUPLICADO:'Duplicadas en el archivo'},
+  LOTE={CONFIRMADO:'Confirmada',YA_EXISTENTE:'Ya existente',FALLIDO:'Fallida',PENDIENTE:'Pendiente',PROCESANDO:'Procesando'};
+ const totalesTexto=t=>`Confirmadas ${t.CONFIRMADO} · ya existentes ${t.YA_EXISTENTE} · fallidas ${t.FALLIDO} · pendientes ${t.PENDIENTE}`;
  const monto=n=>n==null?'Por determinar':'$'+money(n),etiqueta=s=>etiquetas[s]||String(s||'Pendiente').replace(/_/g,' ');
  const obraEmpresa=o=>String(o?.empresa_codigo||empresaDeObra(o)||'');
  function actual(v){return vista===v&&v.host.isConnected&&USER?.id===v.usuario;}
@@ -58,20 +61,30 @@
     <label>Continuar archivo archivado<select data-bh-archivo><option value="">Selecciona un original</option>${s.archivos.map(a=>`<option value="${a.id}" ${archivo?.id===a.id?'selected':''}>${esc(a.nombre)} · ${esc(etiqueta(a.estado))}</option>`).join('')}</select></label>${s.puede_importar&&(s.anteriores||[]).length?'<label>Recuperar originales del flujo anterior<select data-bh-anterior><option value="">Selecciona original archivado</option>'+(s.anteriores||[]).map(x=>'<option value="'+x.id+'">'+esc(x.nombre)+'</option>').join('')+'</select></label>':''}`;
    if(!archivo){q('[data-bh-lectura]').innerHTML='<p class="fhint">Selecciona o carga un original para continuar.</p>';return;}
    const pages=archivo.propuesta?.paginas||[],totPag=Math.max(1,Math.ceil(filas.length/50));v.pagina=Math.min(v.pagina,totPag-1);
+   const rl=v.servicio.resumenListas?.(),lote=s.lote?.archivo_id===archivo.id?s.lote:null,marcadas=filas.filter(r=>r.seleccionado).length,bloqueo=v.ocupado||!s.puede_importar;
+   const global=filas.length?`<div data-bh-global class="card" style="margin:8px 0;padding:8px">
+     <label><input type="checkbox" data-bh-todas ${marcadas===filas.length?'checked':''} ${bloqueo?'disabled':''}> Marcar o desmarcar todas (${marcadas} de ${filas.length})</label>
+     <button type="button" class="btn dark" data-bh="lote" ${bloqueo||v.contextoSucio||(rl&&!rl.listas.length)?'disabled':''}>Confirmar todas las operaciones listas (${rl?rl.listas.length:'—'})</button>
+     <span class="fhint">${rl?`${rl.listas.length} listas y marcadas · ${monto(rl.importe)} · ${rl.desmarcadas} desmarcadas · ${rl.conciliadas} ya conciliadas`:'Se actualizará la vista previa para contar las listas.'}</span>
+     ${rl?Object.entries(EXCLUIDAS).map(([k,t])=>rl.excluidas[k].length?`<details data-bh-cat="${k}"><summary>${esc(t)}: ${rl.excluidas[k].length}</summary><ul>${rl.excluidas[k].map(x=>`<li>Operación ${x.fila} · ${esc(x.titular)} · ${esc(etiqueta(x.motivo))}</li>`).join('')}</ul></details>`:'').join(''):''}
+     ${lote?`<div data-bh-lote-estado role="status" aria-live="polite"><progress max="${lote.totales.total||1}" value="${lote.totales.procesados}"></progress> ${lote.totales.procesados} de ${lote.totales.total} · ${esc(totalesTexto(lote.totales))}
+      ${lote.detenido?`<p class="fhint" data-bh-detenido><b>Lote detenido:</b> ${esc(lote.detenido)}</p>`:''}
+      ${lote.totales.FALLIDO&&!lote.en_curso?`<button type="button" class="btn" data-bh="reintentar-fallidas">Reintentar solo fallidas (${lote.totales.FALLIDO})</button>`:''}</div>`:''}
+    </div>`:'';
    const filasHtml=filas.slice(v.pagina*50,v.pagina*50+50).map((r,j)=>{const i=v.pagina*50+j,p=pre.find(x=>x.fila===i+1),res=s.resultados.find(x=>x.fila===i+1),f=p?.fuente;
     const ch=p?.cheques.find(c=>c.estatus!=='CANCELADO'),accion=p?.accion_cheque==='CANCELAR_AUTOMATICO'?'Se cancelará automáticamente el pendiente sin folios':p?.accion_cheque==='CONFIRMAR_CANCELACION'?'Requiere confirmar el cheque físico':p?.accion_cheque==='REVISAR_PROCEDIMIENTO'?'Cheque protegido: se conserva':'Sin cambio automático del cheque';
     return `<tr><td><input type="checkbox" data-bh-sel="${i}" ${r.seleccionado?'checked':''} ${v.ocupado||!s.puede_importar?'disabled':''} aria-label="Incluir operación ${i+1}"></td>
      <td><b>${esc(r.titular||'Titular pendiente')}</b><div class="fhint">Cuenta ${esc(r.mask||r.cuenta||'por leer')} · página ${r.pagina||'—'}</div><button type="button" class="btn" data-bh="resolver" data-i="${i}" ${!s.puede_importar?'disabled':''}>Resolver operación</button></td>
      <td>${esc(r.fecha||'Pendiente')}<br>${esc(r.estado||'Pendiente')}<div class="fhint">${esc(r.folio||'Referencia pendiente')}</div></td><td>${monto(r.importe)}</td>
      <td>${esc(f?.nombre||'Sin obligación vinculada')}<br>${esc(f?.concepto||r.concepto||s.contexto.concepto)}<div class="fhint">${f?`S${f.semana} · ${esc(f.desde)} al ${esc(f.hasta)} · ${esc(f.periodicidad)}`:'Periodo laboral por verificar'}</div>${p?.complemento_prevision?'<div class="fhint">Se aplica también '+monto(Number(r.importe)-Number(p.saldo_fiscal))+' a previsión autorizada, separada del neto fiscal.</div>':''}${f?.fecha_baja?'<div class="fhint">Ciclo '+esc(f.ciclo_desde||'por verificar')+' · baja '+esc(f.fecha_baja)+'</div>':''}</td>
-     <td><strong>${esc(etiqueta(res?.estado||p?.estado||'PENDIENTE_DE_VISTA_PREVIA'))}</strong>${res?.explicacion?'<p class="fhint">'+esc(res.explicacion)+'</p>':''}${p?'<div class="fhint">Saldo anterior: '+monto(p.saldo_antes)+'</div>':''}</td>
+     <td><strong>${esc(etiqueta(res?.estado||p?.estado||'PENDIENTE_DE_VISTA_PREVIA'))}</strong>${res?.explicacion?'<p class="fhint">'+esc(res.explicacion)+'</p>':''}${lote?.filas?.[i+1]?'<p class="fhint" data-bh-lote-fila="'+(i+1)+'">Lote: '+esc(LOTE[lote.filas[i+1].estado]||lote.filas[i+1].estado)+(lote.filas[i+1].motivo?' · '+esc(lote.filas[i+1].motivo):'')+'</p>':''}${p?'<div class="fhint">Saldo anterior: '+monto(p.saldo_antes)+'</div>':''}</td>
      <td>${ch?`Cheque ${esc(ch.num_cheque||'sin número')} · consecutivo ${esc(ch.consecutivo||'sin consecutivo')}<br>${monto(ch.importe)} · ${esc(ch.estatus)}`:'Sin cheque activo'}${p?.pagos_similares?.some(pg=>String(pg.semana).replace(/\D/g,'')!==String(p.periodo.semana))?'<div class="fhint">El pago compatible se vinculará al periodo laboral mostrado si no tiene aplicaciones anteriores.</div>':''}<div class="fhint">${esc(accion)}</div>${p?.pagos_similares?.length?'<div class="fhint">Se reutilizará el pago compatible existente, salvo operación distinta documentada.</div>':''}</td></tr>`;});
    q('[data-bh-lectura]').innerHTML=`<h3>${esc(archivo.nombre)} · ${filas.length} operaciones</h3><p class="fhint">Contexto del original: ${esc(archivo.contexto.empresa_codigo)} · ${archivo.contexto.anio} · ${esc(archivo.contexto.periodicidad)} · ${archivo.contexto.semana?'S'+archivo.contexto.semana:'periodos por operación'}</p>${!pages.length&&s.puede_importar?'<button class="btn" data-bh="reanudar">Reintentar lectura del original</button>':''}
     ${(archivo.propuesta?.validacion?.errores||[]).map(e=>'<p style="color:var(--amber)">'+esc(e)+'</p>').join('')}
     ${pages.some(p=>p.pendiente)?'<p style="color:var(--amber)">Hay fragmentos pendientes. Las lecturas correctas se conservan; puedes importar las operaciones revisadas y continuar las demás después.</p>':''}
     <details><summary>Lectura por página y recuperación</summary>${pages.map(p=>`<p>Página ${p.numero} · ${p.records?.length||0} operaciones · ${esc(p.lector||'pendiente')} ${p.error?'<span style="color:var(--red)">'+esc(p.error)+'</span>':''} <button type="button" class="btn" data-bh="completar" data-pagina="${p.numero}">Completar sólo esta página</button></p>`).join('')}</details>
-    <div style="overflow:auto;max-height:48vh">${ctrlTabla(['Incluir','Trabajador leído','Transferencia / referencia','Importe','Obligación propuesta','Resultado','Acción sobre cheque'],filasHtml,'No se reconocieron operaciones. El original permanece archivado.')}</div>
-    ${totPag>1?`<div style="display:flex;gap:8px"><button type="button" class="btn" data-bh="pagina" data-page="${v.pagina-1}" ${v.pagina===0?'disabled':''}>Anterior</button><span>${v.pagina+1} de ${totPag}</span><button type="button" class="btn" data-bh="pagina" data-page="${v.pagina+1}" ${v.pagina+1===totPag?'disabled':''}>Siguiente</button></div>`:''}`;
+    ${global}<div style="overflow:auto;max-height:48vh">${ctrlTabla(['Incluir','Trabajador leído','Transferencia / referencia','Importe','Obligación propuesta','Resultado','Acción sobre cheque'],filasHtml,'No se reconocieron operaciones. El original permanece archivado.')}</div>
+    ${totPag>1?`<div style="display:flex;gap:8px"><button type="button" class="btn" data-bh="pagina" data-page="${v.pagina-1}" ${v.pagina===0?'disabled':''}>Anterior</button><span>${v.pagina+1} de ${totPag}</span><button type="button" class="btn" data-bh="pagina" data-page="${v.pagina+1}" ${v.pagina+1===totPag?'disabled':''}>Siguiente</button></div>`:''}`;   const todas=q('[data-bh-todas]');if(todas)todas.indeterminate=marcadas>0&&marcadas<filas.length;
   }
   async function resolver(i){
    let s=v.servicio.estado();if(!s.previa)await v.servicio.revisar();s=v.servicio.estado();const r=s.archivo.propuesta.records[i],p=s.previa.filas.find(x=>x.fila===i+1),op=p.opciones;
@@ -99,6 +112,7 @@
    if(e.target.matches('[data-bh-files]')){mensaje('Archivando y leyendo los originales…');const r=await v.servicio.subir([...e.target.files]);mensaje(r.some(x=>x.error)?'Hay archivos pendientes; revisa su detalle.':'Originales y lecturas guardados. Revisa cada operación antes de confirmar.');}
    if(e.target.matches('[data-bh-anterior]')&&e.target.value)await v.servicio.recuperar(e.target.value);
    if(e.target.matches('[data-bh-archivo]')&&e.target.value)await v.servicio.seleccionar(e.target.value);
+   if(e.target.matches('[data-bh-todas]')){mensaje(e.target.checked?'Marcando todas las operaciones…':'Desmarcando todas las operaciones…');await v.servicio.marcarTodas(e.target.checked);mensaje(e.target.checked?'Todas las operaciones quedaron marcadas.':'Todas las operaciones quedaron desmarcadas.');}
    if(e.target.matches('[data-bh-sel]'))await v.servicio.editar(Number(e.target.dataset.bhSel),{seleccionado:e.target.checked});
   }catch(err){mensaje(err.message);}});
   host.addEventListener('click',async e=>{const b=e.target.closest('[data-bh]');if(!b||!actual(v)||v.ocupado)return;try{
@@ -106,6 +120,14 @@
    if(a==='cerrar'){v.servicio.cerrar();vista=null;closeModal();return;}
    if(a==='contexto')return await cargar();if(a==='reintentar')return await v.servicio.reintentar(b.dataset.sec);if(a==='mas')return await v.servicio.mas(b.dataset.sec);if(a==='previa')return await v.servicio.revisar();if(a==='resolver')return await resolver(Number(b.dataset.i));
    if(a==='reanudar')return await v.servicio.reanudar();if(a==='completar')return await v.servicio.completar(Number(b.dataset.pagina));if(a==='pagina'){v.pagina=Number(b.dataset.page);return pintar(v.servicio.estado());}
+   if(a==='lote'){
+    let r=v.servicio.resumenListas();if(!r){mensaje('Actualizando la vista previa…');await v.servicio.revisar();r=v.servicio.resumenListas();}
+    if(!r?.listas.length)throw Error('No hay operaciones listas y marcadas para confirmar. Revisa las excluidas y su motivo.');
+    const fuera=Object.entries(EXCLUIDAS).map(([k,t])=>r.excluidas[k].length?`\n${t}: ${r.excluidas[k].length}`:'').join('');
+    if(!confirm(`Se confirmarán ${r.listas.length} operación(es) listas por ${monto(r.importe)}, con la misma conciliación que «Confirmar importación y conciliación».`+(r.desmarcadas?`\nDesmarcadas por ti: ${r.desmarcadas}.`:'')+(fuera?`\nNo se incluyen:${fuera}`:'')+`\nCada operación conserva la revalidación de obligación, identidad, importe y cheque. Ningún cheque se cancela sin tu decisión individual.\n¿Continuar sin preguntar por cada operación?`))return;
+    const l=await v.servicio.confirmarListas();mensaje((l.detenido?'Lote detenido: '+l.detenido+' · ':'Lote terminado · ')+totalesTexto(l.totales));return;
+   }
+   if(a==='reintentar-fallidas'){const l=await v.servicio.reintentarFallidas();mensaje((l.detenido?'Lote detenido: '+l.detenido+' · ':'Reintento terminado · ')+totalesTexto(l.totales));return;}
    if(a==='confirmar'){
     const s=v.servicio.estado(),cs=[];
     for(const p of s.previa.filas){if(!s.archivo.propuesta.records[p.fila-1].seleccionado)continue;const c={fila:p.fila,huella:p.huella};

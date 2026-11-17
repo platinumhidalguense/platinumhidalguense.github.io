@@ -22,7 +22,7 @@
   const avisar=()=>cfg.onChange?.(estado,ocupado),scope=()=>cfg.context();
   const vigente=t=>estado&&t===secuencia&&scope().usuario_id===estado.usuario_id&&scope().obra_id===estado.obra_id&&scope().firma===estado.firma;
   function exigir(t){if(!vigente(t))throw Error('Cambió el centro o la sesión. Vuelve a abrir el archivo en su contexto.');}
-  async function rpc(accion,j,t=secuencia){exigir(t);const r=await cfg.rpc('control_importacion_bancaria',{p_accion:accion,p_datos:j});exigir(t);if(r.error)throw Error(r.error.message||'No se confirmó la operación bancaria');if(!r.data)throw Error('Respuesta bancaria incompleta');return r.data;}
+  async function rpc(accion,j,t=secuencia){exigir(t);const r=await cfg.rpc('control_importacion_bancaria',{p_accion:accion,p_datos:j});exigir(t);if(r.error){const e=Error(r.error.message||'No se confirmó la operación bancaria');e.code=r.error.code;throw e;}if(!r.data)throw Error('Respuesta bancaria incompleta');return r.data;}
   async function tarea(fn){if(ocupado)throw Error('Espera a que termine la operación actual');const t=secuencia;ocupado=true;avisar();try{return await fn(t);}finally{ocupado=false;avisar();}}
   // Contexto por secciones: permisos mínimos primero; personas, archivos, originales anteriores y fuentes
  // se consultan por separado, paginados, con estado propio y sin bloquear el archivo de comprobantes.
@@ -143,8 +143,84 @@
     r={archivo_id:a.id,recuperado:true,resultados:confirmaciones.map(c=>porFila.get(c.fila)||{fila:c.fila,estado:'ERROR_RECUPERABLE',explicacion:'No hay confirmación guardada para esta operación. Revisa y reintenta sólo este pendiente.'})};
    }
    estado.resultados=r.resultados;estado.archivo=await rpc('ABRIR',{archivo_id:a.id},t);estado.previa=null;avisar();await cfg.onConfirmed?.(r,estado);return r;});}
+  // Marcar o desmarcar todas: un solo guardado de la propuesta (las conciliadas conservan su lectura; sólo cambia «seleccionado»).
+  async function marcarTodas(valor){return tarea(t=>{const p=copia(estado.archivo.propuesta);if(!p.records?.length)throw Error('No hay operaciones');
+   if(p.records.every(r=>!!r.seleccionado===!!valor))return estado.archivo;p.records=p.records.map(r=>({...r,seleccionado:!!valor}));return guardar(p,t);});}
+  // Confirmación global: sólo operaciones listas y marcadas, con la misma acción CONFIRMAR (revalidación de huellas, subtransacción
+  // por operación, idempotencia del servidor). Tramos secuenciales para no exceder el límite por llamada.
+  const LISTAS=new Set(['LISTO','YA_CONCILIADO']),FINALES=new Set(['CONCILIADO','CONCILIADO_REUTILIZADO','CHEQUE_CANCELADO']),TRAMO=20;
+  const categoria=p=>p.estado==='DUPLICADO_EN_ARCHIVO'?'DUPLICADO':p.accion_cheque==='CONFIRMAR_CANCELACION'||/CHEQUE/.test(p.estado)?'CHEQUE':['PAGO_PARCIAL','EXCEDENTE'].includes(p.estado)?'IMPORTE':'REVISION';
+  function resumenListas(){
+   const a=estado?.archivo,pv=estado?.previa;if(!a||!pv||pv.revision!==a.revision)return null;
+   const recs=a.propuesta?.records||[],hechas=new Map((estado.resultados||[]).map(r=>[r?.fila,r])),listas=[],excluidas={CHEQUE:[],IMPORTE:[],REVISION:[],DUPLICADO:[]};let conciliadas=0,desmarcadas=0;
+   for(const p of pv.filas){const r=recs[p.fila-1]||{};
+    if(FINALES.has(hechas.get(p.fila)?.estado)){conciliadas++;continue;}
+    if(!LISTAS.has(p.estado)||p.accion_cheque==='CONFIRMAR_CANCELACION'){excluidas[categoria(p)].push({fila:p.fila,titular:r.titular||'Titular pendiente',motivo:p.explicacion||p.motivo||p.estado});continue;}
+    if(!r.seleccionado){desmarcadas++;continue;}
+    listas.push({fila:p.fila,huella:p.huella,titular:r.titular||'',importe:r.importe});
+   }
+   return{listas,excluidas,conciliadas,desmarcadas,importe:listas.reduce((x,y)=>x+(Number(y.importe)||0),0)};
+  }
+  const totalesLote=l=>{const t={CONFIRMADO:0,YA_EXISTENTE:0,FALLIDO:0,PENDIENTE:0,total:0,procesados:0};for(const x of Object.values(l.filas)){t.total++;t[x.estado==='PROCESANDO'?'PENDIENTE':x.estado]++;if(!['PENDIENTE','PROCESANDO'].includes(x.estado))t.procesados++;}return t;};
+  const sinPermiso=e=>e?.code==='42501'||/permiso|Cambió el centro o la sesión/i.test(e?.message||'');
+  let loteEnCurso=null,numLote=0;
+  function confirmarListas(){return loteEnCurso||=loteBanco(false).finally(()=>{loteEnCurso=null;});}
+  function reintentarFallidas(){return loteEnCurso||=loteBanco(true).finally(()=>{loteEnCurso=null;});}
+  function loteBanco(soloFallidas){return tarea(async t=>{
+   if(!estado.archivo)throw Error('Selecciona un original');if(!estado.puede_importar)throw Error('Tu cuenta no puede importar en este centro');
+   if(soloFallidas&&!estado.lote)throw Error('No hay un lote previo para reintentar');
+   const id=estado.archivo.id;
+   // Revalida la versión: vista previa de la revisión vigente antes de confirmar.
+   if(!estado.previa||estado.previa.revision!==estado.archivo.revision){estado.previa=await rpc('PREVISUALIZAR',{archivo_id:id,revision:estado.archivo.revision},t);avisar();}
+   let res=resumenListas(),l=estado.lote,filas;
+   if(soloFallidas){const f=new Set(Object.keys(l.filas).filter(k=>l.filas[k].estado==='FALLIDO').map(Number));filas=res.listas.filter(x=>f.has(x.fila));
+    for(const k of f)l.filas[k]=filas.some(x=>x.fila===k)?{...l.filas[k],estado:'PENDIENTE',motivo:null}:{...l.filas[k],estado:'PENDIENTE',motivo:'Ya no está lista en la vista previa; revísala'};}
+   else{l=estado.lote={id:'B'+(++numLote),archivo_id:id,filas:{},excluidas:res.excluidas};filas=res.listas;for(const x of filas)l.filas[x.fila]={estado:'PENDIENTE',titular:x.titular};}
+   l.detenido=null;l.en_curso=true;l.totales=totalesLote(l);avisar();
+   const detener=m=>{l.detenido||=m;};
+   const anotar=(rs,repetido)=>{for(const rr of rs||[]){const f=l.filas[rr.fila];if(!f)continue;
+    if(FINALES.has(rr.estado))Object.assign(f,{estado:repetido||rr.estado==='CONCILIADO_REUTILIZADO'?'YA_EXISTENTE':'CONFIRMADO',motivo:repetido?'Ya conciliada':rr.estado==='CONCILIADO_REUTILIZADO'?'Pago existente reutilizado':null});
+    else if(rr.estado==='ERROR_RECUPERABLE')Object.assign(f,{estado:'FALLIDO',motivo:rr.explicacion||'Error recuperable'});
+    else Object.assign(f,{estado:'PENDIENTE',motivo:rr.explicacion||rr.estado});}};
+   const enviar=async tramo=>{for(let intento=0;;intento++){
+    try{return await rpc('CONFIRMAR',{archivo_id:id,revision:estado.archivo.revision,confirmado:true,confirmaciones:tramo.map(x=>({fila:x.fila,huella:x.huella}))},t);}
+    catch(e){
+     if(intento>0||!/FUENTES_CAMBIARON|cambió en otra sesión/.test(e.message))throw e;
+     // La versión cambió: nueva vista previa; sólo siguen las que continúan listas.
+     estado.archivo=await rpc('ABRIR',{archivo_id:id},t);estado.previa=await rpc('PREVISUALIZAR',{archivo_id:id,revision:estado.archivo.revision},t);
+     const vig=new Map(resumenListas().listas.map(x=>[x.fila,x])),quedan=[];
+     for(const x of tramo){const n=vig.get(x.fila);if(n)quedan.push(n);else Object.assign(l.filas[x.fila],{estado:'PENDIENTE',motivo:'Su vista previa cambió y ya no está lista; revísala'});}
+     if(!quedan.length)return null;tramo.splice(0,tramo.length,...quedan);
+    }}};
+   try{
+    // Cola de tramos: si el servidor agota su tiempo (revierte todo el tramo), el tramo se divide y se reintenta.
+    const cola=[];for(let i=0;i<filas.length;i+=TRAMO)cola.push(filas.slice(i,i+TRAMO));
+    for(let tramo;(tramo=cola.shift());){
+     if(!vigente(t)){detener('Cambió el centro o la sesión; el lote se detuvo sin mezclar resultados.');break;}
+     for(const x of tramo)l.filas[x.fila].estado='PROCESANDO';l.totales=totalesLote(l);avisar();
+     try{const r=await enviar(tramo);
+      if(r){estado.archivo={...estado.archivo,revision:r.revision,estado:r.estado};anotar(r.resultados,r.repetido);for(const x of tramo)if(l.filas[x.fila].estado==='PROCESANDO')Object.assign(l.filas[x.fila],{estado:'PENDIENTE',motivo:'No marcada en el servidor'});}
+     }catch(e){
+      if(e.code==='57014'||/statement timeout/i.test(e.message)){
+       if(tramo.length>1){const m=Math.ceil(tramo.length/2);for(const x of tramo)l.filas[x.fila].estado='PENDIENTE';cola.unshift(tramo.slice(0,m),tramo.slice(m));l.totales=totalesLote(l);avisar();continue;}
+       Object.assign(l.filas[tramo[0].fila],{estado:'FALLIDO',motivo:'El servidor agotó su tiempo de espera; reintenta esta operación.'});l.totales=totalesLote(l);avisar();continue;
+      }
+      if(sinPermiso(e)||!vigente(t)){for(const x of tramo)Object.assign(l.filas[x.fila],{estado:'PENDIENTE',motivo:e.message});detener(e.message);break;}
+      // Respuesta perdida: consulta lo guardado antes de marcar fallo.
+      let g=null;try{g=await rpc('ABRIR',{archivo_id:id},t);}catch{}
+      if(g)estado.archivo=g;const guardadas=new Map((g?.resoluciones||[]).map(x=>[x.fila||x.resultado?.fila,x.resultado]));
+      for(const x of tramo){const rr=guardadas.get(x.fila);if(FINALES.has(rr?.estado))Object.assign(l.filas[x.fila],{estado:'CONFIRMADO',motivo:'Respuesta recuperada del servidor'});else Object.assign(l.filas[x.fila],{estado:'FALLIDO',motivo:e.message});}
+     }
+     l.totales=totalesLote(l);avisar();
+    }
+    if(l.detenido)for(const x of Object.values(l.filas))if(x.estado==='PENDIENTE'&&!x.motivo)x.motivo=l.detenido;
+    if(vigente(t)){estado.archivo=await rpc('ABRIR',{archivo_id:id},t);estado.resultados=estado.archivo.resoluciones?.map(r=>r.resultado)||[];estado.previa=null;}
+    if(l.totales.CONFIRMADO+l.totales.YA_EXISTENTE)await cfg.onConfirmed?.({archivo_id:id,lote:true,resultados:estado.resultados},estado);
+    return l;
+   }finally{l.en_curso=false;l.totales=totalesLote(l);}
+  });}
   function cerrar(){secuencia++;estado=null;cacheBytes.clear();avisar();}
-  return Object.freeze({abrir,reintentar,mas,seleccionar,subir,completar,recuperar,reanudar,editar,revisar,confirmar,cerrar,estado:()=>estado,ocupado:()=>ocupado});
+  return Object.freeze({abrir,reintentar,mas,seleccionar,subir,completar,recuperar,reanudar,editar,marcarTodas,revisar,confirmar,resumenListas,confirmarListas,reintentarFallidas,cerrar,estado:()=>estado,ocupado:()=>ocupado});
  }
  return Object.freeze({crear,combinarPagina,llave});
 });
