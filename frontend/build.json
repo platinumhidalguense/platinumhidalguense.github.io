@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-13.6",
-  "entry": "assets/platinum-app.c5263e71ca8a4a95.js",
-  "sha256": "c5263e71ca8a4a95888f242541ff9055fe742b76797bcaa5552216e2fe88a4b4",
-  "integrity": "sha384-WbFjCruGVjlmqMZV27Su/kQYc1ZtEsGCOjeBhcTDdU2HTcbyYANUbFKdkZEqgvTW",
+  "version": "2026-11-17.1",
+  "entry": "assets/platinum-app.8e0b90643347b5af.js",
+  "sha256": "8e0b90643347b5af0401581892bd6e002cd91f9535b63cb51481bf5e95152454",
+  "integrity": "sha384-noPjALOxoythjFaD6nuQtFQ7pmYsIbckJGnH4VIWKybbFQyAtlcfdEnrcWh6jDEJ",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "63a686fe93b27a98d6e8d9e65641bdb6583e728de77270acbb03ad662bad7d2d"
+      "sha256": "4ef599436e447876bacad96c59e17c358cb35e1996bb59380a25712d1df5af9d"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -318,11 +318,11 @@
     },
     {
       "path": "frontend/modulos/78-banco-historico-servicio.js",
-      "sha256": "0f8fa6e69b9752cde004df1639e863062e0e0041914af77b81b3f0af67f765ed"
+      "sha256": "f8735515d72e2ad89231b48b76b7c7bbfb294170e960cfd6b8b040b43aafd877"
     },
     {
       "path": "frontend/modulos/79-importacion-bancaria-interfaz.js",
-      "sha256": "ff254bf71100aab6e0b7b446bcb5b732ebbee97c91cad68b459e29f4c802152d"
+      "sha256": "cf387ea38b4383df88066fef804b71356db0aa595a739cebac8bd0bb7b2fbdaa"
     },
     {
       "path": "frontend/modulos/80-puestos-central.js",
@@ -338,11 +338,11 @@
     },
     {
       "path": "frontend/modulos/83-recibos-contexto-servicio.js",
-      "sha256": "fa21c49f49213554a71476307833e047f90e28246cf5747861a7827074726038"
+      "sha256": "3b3b36bf6cb078b14b27b91d699782c09b08a1d1fd510a5e5f212a8ca596d803"
     },
     {
       "path": "frontend/modulos/84-recibos-contexto-interfaz.js",
-      "sha256": "6fcd04ccaf8c021323313e68c960df094d4226bfe4f11a590f4fd6fd28f68cda"
+      "sha256": "a7dbdc176996fa35c3eb3ca3ba2233107d7c0f82f7518da3bf23f516245a9cc1"
     },
     {
       "path": "frontend/modulos/85-lectura-asistida.js",

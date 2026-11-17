@@ -90,7 +90,7 @@ if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cierres_legado_pre
 suites.push('test_calendario_motor','test_calendario_trabajador_ui');
 if(fs.existsSync('supabase/migrations/20261106155915_calendario_trabajador_captura_unificada.sql'))suites.push('test_calendario_trabajador_pg');
 else console.log('ALCANCE PÚBLICO CALENDARIO: motor y DOM sintéticos; las pruebas PostgreSQL requieren la migración SQL privada.');
-suites.push('test_banco_historico_servicio','test_banco_historico_ui','test_banco_historico_pg','test_banco_historico_edge');
+suites.push('test_banco_historico_servicio','test_banco_historico_ui','test_banco_historico_pg','test_banco_historico_edge','test_banco_contexto_secciones');
 suites.push('test_conciliador_core','test_conciliador_persistencia','test_conciliador_general_ui','test_conciliador_compatibilidad');
 if(fs.existsSync('supabase/migrations/20261106195853_conciliador_general_persistente.sql'))suites.push('test_conciliador_general_pg','test_conciliador_cheques_pg','test_conciliador_banco_edge');
 else console.log('ALCANCE PÚBLICO CONCILIADOR: SQL y Edge privados; las pruebas de servidor se ejecutan con el paquete local.');
@@ -102,7 +102,7 @@ if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_conciliador_tabs_f
 else console.log('ALCANCE PÚBLICO FOLIOS: la prueba PostgreSQL requiere la migración privada; tabla y servicio sí se prueban.');
 suites.push('test_realtime_deltas_ui');
 suites.push('test_navegacion_modular');
-suites.push('test_archivo_recibos_ui','test_recibos_contexto_servicio','test_recibos_contexto_ui');
+suites.push('test_archivo_recibos_ui','test_recibos_contexto_servicio','test_recibos_contexto_ui','test_recibos_confirmacion_global');
 suites.push('test_recibo_fragmento','test_lectura_asistida');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_recibos_regiones_legajos_verificados.sql')))suites.push('test_legajos_fuente_pg');
 if(fs.existsSync('supabase/migrations/20261109210000_archivo_documental_recibos_periodo.sql'))suites.push('test_archivo_recibos_pg');

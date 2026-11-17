@@ -1,6 +1,14 @@
 /* Superficie única del archivo fiscal: el cierre es un vínculo posterior opcional. */
 (function(root){
  'use strict';let vista=null,secuencia=0;
+ const CATEGORIAS={LECTURA:'Pendientes de lectura',DISCREPANCIA:'Con discrepancias',ERROR:'Con error',DUPLICADO:'Duplicados'},
+  RESULTADO={CONFIRMADO:'Confirmado',YA_EXISTENTE:'Ya existente',FALLIDO:'Fallido',PENDIENTE:'Pendiente',PROCESANDO:'Procesando'};
+ const totalesTexto=t=>`Confirmados ${t.CONFIRMADO} · ya existentes ${t.YA_EXISTENTE} · fallidos ${t.FALLIDO} · pendientes ${t.PENDIENTE}`;
+ function resumenTexto(r){
+  return `Se confirmará el registro documental de ${r.listos.length} original(es) listos (${r.cfdi} CFDI; PDF y XML del mismo UUID quedan como un solo comprobante).`+
+   (r.omitidos?`\nExcluidos por ti: ${r.omitidos}.`:'')+Object.entries(CATEGORIAS).map(([k,t])=>r.excluidos[k].length?`\n${t} (no se incluyen): ${r.excluidos[k].length}`:'').join('')+
+   '\nCada registro conserva sus validaciones de identidad, emisor, periodo, importe, documento y permisos. No autoriza nómina, no timbra y no registra pagos.\n¿Continuar sin preguntar por cada fila?';
+ }
  const etiquetas={VALIDO:'Identidad y periodo listos para confirmar',REVISAR:'Revisión pendiente',CONFLICTO:'Lectura o vínculo pendiente',ARCHIVADO:'Registrado · evidencia fiscal pendiente',VERIFICADO:'Timbrado verificado · cotejo y pago separados',RECIBIENDO:'Recibiendo original',PENDIENTE:'Lectura pendiente',FALLO:'No se completó',VINCULADO:'Vínculo documental registrado',VINCULO_PROPUESTO:'Compatible con la fotografía'};
  async function abrir(opciones={}){
   if(vista?.servicio.ocupado()){toast('Termina la carga en curso antes de cambiar de periodo.','err');return;}
@@ -22,7 +30,7 @@
     <p data-rl-fechas class="fhint"></p><p data-rl-mensaje role="status" aria-live="polite">Preparando contexto…</p>
     <div data-rl-entrada></div><div data-rl-lista></div>
    </div><div class="m-foot"><button class="btn" data-rl="cerrar">${opciones.volver?'Volver':'Cerrar'}</button><button class="btn" data-rl="bancos">Importar pagos bancarios</button><button class="btn" data-rl="fotografia">Archivo por fotografía</button></div></section>`,'xl');
-  const host=$(id),q=s=>host.querySelector(s),v={host,opciones,usuario:uid,sucio:false,pagina:0,ocupado:false};vista=v;
+  const host=$(id),q=s=>host.querySelector(s),v={host,opciones,usuario:uid,sucio:false,pagina:0,ocupado:false,excluir:new Set()};vista=v;
   const actual=()=>vista===v&&USER?.id===uid&&host.isConnected;
   const mensaje=t=>{if(actual())q('[data-rl-mensaje]').textContent=t;};
   const ctx=()=>({empresa_codigo:q('[data-rl-empresa]').value,anio:Number(q('[data-rl-anio]').value),periodicidad:q('[data-rl-per]').value,
@@ -41,11 +49,22 @@
    q('[data-rl-fechas]').textContent=c?.desde?`${c.periodicidad} · ${c.desde} al ${c.hasta} · ${s.cierres.length?'Fotografía disponible para proponer vínculo':'Sin cierre · archivo independiente'}`:'';
    q('[data-rl-entrada]').innerHTML=s?`<label>PDF o XML individuales<input data-rl-files type="file" accept=".pdf,.xml" multiple ${v.ocupado||v.sucio||!s.escritura?'disabled':''}></label>`:'';
    const files=s?.archivos||[],total=Math.max(1,Math.ceil(files.length/50));v.pagina=Math.min(v.pagina,total-1);
-   q('[data-rl-lista]').innerHTML=`<div class="cg-table" style="overflow:auto;max-height:48vh"><table><thead><tr><th>Original</th><th>Trabajador / periodo leído</th><th>Neto / UUID</th><th>Resultado y acciones</th></tr></thead><tbody>${files.slice(v.pagina*50,v.pagina*50+50).map(f=>{
+   const res=s?.escritura&&v.servicio?.resumen?v.servicio.resumen([...v.excluir]):null,elegibles=new Set(res?v.servicio.resumen([]).listos:[]),lote=s?.lote;
+   const panel=res&&(elegibles.size||lote)?`<div data-rl-lote class="card" style="margin:8px 0;padding:8px">
+     <button class="btn dark" data-rl="lote" ${res.listos.length&&!v.sucio?'':'disabled'}>Confirmar todos los registros listos (${res.listos.length})</button>
+     <span class="fhint">${res.cfdi} CFDI · ${res.omitidos} excluidos por ti · ${res.registrados} ya registrados</span>
+     ${Object.entries(CATEGORIAS).map(([k,t])=>res.excluidos[k].length?`<details data-rl-cat="${k}"><summary>${esc(t)}: ${res.excluidos[k].length}</summary><ul>${res.excluidos[k].map(x=>`<li>${esc(x.nombre)} · ${esc(x.motivo)}</li>`).join('')}</ul></details>`:'').join('')}
+     ${lote?`<div data-rl-lote-estado role="status" aria-live="polite"><progress max="${lote.totales.total||1}" value="${lote.totales.procesados}"></progress> ${lote.totales.procesados} de ${lote.totales.total} · ${esc(totalesTexto(lote.totales))}
+      ${lote.detenido?`<p class="fhint" data-rl-detenido><b>Lote detenido:</b> ${esc(lote.detenido)}</p>`:''}
+      ${lote.totales.FALLIDO&&!lote.en_curso?`<button class="btn" data-rl="reintentar-fallidos">Reintentar solo fallidos (${lote.totales.FALLIDO})</button>`:''}</div>`:''}
+    </div>`:'';
+   q('[data-rl-lista]').innerHTML=panel+`<div class="cg-table" style="overflow:auto;max-height:48vh"><table><thead><tr><th>Original</th><th>Trabajador / periodo leído</th><th>Neto / UUID</th><th>Resultado y acciones</th></tr></thead><tbody>${files.slice(v.pagina*50,v.pagina*50+50).map(f=>{
     const d=f.datos||{},r=d.resultado||f,trab=r.trabajador||'Identidad por revisar';
     return `<tr><td>${esc(d.nombre||f.file?.name||'Original')}<br><button class="btn" data-rl="original" data-id="${esc(f.id||'')}" ${!f.id?'disabled':''}>Ver original</button></td>
      <td>${esc(trab)}<br>${esc(d.desde||'—')} al ${esc(d.hasta||'—')} · ${esc(d.concepto||'concepto pendiente')}</td><td>${d.neto==null?'—':'$'+esc(d.neto)}<br><small>${esc(d.uuid||'')}</small></td>
-     <td><p role="status" aria-live="polite">${esc(f.asistencia?.texto||'')}</p><b>${esc(etiquetas[f.estado]||f.estado)}</b><p class="fhint">${esc(f.motivo||d.resultado?.motivo||d.motivo||'')}</p>
+     <td><p role="status" aria-live="polite">${esc(f.asistencia?.texto||'')}</p><b>${esc(etiquetas[f.estado]||f.estado)}</b>
+      ${elegibles.has(f.id)?`<label class="fhint"><input type="checkbox" data-rl-incluir="${esc(f.id)}" ${v.excluir.has(f.id)?'':'checked'} ${v.ocupado?'disabled':''}> Incluir en confirmación global</label>`:''}
+      ${lote?.filas?.[f.id]?`<p class="fhint" data-rl-resultado="${esc(f.id)}">Lote: ${esc(RESULTADO[lote.filas[f.id].estado]||lote.filas[f.id].estado)}${lote.filas[f.id].motivo?' · '+esc(lote.filas[f.id].motivo):''}${lote.filas[f.id].aviso?' · '+esc(lote.filas[f.id].aviso):''}</p>`:''}<p class="fhint">${esc(f.motivo||d.resultado?.motivo||d.motivo||'')}</p>
       ${s.escritura?`<button class="btn" data-rl="releer" data-id="${esc(f.id||'')}" ${!f.id?'disabled':''}>Releer original</button>
        ${f.documento_id?`<button class="btn" data-rl="verificar" data-id="${esc(f.id)}">Verificar timbrado</button>`:r.estado==='VALIDO'||f.estado==='VALIDO'?`<button class="btn dark" data-rl="confirmar" data-id="${esc(f.id)}">Confirmar registro</button>`:''}
        ${f.documento_id&&s.cierres.length?`<button class="btn" data-rl="vincular" data-id="${esc(f.id)}">Revisar vínculo con fotografía</button>`:''}`:''}
@@ -54,9 +73,10 @@
     ${total>1?`<button class="btn" data-rl="pagina" data-page="${v.pagina-1}" ${v.pagina===0?'disabled':''}>Anterior</button> ${v.pagina+1} de ${total} <button class="btn" data-rl="pagina" data-page="${v.pagina+1}" ${v.pagina+1===total?'disabled':''}>Siguiente</button>`:''}`;
    if(v.ocupado)for(const b of host.querySelectorAll('button'))b.disabled=true;
   }
-  async function cargar(){v.sucio=false;v.pagina=0;await v.servicio.abrir(q('[data-rl-obra]').value,ctx());mensaje('Originales disponibles. Confirma los datos leídos antes de incorporarlos a la ficha.');}
+  async function cargar(){v.sucio=false;v.pagina=0;v.excluir.clear();await v.servicio.abrir(q('[data-rl-obra]').value,ctx());mensaje('Originales disponibles. Confirma los datos leídos antes de incorporarlos a la ficha.');}
   host.onchange=async e=>{if(!actual()||v.ocupado)return;try{
    if(e.target.closest('[data-rl-contexto]')){v.sucio=true;if(e.target.matches('[data-rl-empresa]'))centros();periodos();pintar(v.servicio.estado());mensaje('Cambió el contexto. Carga el periodo antes de continuar.');}
+   if(e.target.matches('[data-rl-incluir]')){const id=e.target.dataset.rlIncluir??e.target.getAttribute('data-rl-incluir');if(e.target.checked)v.excluir.delete(id);else v.excluir.add(id);return pintar(v.servicio.estado());}
    if(e.target.matches('[data-rl-files]')){mensaje('Conservando originales y leyendo…');await v.servicio.subir([...e.target.files]);mensaje('Revisa el resultado de cada original. Los pendientes quedan conservados.');}
   }catch(e){mensaje(e.message);}};
   host.onclick=async e=>{const b=e.target.closest('[data-rl]');if(!b||!actual()||v.ocupado)return;const a=b.dataset.rl,archivo=b.dataset.id;try{
@@ -69,6 +89,12 @@
    if(a==='releer')await v.servicio.reanudar(archivo);
    if(a==='confirmar'&&confirm('¿Confirmas la identidad, el concepto y las fechas leídas del original? No se registrará un pago ni se modificará el cierre.'))await v.servicio.confirmar(archivo);
    if(a==='verificar')await v.servicio.verificar(archivo);
+   if(a==='lote'){
+    const r=v.servicio.resumen([...v.excluir]);if(!r.listos.length)throw Error('No hay registros listos para confirmar.');
+    if(!confirm(resumenTexto(r)))return;
+    const l=await v.servicio.confirmarLote([...v.excluir]);mensaje((l.detenido?'Lote detenido: '+l.detenido+' · ':'Lote terminado · ')+totalesTexto(l.totales));
+   }
+   if(a==='reintentar-fallidos'){const l=await v.servicio.reintentarFallidos();mensaje((l.detenido?'Lote detenido: '+l.detenido+' · ':'Reintento terminado · ')+totalesTexto(l.totales));}
    if(a==='region'){
     const f=v.servicio.estado().archivos.find(f=>f.id===archivo),p=f.lectura.pendientes[Number(b.dataset.k)],j=Number(q('[data-rl-region="'+archivo+'-'+b.dataset.k+'"]').value),r=root.PLATINUM_CAMPOS_RECIBO.regiones(f.lectura,p.campo)[j];
     if(!r)throw Error('No hay región legible. Conserva el pendiente y coteja el original o XML.');
