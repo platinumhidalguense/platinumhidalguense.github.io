@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-18.1",
-  "entry": "assets/platinum-app.2de6d6de89b19a4b.js",
-  "sha256": "2de6d6de89b19a4b38b506354ba3042b6f71b2398d5768a22ecdb329b948a8ca",
-  "integrity": "sha384-02QkNHhk1g5XvipSHBxthvOXEGX/GZdDb6K9amTi+pBE6YPgUUsZR2lW4nM1lEHg",
+  "version": "2026-11-18.2",
+  "entry": "assets/platinum-app.0f3e969725ddfe09.js",
+  "sha256": "0f3e969725ddfe095af8f617aab6bdff1532ffcdd98d0f8e68c3cda80c0b0c26",
+  "integrity": "sha384-QRCznHC6iEO2wvheiljxGrM/kwxY+RWt/6P8nvmelP7/6muLL6Iz+nZlJsinnbgj",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "94c81f3b9b6b58bb70ba1fe4c6173f168c4aa4754b2f7c8e546c23ad47b2b51b"
+      "sha256": "7e98c0646f5867d6bd8875489f555379f34599e7a203eeb6dd8d3abc14c7688a"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -46,7 +46,7 @@
     },
     {
       "path": "frontend/modulos/10-proyeccion-nomina.js",
-      "sha256": "d1f6980faf3de6dcb229eab477f58c65c0674b11fa4c72b8b5cd619e6a9a0ed0"
+      "sha256": "d4483b83a884933db50c4770cc4201259fc259f6f734c81c8d176e03bb6b2c5e"
     },
     {
       "path": "frontend/modulos/11-expedientes-excel.js",
@@ -58,7 +58,7 @@
     },
     {
       "path": "frontend/modulos/13-control-salarial-diferenciales.js",
-      "sha256": "66250e1d4ece6e51fdd58895dfea345b0d0475bfcdc15757652e8e63daf8be5f"
+      "sha256": "2539a7848848f194e39a7f9f97900dfc5ee47d7d30cb51e5a97fb2c468c47e5d"
     },
     {
       "path": "frontend/modulos/14-importacion-documental.js",
@@ -158,11 +158,11 @@
     },
     {
       "path": "frontend/modulos/38-adaptadores-arranque.js",
-      "sha256": "d3015ffbbd3cead44e3acb9a7336d63256727d762d8d7ca13e225b7da3530379"
+      "sha256": "68d0b9ed5cb52ea41baf5c224021b29b772ffa32296db2e01cd9584e15b9267b"
     },
     {
       "path": "frontend/modulos/39-rrhh-adaptadores.js",
-      "sha256": "98ca339b4a67e374847527dcda75c2e90b8bda41ab17fe31f090e781b7e39e6d"
+      "sha256": "b0343930a183b228e709008d78b4faa27943f5b1e7af5beac56f6a55c9609d0f"
     },
     {
       "path": "frontend/modulos/40-pagos-sabado-adaptadores.js",
@@ -234,7 +234,7 @@
     },
     {
       "path": "frontend/modulos/57-calendario-trabajador.js",
-      "sha256": "298d72e2f647ddc9c2e7db6e27f9db2088594b890fdafef994dd5b9e3220f2d9"
+      "sha256": "b49dcfd543c9bb443b41a335426f6d1b2c32fb894cc8688fdfd672a15942e9cc"
     },
     {
       "path": "frontend/modulos/58-conciliador-core.js",
@@ -367,6 +367,18 @@
     {
       "path": "frontend/modulos/93-respaldo-integral.js",
       "sha256": "ea6fb87bd556aa35428845ba6ad279aca96843de30bb4f277f5afc9adb9eaa41"
+    },
+    {
+      "path": "frontend/modulos/94-jornada-extra-core.js",
+      "sha256": "857866f0a60684f70d590b2016e62ac055d97e9ebc03befedb688d0184bd76a4"
+    },
+    {
+      "path": "frontend/modulos/95-jornada-extra-integracion.js",
+      "sha256": "053b0f370eff1bdc9abb2311c077afa0e8245b09af1b6d7a2e0e333586bfa320"
+    },
+    {
+      "path": "frontend/modulos/96-jornada-extra-interfaz.js",
+      "sha256": "9dbc6bec56bc1cdeae210d134eb56d0aadbfcc8f43c2f70c2defdb1491dfa46a"
     }
   ]
 }

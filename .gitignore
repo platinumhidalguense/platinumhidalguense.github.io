@@ -59,3 +59,6 @@ supabase/migrations/*_prestaciones_exento_desde_cfdi_verificado.sql
 # Tablero ejecutivo y respaldo integral: SQL operativo privado.
 supabase/migrations/*_tablero_indicadores.sql
 supabase/migrations/*_respaldo_marcas.sql
+
+# Horas extra y descansos laborados: SQL operativo privado.
+supabase/migrations/*_jornada_extra_descansos_laborados.sql

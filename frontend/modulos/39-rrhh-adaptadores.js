@@ -32,6 +32,7 @@ async function rrhhVistaActual(id,sem,permisos){
   let modelo=proyModelo(act,fins,'S'+sem,audits);
   if(modelo.filas.some(f=>!f.fin&&f.w.periodo_pago==='QUINCENAL'))modelo=await isrQAplicarModelo(modelo);
   modelo=aguinaldoAplicarModelo(modelo,(globalThis._PY_AGUINALDOS||[]).filter(l=>l.trabajador_id===id));
+  modelo=jornadaAplicarModelo(modelo,(globalThis._PY_JORNADAS||[]).filter(e=>e.trabajador_id===id));
   const f=modelo.filas[0];
   if(!f)throw Error('Este trabajador no es candidato a nómina o finiquito de esa semana según las fuentes actuales. No se inventará un importe.');
   const referencias=rrhhReferenciasModelo(modelo.filas,audits,'S'+sem,before.fuente).trabajadores[id];
@@ -41,7 +42,7 @@ async function rrhhVistaActual(id,sem,permisos){
   if(!permisos.vip)delete referencias.prevision;if(!permisos.salud)delete referencias.finiquito_detalle;
   return {trabajador:{id,numero:f.w.no_trab,nombre:fullName(f.w)},origen:'PROYECCIÓN ACTUAL · NO AUTORIZADA',formula_version:MOTOR_NOMINA_VERSION,fuente_cambio:false,referencias,
     modelo:{fin:f.fin,sueldo:f.sueldo,incidencias:f.incidencias,creditos:f.creditos,otras:f.otras,costo:f.costo,neto_fiscal:redondearCentavos(f.neto-f.prevision),prevision:permisos.vip?f.prevision:null,neto_total:permisos.vip?f.neto:null,
-      ...(f.aguinaldo?{aguinaldo:{bruto:f.aguinaldo.bruto,exento:f.aguinaldo.exento,gravado:f.aguinaldo.gravado,isr:f.aguinaldo.isr,neto:f.aguinaldo.neto}}:{})},
+      ...(f.aguinaldo?{aguinaldo:{bruto:f.aguinaldo.bruto,exento:f.aguinaldo.exento,gravado:f.aguinaldo.gravado,isr:f.aguinaldo.isr,neto:f.aguinaldo.neto}}:{}),...(f.jornada?{jornada:{bruto:f.jornada.bruto,exento:f.jornada.exento,gravado:f.jornada.gravado,isr:f.jornada.isr,neto:f.jornada.neto,sbc_variable:f.jornada.sbc_variable}}:{})},
     conceptos:f.items.map(i=>({tipo:i.tipo,clase:i.clase,monto:i.monto,estado:i.estado,origen:i.origen})),saldos:[],recibos:[],advertencia:'Proyección actual de las fuentes existentes; no reescribe el pasado ni autoriza el pago. Guarda y concilia un cierre para conservar una fotografía.'};
 }
 async function rrhhAbrirDocumento(id){

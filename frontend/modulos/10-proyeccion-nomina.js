@@ -91,9 +91,12 @@ async function pyDatosFrescos(entradas=null){
     const historicos=(await proyCargarHistoricos(tw||[])).concat(await proyLeerFiniquitos(bajas));
     // Aguinaldo aplicado del centro: misma lectura que alimenta la huella del cierre.
     const aguinaldos=entradas?(Array.isArray(entradas.aguinaldos)?entradas.aguinaldos:[]):await aguinaldoLeerLineas([id]);
+    // Horas extra y descansos laborados confirmados en el calendario: misma lectura que la huella del cierre.
+    const jornadas=entradas?(Array.isArray(entradas.jornadas)?entradas.jornadas:[]):await jornadaLeerEventos([id]);
     if(OBRA.id!==id)return false;
     globalThis._PY_FINIQUITOS_HISTORICOS=historicos;
     globalThis._PY_AGUINALDOS=aguinaldos;
+    globalThis._PY_JORNADAS=jornadas;
     globalThis._PY_BAJAS_HISTORICAS=bajas.map(w=>{
       const a=historicos.find(x=>x.trabajador_id===w.id&&x.obra_id===w.obra_id&&x.periodo===w.fecha_baja&&x.monto_aplicado!=null);
       return a?{...w,monto_finiquito:Number(a.monto_aplicado)}:w;
@@ -156,12 +159,14 @@ async function pyPreview(){
     let m=proyModelo(act,fins,sem,audits);
     if(m.filas.some(f=>!f.fin&&f.w.periodo_pago==='QUINCENAL'))m=await isrQAplicarModelo(m);
     m=aguinaldoAplicarModelo(m,globalThis._PY_AGUINALDOS);
+    m=jornadaAplicarModelo(m,globalThis._PY_JORNADAS);
     if(window.__PLATINUM_REQUIERE_FLUJO&&!window.PLATINUM_FLOWS)throw Error('El módulo de coordinación no cargó. Recarga la plataforma.');
     if(window.PLATINUM_FLOWS)m=await window.PLATINUM_FLOWS.versionarModelo(m,{obras:[OBRA.id],sem,periodo:$('py-periodo').value,desde:$('py-d1').value,hasta:$('py-d2').value,versiones});
     if(version!==window._PY_PREVIEW_VERSION||!$('py-prev'))return;
     const inc=m.filas.reduce((s,x)=>s+x.incidencias,0),creditos=m.filas.reduce((s,x)=>s+x.creditos,0);
     const ag=m.filas.filter(x=>x.aguinaldo),agBruto=redondearCentavos(ag.reduce((s,x)=>s+x.aguinaldo.bruto,0)),agIsr=redondearCentavos(ag.reduce((s,x)=>s+x.aguinaldo.isr,0));
-    const agFaltan=aguinaldoSinFila(m,globalThis._PY_AGUINALDOS,{periodo:$('py-periodo').value});
+    const agFaltan=aguinaldoSinFila(m,globalThis._PY_AGUINALDOS,{periodo:$('py-periodo').value}).concat(jornadaSinFila(m,globalThis._PY_JORNADAS,{periodo:$('py-periodo').value}));
+    const jo=m.filas.filter(x=>x.jornada),joBruto=redondearCentavos(jo.reduce((s,x)=>s+x.jornada.bruto,0)),joIsr=redondearCentavos(jo.reduce((s,x)=>s+x.jornada.isr,0)),joExento=redondearCentavos(jo.reduce((s,x)=>s+x.jornada.exento,0));
     const tienePrevision=proyTienePrevision(m),previsionTotal=redondearCentavos(m.filas.reduce((s,x)=>s+proyTresImportes(x).prevision,0));
     $('py-prev').innerHTML=`<div style="display:flex;gap:10px;flex-wrap:wrap">
       <div class="stat g" style="flex:1"><div class="n">${m.filas.length}</div><div class="l">Trabajadores · incluye ${fins.length} finiquitos</div></div>
@@ -171,7 +176,8 @@ async function pyPreview(){
       `}
       <div class="stat b" style="flex:1"><div class="n">$${money(tienePrevision?m.neto:destino==='CONTRATISTA'?m.costo:m.neto)}</div><div class="l">${tienePrevision?'Neto total a pagar':destino==='CONTRATISTA'?'Total para contratista · sin previsión social':'Total para dispersión · incluye previsión social aparte'}</div></div>
       ${ag.length?`<div class="stat g" style="flex:1"><div class="n">$${money(agBruto)}</div><div class="l">Aguinaldo bruto · ${ag.length} trabajador(es) · ISR $${money(agIsr)} · ${destino==='CONTRATISTA'?'columna aparte, no suma al costo':'neto incluido en el total'}</div></div>`:''}
-    </div>${proyVistaTresImportes(m)}${agFaltan.length?`<div class="fhint" style="color:var(--red);margin-top:8px">${agFaltan.length} aplicación(es) de aguinaldo de este periodo no tienen fila de nómina. Retíralas o corrígelas en Prestaciones → Aguinaldo antes de exportar.</div>`:''}`;
+      ${jo.length?`<div class="stat g" style="flex:1" data-py-jornada><div class="n">$${money(joBruto)}</div><div class="l">Horas extra y descansos laborados · ${jo.length} trabajador(es) · exento $${money(joExento)} · ISR $${money(joIsr)} · ${destino==='CONTRATISTA'?'columna aparte, no suma al costo':'neto incluido en el total'}</div></div>`:''}
+    </div>${proyVistaTresImportes(m)}${agFaltan.length?`<div class="fhint" style="color:var(--red);margin-top:8px">${agFaltan.length} aplicación(es) de aguinaldo, horas extra o descansos laborados de este periodo no tienen fila de nómina. Retíralas o corrígelas (Prestaciones → Aguinaldo o el calendario de la ficha) antes de exportar.</div>`:''}`;
     for(const id of ['py-btn','py-ambas'])if($(id))$(id).disabled=window._PROY_EXPORTANDO||!m.filas.length||agFaltan.length>0;
   }catch(e){
     if(version!==window._PY_PREVIEW_VERSION||!$('py-prev'))return;
@@ -375,6 +381,8 @@ function buildProyDispersionWS({titulo,sub,pie,colB,modelo}){
   const widths=[8,20,38,24,17,12,22,18,18],prevision=proyColumnaPrevision({rows,styles,widths,merges},previsionFilas,previsionTotales,7);
   // Aguinaldo bruto antes del neto: el neto a pagar ya incluye su neto (bruto − ISR).
   const aguinaldo=prevision?.compacto?null:proyColumnaConcepto({rows,styles,widths,merges},previsionFilas,previsionTotales,cols.indexOf('NETO A PAGAR'),'AGUINALDO BRUTO',x=>x.aguinaldo?.bruto);
+  // Horas extra y descansos laborados: bruto informativo; su neto (bruto − ISR) ya está en el neto a pagar.
+  const jornada=prevision?.compacto?null:proyColumnaConcepto({rows,styles,widths,merges},previsionFilas,previsionTotales,cols.indexOf('NETO A PAGAR'),'HORAS EXTRA Y DESCANSOS BRUTO',x=>x.jornada?.bruto);
   const ws=buildSheet(rows,styles,widths,merges,hs);
   ws[XLSX.utils.encode_col(widths.length-1)+'1']={t:'s',v:'',s:ST.title};
   for(const r of dataRows)for(const col of ['D','E']){
@@ -382,7 +390,7 @@ function buildProyDispersionWS({titulo,sub,pie,colB,modelo}){
   }
   if(!prevision?.compacto){const netoCol=XLSX.utils.encode_col(cols.indexOf('NETO A PAGAR'));
     for(const [tipo,r,datos] of fx){const col=tipo==='NETO'?netoCol:tipo;ws[col+r].t='n';ws[col+r].f=suma(datos,col);}}
-  for(const [a,f] of [...prevision?.formulas||[],...aguinaldo?.formulas||[]]){ws[a].t='n';ws[a].f=f;}
+  for(const [a,f] of [...prevision?.formulas||[],...aguinaldo?.formulas||[],...jornada?.formulas||[]]){ws[a].t='n';ws[a].f=f;}
   return ws;
 }
 /* Presentación del contratista: G conserva el costo después de incidencias.
@@ -455,13 +463,14 @@ function buildProyContratistaWS({titulo,sub,pie,colB,modelo}){
   const widths=[8,20,38,24,17,12,20,18,20,18],prevision=proyColumnaPrevision({rows,styles,widths,merges},previsionFilas,[{r:total,datos:dataRows}]);
   // Informativo: el aguinaldo bruto no se suma al costo del contratista (columna G).
   const aguinaldo=prevision?.compacto?null:proyColumnaConcepto({rows,styles,widths,merges},previsionFilas,[{r:total,datos:dataRows}],cols.indexOf('FORMA DE PAGO'),'AGUINALDO BRUTO',x=>x.aguinaldo?.bruto);
+  const jornada=prevision?.compacto?null:proyColumnaConcepto({rows,styles,widths,merges},previsionFilas,[{r:total,datos:dataRows}],cols.indexOf('FORMA DE PAGO'),'HORAS EXTRA Y DESCANSOS BRUTO',x=>x.jornada?.bruto);
   const ws=buildSheet(rows,styles,widths,merges,hs);
   ws[XLSX.utils.encode_col(widths.length-1)+'1']={t:'s',v:'',s:ST.title};
   for(const r of dataRows)for(const col of ['D','E']){
     const cell=ws[col+r];cell.t='s';cell.v=String(cell.v??'');cell.z='@';cell.s={...cell.s,numFmt:'@'};
   }
   for(const col of ['G','H','I']){ws[col+total].t='n';ws[col+total].f=suma(col);}
-  for(const [a,f] of [...prevision?.formulas||[],...aguinaldo?.formulas||[]]){ws[a].t='n';ws[a].f=f;}
+  for(const [a,f] of [...prevision?.formulas||[],...aguinaldo?.formulas||[],...jornada?.formulas||[]]){ws[a].t='n';ws[a].f=f;}
   return ws;
 }
 function buildProyDestinoWS({titulo,sub,pie,colB,modelo,destino}){
@@ -490,6 +499,7 @@ function proyLibro(modelo,destino,meta){
   XLSX.utils.book_append_sheet(wb,buildProyRetencionesWS(modelo,meta.colB,destino),'RETENCIONES');
   if(modelo.filas.some(f=>f.isr_mensual))XLSX.utils.book_append_sheet(wb,isrQHoja(modelo),'ISR MENSUAL');
   if(modelo.filas.some(f=>f.aguinaldo))XLSX.utils.book_append_sheet(wb,aguinaldoHojaProyeccion(modelo,meta.colB),'AGUINALDO');
+  if(modelo.filas.some(f=>f.jornada))XLSX.utils.book_append_sheet(wb,jornadaHojaProyeccion(modelo,meta.colB),'HORAS EXTRA');
   wb.__empresaPorHoja={};wb.SheetNames.forEach(n=>wb.__empresaPorHoja[n]=meta.codigo);wb.__auditObraIds=[...new Set(modelo.filas.map(x=>x.w.obra_id))];
   return wb;
 }
@@ -497,7 +507,8 @@ function proyAuditoria(modelo,destinos){
   return modelo.filas.map(x=>({obra_id:x.w.obra_id,empresa_codigo:empresaDeTrabajador(x.w),trabajador_id:x.w.id,trabajador_numero:x.w.no_trab,trabajador_nombre:fullName(x.w),
     tipo_calculo:x.fin?'FINIQUITO_EN_PROYECCION':'PROYECCION_NOMINA',periodo:modelo.sem,
     entradas:{destinos,sueldo_registrado:x.sueldo,incidencias:x.incidencias,creditos:x.creditos,otras:x.otras,prevision_social:x.prevision,fuente_finiquito:x.fuente||null,
-      ...(x.aguinaldo?{aguinaldo:{lineas:x.aguinaldo.lineas,bruto:x.aguinaldo.bruto,exento:x.aguinaldo.exento,gravado:x.aguinaldo.gravado,isr:x.aguinaldo.isr,neto:x.aguinaldo.neto,metodo_isr:x.aguinaldo.metodo_isr}}:{})},
+      ...(x.aguinaldo?{aguinaldo:{lineas:x.aguinaldo.lineas,bruto:x.aguinaldo.bruto,exento:x.aguinaldo.exento,gravado:x.aguinaldo.gravado,isr:x.aguinaldo.isr,neto:x.aguinaldo.neto,metodo_isr:x.aguinaldo.metodo_isr}}:{}),
+      ...(x.jornada?{jornada:{eventos:x.jornada.eventos,bruto:x.jornada.bruto,exento:x.jornada.exento,gravado:x.jornada.gravado,isr:x.jornada.isr,neto:x.jornada.neto,sbc_variable:x.jornada.sbc_variable,isr_detalle:x.jornada.isr_detalle}}:{})},
     resultado:{importe_contratista:x.costo,neto:x.neto,forma_pago:x.pago,isr_mensual:x.isr_mensual||null},monto_modelo:x.neto,monto_aplicado:x.neto,ajuste_noi:0}));
 }
 function buildProyWS({titulo,sub,pie,act,fins,sem,colB}){
