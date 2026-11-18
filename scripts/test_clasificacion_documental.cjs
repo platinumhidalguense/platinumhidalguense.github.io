@@ -17,6 +17,7 @@ const xml=ps=>`<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:
 const result=api.extraerXML(xml([p('002','AGUINALDO'),p('001','VACACIONES'),p('021','PRIMA VACACIONAL')]),DOMParser);
 assert.equal(result.concepto.tipo,'FINIQUITO');assert.equal(result.neto,300);assert.equal(result.rfc,'PRUP900101AA1');assert.equal(result.periodo_inicio,'2026-07-20');
 assert.throws(()=>api.extraerXML(xml([]).replace('Total="300.00"','Total="299.99"'),DOMParser),/desglose/);
+assert.throws(()=>api.extraerXML(xml([]).replace(/<tfd:TimbreFiscalDigital[^>]*>/,''),DOMParser),/sin timbre fiscal del SAT/,'XML sellado sin timbre: mensaje explícito, no acredita');
 assert.throws(()=>api.extraerXML('<!DOCTYPE x>'+xml([]),DOMParser),/entidades/);
 assert.throws(()=>api.extraerXML(xml([]).replace('TipoDeComprobante="N"','TipoDeComprobante="I"'),DOMParser),/nómina/);
 assert.throws(()=>api.extraerXML(xml([]).replace('12345678-1234-1234-1234-123456789012','sinUUID'),DOMParser),/UUID/);

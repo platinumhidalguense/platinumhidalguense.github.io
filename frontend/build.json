@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-18.5",
-  "entry": "assets/platinum-app.8061b1421ddd3e30.js",
-  "sha256": "8061b1421ddd3e303c0376658e2e412eac1c11421d4f0ee8517012e19433c03c",
-  "integrity": "sha384-Thrn/2U7KCp/YHg31eBwcH7GKSuZB18lDzwhLf35C4MZFywVAI2ZXwhO5AYDnNuo",
+  "version": "2026-11-18.6",
+  "entry": "assets/platinum-app.2e90e00627754ba1.js",
+  "sha256": "2e90e00627754ba14ab954bb618e25aedfc40e62f205ba2f32bb3cbf0081bddb",
+  "integrity": "sha384-hL+DBVyumiJSGSTmzq6Jf+5Bg1w1YClm1U5o7PNuu4SpKWiOlQCMKNPhJ3cRaq3M",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "defa02c486bdc4783747b240402fcf2acba7f6122024e60bf405fbd518821da7"
+      "sha256": "d0e0f1066f097a2e339099201a4c9762e80cdaf493e76b8f6462632cc03875e7"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -182,7 +182,7 @@
     },
     {
       "path": "frontend/modulos/44-respaldo-recibos.js",
-      "sha256": "a6a971e18a41b9f557482bc6adb6a3bca08469bc90e8dcdf49f531897234f04e"
+      "sha256": "0174b4a8c41df7b07a2db43383c758fdef06791094c3611400004e066a46461f"
     },
     {
       "path": "frontend/modulos/45-exportacion-altas-noi.js",

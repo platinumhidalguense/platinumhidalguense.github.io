@@ -29,7 +29,9 @@
   const local=e=>String(e.localName||e.nodeName).split(':').pop(),one=name=>all.find(e=>local(e)===name),att=(e,k)=>e?.getAttribute(k)||null;
   if(one('parsererror'))throw Error('XML mal formado');
   const comp=doc.documentElement,nom=one('Nomina'),stamp=one('TimbreFiscalDigital');
-  if(local(comp)!=='Comprobante'||att(comp,'TipoDeComprobante')!=='N'||!nom||!stamp)throw Error('No es un CFDI de nómina timbrado');
+  if(local(comp)!=='Comprobante'||att(comp,'TipoDeComprobante')!=='N'||!nom)throw Error('No es un CFDI de nómina timbrado');
+  // Sellado por el emisor pero sin TimbreFiscalDigital: prenómina no timbrada. No acredita pagos ni exenciones.
+  if(!stamp)throw Error('XML de nómina sin timbre fiscal del SAT (sin UUID ni sello SAT): no es un recibo timbrado y no acredita pagos ni exenciones. Si ese periodo no tuvo pago, no se requiere recibo.');
   const rec=Array.from(comp.childNodes||[]).find(e=>e.nodeType===1&&local(e)==='Receptor'),emp=Array.from(comp.childNodes||[]).find(e=>e.nodeType===1&&local(e)==='Emisor'),nr=Array.from(nom.childNodes||[]).find(e=>e.nodeType===1&&local(e)==='Receptor');
   const amount=(e,k)=>{const raw=att(e,k)||'0';if(!/^\d+(?:\.\d{1,6})?$/.test(raw))throw Error('Importe XML inválido');return Number(raw);};
   const neto=amount(comp,'Total'),percepciones=amount(nom,'TotalPercepciones'),deducciones=amount(nom,'TotalDeducciones'),otros=amount(nom,'TotalOtrosPagos');
