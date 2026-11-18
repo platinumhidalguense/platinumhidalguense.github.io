@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-18.3",
-  "entry": "assets/platinum-app.50e1342e3c276091.js",
-  "sha256": "50e1342e3c276091fceb2da3ae72be0c312be8bcbfb153f0f827186adaffc30a",
-  "integrity": "sha384-j1HWibuvCz/6X/S+4yv5Lmgvw84zVB35nZgSDi41+hFZXdXp9mlHE2Vr1T5KsmD4",
+  "version": "2026-11-18.4",
+  "entry": "assets/platinum-app.d52e17a7c849d097.js",
+  "sha256": "d52e17a7c849d097a1c9322d1293ebbb1a1c76fc2c486f37c355a82f6fbe3e97",
+  "integrity": "sha384-vqw4MixftFrKzj31oo/7CulZvokI3psGv85DOSDoFcCTjSvo2uIMdmoHlMLyajVX",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "26a382d78445fe77c99f689f6be7a269986a0b348faf023758167bd5b9035064"
+      "sha256": "78cef9644d1db66e9845d8880d098c9966839089ac3459c5c2537e9a54daa71f"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -94,7 +94,7 @@
     },
     {
       "path": "frontend/modulos/22-asistencia-directorio.js",
-      "sha256": "87de4a364397ab1295a891106f92d9cfad2f28af7562d65eb46e7d2ad3702467"
+      "sha256": "58aaab1922c77c6b115093fb96318df087885f3bce128aeb9d3d77fc9e27abba"
     },
     {
       "path": "frontend/modulos/23-vacaciones.js",

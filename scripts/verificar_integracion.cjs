@@ -121,7 +121,7 @@ if(fs.existsSync('work/baja_finiquito_20261110/funciones_vigentes.json')&&fs.rea
 }
 if(aguinaldoPrivate)suites.push('test_aguinaldo_pg');
 // Horas extra y descansos laborados: núcleo legal, recorrido completo y servidor (privado).
-suites.push('test_jornada_extra_core','test_jornada_extra_recorrido');
+suites.push('test_jornada_extra_core','test_jornada_extra_recorrido','test_asistencia_rango_dias');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_jornada_extra_descansos_laborados.sql')))suites.push('test_jornada_extra_pg');
 else console.log('ALCANCE PÚBLICO AGUINALDO: núcleo e interfaz se prueban; las comprobaciones PostgreSQL de faltas históricas y aplicación requieren la migración privada.');
 suites.push('test_puestos_prestaciones');

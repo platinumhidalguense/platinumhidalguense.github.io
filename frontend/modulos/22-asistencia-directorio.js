@@ -112,12 +112,23 @@ function asAncho(valores,min,max,holgura){
     .forEach(l=>{ if(l.length>n)n=l.length; }));
   return Math.max(min,Math.min(max,n+(holgura===undefined?2:holgura)));
 }
-function asDias(d1){
-  const DN=['LUNES','MARTES','MIÉ.','JUEVES','VIERNES','SÁBADO'];
-  const M3=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
-  const out=[];const base=new Date(d1+'T12:00');
-  for(let i=0;i<6;i++){const d=new Date(base);d.setDate(base.getDate()+i);out.push(`${DN[i]}\n${d.getDate()}/${M3[d.getMonth()]}`);}
+/* Días de firma del rango elegido (2026-11-18): del día inicial al final, con
+   su nombre real y sin domingo (nunca tuvo columna). Si el rango empieza en
+   martes, la primera columna es MARTES; los días no elegidos no aparecen. */
+function asDiasRango(d1,d2){
+  const out=[];if(!/^\d{4}-\d\d-\d\d$/.test(d1||''))return out;
+  const base=new Date(d1+'T12:00'),fin=/^\d{4}-\d\d-\d\d$/.test(d2||'')?new Date(d2+'T12:00'):null;
+  for(let i=0;i<7&&out.length<6;i++){
+    const d=new Date(base);d.setDate(base.getDate()+i);
+    if(fin?d>fin:i>5)break;
+    if(d.getDay()!==0)out.push(d);
+  }
   return out;
+}
+function asDias(d1,d2){
+  const DN=['DOMINGO','LUNES','MARTES','MIÉ.','JUEVES','VIERNES','SÁBADO'];
+  const M3=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  return asDiasRango(d1,d2).map(d=>`${DN[d.getDay()]}\n${d.getDate()}/${M3[d.getMonth()]}`);
 }
 function asSheet(grupo,cfg,blanco){
   // blanco (nuevo ingreso): solo NOMBRE + EMPRESA/CONTRATISTA + 12 columnas de días = 14
@@ -125,9 +136,10 @@ function asSheet(grupo,cfg,blanco){
   /* Columnas de datos: la lista normal lleva 3 (No., nombre, NSS) y la de nuevo
      ingreso solo 2 (nombre y puesto). Las 12 restantes son las de firma. */
   const base=blanco?2:3;
-  const nc=base+12;
+  const fechas=asDiasRango(cfg.d1,cfg.d2),nd=fechas.length;
+  const nc=base+nd*2;
   const rows=[],styles=[],hs=[];
-  const dias=asDias(cfg.d1);
+  const dias=asDias(cfg.d1,cfg.d2);
   const mrow=(arr)=>{while(arr.length<nc)arr.push('');return arr;};
   /* ENCABEZADO (2026-08-27): se quitaron EMPRESA, R. PATRONAL y NO. SIROC —el que
      recibe la hoja en obra no los usa y le robaban dos renglones al espacio útil.
@@ -144,11 +156,11 @@ function asSheet(grupo,cfg,blanco){
   dias.forEach(d=>{head1.push(d,'');});
   rows.push(mrow(head1.slice(0,nc))); styles.push(AS.h); hs.push({hpt:26});
   const head2=new Array(base).fill('');
-  for(let i=0;i<6;i++)head2.push('ENTRADA','SALIDA');
+  for(let i=0;i<nd;i++)head2.push('ENTRADA','SALIDA');
   rows.push(mrow(head2.slice(0,nc))); styles.push(AS.h2); hs.push({hpt:12});
   const head3=new Array(base).fill('');
-  for(let i=0;i<5;i++)head3.push(cfg.h1,cfg.h2);
-  head3.push(cfg.h3,cfg.h4);
+  // Horario de sábado sólo en la columna del sábado; el resto, horario L-V.
+  fechas.forEach(d=>{if(d.getDay()===6)head3.push(cfg.h3,cfg.h4);else head3.push(cfg.h1,cfg.h2);});
   rows.push(mrow(head3.slice(0,nc))); styles.push(AS.h3); hs.push({hpt:11});
   const wSt=[],bSt=[];
   const nameCol=blanco?0:1; // la columna del NOMBRE (con ajuste de texto para que no se corte)
@@ -183,7 +195,7 @@ function asSheet(grupo,cfg,blanco){
     {s:{r:3,c:0},e:{r:3,c:1}},{s:{r:3,c:2},e:{r:3,c:last}},
     {s:{r:7+plazas,c:0},e:{r:7+plazas,c:last}},
     {s:{r:8+plazas,c:0},e:{r:8+plazas,c:last}}];
-  for(let i=0;i<6;i++)merges.push({s:{r:4,c:base+i*2},e:{r:4,c:base+i*2+1}});
+  for(let i=0;i<nd;i++)merges.push({s:{r:4,c:base+i*2},e:{r:4,c:base+i*2+1}});
   for(let c=0;c<base;c++)merges.push({s:{r:4,c},e:{r:6,c}});
   /* ANCHOS (2026-08-27) · CARTA HORIZONTAL con márgenes de 0.25" = 10.5" útiles.
      En unidades de Excel eso son ~130 caracteres. Las columnas de datos se
@@ -204,7 +216,7 @@ function asSheet(grupo,cfg,blanco){
         asAncho(['NOMBRE COMPLETO'].concat(grupo.map(w=>fullName(w))),16,24),
         asAncho(['NSS'].concat(grupo.map(w=>w.nss||'')),11,12,1) ];
   const sobra=Math.max(0,ANCHO_UTIL-widths.reduce((a,b)=>a+b,0));
-  const wFirma=Math.max(5.8,Math.round((sobra/12)*10)/10);
+  const wFirma=Math.max(5.8,Math.round((sobra/Math.max(1,nd*2))*10)/10);
   while(widths.length<nc)widths.push(wFirma);
   const ws=buildSheet(rows,styles,widths,merges,hs);
   // Margen superior amplio: baja todo el contenido para dejar el espacio en
@@ -227,9 +239,10 @@ function exportAsistencia(){
   const grupos=asGruposCuadrilla(asActivosSemana(d1,d2));
   const act=grupos.flatMap(g=>g.gente);
   if(!act.length){toast('No hay trabajadores activos ni altas programadas para esa semana.','err');return;}
+  if(!asDiasRango(d1,d2).length){toast('El rango elegido no incluye días laborables (lunes a sábado).','err');return;}
   // El encabezado ya no lleva empresa, registro patronal ni SIROC.
   const cfg={obra:OBRA.ubicacion||OBRA.nombre,
-    periodo:`${rangoTexto(d1,d2)}   |   SEMANA ${sem}`, d1,
+    periodo:`${rangoTexto(d1,d2)}   |   SEMANA ${sem}`, d1, d2,
     h1:$('as-h1').value||'8:00', h2:$('as-h2').value||'17:00', h3:$('as-h3').value||'9:00', h4:$('as-h4').value||'13:00'};
   const wb=XLSX.utils.book_new(); const usados=new Set();
   wb.__asistencia=true;
@@ -353,7 +366,7 @@ function openRevisarFirmas(){
   const d1=$('as-d1')?$('as-d1').value:weekBounds()[0],d2=$('as-d2')?$('as-d2').value:weekBounds()[1];
   const paginas=asPaginas(asGruposCuadrilla(asActivosSemana(d1,d2)));
   const act=paginas.flatMap(p=>p.gente);
-  window._RF={corners:[],nRows:paginas[0]?Math.max(6,paginas[0].gente.length):10,nDias:6,cut:120,thr:0.03,pag:0,d1,d2,paginas,actAll:act,workers:paginas[0]?paginas[0].gente:[]};
+  window._RF={corners:[],nRows:paginas[0]?Math.max(6,paginas[0].gente.length):10,nDias:asDiasRango(d1,d2).length||6,cut:120,thr:0.03,pag:0,d1,d2,paginas,actAll:act,workers:paginas[0]?paginas[0].gente:[]};
   const opts=paginas.map((p,i)=>`<option value="${i}">HOJA ${p.numero} — ${esc(p.grupo.contratista)}${p.grupo.cuadrilla?' · '+esc(p.grupo.cuadrilla):''}</option>`);
   modal(`
     <div class="m-head"><h2>🖊️ Revisar firmas de lista escaneada · ${esc(OBRA.nombre)}</h2><button class="x" onclick="closeModal()">×</button></div>
@@ -361,7 +374,7 @@ function openRevisarFirmas(){
       <p style="color:var(--mut);font-size:12.5px;margin-bottom:10px">Sube la <b>foto de UNA hoja</b> de la lista de asistencia de ${esc(fmtD(d1))} a ${esc(fmtD(d2))}. Elige el mismo número de hoja que aparece impreso; solo detecta en qué celdas hay firma y en cuáles no. Ajusta la sensibilidad si hace falta; la cuadrícula azul muestra dónde está midiendo.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">
         <div><label>¿Qué hoja es?</label><select id="rf-pag" onchange="rfSetPag()">${opts.join('')}</select></div>
-        <div><label>Días en la hoja</label><input id="rf-dias" type="number" min="1" max="7" value="6" onchange="window._RF.nDias=Math.max(1,Math.min(7,parseInt(this.value)||6));rfRedraw()"></div>
+        <div><label>Días en la hoja</label><input id="rf-dias" type="number" min="1" max="7" value="${window._RF.nDias}" onchange="window._RF.nDias=Math.max(1,Math.min(7,parseInt(this.value)||6));rfRedraw()"></div>
         <div><input type="file" id="rf-file" accept="image/*" onchange="rfFile(this)"></div>
       </div>
       <div id="rf-hint" style="font-size:12px;color:var(--navy);margin:8px 0">Sube la foto para empezar.</div>
