@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-17.3",
-  "entry": "assets/platinum-app.bf9a132c696a4f80.js",
-  "sha256": "bf9a132c696a4f809185b992783d298aa8c05f46d9b8370929e860ca6f9e5e33",
-  "integrity": "sha384-e+Bziphi5JR4K2vrHsV8tEY3HSNxedIEyM40sGz8V6V2DHgMbX+lRxWvKiCJYO1y",
+  "version": "2026-11-18.1",
+  "entry": "assets/platinum-app.2de6d6de89b19a4b.js",
+  "sha256": "2de6d6de89b19a4b38b506354ba3042b6f71b2398d5768a22ecdb329b948a8ca",
+  "integrity": "sha384-02QkNHhk1g5XvipSHBxthvOXEGX/GZdDb6K9amTi+pBE6YPgUUsZR2lW4nM1lEHg",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "1590356bc4811c1c89289ba71b89b2654d7fa3cf8ef5820cc51b5ba052f584cd"
+      "sha256": "94c81f3b9b6b58bb70ba1fe4c6173f168c4aa4754b2f7c8e546c23ad47b2b51b"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -22,7 +22,7 @@
     },
     {
       "path": "frontend/modulos/04-padron-expedientes.js",
-      "sha256": "50cc828cc0958196ed28fa3adcc007fc3350c65ead16a52debd4eb7efefb3a27"
+      "sha256": "bbcd7ccfafad8e8cf11e425cb62df919877a0c3f9340b39623224c63d5b0cfbc"
     },
     {
       "path": "frontend/modulos/05-alta-edicion.js",
@@ -238,7 +238,7 @@
     },
     {
       "path": "frontend/modulos/58-conciliador-core.js",
-      "sha256": "03cda7ce5fb1604d7f6b7e425b2affa3dc921ff2519204d8b777617fbe231b70"
+      "sha256": "e642310ca90f839a206a88c431a3a196a3779c0bd046b9886eca20ece7eecd62"
     },
     {
       "path": "frontend/modulos/59-conciliador-persistencia.js",
@@ -282,7 +282,7 @@
     },
     {
       "path": "frontend/modulos/69-personal-lecturas.js",
-      "sha256": "99b99c9c4c9e2676a96f6cdccd07a5850fb460163ae0b2e1e14906b137e0c015"
+      "sha256": "bb5ba731e4219ce610df7cd25bc785cc45ac1a2dcea71cddb655fb1fff0ccefc"
     },
     {
       "path": "frontend/modulos/70-padron-movimientos.js",
@@ -318,11 +318,11 @@
     },
     {
       "path": "frontend/modulos/78-banco-historico-servicio.js",
-      "sha256": "0f99210c772a202e4dd162152638fa2b4c2204b2acb4f391ba29a13fa281ee0c"
+      "sha256": "a96bc0e1b9be5832db2c5d211610ef7f15ae691e38e4bf587578c077c6a94186"
     },
     {
       "path": "frontend/modulos/79-importacion-bancaria-interfaz.js",
-      "sha256": "829bea6c6b2701f1feb0728f49abd442a6b5c416d9e12358c7307551a67abf79"
+      "sha256": "e8553fe3f7bfaa7ecb9ed7cee4b0d0b156d7c4d3610a325489509648b855672b"
     },
     {
       "path": "frontend/modulos/80-puestos-central.js",

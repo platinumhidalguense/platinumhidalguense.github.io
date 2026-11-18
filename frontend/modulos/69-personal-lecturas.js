@@ -98,6 +98,10 @@
   if(!vigente(c))return;
   const filas=r.replica?.publicar(r.t,r.filas,tabla)??r.filas;
   instalar(tabla,w,filas.filter(f=>f.trabajador_id===w.id||(tabla==='cheques'&&!f.trabajador_id&&w.curp&&f.curp===w.curp&&f.obra_id===w.obra_id)));
+  // Pagos: estado de registro y aplicación comprobados en el servidor (resolución bancaria por pago).
+  if(tabla==='pagos'&&typeof sb!=='undefined'&&sb?.from){const ids=filas.filter(f=>f.trabajador_id===w.id).map(f=>f.id).filter(Boolean),mapa=window.PAGOS_RESOLUCION||(window.PAGOS_RESOLUCION=new Map());
+   try{for(let i=0;i<ids.length;i+=100){const r=await sb.from('control_banco_resoluciones').select('pago_id,estado,obligacion_id,aplicacion_id,resultado').in('pago_id',ids.slice(i,i+100));if(r.error)throw r.error;if(!vigente(c))return;for(const x of r.data||[])mapa.set(x.pago_id,x);}}
+   catch(e){window.PAGOS_RESOLUCION_ERROR=e.message||'No se consultó la aplicación de los pagos';}}
  }
  async function cuadrillas(c=contexto(),medicion,obra=OBRA.id){
   if(OBRA_CARGA_COMPLETA&&obra===OBRA.id)return CUADS;

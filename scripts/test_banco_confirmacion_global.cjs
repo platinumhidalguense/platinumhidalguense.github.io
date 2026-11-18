@@ -9,8 +9,8 @@ const FIN=['CONCILIADO','CONCILIADO_REUTILIZADO','CHEQUE_CANCELADO'];
 function servidor(total,estados={}){
  const s={estados,version:{},fallos:{},perdida:null,sinPermiso:false,llamadas:[],cheques:{},
   archivo:{id:'F',obra_id:'O',nombre:'LOTE.pdf',contexto:{empresa_codigo:'PLATINUM',anio:2026,periodicidad:'SEMANAL',semana:30},revision:5,estado:'LEIDO',resoluciones:[],
-   propuesta:{paginas:[{numero:1,records:[]}],records:Array.from({length:total},(_,i)=>({titular:'PERSONA '+(i+1),cuenta:'1234567890',importe:100+i,folio:'REF'+i,fecha:'2026-07-20',pagina:1,seleccionado:false}))}}};
- const prev=f=>{const e=s.estados[f]||'LISTO';return{fila:f,estado:e,huella:'H'+f+'.'+(s.version[f]||0),accion_cheque:e==='CONFIRMACION_PENDIENTE'?'CONFIRMAR_CANCELACION':'NINGUNA',cheques:[],pagos_similares:[],explicacion:e==='LISTO'?null:'Motivo '+e};};
+   propuesta:{paginas:[{numero:1,records:[]}],records:Array.from({length:total},(_,i)=>({titular:'PERSONA '+(i+1),cuenta:'1234567890',importe:100+i,folio:'REF'+i,fecha:'2026-07-20',estado:'EXITOSO',pagina:1,seleccionado:false}))}}};
+ const prev=f=>{const e=s.estados[f]||'LISTO';return{fila:f,estado:e,trabajador_id:e==='VINCULACION_PENDIENTE'?'W'+f:null,huella:'H'+f+'.'+(s.version[f]||0),accion_cheque:e==='CONFIRMACION_PENDIENTE'?'CONFIRMAR_CANCELACION':'NINGUNA',cheques:[],pagos_similares:[],explicacion:e==='LISTO'?null:'Motivo '+e};};
  const res=f=>s.archivo.resoluciones.find(r=>r.fila===f);
  s.rpc=async(fn,{p_accion:a,p_datos:d})=>{
   if(fn==='control_importacion_contexto')return{error:{code:'PGRST202',message:'Could not find the function'}};
@@ -29,7 +29,7 @@ function servidor(total,estados={}){
    const out=[];
    for(const c of [...cs].sort((x,y)=>x.fila-y.fila)){if(!s.archivo.propuesta.records[c.fila-1].seleccionado)continue;let rr;
     if(s.fallos[c.fila]>0){s.fallos[c.fila]--;rr={fila:c.fila,estado:'ERROR_RECUPERABLE',explicacion:'deadlock detected'};}
-    else{const e=prev(c.fila).estado;rr=e==='LISTO'?{fila:c.fila,estado:'CONCILIADO'}:e==='YA_CONCILIADO'?{fila:c.fila,estado:'CONCILIADO_REUTILIZADO'}:{fila:c.fila,estado:e,explicacion:'Pendiente '+e};
+    else{const e=prev(c.fila).estado;rr=e==='LISTO'?{fila:c.fila,estado:'CONCILIADO'}:e==='VINCULACION_PENDIENTE'?{fila:c.fila,estado:'VINCULACION_PENDIENTE',pago_id:'P'+c.fila,explicacion:'Original y pago registrados. Falta una obligación histórica verificable.'}:e==='YA_CONCILIADO'?{fila:c.fila,estado:'CONCILIADO_REUTILIZADO'}:{fila:c.fila,estado:e,explicacion:'Pendiente '+e};
      if(c.decision)s.cheques[c.fila]=c.decision;s.archivo.resoluciones=s.archivo.resoluciones.filter(x=>x.fila!==c.fila).concat({fila:c.fila,estado:rr.estado,resultado:rr});}
     out.push(rr);}
    s.archivo.revision++;
@@ -55,7 +55,7 @@ const mapa=srv=>Object.fromEntries(srv.archivo.resoluciones.map(r=>[r.fila,r.est
  await svc.marcarTodas(true);eq(svc.resumenListas(),null,'la vista previa anterior deja de valer tras cambiar la selección');
  // 2. Confirmación global: revalida vista previa, sólo listas y marcadas, tramos secuenciales; excluidas aparte con motivo.
  const l1=await svc.confirmarListas();
- ok(de(s1,'PREVISUALIZAR').length===1&&s1.llamadas.findIndex(x=>x.a==='PREVISUALIZAR')<s1.llamadas.findIndex(x=>x.a==='CONFIRMAR'),'actualiza la vista previa antes de confirmar');
+ {const L=s1.llamadas.map(x=>x.a),c0=L.indexOf('CONFIRMAR'),p0=L.lastIndexOf('PROPUESTA',c0),v0=L.lastIndexOf('PREVISUALIZAR',c0);ok(v0>p0&&v0<c0,'tras cambiar la selección actualiza la vista previa antes de confirmar');ok(L.indexOf('PREVISUALIZAR')<L.indexOf('PROPUESTA'),'al abrir el original construye la vista previa automáticamente');}
  eq(de(s1,'CONFIRMAR').map(x=>x.filas.length),[20,20,6],'tramos de 20 en secuencia');
  eq(l1.totales,{CONFIRMADO:44,YA_EXISTENTE:2,FALLIDO:0,PENDIENTE:0,total:46,procesados:46},'totales');
  eq(Object.fromEntries(Object.entries(l1.excluidas).map(([k,v])=>[k,v.map(x=>x.fila)])),{CHEQUE:[47],IMPORTE:[48],REVISION:[49],DUPLICADO:[50]},'excluidas por categoría');
@@ -94,6 +94,10 @@ const mapa=srv=>Object.fromEntries(srv.archivo.resoluciones.map(r=>[r.fila,r.est
  // 9b. Tiempo agotado en servidor: el tramo se divide y se reintenta sin perder lo confirmado.
  const s9=servidor(45),t9=await abrir(s9);await t9.svc.marcarTodas(true);s9.limite=6;const l9=await t9.svc.confirmarListas();
  eq(l9.totales.CONFIRMADO,45,'todas confirmadas con tramos divididos');ok(de(s9,'CONFIRMAR').every(x=>x.filas.length<=20)&&de(s9,'CONFIRMAR').some(x=>x.filas.length<=6),'divide hasta caber en el límite');eq(Object.keys(mapa(s9)).length,45,'sin duplicados');
+ // 9c. Persona identificada sin obligación aprobada: el pago se registra con vinculación pendiente dentro del lote.
+ const s10=servidor(4,{3:'VINCULACION_PENDIENTE',4:'IDENTIDAD_POR_REVISAR'}),t10=await abrir(s10);await t10.svc.marcarTodas(true);await t10.svc.revisar();
+ const r10=t10.svc.resumenListas();eq([r10.listas.length,r10.vinculo_pendiente,r10.excluidas.REVISION.map(x=>x.fila)],[3,1,[4]],'vinculación pendiente incluida y contada aparte; identidad por revisar excluida');
+ const l10=await t10.svc.confirmarListas();eq([l10.filas[3].estado,l10.filas[3].motivo],['CONFIRMADO','Pago registrado · vinculación pendiente'],'registrada con vinculación pendiente');eq(s10.archivo.resoluciones.find(x=>x.fila===3).estado,'VINCULACION_PENDIENTE','resolución guardada en servidor');
  // 10. Interfaz: casilla marcar/desmarcar todas, conteo, resumen único, progreso y reintento.
  const {window,document}=parseHTML('<html><body><div id="modals"></div><div id="modal2"></div></body></html>');
  Object.defineProperty(window.HTMLSelectElement.prototype,'value',{configurable:true,get(){return this._valor??this.querySelector('option[selected]')?.getAttribute('value')??this.querySelector('option')?.getAttribute('value')??'';},set(v){this._valor=String(v);}});

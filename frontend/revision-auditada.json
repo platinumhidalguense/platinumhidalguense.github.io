@@ -240,5 +240,6 @@
   "proyLeerContextoHistorico": "11/11/2026: reversión específica de bajas con registro y referencias; fuentes efectivas excluyen bajas revertidas sin perder originales ni modificar motores. Pruebas dirigidas SQL/DOM, permisos, servicio cero, cambios concurrentes y derivados financieros.",
   "collectForm": "13/11: guarda sólo defaults contractuales de PLATINUM junto al formulario autorizado; servidor fuerza alcance real por obra y preserva otros datos.",
   "validateWorker": "13/11: advierte incompatibilidad del inicio posterior al fin de 2026 antes de generar documentos; conserva validaciones existentes y no convierte término contractual en baja.",
-  "seccionHTML": "13/11: la ficha muestra modalidad canónica PLATINUM conservando los campos y contenido existentes."
+  "seccionHTML": "13/11: la ficha muestra modalidad canónica PLATINUM conservando los campos y contenido existentes.",
+  "fichaPagosHTML": "Pagos de la ficha con fecha real, referencia, concepto, periodo y aplicación comprobada por la resolución bancaria del servidor (2026-11-18)."
 }

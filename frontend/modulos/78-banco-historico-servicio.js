@@ -71,7 +71,29 @@
  function reintentar(sec){const t=secuencia;if(!estado)return Promise.resolve(false);if(sec==='fuentes')return asegurarFuentes(estado.archivo?.propuesta?.records||[],t);if(!cargadores[sec])throw Error('Sección desconocida');
   if(sec!=='personas'){if(sec==='archivos'){estado.archivos=estado.archivos.filter(a=>a.id===estado.archivo?.id);estado.archivosSiguiente=null;}else{estado.anteriores=[];estado.anterioresSiguiente=null;}}return cargarSeccion(sec,t);}
  function mas(sec){if(!estado||!['archivos','anteriores'].includes(sec))return Promise.resolve(false);if(!estado[sec+'Siguiente'])return Promise.resolve(true);return cargarSeccion(sec,secuencia,true);}
- async function seleccionar(id){return tarea(async t=>{estado.archivo=await rpc('ABRIR',{archivo_id:id},t);estado.previa=null;estado.resultados=estado.archivo.resoluciones?.map(r=>r.resultado)||[];avisar();return estado.archivo;});}
+ async function seleccionar(id){return tarea(async t=>{estado.archivo=await rpc('ABRIR',{archivo_id:id},t);estado.previa=null;estado.previaError=null;estado.resultados=estado.archivo.resoluciones?.map(r=>r.resultado)||[];avisar();
+   const a=estado.archivo;
+   if(desactualizada(a)&&!registradas(a).length&&estado.puede_importar){try{await leerInterno(a,await bytesOriginal(a,t),t,'LECTOR_ACTUALIZADO');}catch(e){if(!vigente(t))throw e;estado.archivo.aviso_lectura='No se pudo reprocesar con el lector vigente: '+e.message;avisar();}}
+   else if(desactualizada(a))estado.archivo.aviso_lectura='Lectura de una versión anterior del lector; sus operaciones registradas se conservan. Revisa las pendientes.';
+   await previaAuto(t);return estado.archivo;});}
+  // Versión del lector y trazabilidad: una propuesta de otra versión no se presenta como válida; se reprocesa desde el original.
+  const FIN_ETAPA=new Set(['CONCILIADO','CONCILIADO_REUTILIZADO','CHEQUE_CANCELADO']);
+  const versionLector=()=>cfg.core.LECTOR_VERSION||null;
+  const desactualizada=a=>!!(a?.propuesta?.records?.length&&versionLector()&&a.propuesta.lector_version!==versionLector());
+  const registradas=a=>(a?.resoluciones||[]).filter(r=>r.pago_id||FIN_ETAPA.has(r.estado)||r.aplicacion_id);
+  const resumenLectura=p=>({lector_version:p?.lector_version||null,records:(p?.records||[]).map(r=>({titular:r.titular||'',ordenante:r.ordenante||null,mask:r.mask||String(r.cuenta||'').slice(-4),importe:r.importe,fecha:r.fecha,estado:r.estado,trabajador_id:r.trabajador_id||null}))});
+  // Tras leer o abrir: vista previa de obligaciones sin pasos manuales. Un fallo conserva la lectura y queda visible con reintento.
+  async function previaAuto(t){const a=estado.archivo;if(!a||a.padre_id||!a.propuesta?.records?.length||!estado.puede_importar)return null;
+   estado.previaError=null;estado.previaCargando=true;avisar();
+   try{const r=await rpc('PREVISUALIZAR',{archivo_id:a.id,revision:a.revision},t);if(estado.archivo?.id===a.id&&estado.archivo.revision===a.revision)estado.previa=r;return r;}
+   catch(e){if(!vigente(t))throw e;estado.previaError=e.message;return null;}finally{if(estado)estado.previaCargando=false;avisar();}}
+  // Etapas comprobadas por operación: Archivado → Leído → Asociado → Registrado → Conciliado.
+  function etapa(i){const a=estado?.archivo;if(!a)return null;const r=a.propuesta?.records?.[i];if(!r)return 'ARCHIVADO';
+   const res=(a.resoluciones||[]).find(x=>Number(x.fila)===i+1);
+   if(res&&FIN_ETAPA.has(res.estado))return 'CONCILIADO';if(res?.pago_id)return 'REGISTRADO';return r.trabajador_id?'ASOCIADO':'LEIDO';}
+  async function reprocesar(){return tarea(async t=>{const a=estado.archivo;if(!a)throw Error('Selecciona un original');
+   if(registradas(a).length)throw Error('Este original ya tiene operaciones registradas o conciliadas; su lectura se conserva. Corrige la pendiente desde Resolver operación.');
+   await leerInterno(a,await bytesOriginal(a,t),t,'REPROCESO_SOLICITADO');await previaAuto(t);return estado.archivo;});}
   async function guardar(propuesta,t=secuencia){const a=estado.archivo;estado.archivo=await rpc('PROPUESTA',{archivo_id:a.id,revision:a.revision,propuesta},t);estado.previa=null;avisar();return estado.archivo;}
   async function archivar(bytes,nombre,contexto,t,padre,pagina){
    const sha256=await cfg.hash(bytes);exigir(t);
@@ -100,12 +122,12 @@
     pg.records=combinarPagina(pg.records||[],lectura.records,cfg.core);pg.fragmento_id=f.id;pg.lector='TRADICIONAL_Y_COMPLEMENTARIO';pg.error=null;
     pg.pendiente=pg.records.some(r=>!cfg.core.revisarBanco({records:[r]}).ok);if(pg.pendiente)pg.error=lectura.validacion.errores.join('. ');
    }catch(e){pg.pendiente=true;pg.error=e.message;}
-   await prepararAsociacion(p.paginas.flatMap(x=>x.records||[]),t);p.records=reunir(p);
+   await prepararAsociacion(p.paginas.flatMap(x=>x.records||[]),t);p.records=reunir(p);p.lector_version=versionLector();
    p.validacion=cfg.core.revisarBanco({...p,records:p.records},p.paginas.map(x=>x.texto||'').join('\n'));
    return guardar(p,t);
   }
-  async function leerInterno(a,bytes,t){
-   if(a.propuesta?.records?.length){estado.archivo=a;avisar();return a;}
+  async function leerInterno(a,bytes,t,motivo=null){
+   if(a.propuesta?.records?.length&&!motivo&&!desactualizada(a)){estado.archivo=a;avisar();return a;}
    const paginas=await cfg.paginas(bytes.slice(0));exigir(t);
    const global=paginas.some(x=>/RESUMEN GENERAL|GRUPO DE PAGO|TOTAL DE OPERACIONES|NUMERO DE REGISTROS/i.test(String(x.texto).normalize('NFD').replace(/[\u0300-\u036f]/g,'')));
    let esperados=null,totalEsperado=null,tipo=global?'GLOBAL':'INDIVIDUAL';
@@ -115,7 +137,8 @@
     const pendiente=!r.records.length||r.records.some(y=>!cfg.core.revisarBanco({records:[y]}).ok);
     pp.push({numero:x.numero,texto:x.texto,records:r.records,lector:'TRADICIONAL',pendiente,error:pendiente?'Página con lectura pendiente':null});
    }
-   let p={tipo,esperados:global?esperados:null,totalEsperado:global?totalEsperado:null,paginas:pp,records:[]};
+   const previa=a.propuesta?.records?.length?[{fecha:new Date().toISOString(),revision:a.revision,motivo:motivo||'LECTOR_ACTUALIZADO',anterior:resumenLectura(a.propuesta)}]:[];
+   let p={tipo,esperados:global?esperados:null,totalEsperado:global?totalEsperado:null,paginas:pp,records:[],lector_version:versionLector(),lecturas:[...(a.propuesta?.lecturas||[]),...previa]};
    const crudos=pp.flatMap(pg=>pg.records.map((r,i)=>({...r,pagina:pg.numero,ordinal_pagina:i+1})));await prepararAsociacion(crudos,t);
    p.records=asociar(crudos);p.validacion=cfg.core.revisarBanco(p,paginas.map(x=>x.texto).join('\n'));
    await guardar(p,t);
@@ -125,11 +148,11 @@
   async function subir(files){return tarea(async t=>{const resultados=[];
    for(const file of files){exigir(t);let a;
     try{if(!/\.pdf$/i.test(file.name)||!(file.size>0&&file.size<=12582912))throw Error('Se admite PDF de hasta 12 MB');const b=await file.arrayBuffer();
-     a=await archivar(b,file.name,estado.contexto,t);estado.archivo=a;estado.previa=null;if(!estado.archivos.some(x=>x.id===a.id))estado.archivos.unshift(a);avisar();await leerInterno(a,b,t);resultados.push({id:a.id,estado:estado.archivo.estado});
+     a=await archivar(b,file.name,estado.contexto,t);estado.archivo=a;estado.previa=null;if(!estado.archivos.some(x=>x.id===a.id))estado.archivos.unshift(a);avisar();await leerInterno(a,b,t);await previaAuto(t);resultados.push({id:a.id,estado:estado.archivo.estado});
     }catch(e){if(!vigente(t))throw e;if(a){estado.archivo=await rpc('ERROR',{archivo_id:a.id,revision:estado.archivo?.id===a.id?estado.archivo.revision:a.revision,error:e.message},t);}resultados.push({id:a?.id,error:e.message});}
    }avisar();return resultados;});}
   async function completar(pagina){return tarea(t=>completarInterno(pagina,t));}
-  async function recuperar(id){return tarea(async t=>{const f=estado.anteriores?.find(x=>x.id===id);if(!f)throw Error('Original anterior no disponible en este contexto');const bytes=await bytesOriginal(f,t);const a=await archivar(bytes,f.nombre,estado.contexto,t);estado.archivo=a;estado.previa=null;if(!estado.archivos.some(x=>x.id===a.id))estado.archivos.unshift(a);return leerInterno(a,bytes,t);});}
+  async function recuperar(id){return tarea(async t=>{const f=estado.anteriores?.find(x=>x.id===id);if(!f)throw Error('Original anterior no disponible en este contexto');const bytes=await bytesOriginal(f,t);const a=await archivar(bytes,f.nombre,estado.contexto,t);estado.archivo=a;estado.previa=null;if(!estado.archivos.some(x=>x.id===a.id))estado.archivos.unshift(a);await leerInterno(a,bytes,t);await previaAuto(t);return estado.archivo;});}
   async function reanudar(){return tarea(async t=>{const a=estado.archivo;if(!a)throw Error('Selecciona un original');return leerInterno(a,await bytesOriginal(a,t),t);});}
   async function editar(i,cambios){return tarea(t=>{const p=copia(estado.archivo.propuesta);if(!p.records[i])throw Error('La operación no existe');p.records[i]={...p.records[i],...cambios};return guardar(p,t);});}
   async function revisar(){return tarea(async t=>{const a=estado.archivo;estado.previa=await rpc('PREVISUALIZAR',{archivo_id:a.id,revision:a.revision},t);avisar();return estado.previa;});}
@@ -155,11 +178,13 @@
    const recs=a.propuesta?.records||[],hechas=new Map((estado.resultados||[]).map(r=>[r?.fila,r])),listas=[],excluidas={CHEQUE:[],IMPORTE:[],REVISION:[],DUPLICADO:[]};let conciliadas=0,desmarcadas=0;
    for(const p of pv.filas){const r=recs[p.fila-1]||{};
     if(FINALES.has(hechas.get(p.fila)?.estado)){conciliadas++;continue;}
-    if(!LISTAS.has(p.estado)||p.accion_cheque==='CONFIRMAR_CANCELACION'){excluidas[categoria(p)].push({fila:p.fila,titular:r.titular||'Titular pendiente',motivo:p.explicacion||p.motivo||p.estado});continue;}
+    // Persona identificada y transferencia exitosa sin obligación aprobada: se registra el pago con vinculación pendiente.
+    const vinculo=p.estado==='VINCULACION_PENDIENTE'&&!!p.trabajador_id&&r.estado==='EXITOSO'&&p.accion_cheque!=='CONFIRMAR_CANCELACION';
+    if(!vinculo&&(!LISTAS.has(p.estado)||p.accion_cheque==='CONFIRMAR_CANCELACION')){excluidas[categoria(p)].push({fila:p.fila,titular:r.titular||'Titular pendiente',motivo:p.explicacion||p.motivo||p.estado});continue;}
     if(!r.seleccionado){desmarcadas++;continue;}
-    listas.push({fila:p.fila,huella:p.huella,titular:r.titular||'',importe:r.importe});
+    listas.push({vinculo_pendiente:vinculo,fila:p.fila,huella:p.huella,titular:r.titular||'',importe:r.importe});
    }
-   return{listas,excluidas,conciliadas,desmarcadas,importe:listas.reduce((x,y)=>x+(Number(y.importe)||0),0)};
+   return{listas,vinculo_pendiente:listas.filter(x=>x.vinculo_pendiente).length,excluidas,conciliadas,desmarcadas,importe:listas.reduce((x,y)=>x+(Number(y.importe)||0),0)};
   }
   const totalesLote=l=>{const t={CONFIRMADO:0,YA_EXISTENTE:0,FALLIDO:0,PENDIENTE:0,total:0,procesados:0};for(const x of Object.values(l.filas)){t.total++;t[x.estado==='PROCESANDO'?'PENDIENTE':x.estado]++;if(!['PENDIENTE','PROCESANDO'].includes(x.estado))t.procesados++;}return t;};
   const sinPermiso=e=>e?.code==='42501'||/permiso|Cambió el centro o la sesión/i.test(e?.message||'');
@@ -180,6 +205,7 @@
    const detener=m=>{l.detenido||=m;};
    const anotar=(rs,repetido)=>{for(const rr of rs||[]){const f=l.filas[rr.fila];if(!f)continue;
     if(FINALES.has(rr.estado))Object.assign(f,{estado:repetido||rr.estado==='CONCILIADO_REUTILIZADO'?'YA_EXISTENTE':'CONFIRMADO',motivo:repetido?'Ya conciliada':rr.estado==='CONCILIADO_REUTILIZADO'?'Pago existente reutilizado':null});
+    else if(rr.pago_id&&rr.estado==='VINCULACION_PENDIENTE')Object.assign(f,{estado:'CONFIRMADO',motivo:'Pago registrado · vinculación pendiente'});
     else if(rr.estado==='ERROR_RECUPERABLE')Object.assign(f,{estado:'FALLIDO',motivo:rr.explicacion||'Error recuperable'});
     else Object.assign(f,{estado:'PENDIENTE',motivo:rr.explicacion||rr.estado});}};
    const enviar=async tramo=>{for(let intento=0;;intento++){
@@ -220,7 +246,7 @@
    }finally{l.en_curso=false;l.totales=totalesLote(l);}
   });}
   function cerrar(){secuencia++;estado=null;cacheBytes.clear();avisar();}
-  return Object.freeze({abrir,reintentar,mas,seleccionar,subir,completar,recuperar,reanudar,editar,marcarTodas,revisar,confirmar,resumenListas,confirmarListas,reintentarFallidas,cerrar,estado:()=>estado,ocupado:()=>ocupado});
+  return Object.freeze({abrir,reintentar,mas,seleccionar,subir,completar,recuperar,reanudar,reprocesar,etapa,desactualizada,editar,marcarTodas,revisar,confirmar,resumenListas,confirmarListas,reintentarFallidas,cerrar,estado:()=>estado,ocupado:()=>ocupado});
  }
  return Object.freeze({crear,combinarPagina,llave});
 });
