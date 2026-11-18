@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-18.6",
-  "entry": "assets/platinum-app.2e90e00627754ba1.js",
-  "sha256": "2e90e00627754ba14ab954bb618e25aedfc40e62f205ba2f32bb3cbf0081bddb",
-  "integrity": "sha384-hL+DBVyumiJSGSTmzq6Jf+5Bg1w1YClm1U5o7PNuu4SpKWiOlQCMKNPhJ3cRaq3M",
+  "version": "2026-11-18.7",
+  "entry": "assets/platinum-app.284d549441025f5d.js",
+  "sha256": "284d549441025f5d0d97d69861fa6f5e1fdd6acaac99d5a0fc24daf9cacf681c",
+  "integrity": "sha384-kRA3phb9Qd641nwIdC5Nzm5OVfTCrFgVvHbMjZZh7xpql7jrM5IAtBewanBF060q",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "d0e0f1066f097a2e339099201a4c9762e80cdaf493e76b8f6462632cc03875e7"
+      "sha256": "5064b2ee73567a522635d032a8fb84e992105453dfa89fcb140cb225f8ff2d85"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -366,7 +366,7 @@
     },
     {
       "path": "frontend/modulos/93-respaldo-integral.js",
-      "sha256": "a0e75824cd58698a909b395802fb69e02fc3764a230eecf23a3d58d602a262ef"
+      "sha256": "1ce3104b2d7a1f0b9543e5917182bd895011a7d7da97cf5450134b9ac52cc279"
     },
     {
       "path": "frontend/modulos/94-jornada-extra-core.js",

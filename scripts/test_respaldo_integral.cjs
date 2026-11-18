@@ -48,16 +48,16 @@ function servidor(db,op={}){
   if(!perm.admin&&['trabajadores','cheques'].includes(k))rows=rows.filter(r=>!r.eliminado);
   if(!perm.vip&&k==='control_obligaciones_pago')rows=rows.filter(r=>r.tipo!=='PREVISION_SOCIAL');return rows;
  };
- function from(k){const fil=[],ord=[];let sel='';const q={select(s){sel=s;return q;},or(){return q;},eq(k,v){fil.push(r=>r[k]===v);return q;},neq(k,v){fil.push(r=>r[k]!==v);return q;},in(k,vs){fil.push(r=>vs.includes(r[k]));return q;},order(k){ord.push(k);return q;},async range(a,b){req.push({k,sel,a,b});if(op.fail===k)return {error:{message:'FALLO DE PRUEBA '+k}};
+ function from(k){const fil=[],ord=[];let sel='',cursor=null;const q={select(s){sel=s;return q;},or(){return q;},gt(k,v){cursor=v;fil.push(r=>{try{return typeof r[k]==='number'&&typeof v==='number'?r[k]>v:BigInt(r[k])>BigInt(v);}catch(e){return r[k]>v;}});return q;},eq(k,v){fil.push(r=>r[k]===v);return q;},neq(k,v){fil.push(r=>r[k]!==v);return q;},in(k,vs){fil.push(r=>vs.includes(r[k]));return q;},order(k){ord.push(k);return q;},async range(a,b){req.push({k,sel,a,b,cursor});if(op.onPage)op.onPage({k,a,b,cursor});if(op.timeoutPage===k&&(!op.timeoutAfter||cursor!==null)&&b-a+1>(op.timeoutAbove??60))return {error:{code:'57014',message:'canceling statement due to statement timeout'}};if(op.fail===k)return {error:{message:'FALLO DE PRUEBA '+k}};
    let rows=visible(k,allowed).filter(r=>fil.every(f=>f(r))).sort((x,y)=>{for(const o of ord){const a=x[o],b=y[o];if(a!==b)return a>b?1:-1;}return 0;}).slice(a,Math.min(b+1,a+(op.cap||1000)));
-   if(op.repeat&&k==='trabajadores'&&a)rows=visible(k,allowed).slice(0,1);
-   if(op.early&&k==='trabajadores'&&a)rows=[];
+   if(op.repeat&&k==='trabajadores'&&(a||cursor!==null))rows=visible(k,allowed).slice(0,1);
+   if(op.early&&k==='trabajadores'&&(a||cursor!==null))rows=[];
    const projected=rows.map(r=>{const rr={};for(const c of sel.split(',')){if(c==='*'){Object.assign(rr,r);}else if(c.includes(':snapshot->')){const [key,p]=c.split(':');rr[key]=p.split('->').slice(1).reduce((v,k)=>v?.[k],r.snapshot)??null;}else if(c.includes('__origen:')){const key=c.split(':')[0],src=key.replace('__origen','');rr[key]=r[key]??(r[src]==null?null:String(r[src]));}else if(c in r)rr[c]=r[c];}return rr;});
    return {data:JSON.parse(JSON.stringify(projected)),error:null};}};return q;
  }
- return {req,rpc,async rpc(name,args){rpc.push(args);const p=args.p_datos,k=p.fuente;if(name!=='control_respaldo')throw Error('RPC inesperada');if(op.denied)return {error:{code:'42501',message:'Sin permiso operativo'}};
+ return {req,rpcCalls:rpc,async rpc(name,args){rpc.push(args);const p=args.p_datos,k=p.fuente;if(name!=='control_respaldo')throw Error('RPC inesperada');if(op.denied)return {error:{code:'42501',message:'Sin permiso operativo'}};
    const obras=db.obras.filter(o=>o.empresa_codigo===p.empresa&&allowed.includes(o.id)).map(o=>o.id);
-   if(args.p_accion==='LEER'){const rows=visible(k,obras).filter(r=>!p.despues||r[fkey.get(k).pk[0]]>p.despues).slice(0,1000);return {data:{filas:JSON.parse(JSON.stringify(rows)),siguiente:rows.length===1000?rows.at(-1)[fkey.get(k).pk[0]]:null}};}
+   if(args.p_accion==='LEER'){if(op.timeoutInternal===k&&(!op.timeoutAfter||p.despues!==null)&&p.limite>(op.timeoutAbove??50))return {error:{code:'57014',message:'canceling statement due to statement timeout'}};const rows=visible(k,obras).filter(r=>!p.despues||r[fkey.get(k).pk[0]]>p.despues).slice(0,p.limite);return {data:{filas:JSON.parse(JSON.stringify(rows)),siguiente:rows.length===p.limite?rows.at(-1)[fkey.get(k).pk[0]]:null}};}
    if(op.timeoutGroup&&p.fuentes.length>1)return {error:{code:'57014',message:'canceling statement due to timeout'}};
    const marcas={};for(const key of p.fuentes){const f=fkey.get(key);if((f?.permiso==='vip'&&!perm.vip)||(f?.permiso==='salud'&&!perm.salud)||(f?.permiso==='vip_salud'&&(!perm.vip||!perm.salud))){marcas[key]={omitida:'PERMISO'};continue;}const rows=visible(key,obras);marcas[key]={filas:rows.length,huella:crypto.createHash('md5').update(JSON.stringify(rows)).digest('hex'),tipo:'COMPLETA'};if(op.concurrent&&key==='trabajadores')marcas[key].huella=String(++cambios);}
    return {data:{obras,permisos:perm,marcas}};},from};

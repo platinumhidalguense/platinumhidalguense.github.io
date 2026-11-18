@@ -129,7 +129,7 @@ suites.push('test_cancelacion_reposicion_ui','test_padron_lista_unica');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cancelacion_reposicion_atomica.sql'))&&fs.existsSync('../funciones_vivas.json'))suites.push('test_cancelacion_reposicion_pg');
 const tableroPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_tablero_indicadores.sql'));
 const respaldoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_respaldo_marcas.sql'))&&fs.existsSync('work/respaldo_20261111/generar_prod_base.cjs');
-suites.push('test_tablero_modelo','test_tablero_vista','test_tablero_ui','test_respaldo_integral','test_revision_tablero_respaldo');
+suites.push('test_tablero_modelo','test_tablero_vista','test_tablero_ui','test_respaldo_integral','test_respaldo_timeout','test_revision_tablero_respaldo');
 if(tableroPrivate)suites.push('test_tablero_pg');
 if(respaldoPrivate)suites.push('test_respaldo_pg');
 if(!tableroPrivate||!respaldoPrivate)console.log('ALCANCE PÚBLICO TABLERO/RESPALDO: modelo, vista, interfaz y exportación se prueban; las comprobaciones PostgreSQL requieren las migraciones privadas y no se cuentan.');

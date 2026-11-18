@@ -3,7 +3,7 @@
    El catálogo se contrastó contra las columnas reales el 18/11/2026. */
 (function(root){
  'use strict';
- const FORMATO='RESPALDO_TRABAJADORES_V2',VERSION='2026-11-18',NULO='Sin dato',PAGINA=1000;
+ const FORMATO='RESPALDO_TRABAJADORES_V2',VERSION='2026-11-18',NULO='Sin dato',PAGINA=250,PAGINA_MINIMA=10;
  const FUENTES=[
   {"clave":"obras","tabla":"obras","alcance":"centros","permiso":null,"pk":["id"],"grupo":null,"campos":[["id","uuid"],["nombre","text"],["activa","boolean"],["registro_patronal","text"],["fecha_inicio","date"],["empresa_codigo","text"]],"select":"id,nombre,activa,registro_patronal,fecha_inicio,empresa_codigo"},
   {"clave":"cuadrillas","tabla":"cuadrillas","alcance":"obra","permiso":null,"pk":["id"],"grupo":null,"campos":[["id","uuid"],["obra_id","uuid"],["contratista","text"],["nombre","text"],["lider_id","uuid"],["lider_nombre_externo","text"],["activa","boolean"]],"select":"id,obra_id,contratista,nombre,lider_id,lider_nombre_externo,activa"},
@@ -99,24 +99,36 @@
    progreso:op.progreso||(()=>{}),descargar:op.descargar||descargar,limiteFilas:Math.min(1048576,op.limiteFilas||1048576),intentos:op.intentos??3,espera:op.espera??200,
    edad:op.edad||(typeof edad==='function'?edad:root.edad),sesion:op.sesion||(()=>typeof USER!=='undefined'?USER?.id:root.USER?.id),reloj:op.reloj||(()=>new Date())};
  }
- async function intentar(am,fn){let e;for(let n=0;n<am.intentos;n++){try{return await fn();}catch(x){e=x;if(/42501|PGRST301/.test(txt(x.code)))break;if(n+1<am.intentos)await dormir(am.espera*(n+1));}}throw e;}
- async function pagina(am,hacer,orden=['id'],esperadas=null){
-  const out=[],ids=new Set();let off=0;
+ function esTimeout(e){return /57014|statement.?timeout|cancel(?:ing|led|ed) statement|tiempo de espera/i.test(txt(e?.code)+' '+txt(e?.message));}
+ async function intentar(am,fn){let e;for(let n=0;n<am.intentos;n++){try{return await fn();}catch(x){e=x;if(esTimeout(x)||/42501|PGRST301/.test(txt(x.code)))break;if(n+1<am.intentos)await dormir(am.espera*(n+1));}}throw e;}
+ async function paginaAcotada(am,estado,fn){
+  for(;;){try{return await intentar(am,()=>fn(estado.limite));}catch(e){
+   if(!esTimeout(e))throw e;
+   if(estado.limite<=PAGINA_MINIMA)throw Error('Se agotó el tiempo leyendo '+estado.fuente+' después de '+estado.recibidas+' registros, incluso en bloques de '+PAGINA_MINIMA+'. No se descargó un respaldo parcial. Reintenta cuando el servidor esté disponible.');
+   estado.limite=Math.max(PAGINA_MINIMA,Math.floor(estado.limite/2));
+   am.progreso({texto:estado.fuente+': ajustando lectura a '+estado.limite+' registros por bloque; '+estado.recibidas+' conservados…'});
+  }}
+ }
+ async function pagina(am,hacer,orden=['id'],esperadas=null,fuente='expedientes'){
+  const out=[],ids=new Set(),estado={limite:PAGINA,recibidas:0,fuente};let cursor=null;
+  // Una clave única permite continuar sin volver a recorrer páginas anteriores.
+  // Las pocas fuentes con clave compuesta conservan su orden completo.
   for(;;){
-   const data=await intentar(am,async()=>{let q=hacer();for(const k of orden)q=q.order(k,{ascending:true});const r=await q.range(off,off+PAGINA-1);if(r.error)throw r.error;if(!Array.isArray(r.data))throw Error('La fuente no devolvió una lista.');return r.data;});
+   const data=await paginaAcotada(am,estado,async limite=>{let q=hacer();if(orden.length===1&&cursor!==null)q=q.gt(orden[0],cursor);for(const k of orden)q=q.order(k,{ascending:true});const off=orden.length===1?0:out.length;const r=await q.range(off,off+limite-1);if(r.error)throw r.error;if(!Array.isArray(r.data))throw Error('La fuente no devolvió una lista.');return r.data;});
    if(!data.length)break;
-   for(const r of data){const k=orden.map(c=>txt(r[c])).join('|');if(ids.has(k))throw Error('Registros repetidos al paginar; reintenta el respaldo.');ids.add(k);out.push(r);}
-   off+=data.length; // Respeta incluso un límite de servidor menor a 1,000.
-   if(esperadas!=null&&off>=esperadas)break;
+   for(const r of data){if(orden.some(c=>r[c]==null))throw Error('Falta la clave de un registro en '+fuente+'.');const k=orden.map(c=>txt(r[c])).join('|');if(ids.has(k))throw Error('Registros repetidos al paginar; reintenta el respaldo.');ids.add(k);out.push(r);}
+   cursor=data[data.length-1][orden[0]];estado.recibidas=out.length;
+   am.progreso({texto:fuente+': '+out.length+(esperadas==null?'':' de '+esperadas)+' registros leídos…'});
+   if(esperadas!=null&&out.length>=esperadas)break;
   }
-  if(esperadas!=null&&out.length!==esperadas)throw Error('Conteo incompleto: se recibieron '+out.length+' de '+esperadas+' registros.');return out;
+  if(esperadas!=null&&out.length!==esperadas)throw Error('Conteo incompleto en '+fuente+': se recibieron '+out.length+' de '+esperadas+' registros.');return out;
  }
  async function marcas(am,empresa,fuentes){
-  const grupos=[];for(let i=0;i<fuentes.length;i+=6)grupos.push(fuentes.slice(i,i+6));
+  const pesadas=new Set(['historial','lecturas_fiscales_documentos','documentos','control_cierres_nomina','control_cierre_versiones']),grupos=[];let lote=[];for(const f of fuentes){if(pesadas.has(f)){if(lote.length){grupos.push(lote);lote=[];}grupos.push([f]);}else{lote.push(f);if(lote.length===6){grupos.push(lote);lote=[];}}}if(lote.length)grupos.push(lote);
   const r={marcas:{},obras:[],permisos:null};
   for(const g of grupos){
    const leer=async lista=>intentar(am,async()=>{const x=await am.sb.rpc('control_respaldo',{p_accion:'MARCAS',p_datos:{empresa,obras:[],fuentes:lista,columnas:false}});if(x.error)throw x.error;if(!x.data?.marcas||!Array.isArray(x.data.obras))throw Error('No se verificó el alcance del respaldo.');return x.data;});
-   let partes;try{partes=[await leer(g)];}catch(e){if(!/57014|timeout|canceling statement/i.test(txt(e.code)+' '+e.message)||g.length===1)throw e;partes=[];for(const k of g)partes.push(await leer([k]));}
+   let partes;try{partes=[await leer(g)];}catch(e){if(!esTimeout(e)||g.length===1)throw e;partes=[];for(const k of g)partes.push(await leer([k]));}
    for(const p of partes){
     if(r.permisos&&(!iguales(r.permisos,p.permisos)||!iguales([...r.obras].sort(),[...p.obras].sort())))throw Error('El alcance cambió durante la lectura. Reintenta.');
     r.permisos=p.permisos;r.obras=p.obras;Object.assign(r.marcas,p.marcas);
@@ -125,10 +137,12 @@
  }
  async function leerFuente(am,ctx,f,datos,esperadas){
   if(f.alcance==='interna'){
-   const out=[],ids=new Set();let despues=null;
-   for(;;){const x=await intentar(am,async()=>{const r=await am.sb.rpc('control_respaldo',{p_accion:'LEER',p_datos:{empresa:ctx.empresa,obras:[],fuente:f.clave,limite:PAGINA,despues}});if(r.error)throw r.error;if(!Array.isArray(r.data?.filas))throw Error('Respuesta de expediente inválida.');return r.data;});
-    for(const row of x.filas){const id=f.pk.map(k=>txt(row[k])).join('|');if(ids.has(id))throw Error('Página interna repetida.');ids.add(id);out.push(row);}if(!x.siguiente)break;if(x.siguiente===despues)throw Error('No avanzó la lectura.');despues=x.siguiente;
-   }if(out.length!==esperadas)throw Error('Conteo de fuente interna incompleto.');return out;
+   const out=[],ids=new Set(),estado={limite:200,recibidas:0,fuente:ctx.empresa+' / '+origen(f)};let despues=null;
+   for(;;){const x=await paginaAcotada(am,estado,async limite=>{const r=await am.sb.rpc('control_respaldo',{p_accion:'LEER',p_datos:{empresa:ctx.empresa,obras:[],fuente:f.clave,limite,despues}});if(r.error)throw r.error;if(!Array.isArray(r.data?.filas))throw Error('Respuesta de expediente inválida.');return r.data;});
+    for(const row of x.filas){const id=f.pk.map(k=>txt(row[k])).join('|');if(ids.has(id))throw Error('Página interna repetida.');ids.add(id);out.push(row);}
+    estado.recibidas=out.length;am.progreso({texto:estado.fuente+': '+out.length+' de '+esperadas+' registros leídos…'});
+    if(!x.siguiente)break;if(!x.filas.length||x.siguiente===despues)throw Error('No avanzó la lectura.');despues=x.siguiente;
+   }if(out.length!==esperadas)throw Error('Conteo de fuente interna incompleto en '+estado.fuente+'.');return out;
   }
   const make=ids=>{
    // Los snapshots internos conservan previsión; sin VIP se usa NOI individual,
@@ -144,9 +158,9 @@
   };
   if(f.alcance==='padre'){
    const p=datos.get(f.padre.fuente);if(!p)throw Error('No se leyó el expediente padre.');const ids=[...new Set(p.map(x=>x[f.padre.campo]).filter(Boolean))],out=[];
-   for(let i=0;i<ids.length;i+=150)out.push(...await pagina(am,()=>make(ids.slice(i,i+150)),f.pk));if(out.length!==esperadas)throw Error('Conteo de calendario incompleto.');return out;
+   for(let i=0;i<ids.length;i+=150)out.push(...await pagina(am,()=>make(ids.slice(i,i+150)),f.pk,null,ctx.empresa+' / '+origen(f)));if(out.length!==esperadas)throw Error('Conteo de calendario incompleto.');return out;
   }
-  let rows=await pagina(am,()=>make(),f.pk,f.clave==='control_pago_aplicaciones'&&!ctx.permisos.vip?null:esperadas);
+  let rows=await pagina(am,()=>make(),f.pk,f.clave==='control_pago_aplicaciones'&&!ctx.permisos.vip?null:esperadas,ctx.empresa+' / '+origen(f));
   if(f.clave==='control_pago_aplicaciones'&&!ctx.permisos.vip){
    const permitidas=new Set((datos.get('control_obligaciones_pago')||[]).map(x=>x.id));rows=rows.filter(x=>permitidas.has(x.obligacion_id));
    // El conteo autorizado de aplicaciones ya excluye previsión en el servidor.
