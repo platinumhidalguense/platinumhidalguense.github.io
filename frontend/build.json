@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-18.4",
-  "entry": "assets/platinum-app.d52e17a7c849d097.js",
-  "sha256": "d52e17a7c849d097a1c9322d1293ebbb1a1c76fc2c486f37c355a82f6fbe3e97",
-  "integrity": "sha384-vqw4MixftFrKzj31oo/7CulZvokI3psGv85DOSDoFcCTjSvo2uIMdmoHlMLyajVX",
+  "version": "2026-11-18.5",
+  "entry": "assets/platinum-app.8061b1421ddd3e30.js",
+  "sha256": "8061b1421ddd3e303c0376658e2e412eac1c11421d4f0ee8517012e19433c03c",
+  "integrity": "sha384-Thrn/2U7KCp/YHg31eBwcH7GKSuZB18lDzwhLf35C4MZFywVAI2ZXwhO5AYDnNuo",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "78cef9644d1db66e9845d8880d098c9966839089ac3459c5c2537e9a54daa71f"
+      "sha256": "defa02c486bdc4783747b240402fcf2acba7f6122024e60bf405fbd518821da7"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -142,7 +142,7 @@
     },
     {
       "path": "frontend/modulos/34-dashboard-respaldos.js",
-      "sha256": "f0769fc231b2a8cbfd2b6cfe5b62f4d7f1308a9b17f2859bcf3365b9fe09b8f5"
+      "sha256": "c1529f2b874c9c0f11299a561d446abc1e28a00961fc5b88dc53db07ec8cd5b9"
     },
     {
       "path": "frontend/modulos/35-centro-control.js",
@@ -366,7 +366,7 @@
     },
     {
       "path": "frontend/modulos/93-respaldo-integral.js",
-      "sha256": "ea6fb87bd556aa35428845ba6ad279aca96843de30bb4f277f5afc9adb9eaa41"
+      "sha256": "a0e75824cd58698a909b395802fb69e02fc3764a230eecf23a3d58d602a262ef"
     },
     {
       "path": "frontend/modulos/94-jornada-extra-core.js",

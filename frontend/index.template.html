@@ -695,7 +695,7 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
 #view-trab .padron-historial .btn{font-size:10.5px;padding:3px 5px;margin-bottom:4px}
 #view-trab .padron-hist-fechas{margin:0;color:var(--mut)}
 </style>
-<link rel="stylesheet" href="assets/platinum-cinta.css?v=20261118.4">
+<link rel="stylesheet" href="assets/platinum-cinta.css?v=20261118.5">
 <link rel="stylesheet" href="assets/platinum-tablero.css?v=20261111.1">
 </head>
 <body>
@@ -920,8 +920,8 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
   <h3 id="nav-grupo-sistema-1">Historial y asistencia</h3>
 </section>
 <section class="nav-group" data-nav-section="Mantenimiento y respaldos" aria-labelledby="nav-grupo-sistema-2">
-  <div class="nav-tools"><button class="sb-item" type="button" data-nav-label="Respaldo Excel" onclick="sbGo(()=>exportRespaldo(false),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-download" /></svg><span class="nav-action-label">Respaldo Excel</span></button>
-    <button class="sb-item" type="button" data-nav-label="Respaldo por correo" onclick="sbGo(()=>exportRespaldo(true),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-download" /></svg><span class="nav-action-label">Respaldo por correo</span></button>
+  <div class="nav-tools"><button class="sb-item" type="button" data-nav-label="Exportar respaldo completo de trabajadores" onclick="sbGo(()=>exportRespaldo(false),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-download" /></svg><span class="nav-action-label">Exportar respaldo completo de trabajadores</span></button>
+    <button class="sb-item" type="button" data-nav-label="Respaldo de trabajadores por correo" onclick="sbGo(()=>exportRespaldo(true),this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-download" /></svg><span class="nav-action-label">Respaldo de trabajadores por correo</span></button>
     <button class="sb-item danger hide" id="btn-papelera" type="button" data-nav-label="Papelera" onclick="sbGo(openPapelera,this)"><svg class="nav-icon" aria-hidden="true" focusable="false"><use href="#pl-icon-trash" /></svg><span class="nav-action-label">Papelera</span></button></div>
   <h3 id="nav-grupo-sistema-2">Mantenimiento y respaldos</h3>
 </section>

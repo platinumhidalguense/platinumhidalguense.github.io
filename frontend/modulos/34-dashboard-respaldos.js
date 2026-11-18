@@ -421,72 +421,7 @@ function exportReporteEjecutivo(){
 }
 
 /* ---------- RESPALDO COMPLETO ---------- */
-const BK_COLS=[['contratista','CONTRATISTA'],['estatus','ESTATUS'],['no_trab','NO. TRAB.'],['fecha_alta','FECHA ALTA'],['fecha_baja','FECHA BAJA'],['monto_finiquito','MONTO FINIQUITO'],['semana_ingreso','SEMANA DE INGRESO'],['periodo_pago','PERIODO DE PAGO'],['primer_apellido','PRIMER APELLIDO'],['segundo_apellido','SEGUNDO APELLIDO'],['nombres','NOMBRE(S)'],['estado_civil','ESTADO CIVIL'],['escolaridad','ESCOLARIDAD'],['funciones','FUNCIONES'],['puesto','PUESTO'],['beneficiario','BENEFICIARIO'],['sd','SD'],['sdi','SDI'],['sal_semanal','SAL. PERIODO'],['rfc','RFC'],['curp','CURP'],['nacionalidad','NACIONALIDAD'],['fecha_nacimiento','FECHA DE NACIMIENTO'],['nss','NSS'],['cuenta','CUENTA'],['clabe','CUENTA CLABE'],['banco','BANCO'],['edo_nacimiento','EDO. NACIMIENTO'],['direccion','DIRECCION'],['cp','C.P.'],['telefono','TELEFONO'],['correo','CORREO ELECTRONICO'],['genero','GENERO'],['turno','TURNO'],['forma_pago','FORMA DE PAGO'],['observaciones','OBSERVACIONES'],['drive_link','CARPETA DRIVE']];
 async function exportRespaldo(porCorreo){
-  if(window.PLATINUM_RESPALDO)return window.PLATINUM_RESPALDO.abrir({porCorreo:!!porCorreo});
-  toast('Generando respaldo completo...');
-  const [{data,error},{data:chqAll}]=await Promise.all([
-    fetchAllRows(()=>sb.from('trabajadores').select('*').eq('eliminado',false)),
-    fetchAllRows(()=>sb.from('cheques').select('*'))
-  ]);
-  if(error){toast('Error: '+error.message,'err');return;}
-  const wb=XLSX.utils.book_new();
-  for(const o of OBRAS){
-    const ws_rows=[BK_COLS.map(c=>c[1]).concat(['DOCS ENTREGADOS'])];
-    data.filter(w=>w.obra_id===o.id).sort((a,b)=>(a.no_trab||9e9)-(b.no_trab||9e9))
-      .forEach(w=>ws_rows.push(BK_COLS.map(c=>w[c[0]]??'').concat([`${docsOk(w)}/${DOCS.length}`])));
-    const ws=XLSX.utils.aoa_to_sheet(ws_rows);
-    ws_rows[0].forEach((_,c)=>{const a=XLSX.utils.encode_cell({r:0,c});if(ws[a])ws[a].s=ST.head;});
-    XLSX.utils.book_append_sheet(wb,ws,o.nombre.slice(0,31).replace(/[\\\/\?\*\[\]:]/g,' '));
-  }
-  if(chqAll&&chqAll.length){
-    const cr=[['OBRA','NO. TRAB.','CONTRATISTA','NOMBRE','PUESTO','CURP','SEMANA','PERIODO','IMPORTE','TIPO PAGO','NUM. CHEQUE','CONSECUTIVO','ESTATUS','OBSERVACIONES']];
-    chqAll.forEach(c=>{const o=OBRAS.find(x=>x.id===c.obra_id);cr.push([o?o.nombre:'',c.no_trab??'',c.contratista,c.nombre,c.puesto,c.curp,c.semana,c.periodo,c.importe??'',c.tipo_pago,c.num_cheque,c.consecutivo,c.estatus,c.observaciones]);});
-    const wsC=XLSX.utils.aoa_to_sheet(cr);
-    cr[0].forEach((_,c)=>{const a=XLSX.utils.encode_cell({r:0,c});if(wsC[a])wsC[a].s=ST.head;});
-    XLSX.utils.book_append_sheet(wb,wsC,'CHEQUES');
-  }
-  const {data:dsAll}=await fetchAllRows(()=>sb.from('descuentos').select('*').eq('activo',true));
-  if(dsAll&&dsAll.length){
-    const dr=[['TRABAJADOR','TIPO','MONTO','MOTIVO','FIJO/SEMANA','CAPTURADO POR']];
-    dsAll.forEach(d=>{const w=data.find(x=>x.id===d.trabajador_id);dr.push([w?[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolean).join(' '):'',d.tipo,d.monto??'',d.motivo,d.recurrente?'FIJO':d.semana,d.creado_por]);});
-    const wsD=XLSX.utils.aoa_to_sheet(dr);
-    dr[0].forEach((_,c)=>{const a=XLSX.utils.encode_cell({r:0,c});if(wsD[a])wsD[a].s=ST.head;});
-    XLSX.utils.book_append_sheet(wb,wsD,'DESCUENTOS');
-  }
-  const {data:docAll}=await fetchAllRows(()=>sb.from('documentos').select('*').eq('anulado',false));
-  if(docAll&&docAll.length){
-    const dc=[['TRABAJADOR','CATEGORIA','TIPO','SEMANA','FECHA DOC','ARCHIVO','SUBIDO POR']];
-    docAll.forEach(d=>{const w=data.find(x=>x.id===d.trabajador_id);dc.push([w?[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolean).join(' '):'',d.categoria,d.subtipo,d.semana,d.fecha_doc||'',d.nombre_archivo,d.subido_por]);});
-    const wsDoc=XLSX.utils.aoa_to_sheet(dc);
-    dc[0].forEach((_,c)=>{const a=XLSX.utils.encode_cell({r:0,c});if(wsDoc[a])wsDoc[a].s=ST.head;});
-    XLSX.utils.book_append_sheet(wb,wsDoc,'EXPEDIENTE DIGITAL');
-  }
-  const puestosSnapshot=puestoDatosCentral();
-  if(puestosSnapshot){
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['CLAVE','DESCRIPCION','ACTIVO','REFERENCIA'],...puestosSnapshot.catalogo.map(c=>[c.clave,c.descripcion,c.activo,c.referencia])]),'CATALOGO PUESTOS');
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['EMPRESA','ORIGINAL','ESPECIALIDAD','CLAVE NOI','REFERENCIA'],...puestosSnapshot.equivalencias.map(c=>[c.empresa,c.variante,c.especialidad,c.clave,c.referencia])]),'EQUIVALENCIAS PUESTOS');
-  }
-  const bancoRespaldo=[['control_importaciones_bancarias','ARCHIVOS BANCARIOS','id,obra_id,empresa_codigo,contexto,nombre,sha256,ruta,tamano,padre_id,paginas,estado,revision,error,creado_por,created_at,updated_at'],['control_banco_resoluciones','CONCILIACION BANCARIA','id,archivo_id,fila,operacion_id,obra_id,trabajador_id,pago_id,obligacion_id,cheque_id,aplicacion_id,estado,revision,resultado,actor_id,created_at,updated_at']];
-  for(const [tabla,nombre,columnas] of bancoRespaldo){
-    const {data:filas,error:bError}=await fetchAllRows(()=>sb.from(tabla).select(columnas));
-    if(bError){toast('No se completó el respaldo de '+nombre+': '+bError.message,'err');return;}
-    const cs=columnas.split(',');XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([cs,...(filas||[]).map(r=>cs.map(c=>typeof r[c]==='object'&&r[c]!==null?JSON.stringify(r[c]):r[c]??''))]),nombre);
-  }
-  const {data:hist}=await sb.from('historial').select('fecha,accion,trabajador_nombre,usuario').order('fecha',{ascending:false}).limit(500);
-  if(hist)XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['FECHA','ACCION','TRABAJADOR','USUARIO'],...hist.map(h=>[new Date(h.fecha).toLocaleString('es-MX'),h.accion,h.trabajador_nombre,h.usuario])]),'HISTORIAL RECIENTE');
-  const f=new Date(),name=`RESPALDO_BASE_TRABAJADORES_${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}-${String(f.getDate()).padStart(2,'0')}.xlsx`;
-  wb.__empresaPorHoja={};
-  OBRAS.forEach(o=>{wb.__empresaPorHoja[o.nombre.slice(0,31).replace(/[\\\/\?\*\[\]:]/g,' ')]=empresaDeObra(o);});
-  wb.__auditObraIds=OBRAS.map(o=>o.id);
-  await dl(wb,name);
-  toast(`Respaldo descargado: ${data.length} trabajadores y ${chqAll?chqAll.length:0} cheques.`,'ok');
-  if(porCorreo){
-    setTimeout(()=>{
-      const body=encodeURIComponent(`Respaldo de la base de trabajadores PLATINUM del ${f.toLocaleDateString('es-MX')}.\n\nTrabajadores: ${data.length} · Cheques: ${chqAll?chqAll.length:0}.\n\nIMPORTANTE: adjunta a este correo el archivo que se acaba de descargar:\n${name}\n(normalmente en tu carpeta de Descargas)`);
-      window.location.href=`mailto:?subject=${encodeURIComponent('Respaldo Base Trabajadores PLATINUM · '+f.toLocaleDateString('es-MX'))}&body=${body}`;
-      toast('Se abrió tu correo: adjunta el archivo descargado y envíalo.','ok');
-    },800);
-  }
+  if(!window.PLATINUM_RESPALDO){toast('No se cargó el respaldo de trabajadores. Recarga la plataforma.','err');return;}
+  return window.PLATINUM_RESPALDO.abrir({porCorreo:!!porCorreo});
 }
-

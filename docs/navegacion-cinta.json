@@ -765,7 +765,7 @@
       "contextuales": []
     },
     {
-      "etiqueta": "Respaldo Excel",
+      "etiqueta": "Exportar respaldo completo de trabajadores",
       "modulo": "Administración y Configuración",
       "grupo": "Mantenimiento y respaldos",
       "destino": "sbGo(()=>exportRespaldo(false),this)",
@@ -777,7 +777,7 @@
       "contextuales": []
     },
     {
-      "etiqueta": "Respaldo por correo",
+      "etiqueta": "Respaldo de trabajadores por correo",
       "modulo": "Administración y Configuración",
       "grupo": "Mantenimiento y respaldos",
       "destino": "sbGo(()=>exportRespaldo(true),this)",

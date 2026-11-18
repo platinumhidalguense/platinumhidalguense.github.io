@@ -1,207 +1,49 @@
-# Respaldo integral · cobertura (RESPALDO_INTEGRAL_V1)
+# Respaldo completo de trabajadores
 
-Documento público: describe qué cubre el respaldo, cómo se verifica y qué queda fuera. No contiene datos personales ni consultas del servidor.
+El respaldo V2 sustituye la exportación técnica integral V1. La acción **Exportar respaldo completo de trabajadores** produce un solo Excel de todos los expedientes accesibles de todas las razones sociales y centros, incluidos activos, bajas y reingresos. No usa el centro abierto, los filtros, la selección ni la página visible. La papelera se incluye sólo cuando el permiso existente la permite.
 
-## Qué es
-«Respaldo Excel» genera un libro por razón social con todas las fuentes operativas que el usuario está autorizado a ver, relacionadas por IDs estables. Es distinto de la exportación filtrada del tablero: no aplica filtros de fecha ni de vista. El módulo `frontend/modulos/93-respaldo-integral.js` expone `window.PLATINUM_RESPALDO` (`abrir`, `exportar`, `fuentes`).
+## Hojas por contenido
 
-## Garantías
-- **Completo**: cada fuente se lee con paginación ordenada por llave, reintentos y detección de filas repetidas; el conteo leído se compara con el del servidor. Si una fuente falla, el respaldo se marca **INCOMPLETO** (también en el nombre del archivo) y se ofrece reintentar.
-- **Consistente**: si el servidor tarda, las marcas se piden por grupos y por tabla; una tabla sin marca o un servidor sin respuesta deja el respaldo INCOMPLETO (con archivo y reintento), nunca lo aborta. El servidor entrega marcas por tabla calculadas en una sola instantánea, antes y después de leer: huella de cada fila completa (detecta cualquier alta, baja o edición); sólo las bitácoras de sólo inserción con más de 5,000 filas usan una marca ligera (conteo, llave y fechas máximas y huella de llaves) que detecta altas y bajas. El MANIFIESTO declara el tipo de marca y su alcance por fuente. Lo que cambió se vuelve a leer; si sigue cambiando, queda INCOMPLETO con el motivo.
-- **Mismo alcance que la aplicación**: los permisos (centro, razón social, acceso total, salud, administrador) se resuelven en el servidor. Un usuario restringido obtiene archivo y conteos de su alcance; el rol de consulta de contratos no genera respaldos.
-- **Fidelidad**: IDs, CURP, RFC, NSS, CLABE, cuentas, folios y códigos son texto (formato @, conservan ceros); importes numéricos con formato monetario y, donde hace falta para reconstruir un cálculo, la precisión de origen como columna `__origen`; `∅ NULL` = nulo, celda vacía = texto vacío, 0 = cero; ninguna cadena se evalúa como fórmula; fechas en ISO; JSON completo.
-- **Límites de Excel**: textos de más de 32,767 caracteres van en `TEXTOS_LARGOS` por partes con huella; hojas de más de 1,048,575 filas o libros que exceden la capacidad del navegador se dividen en hojas y archivos numerados que el MANIFIESTO enlaza.
-- **Privacidad**: los originales de documentos permanecen en Storage privado; el libro lleva sólo metadatos, ruta lógica privada y huella. No hay URLs firmadas ni credenciales; la configuración sólo se incluye si el usuario la elige y únicamente con campos explícitos.
+Sólo se crean hojas con datos:
 
-## Hojas de control
-- **MANIFIESTO**: formato y versiones, fecha y hora, usuario, razón social, centros (y centros excluidos), alcance, filtros, fuente temporal (marcas), partes y hojas con rangos de filas, estado por fuente con huella, exclusiones, campos omitidos por permiso, limitaciones, errores, compatibilidad y convenciones.
-- **DICCIONARIO**: hoja, campo, tipo, clave (PK/FK), relación, permiso, origen y descripción.
-- **CONTROL**: filas y totales al centavo por fuente y centro contra el servidor; cuadre con el modelo del tablero (`PLATINUM_TABLERO_MODELO`) en perspectiva de periodo y de pago, con las mismas entradas que el tablero (incluye finiquitos en efectivo autorizados y comprobantes fiscales; sin acceso total se declara que el efectivo autorizado no se incluye; la medida de respaldo fiscal no se cuadra).
-- **MOVIMIENTOS_LABORALES**: un evento por movimiento documentado (alta, baja, reingreso con fecha efectiva, traslado, correcciones) con ciclo y fuente. La fecha de reingreso vigente del padrón no sustituye reingresos anteriores; si un ciclo antiguo no tiene evidencia, se conserva lo disponible y se declara.
+- **Padrón completo**: una fila por ID, número, nombre, empresa, centro, contratista, cuadrilla, puesto, estatus y fechas.
+- **Datos personales y contacto**, **Domicilios**, **Datos laborales y contratos**, **Datos bancarios**: campos de ficha separados por tema; no se inventan componentes de domicilio ni antigüedad no registrados. La edad se identifica como cálculo a la fecha del respaldo, mediante el mismo helper vigente de la ficha.
+- **Salarios e historial**: SD, SDI/SBC con su precisión original, salario del periodo, sueldos internos autorizados, diferenciales, ajustes y cambios salariales conservados.
+- **Altas bajas y reingresos**: todos los eventos y correcciones conservados, fechas, motivos, actor y referencia de reversión; ciclo sólo si está registrado. Las fechas de ficha sin evento equivalente se identifican con esa procedencia.
+- **Movimientos IMSS**, **Incidencias e incapacidades**, **Créditos y préstamos**: presentación afiliatoria, casos sin servicio, faltas, vacaciones, certificados, calendarios por pagador, ST-7, jornadas extraordinarias, créditos y avisos aplicados.
+- **Prestaciones y finiquitos**: aguinaldos, primas, papeles, revisiones, históricos y transferencias de finiquito.
+- **Nóminas individuales**: conceptos individuales de fotografías, sus versiones, NOI y excepciones documentadas. El desglose del modelo se vincula como detalle y no genera otra línea de pago.
+- **Obligaciones individuales**, **Pagos y cheques**, **Vínculos de pagos**: registros, estados, folios, cancelaciones, reposiciones, aplicaciones y retiros, relacionados por referencia.
+- **Documentos del expediente**, **Procesos del expediente**: recepción, metadatos, referencias privadas, periodo e importes fiscales, tareas, actas, NOM-035 autorizada, constancias y otros antecedentes.
+- **Cambios del expediente**: antes/después por campo efectivamente cambiado, fecha y usuario, sin repetir fotografías completas sin cambios.
+- **Detalle de expedientes**: información anidada en columnas Dato y Valor con sección y referencia; sin celdas de objetos JSON.
+- **Resumen del respaldo**: generación, alcance, cantidades por fuente y centro, exclusiones por permiso y antecedentes sin vínculo verificable.
+- **Textos extensos**, únicamente si hace falta: partes consecutivas con referencia, sin truncar el valor.
 
-## Cobertura por dominio
-Permiso «operativo» = el alcance normal del usuario por centro y razón social.
+## Fidelidad y relaciones
 
-### Centros, contratistas, cuadrillas y catálogos
+No se fusionan personas por nombre, número o razón social. Se conservan los identificadores y relaciones existentes. Los antecedentes distinguen centro actual y centro del registro. Los registros sin vínculo verificable se mantienen con su contexto y una advertencia, sin asignarlos por parecido de nombre.
 
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| CENTROS | tabla | centros | operativo | No exportado |
-| CONTRATISTAS | tabla | obra_o_global | operativo | No exportado |
-| CUADRILLAS | tabla | obra | operativo | No exportado |
-| CAT_INCIDENCIAS | tabla | global | operativo | No exportado |
-| CAT_PERCEPCIONES | tabla | global | operativo | No exportado |
-| CAT_PUESTOS | tabla | global | operativo | No exportado |
+CURP, RFC, NSS, cuentas, CLABE, teléfonos, códigos postales, folios e IDs son texto. Las notas no se ejecutan como fórmulas. Los importes conservan sus decimales; si exceden la precisión de Excel se conserva el original como texto. No se recalculan salarios ni motores. Sin dato indica un valor nulo; una cadena vacía permanece vacía y un campo ajeno a ese tipo de registro queda en blanco. Cero sigue siendo cero. Fechas y horas mantienen formato ISO.
 
-### Padrón y datos personales
+Obligaciones, pagos, cheques y aplicaciones son entidades relacionadas: **no deben sumarse entre sí como otra deuda o pago**. El resumen cuenta registros, sin sumar importes entre capas. Las versiones históricas se identifican por separado.
 
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| PADRON | tabla | obra | operativo | Parcial: 37 campos por centro, sin fecha_reingreso ni IDs |
+## Exclusiones y permisos
 
-### Salarios y perfiles
+Se reutilizan el alcance de control_respaldo y las políticas de lectura existentes. El perfil exclusivo de contratos no genera respaldos; los contenidos VIP y de salud conservan sus restricciones y las exclusiones aparecen en el resumen.
 
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| SUELDOS_INTERNOS | tabla | obra | vip | No exportado |
-| DIFERENCIALES | tabla | obra | operativo | No exportado |
+No se consultan configuración, usuarios, permisos internos, presupuestos, infraestructura ni bitácoras generales. Los catálogos necesarios sirven sólo para traducir referencias, sin exportar su estructura. No se incluyen SQL, código, credenciales, binarios, OCR duplicado, URLs temporales firmadas ni fotografías generales de nómina. Los originales de documentos y contratos firmados permanecen intactos en su archivo privado.
 
-### Relación laboral y movimientos
+## Integridad y rendimiento
 
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| MOVIMIENTOS_IMSS | tabla | obra | operativo | No exportado |
-| ALTAS_BAJAS_CORTAS | tabla | obra | operativo | No exportado |
-| EXPEDIENTES_PEND | tabla | obra | operativo | No exportado |
-| RRHH_PLANTILLAS | tabla | global | operativo | No exportado |
-| RRHH_PROCESOS | tabla | obra | operativo | No exportado |
-| RRHH_TAREAS | tabla | obra | operativo | No exportado |
-| RRHH_EVENTOS | tabla | obra | operativo | No exportado |
+53 fuentes pertinentes, columnas proyectadas y paginación completa que avanza según las filas efectivamente recibidas, incluso si el servidor impone páginas menores. Sin consultas por trabajador.
 
-### Incidencias y prestaciones
+El padrón se contrasta con el conteo accesible del servidor. Marcas y permisos se comprueban antes/después y entre razones sociales; la fuente nueva de jornada usa doble lectura proyectada. Si faltan páginas, se repite un registro, falla una consulta o persisten cambios concurrentes, no se descarga un archivo parcial ni se anuncia respaldo completo.
 
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| DESCUENTOS | tabla | obra | operativo | Parcial: sólo activos, 6 campos |
-| INCIDENCIAS | tabla | obra | operativo | No exportado |
-| PRESTAMOS | tabla | obra | operativo | No exportado |
-| VACACIONES | tabla | obra | operativo | No exportado |
-| PRIMAS | tabla | obra | operativo | No exportado |
-| ACTAS | tabla | obra | operativo | No exportado |
-| NOM035 | tabla | obra | salud | No exportado |
-| FALTAS_HISTORICAS | tabla | obra | operativo | No exportado |
-| ISR_QUINCENAL | tabla | obra | operativo | No exportado |
-
-### Aguinaldo
-
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| AGUINALDO_LINEAS | tabla | obra | operativo | No exportado |
-| AGUINALDO_LOTES | tabla | padre | operativo | No exportado |
-
-### Bajas y finiquitos
-
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| PAPELES_PRESTACIONES | tabla | obra | operativo | No exportado |
-| PRESTACIONES_HIST | tabla | obra | operativo | No exportado |
-| PRESTACIONES_FUENTES | tabla | obra | operativo | No exportado |
-| FINIQUITOS_TRANSF | tabla | obra | operativo | No exportado |
-| AUDITORIA_CALCULOS | tabla | obra | operativo | No exportado |
-| CONSTANCIAS | tabla | obra | operativo | No exportado |
-| BAJAS_OPERACIONES | tabla interna | interna | vip | No exportado |
-
-### Nómina y cierres
-
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| CIERRES | tabla | obra | operativo | No exportado |
-| CIERRE_VERSIONES | tabla | obra | operativo | No exportado |
-| CIERRES_ELIMINADOS | tabla | obra | admin | No exportado |
-| FLUJO_CIERRES | tabla | obra | operativo | No exportado |
-| SOLICITUDES_FLUJO | tabla | obra | operativo | No exportado |
-| CONCILIACION_NOI | tabla | obra | operativo | No exportado |
-| DESGLOSE_NOI | tabla | obra | operativo | No exportado |
-| ESTADO_CONCILIACION | tabla | obra | operativo | No exportado |
-| ARCHIVOS_CONCILIACION | tabla | obra | operativo | No exportado |
-| REVISION_PAGOS | tabla | obra | operativo | No exportado |
-| PRESUPUESTOS | tabla | obra | operativo | No exportado |
-| EXCEPCIONES_NOI | tabla interna | interna | vip | No exportado |
-| CORRECCIONES_CENTAVOS | tabla interna | interna | vip | No exportado |
-| IDENTIDADES_NOI | tabla interna | interna | vip | No exportado |
-
-### Obligaciones y pagos
-
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| OBLIGACIONES | tabla | obra | operativo | No exportado |
-| EVIDENCIAS | tabla | obra | operativo | No exportado |
-| APLICACIONES | tabla | obra | operativo | No exportado |
-| PAGOS | tabla | obra | operativo | No exportado |
-
-### Cheques
-
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| CHEQUES | tabla | obra | operativo | Parcial: 14 campos sin IDs |
-| BLOQUES_CHEQUES | tabla | obra | operativo | No exportado |
-| LOTES_CHEQUES | tabla | obra | operativo | No exportado |
-| RETIROS_CHEQUES | tabla | obra | operativo | No exportado |
-| FOLIOS_JUSTIFICADOS | tabla | global | operativo | No exportado |
-| REUNIONES_ENTREGA | tabla | empresa | operativo | No exportado |
-| REUNION_CHEQUES | tabla | padre | operativo | No exportado |
-| REUNION_BLOQUES | tabla | padre | operativo | No exportado |
-| PERMISOS_CHEQUES | tabla | global | admin | No exportado |
-
-### Expediente y cumplimiento
-
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| DOCUMENTOS | tabla | obra | operativo | Parcial: sin anulados, 7 campos |
-| CUMPLIMIENTO | tabla | obra | operativo | No exportado |
-| ARCHIVO_RECIBOS | tabla interna | interna | vip | No exportado |
-| LECTURAS_FISCALES | tabla interna | interna | vip | No exportado |
-| CFDI_PDF_VERIFICADOS | tabla interna | interna | vip | No exportado |
-| RECIBOS_IA | tabla interna | interna | vip | No exportado |
-
-### IMSS y créditos
-
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| CASOS_IMSS | tabla | obra | salud | No exportado |
-| CASOS_IMSS_SEMANAS | tabla | padre | salud | No exportado |
-| ST7_ACUSES | tabla | obra | salud | No exportado |
-| INCIDENTES | tabla | obra | salud | No exportado |
-| IMSS_AUDITORIA | tabla interna | interna | vip_salud | No exportado |
-| INFONAVIT_AVISOS | tabla | empresa | operativo | No exportado |
-| INFONAVIT_APLICACIONES | tabla | obra | operativo | No exportado |
-| INFONAVIT_ARCHIVOS | tabla | padre | operativo | No exportado |
-
-### Auditoría
-
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| HISTORIAL | tabla | obra | operativo | Parcial: 500 eventos, 4 campos |
-| BITACORA | tabla | obra | operativo | No exportado |
-| AUTOMATIZACIONES | tabla | global | vip | No exportado |
-
-### Configuración (selección explícita)
-
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| CONFIGURACION | tabla | config | operativo · opcional | No exportado |
-| ACCESOS | tabla | global | admin_vip · opcional | No exportado |
-
-### Fuentes agregadas (cambios de producción del 2026-11-12)
-
-| Hoja | Origen | Alcance | Permiso | Antes (V0) |
-|---|---|---|---|---|
-| REVERSIONES_BAJA | tabla | obra | operativo | No exportado |
-| IMPORTACIONES_BANCO | tabla (ruta lógica privada, sin contenido) | obra | operativo | No exportado |
-| BANCO_RESOLUCIONES | tabla | obra | operativo | No exportado |
-| AGUINALDO_CONCILIACION | tabla | obra | operativo | No exportado |
-| CAT_PUESTOS_CLAVE | tabla | global | operativo | No exportado |
-| CAT_PUESTOS_EQUIV | tabla | global | operativo | No exportado |
-
-Las columnas nuevas (referencias bancarias de pagos, fuente documentada de obligaciones, vínculos de baja en altas/bajas cortas) salen solas porque cada hoja exporta todas las columnas de su fuente. Las bajas revertidas se señalan en MOVIMIENTOS_LABORALES (`revertida`, `reversion_id`) y en PADRON (`bajas_revertidas`); el HISTORIAL se conserva tal cual.
-
-## Fuera del respaldo (visible en el MANIFIESTO)
-| Objeto | Motivo |
-|---|---|
-| Credenciales y configuración de seguridad o de servicios | Excluidas por seguridad: nunca se respaldan en Excel ni se nombran en el cliente. |
-| Índices y colas técnicas de búsqueda asistida | Regenerables desde las fuentes respaldadas. |
-| Avisos técnicos de sincronización y presencia de sesiones | Efímeros; el antes/después está en HISTORIAL y BITACORA. |
-| Copias técnicas de migraciones puntuales | Sin lectura de cliente; permanecen en la base. |
-| Vistas derivadas | Se recalculan desde las hojas de origen. |
-| Colas, bloqueos y errores técnicos de lectura documental | Transitorios. |
-| Archivos originales | Permanecen en Storage o en la base privada; sólo metadatos, ruta lógica y huella. |
-
-## Compatibilidad con el respaldo anterior (V0)
-- Se conserva una hoja por centro con el mismo nombre y las mismas columnas; al final se agregan DOCS ENTREGADOS, FECHA REINGRESO e ID TRABAJADOR.
-- CHEQUES, DESCUENTOS, EXPEDIENTE DIGITAL e HISTORIAL RECIENTE se sustituyen por CHEQUES, DESCUENTOS (filtrar activo), DOCUMENTOS (filtrar VIGENTE) e HISTORIAL completo.
-- El archivo se llama `RESPALDO_INTEGRAL_V1_<razón social>_<fecha y hora>.xlsx`; «Respaldo por correo» sigue abriendo el correo con el resumen para adjuntar los archivos.
-- No había lectores automáticos del archivo V0 (sólo los botones de la barra lateral).
+No es una transacción única de base de datos: se declara esa limitación. Las marcas ligeras del historial inmutable comprueban identidad y cantidad de eventos. El archivo usa compresión y textos compartidos; los límites reales de Excel dividen hojas dentro del mismo libro, nunca archivos por razón social o por un presupuesto arbitrario de caracteres.
 
 ## Verificación
-- `scripts/test_respaldo_integral.cjs`: código real en VM con Supabase simulado; relee el libro con `scripts/verificar_respaldo_xlsx.py` (openpyxl, independiente del escritor).
-- `scripts/test_respaldo_pg.cjs`: función de marcas en PostgreSQL local con las políticas vigentes; compara marcas contra lo que la RLS entrega a cada perfil (requiere el paquete privado).
+
+El test_respaldo_integral.cjs ejecuta el módulo real, datos ficticios de ambas empresas, varios estados, centros inactivos, paginación limitada, relaciones, permisos, errores, concurrencia, UI sintética y lectura XLSX/ZIP. verificar_respaldo_trabajadores.py abre el libro ficticio con openpyxl independiente. No son pruebas visuales ni operan datos reales.
+
+Se genera una matriz interna dato → fuente → hoja/columna con campos y rutas anidadas, sin agregar hojas técnicas al respaldo.

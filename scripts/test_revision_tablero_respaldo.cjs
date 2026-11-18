@@ -363,70 +363,22 @@ async function seccionControlador(base){
    4. Respaldo integral (79): funciones puras, hojas, textos, división y cuadre
    ===================================================================== */
 function seccionRespaldo(){
- const box={console,Date,Math,JSON,Number,String,Array,Object,Set,Map,Promise,Error,RegExp,Symbol,Intl,BigInt,TextEncoder,setTimeout,clearTimeout,crypto:require('node:crypto').webcrypto};box.window=box;box.globalThis=box;vm.createContext(box);
- const src=fs.readFileSync('frontend/modulos/93-respaldo-integral.js','utf8');vm.runInContext(src,box);
- const R=box.PLATINUM_RESPALDO,P=R._pruebas;
- const usados=new Set(['manifiesto']),nom=[];for(let i=0;i<40;i++)nom.push(P.nombreHoja('CENTRO DE TRABAJO CON NOMBRE MUY LARGO [A]/B:'+(i%3),usados));
- ok(nom.every(x=>x.length<=31&&!/[\\\/?*\[\]:]/.test(x))&&new Set(nom.map(x=>x.toLowerCase())).size===40,'40 hojas con el mismo prefijo: únicas, ≤31 y sin caracteres prohibidos');
- eq([P.nombreHoja('History',new Set()),P.nombreHoja('manifiesto',new Set(['manifiesto'])),P.nombreHoja("'x'",new Set())],['History_','manifiesto (2)','x'],'nombres reservados');
- for(const v of ['=1+1','+52 771','-5','@SUMA(A1)','012345678901234567','XEXX010101HNEXXXA4','12345678901']){const cel=P.celda(P.valorLogico(v,'TEXTO'),'TEXTO');ok(cel.t==='s'&&cel.v===v&&cel.s.numFmt==='@'&&!cel.f,'texto literal sin fórmula: '+v);}
- eq([P.celda(null,'TEXTO').v,P.celda('','TEXTO'),P.celda(0,'IMPORTE').v,P.celda(0,'IMPORTE').t,P.celda('∅x','TEXTO').v],[R.NULO,null,0,'n','∅∅x'],'nulo ≠ vacío ≠ cero; ∅ real escapado');
- eq([P.valorLogico(12345678901,'ID'),P.tipoDe('clabe','text'),P.tipoDe('nss',undefined,'12345678901'),P.tipoDe('importe','numeric(14,2)'),P.tipoDe('cuenta',undefined,123)],['12345678901','TEXTO','TEXTO','IMPORTE','TEXTO'],'tipos: IDs/CLABE/NSS texto, importes numéricos');
- reg('H9',P.tipoDe('clabe',undefined,12345678901234567)==='TEXTO'&&P.tipoDe('nss','integer')==='TEXTO'&&P.tipoDe('folio_lote',undefined,7)==='TEXTO'&&P.tipoDe('importe',undefined,7)==='IMPORTE','CUENTA/CLABE/NSS/folios son texto aun sin metadatos; importes siguen numéricos');
- const largo='a'.repeat(29999)+'😀'+'b'.repeat(40000),tro=P.partirTexto(largo);
- ok(tro.join('')===largo&&tro.every(x=>x.length<=30000)&&tro.every(x=>!/[\uD800-\uDBFF]$/.test(x)),'texto largo en partes ≤30,000 sin partir pares sustitutos');
- const L={nombre:'HOJA LOGICA CON NOMBRE DE MAS DE VEINTISEIS',fuente:'x',dominio:'D',cols:[{campo:'a'}],filas:Array.from({length:23},(_,i)=>['fila '+i])};
- const L2={...L,nombre:'HOJA LOGICA CON NOMBRE DE MAS DE VEINTISEIS',filas:Array.from({length:5},(_,i)=>['otra '+i])};
- const partes=P.planificar([L,L2],{limiteFilas:6,presupuesto:120});
- const hojas=partes.flatMap(p=>p.hojas),nombresH=hojas.map(h=>h.nombre);
- ok(nombresH.every(x=>x.length<=31)&&new Set(nombresH.map(x=>x.toLowerCase())).size===nombresH.length,'división: nombres únicos ≤31 entre partes y hojas lógicas homónimas');
- eq(hojas.filter(h=>h.L===L).flatMap(h=>h.filas),L.filas,'división: filas completas, en orden y sin repetir');
- ok(hojas.every(h=>h.filas.length<=5)&&partes.length>1,'división: respeta filas por hoja (límite − encabezado) y presupuesto por archivo');
- ok(/precision/.test(src)&&/LIM_CELDA=32767/.test(src)&&/LIM_FILAS_EXCEL=1048576/.test(src),'límites de Excel declarados (celda 32,767; filas 1,048,576)');
+ const API=require('./test_respaldo_integral.cjs').cargar().PLATINUM_RESPALDO,P=API._pruebas;
+ const usados=new Set(),nom=[];for(let i=0;i<40;i++)nom.push(P.hojasNombre('CENTRO DE TRABAJO CON NOMBRE MUY LARGO [A]/B:'+i,usados));
+ ok(nom.every(x=>x.length<=31)&&new Set(nom).size===40,'nombres de hojas únicos y válidos');
+ for(const v of ['=1+1','+52 771','-5','@SUMA(A1)','012345678901234567']){const cel=P.tipoCelda('Observaciones',v);ok(cel.t==='s'&&cel.v===v&&!cel.f,'literal sin fórmula '+v);}
+ reg('H9',['CLABE','NSS','Cuenta','Folio'].every(k=>P.tipoCelda(k,123).t==='s'),'identificadores como texto aun sin metadatos');
+ eq([P.tipoCelda('Dato',null).v,P.tipoCelda('Dato','').v,P.tipoCelda('Importe',0).v],['Sin dato','',0],'vacío/cero/nulo separados');
+ ok(!API.fuentes().some(f=>['config','app_usuarios'].includes(f.clave)),'el respaldo ya no exporta infraestructura o permisos');
 }
-
-/* Respaldo de punta a punta con un servidor simulado: marcas con tiempo agotado (H2) y cuadre con efectivo (H3). */
 async function seccionRespaldoExportar(){
- const box={console,Date,Math,JSON,Number,String,Array,Object,Set,Map,WeakMap,Promise,Error,RegExp,Symbol,Intl,BigInt,TextEncoder,Uint8Array,setTimeout,clearTimeout,crypto:require('node:crypto').webcrypto};box.window=box;box.globalThis=box;vm.createContext(box);
- for(const m of ['90-tablero-modelo','93-respaldo-integral'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
- const {I,f}=fuentesBase(),oF=f.obligaciones.find(o=>o.id===I.O1f);
- // Baja revertida: el respaldo exporta el historial crudo y la tabla de reversiones; el tablero usa el historial efectivo.
- const hRaw=[...f.historial,{id:100,trabajador_id:W(11),obra_id:X1,accion:'MODIFICACION',fecha:'2026-03-13T18:00:00Z',datos_antes:{contratista:'CONTR HIST'},datos_despues:{contratista:'CONTR BAJA',estatus:'BAJA'}}];
- const revs=[{id:U(850),historial_id:3,obra_id:X1,trabajador_id:W(11),estado:'APLICADA',created_at:'2026-03-20T00:00:00Z',restaurar:{estatus:'ACTIVO',fecha_baja:null,contratista:'CONTR REST'}}];
- const efectivo=(hs,rv)=>{const fuera=new Set(rv.map(r=>r.historial_id));return hs.filter(h=>!fuera.has(h.id)).map(h=>{const r=rv.find(r=>{const b=hs.find(x=>x.id===r.historial_id);return h.accion==='MODIFICACION'&&r.trabajador_id===h.trabajador_id&&b&&h.fecha>b.fecha&&h.fecha<r.created_at;});
-  return r?{...h,datos_despues:{...h.datos_despues,...r.restaurar}}:h;});};
- const exc={id:U(800),cierre_id:oF.cierre_id,trabajador_id:oF.trabajador_id,finiquito_efectivo:'500.00',neto_original:'1500.00',nomina_transferencia:'1000.00',registrado_en:'2026-03-13T18:00:00Z'};
- const tablas={obras:f.obras,trabajadores:f.trabajadores,control_cierres_nomina:f.cierres,control_cierre_versiones:f.versiones,control_obligaciones_pago:f.obligaciones,
-  control_evidencias_pago:f.evidencias,control_pago_aplicaciones:f.aplicaciones,pagos:f.pagos,cheques:f.cheques,historial:hRaw,control_reversiones_baja:revs},internas={excepciones_noi_individuales:[exc]};
- const filasDe=k=>tablas[k]||internas[k]||[],TAB=Object.fromEntries(box.PLATINUM_RESPALDO.fuentes().map(x=>[x.tabla,x.clave]));
- let lento=true;const marca=k=>({tipo:'COMPLETA',filas:filasDe(k).length,max_actualizado:null,max_creado:null,huella:'h'+filasDe(k).length,por_obra:{}});
- const sb={rpc:async(fn,a)=>{
-   if(fn==='control_puede_ver_salud')return {data:false,error:null};const d=a.p_datos;
-   if(a.p_accion==='MARCAS'){if(lento&&(d.fuentes.length>8||d.fuentes.includes('historial')))return {data:null,error:{code:'57014',message:'canceling statement due to statement timeout'}};
-    return {data:{version:'RESPALDO_MARCAS_V1',generado_en:'2026-06-01T18:00:00Z',empresa:'PLATINUM',obras:[X1,X2],obras_rechazadas:[],permisos:{registrado:true,vip:true,salud:false,admin:true},
-     marcas:Object.fromEntries(d.fuentes.map(k=>[k,marca(k)])),columnas:d.columnas?{}:null},error:null};}
-   if(a.p_accion==='LEER')return {data:{fuente:d.fuente,filas:d.despues?[]:filasDe(d.fuente),siguiente:null},error:null};
-   return {data:null,error:{message:'no simulado'}};},
-  from:t=>{const q=new Proxy({},{get:(_,k)=>k==='range'?((a,b)=>Promise.resolve({data:filasDe(TAB[t]||t).slice(a,b+1),error:null})):k==='then'?undefined:()=>q});return q;}};
- const ahora=new Date('2026-06-01T18:00:00Z');let r=null,err=null;
- try{r=await box.PLATINUM_RESPALDO.exportar({sb,XLSX,JSZip:null,obrasCatalogo:f.obras,empresa:'PLATINUM',espera:0,marca:false,registrar:false,descargar:async()=>{},reloj:()=>ahora});}catch(e){err=e;}
- reg('H2',r&&r.estado==='INCOMPLETO'&&r.motivos.includes('SIN_MARCA_TABLA')&&r.fuentes.historial.estado==='LEIDA_SIN_MARCA'&&r.fuentes.control_obligaciones_pago.estado==='LEIDA',
-  'MARCAS con tiempo agotado en una tabla: el respaldo se genera INCOMPLETO en lugar de abortar'+(err?' ('+err.message+')':''));
- // H3 con marcas normales (independiente de H2).
- lento=false;const r2=await box.PLATINUM_RESPALDO.exportar({sb,XLSX,JSZip:null,obrasCatalogo:f.obras,empresa:'PLATINUM',espera:0,marca:false,registrar:false,descargar:async()=>{},reloj:()=>ahora});
- ok(r2.estado==='COMPLETO'&&r2.fuentes.pagos.tipo_marca==='COMPLETA','respaldo con marcas normales: COMPLETO y tipo de marca por fuente registrado ('+r2.motivos.join(',')+')');
- const fila=(k,p)=>(r2.cuadre.filas.find(x=>x[1]===k&&x[2]==='PLATINUM_TABLERO_MODELO · '+p)||[])[11];
- const base={...f,ahora:ahora.toISOString(),cfdi:[],permisos:{vip:true,obras:[X1,X2],empresas:['PLATINUM']}},rango={empresa:'PLATINUM',obras:[X1,X2],desde:'2000-01-01',hasta:'2099-12-31'};
- const conE=M.calcular({...base,efectivo_autorizado:[{obligacion_id:oF.id,importe:'500.00',fecha:'2026-03-13'}]},rango),sinE=M.calcular({...base,efectivo_autorizado:[]},rango);
- reg('H3',conE.huella!==sinE.huella&&['pendiente_conciliacion','excedentes','saldo_por_cubrir','pagado_registrado'].every(k=>fila(k,'PERIODO')===String(c(val(conE,k)))),
-  'CONTROL del respaldo cuadra con el tablero incluyendo el finiquito en efectivo autorizado (pendiente '+fila('pendiente_conciliacion','PERIODO')+' centavos)');
- // Con baja revertida: las medidas monetarias y la huella del CONTROL (historial crudo) = tablero (historial efectivo).
- const efe=M.calcular({...base,historial:efectivo(hRaw,revs),efectivo_autorizado:[{obligacion_id:oF.id,importe:'500.00',fecha:'2026-03-13'}]},rango);
- const huellaCtl=(r2.cuadre.filas.find(x=>x[1]==='huella_tablero'&&/PERIODO/.test(x[2]))||[])[12]||'';
- ok(['neto_conciliado','pagado_registrado','pagado_conciliado','saldo_por_cubrir','excedentes','sin_asignar','pendiente_conciliacion'].every(k=>fila(k,'PERIODO')===String(c(val(efe,k))))&&huellaCtl.endsWith(efe.huella),
-  'baja revertida: el CONTROL del respaldo (historial crudo) cuadra en dinero y huella con el tablero (historial efectivo)');
- const dE=M.calcular({...base,historial:efectivo(hRaw,revs)},{...rango,obras:[X1]}),dR=M.calcular({...base,historial:hRaw},{...rango,obras:[X1]});
- ok(dE.medidas.bajas.valor!==dR.medidas.bajas.valor,'con historial crudo el modelo contaría la baja revertida (bajas/rotación/adscripción difieren; no forman parte del CONTROL)');
+ const QA=require('./test_respaldo_integral.cjs'),API=QA.cargar().PLATINUM_RESPALDO,X=require('xlsx-js-style');
+ const db=QA.fixture(),files=[];db.excepciones_noi_individuales=[{id:U(800),cierre_id:db.control_cierres_nomina[0].id,trabajador_id:db.trabajadores[0].id,finiquito_efectivo:500,neto_original:1500,nomina_transferencia:1000}];
+ const r=await API.exportar(QA.opt(QA.servidor(db,{timeoutGroup:true}),files));
+ reg('H2',files.length===1&&r.estado==='COMPLETO','marcas con timeout se piden individualmente; si fallan no se descarga respaldo incompleto');
+ const wb=X.read(files[0].bytes,{type:'array'}),individuales=QA.rows(wb,'Nóminas individuales');
+ reg('H3',individuales.some(x=>x['Finiquito efectivo']===500),'se conserva la excepción individual autorizada en efectivo, sin convertirla en pago ni recalcular tablero');
+ ok(!wb.SheetNames.includes('CONTROL'),'V2 no incluye la antigua vista técnica de cuadre del tablero');
 }
 
 /* Marca LIGERA del respaldo (> 5,000 filas): ¿detecta ediciones concurrentes en tablas que sí se editan? */

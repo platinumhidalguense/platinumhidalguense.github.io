@@ -7,7 +7,7 @@ if(!fs.existsSync(mig)||!fs.existsSync(path.join(priv,'generar_prod_base.cjs')))
 require(path.join(priv,'generar_prod_base.cjs'));
 const {makeDatabase,ids,actor,owner}=require('./soporte_flujo_pg.cjs');
 require(path.join(root,'frontend/modulos/93-respaldo-integral.js'));
-const FU=globalThis.PLATINUM_RESPALDO.fuentes(),CLAVES=FU.map(f=>f.clave);
+const FU=globalThis.PLATINUM_RESPALDO.fuentes().filter(f=>!f.sinMarcaRpc),CLAVES=FU.map(f=>f.clave);
 const TIEMPOS=[];let n=0;const ok=(c,m)=>{assert.ok(c,m);n++;},eq=(a,b,m)=>{assert.deepEqual(a,b,m);n++;};
 const u=i=>'50000000-0000-4000-8000-'+String(i).padStart(12,'0');
 async function rpc(db,who,acc,datos){await actor(db,who);try{return (await db.query('select public.control_respaldo($1,$2::jsonb) r',[acc,JSON.stringify(datos)])).rows[0].r;}finally{await db.exec('reset role');}}
@@ -18,7 +18,7 @@ async function falla(db,who,acc,datos,re,m){let e=null;try{await rpc(db,who,acc,
  const sqlMig=fs.readFileSync(mig,'utf8');await db.exec(sqlMig);await db.exec(sqlMig);ok(true,'migración reaplicable');
  // Catálogo SQL = catálogo del módulo.
  const sqlClaves=[...sqlMig.matchAll(/^\s*\('([a-z_0-9]+)','(public|platinum_internal)\./gm)].map(m=>m[1]);
- eq(sqlClaves.slice().sort(),CLAVES.slice().sort(),'mismas fuentes en SQL y en el módulo');
+ ok(CLAVES.every(k=>sqlClaves.includes(k)),'las fuentes de expediente del cliente son un subconjunto del catálogo autorizado del servidor');
  const def=(await owner(db,"select prosecdef,proconfig,provolatile from pg_proc where proname='control_respaldo'")).rows[0];
  eq([def.prosecdef,def.proconfig,def.provolatile],[true,['search_path=""'],'s'],'SECURITY DEFINER, search_path vacío y STABLE');
  // Usuarios: admin (VIP, salud, admin), consulta (sin VIP/salud), restringido (un centro), jire (otra razón social).

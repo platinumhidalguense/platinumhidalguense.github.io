@@ -1,1006 +1,380 @@
-/* ---------- RESPALDO INTEGRAL (RESPALDO_INTEGRAL_V1) ----------
-   Respaldo completo por razón social y centro. Es independiente de la
-   exportación filtrada del tablero: no aplica filtros de fecha ni de vista.
-   - Lee cada fuente autorizada con paginación completa, reintentos y
-     verificación de duplicados; nunca corta en silencio.
-   - Toma marcas de consistencia del servidor (control_respaldo MARCAS) antes
-     y después de leer; si una tabla cambió, la vuelve a leer y, si persiste,
-     el respaldo queda INCOMPLETO con el motivo visible.
-   - Los permisos los resuelve el servidor (registrado, centro, razón social,
-     VIP, salud, administrador). Un usuario restringido obtiene archivo y
-     conteos con su mismo alcance.
-   - Libro con hojas por dominio relacionadas por IDs estables, más
-     MANIFIESTO, DICCIONARIO, CONTROL y, si hace falta, TEXTOS_LARGOS.
-   - IDs, CURP, RFC, NSS, CLABE, cuentas, folios y códigos van como texto (@);
-     ∅ NULL distingue nulo de vacío y de cero; ninguna cadena se evalúa como
-     fórmula. Los originales de documentos permanecen en Storage privado. */
+/* Respaldo administrativo de expedientes. No es una copia técnica de la plataforma.
+   Lee con la sesión y controles existentes; nunca escribe personal, pagos ni nóminas.
+   El catálogo se contrastó contra las columnas reales el 18/11/2026. */
 (function(root){
  'use strict';
- const FORMATO='RESPALDO_INTEGRAL_V1',VERSION_EXPORTADOR='2026-11-11.1';
- const NULO='∅ NULL',MARCA='∅',LIM_CELDA=32767,TROZO=30000,LIM_FILAS_EXCEL=1048576,PAGINA=1000;
- const PRESUPUESTO_CARACTERES=90e6; // por archivo; arriba de esto se divide en partes verificables
- const RPC='control_respaldo';
- const DOMINIOS={ESTRUCTURA:'Centros, contratistas, cuadrillas y catálogos',PADRON:'Padrón y datos personales',MOVIMIENTOS:'Relación laboral y movimientos',
-  SALARIOS:'Salarios y perfiles',INCIDENCIAS:'Incidencias y prestaciones',AGUINALDO:'Aguinaldo',BAJAS:'Bajas y finiquitos',NOMINA:'Nómina y cierres',
-  PAGOS:'Obligaciones y pagos',CHEQUES:'Cheques',EXPEDIENTE:'Expediente y cumplimiento',IMSS:'IMSS y créditos',AUDITORIA:'Auditoría',
-  CONFIGURACION:'Configuración (selección explícita)',CONTROL:'Control del respaldo'};
- /* Catálogo de fuentes. clave = nombre usado por el servidor en MARCAS/LEER.
-    alcance: centros | obra | obra_o_global | empresa | global | padre | interna.
-    permiso: vip | salud | admin | admin_vip | vip_salud (lo confirma el servidor). */
- const P=(clave,tabla,hoja,dominio,alcance,x={})=>Object.freeze({clave,tabla,hoja,dominio,alcance,pk:x.pk||['id'],orden:x.orden||x.pk||['id'],...x});
- const FUENTES=Object.freeze([
-  P('obras','obras','CENTROS','ESTRUCTURA','centros',{precision:['prima_rt'],desc:'Centros de trabajo de la razón social, activos e inactivos.'}),
-  P('contratistas','contratistas','CONTRATISTAS','ESTRUCTURA','obra_o_global',{desc:'Contratistas y registro REPSE. Los globales (sin centro) sólo con acceso VIP.'}),
-  P('cuadrillas','cuadrillas','CUADRILLAS','ESTRUCTURA','obra',{rel:{lider_id:'PADRON',lider_expediente_id:'EXPEDIENTES_PEND'},desc:'Cuadrillas por centro y contratista, activas e inactivas.'}),
-  P('catalogo_incidencias','catalogo_incidencias','CAT_INCIDENCIAS','ESTRUCTURA','global',{desc:'Catálogo de incidencias del calendario.'}),
-  P('catalogo_percepciones_extra','catalogo_percepciones_extra','CAT_PERCEPCIONES','ESTRUCTURA','global',{desc:'Catálogo de percepciones extraordinarias.'}),
-  P('puesto_sinonimos','puesto_sinonimos','CAT_PUESTOS','ESTRUCTURA','global',{pk:['variante'],desc:'Normalización de puestos.'}),
-  P('control_puestos_catalogo','control_puestos_catalogo','CAT_PUESTOS_CLAVE','ESTRUCTURA','global',{pk:['clave'],desc:'Catálogo de puestos por clave.'}),
-  P('control_puestos_equivalencias','control_puestos_equivalencias','CAT_PUESTOS_EQUIV','ESTRUCTURA','global',{pk:['empresa','variante','especialidad'],desc:'Equivalencias de puesto por razón social.'}),
-  P('trabajadores','trabajadores','PADRON','PADRON','obra',{precision:['sd','sdi','sal_semanal','prima_rt','monto_finiquito','benef_porcentaje'],totales:['sal_semanal'],
-   filtro:(q,c)=>c.permisos.admin?q:q.eq('eliminado',false),rel:{id_cuadrilla:'CUADRILLAS'},
-   desc:'Padrón: identidad, contacto, domicilio, beneficiarios, puesto, periodicidad, forma de pago y fecha_reingreso vigente. Papelera sólo administrador.'}),
-  P('sueldos_internos','sueldos_internos','SUELDOS_INTERNOS','SALARIOS','obra',{permiso:'vip',pk:['trabajador_id'],precision:['sueldo_imss','sueldo_real'],totales:['sueldo_imss','sueldo_real'],desc:'Control interno salarial (sólo VIP).'}),
-  P('diferenciales','diferenciales','DIFERENCIALES','SALARIOS','obra',{precision:['monto'],totales:['monto'],desc:'Diferenciales salariales por semana.'}),
-  P('control_movimientos_seguridad_social','control_movimientos_seguridad_social','MOVIMIENTOS_IMSS','MOVIMIENTOS','obra',{desc:'Movimientos afiliatorios IMSS con fecha efectiva, estado y evidencia.'}),
-  P('control_altas_bajas_cortas','control_altas_bajas_cortas','ALTAS_BAJAS_CORTAS','MOVIMIENTOS','obra',{precision:['neto_noi','faltas_modelo_noi','dias_pagados_noi'],desc:'Altas y bajas en la misma semana con sus fuentes.'}),
-  P('control_expedientes_pendientes','control_expedientes_pendientes','EXPEDIENTES_PEND','MOVIMIENTOS','obra',{desc:'Expedientes pendientes de entregar.'}),
-  P('control_reversiones_baja','control_reversiones_baja','REVERSIONES_BAJA','MOVIMIENTOS','obra',{rel:{historial_id:'HISTORIAL'},desc:'Bajas revertidas: evento de historial revertido, antes, restauración, efectos y resultado. El historial crudo no se altera.'}),
-  P('rrhh_plantillas','rrhh_plantillas','RRHH_PLANTILLAS','MOVIMIENTOS','global',{desc:'Plantillas versionadas de procesos de RRHH.'}),
-  P('rrhh_procesos','rrhh_procesos','RRHH_PROCESOS','MOVIMIENTOS','obra',{rel:{plantilla_id:'RRHH_PLANTILLAS'},desc:'Procesos de RRHH (alta, baja, etc.). Incapacidades sólo con permiso de salud.'}),
-  P('rrhh_tareas','rrhh_tareas','RRHH_TAREAS','MOVIMIENTOS','obra',{rel:{proceso_id:'RRHH_PROCESOS'},desc:'Tareas de cada proceso con su comprobación.'}),
-  P('rrhh_eventos','rrhh_eventos','RRHH_EVENTOS','MOVIMIENTOS','obra',{rel:{proceso_id:'RRHH_PROCESOS',tarea_id:'RRHH_TAREAS'},desc:'Bitácora de procesos de RRHH.'}),
-  P('descuentos','descuentos','DESCUENTOS','INCIDENCIAS','obra',{precision:['monto','cuota_mensual','factor'],totales:['monto'],rel:{calendario_evento_id:'INCIDENCIAS'},
-   desc:'Descuentos y créditos (INFONAVIT, FONACOT, faltas, incidencias) con origen, aplicación, vigencia y ajustes; activos e inactivos.'}),
-  P('incidencias_empleados','incidencias_empleados','INCIDENCIAS','INCIDENCIAS','obra',{precision:['monto_valor'],totales:['monto_valor'],
-   rel:{empleado_id:'PADRON',id_incidencia:'CAT_INCIDENCIAS',percepcion_id:'CAT_PERCEPCIONES',prestamo_id:'PRESTAMOS',credito_id:'DESCUENTOS',descuento_id:'DESCUENTOS'},
-   desc:'Calendario de incidencias: faltas, permisos, incapacidades, percepciones extraordinarias y préstamos. Lo que no es ausentismo requiere permiso de salud.'}),
-  P('prestamos_empleados','prestamos_empleados','PRESTAMOS','INCIDENCIAS','obra',{totales:['monto_inicial'],rel:{empleado_id:'PADRON'},desc:'Préstamos sin intereses.'}),
-  P('vacaciones','vacaciones','VACACIONES','INCIDENCIAS','obra',{desc:'Vacaciones y permisos, activos e inactivos.'}),
-  P('prima_pagos','prima_pagos','PRIMAS','INCIDENCIAS','obra',{totales:['monto'],desc:'Pagos de prima vacacional.'}),
-  P('actas','actas','ACTAS','INCIDENCIAS','obra',{desc:'Actas administrativas.'}),
-  P('nom035','nom035','NOM035','INCIDENCIAS','obra',{permiso:'salud',desc:'Evaluaciones NOM-035 (dato sensible: sólo con permiso de salud).'}),
-  P('control_faltas_historicas','control_faltas_historicas','FALTAS_HISTORICAS','INCIDENCIAS','obra',{precision:['total_acreditado','digitales_al_registrar'],rel:{anterior_id:'FALTAS_HISTORICAS'},desc:'Faltas históricas: todas las versiones (vigentes, sustituidas y revertidas).'}),
-  P('control_isr_ajustes_quincenales','control_isr_ajustes_quincenales','ISR_QUINCENAL','INCIDENCIAS','obra',{desc:'Ajustes ISR mensual/quincenal con entradas y resultado.'}),
-  P('control_aguinaldo_lineas','control_aguinaldo_lineas','AGUINALDO_LINEAS','AGUINALDO','obra',{precision:['salario_base','dias_pactados','dias_computables','bruto_causado','acreditado_previo','bruto','exento','gravado','isr','neto','uma','exento_usado'],
-   totales:['bruto','isr','neto'],rel:{lote_id:'AGUINALDO_LOTES'},desc:'Líneas de aguinaldo con desglose; aplicadas y retiradas.'}),
-  P('control_aguinaldo_lotes','control_aguinaldo_lotes','AGUINALDO_LOTES','AGUINALDO','padre',{padre:{fuente:'control_aguinaldo_lineas',campo:'lote_id',destino:'id'},totales:['total_bruto','total_isr','total_neto'],desc:'Lotes de aplicación de aguinaldo.'}),
-  P('control_aguinaldo_conciliaciones','control_aguinaldo_conciliaciones','AGUINALDO_CONCILIACION','AGUINALDO','obra',{totales:['importe_bruto'],rel:{anterior_id:'AGUINALDO_CONCILIACION'},desc:'Conciliación de aguinaldo de bajas: versiones, fuente y respaldo.'}),
-  P('prestaciones_papeles','prestaciones_papeles','PAPELES_PRESTACIONES','BAJAS','obra',{rel:{anterior_id:'PAPELES_PRESTACIONES'},desc:'Papeles de prestaciones/finiquito: revisiones, entradas, resultado, D001 y huellas.'}),
-  P('prestaciones_archivos_historicos','prestaciones_archivos_historicos','PRESTACIONES_HIST','BAJAS','obra',{desc:'Contenido histórico leído de archivos de prestaciones.'}),
-  P('prestaciones_fuentes_historicas','prestaciones_fuentes_historicas','PRESTACIONES_FUENTES','BAJAS','obra',{pk:['obra_id','sha256'],select:'obra_id,sha256,archivo,created_at',omitidos:{contenido_base64:'Archivo original: permanece en la base privada; no se incrusta.'},desc:'Metadatos de archivos fuente de prestaciones.'}),
-  P('control_finiquitos_transferencia','control_finiquitos_transferencia','FINIQUITOS_TRANSF','BAJAS','obra',{totales:['importe'],rel:{pago_id:'PAGOS',cheque_id:'CHEQUES'},desc:'Finiquitos pagados por transferencia.'}),
-  P('auditoria_calculos_nomina','auditoria_calculos_nomina','AUDITORIA_CALCULOS','BAJAS','obra',{precision:['monto_modelo','monto_aplicado','ajuste_noi'],totales:['monto_aplicado'],desc:'Auditoría de cálculos (finiquitos, proyección, exportaciones) con entradas, resultado, ajuste NOI y huella.'}),
-  P('constancias_laborales','constancias_laborales','CONSTANCIAS','BAJAS','obra',{desc:'Constancias laborales emitidas con su fotografía.'}),
-  P('bajas_operaciones','(interna)','BAJAS_OPERACIONES','BAJAS','interna',{permiso:'vip',desc:'Operaciones de baja firmadas (interna; sólo VIP).'}),
-  P('control_cierres_nomina','control_cierres_nomina','CIERRES','NOMINA','obra',{totales:['total_neto','total_nomina','total_retenciones','total_finiquitos'],omitirSinVip:['snapshot','total_prevision'],desc:'Cierres de nómina con estados, totales y fotografía.'}),
-  P('control_cierre_versiones','control_cierre_versiones','CIERRE_VERSIONES','NOMINA','obra',{omitirSinVip:['snapshot'],rel:{cierre_origen:'CIERRES'},desc:'Versiones de cierre con fotografía y huellas.'}),
-  P('control_cierres_eliminados','control_cierres_eliminados','CIERRES_ELIMINADOS','NOMINA','obra',{permiso:'admin',desc:'Cierres eliminados (papelera; sólo administrador).'}),
-  P('control_flujo_cierres','control_flujo_cierres','FLUJO_CIERRES','NOMINA','obra',{pk:['cierre_id'],rel:{cierre_id:'CIERRES',version_id:'CIERRE_VERSIONES'},desc:'Flujo de cada cierre: revisión, huellas y marca de cambios.'}),
-  P('control_solicitudes_flujo','control_solicitudes_flujo','SOLICITUDES_FLUJO','NOMINA','obra',{rel:{cierre_origen:'CIERRES'},desc:'Solicitudes de reapertura o ajuste y su decisión.'}),
-  P('control_conciliacion_noi','control_conciliacion_noi','CONCILIACION_NOI','NOMINA','obra',{precision:['monto_platinum','monto_noi','diferencia'],totales:['monto_noi','monto_platinum'],rel:{cierre_id:'CIERRES',pago_id:'PAGOS',cheque_id:'CHEQUES'},desc:'Conciliación contra NOI por cierre y trabajador.'}),
-  P('control_desglose_noi','control_desglose_noi','DESGLOSE_NOI','NOMINA','obra',{precision:['percepciones','isr','imss','subsidio','total_deducciones','neto','ajuste_origen'],totales:['neto'],rel:{cheque_referencia_id:'CHEQUES'},desc:'Desglose NOI importado con ajustes de origen.'}),
-  P('estado_conciliacion_nomina','estado_conciliacion_nomina','ESTADO_CONCILIACION','NOMINA','obra',{rel:{cierre_id:'CIERRES',cierre_origen:'CIERRES'},desc:'Estado del conciliador por cierre.'}),
-  P('archivos_conciliacion_nomina','archivos_conciliacion_nomina','ARCHIVOS_CONCILIACION','NOMINA','obra',{rel:{estado_id:'ESTADO_CONCILIACION'},desc:'Archivos del conciliador (ruta lógica privada y propuesta).'}),
-  P('control_revision_pagos','control_revision_pagos','REVISION_PAGOS','NOMINA','obra',{desc:'Revisión semanal de pagos.'}),
-  P('control_presupuestos_obra','control_presupuestos_obra','PRESUPUESTOS','NOMINA','obra',{omitirSinVip:['presupuesto_prevision'],desc:'Presupuestos por centro, semana y contratista.'}),
-  P('excepciones_noi_individuales','(interna)','EXCEPCIONES_NOI','NOMINA','interna',{permiso:'vip',rel:{cierre_id:'CIERRES',pago_nomina_id:'PAGOS'},desc:'Excepciones NOI individuales autorizadas (interna; sólo VIP).'}),
-  P('correcciones_centavos_aprobadas','(interna)','CORRECCIONES_CENTAVOS','NOMINA','interna',{permiso:'vip',rel:{cierre_id:'CIERRES'},desc:'Correcciones de centavos aprobadas con antes y después (interna; sólo VIP).'}),
-  P('noi_identidades_resueltas','(interna)','IDENTIDADES_NOI','NOMINA','interna',{permiso:'vip',desc:'Identidades NOI resueltas con evidencia (interna; sólo VIP).'}),
-  P('control_obligaciones_pago','control_obligaciones_pago','OBLIGACIONES','PAGOS','obra',{totales:['importe'],filtro:(q,c)=>c.permisos.vip?q:q.neq('tipo','PREVISION_SOCIAL'),
-   rel:{cierre_id:'CIERRES',cierre_origen:'CIERRES',version_id:'CIERRE_VERSIONES'},desc:'Obligaciones de pago por versión de cierre; vigentes y no vigentes. Previsión social sólo VIP.'}),
-  P('control_evidencias_pago','control_evidencias_pago','EVIDENCIAS','PAGOS','obra',{totales:['importe'],rel:{pago_id:'PAGOS',cheque_id:'CHEQUES'},desc:'Evidencias de pago (operación real, deduplicada por clave).'}),
-  P('control_pago_aplicaciones','control_pago_aplicaciones','APLICACIONES','PAGOS','obra',{totales:['importe'],rel:{obligacion_id:'OBLIGACIONES',evidencia_id:'EVIDENCIAS',version_id:'CIERRE_VERSIONES'},
-   desc:'Aplicaciones de evidencia a obligación, incluidas las retiradas (retirado_en).'}),
-  P('pagos','pagos','PAGOS','PAGOS','obra',{totales:['importe'],rel:{conciliacion_archivo_id:'ARCHIVOS_CONCILIACION'},desc:'Pagos registrados con medio, estado, fecha, referencias y huella.'}),
-  P('control_importaciones_bancarias','control_importaciones_bancarias','IMPORTACIONES_BANCO','PAGOS','obra',{rel:{padre_id:'IMPORTACIONES_BANCO'},desc:'Archivos bancarios importados: ruta lógica privada en Storage (nunca contenido), huella, estado y propuesta.'}),
-  P('control_banco_resoluciones','control_banco_resoluciones','BANCO_RESOLUCIONES','PAGOS','obra',{rel:{archivo_id:'IMPORTACIONES_BANCO',pago_id:'PAGOS',obligacion_id:'OBLIGACIONES',cheque_id:'CHEQUES',aplicacion_id:'APLICACIONES'},desc:'Resolución por fila de archivo bancario con su vínculo a pago, obligación, cheque o aplicación.'}),
-  P('cheques','cheques','CHEQUES','CHEQUES','obra',{totales:['importe'],filtro:(q,c)=>c.permisos.admin?q:q.eq('eliminado',false),
-   rel:{cierre_id:'CIERRES',lote_nomina_id:'LOTES_CHEQUES',reemplaza_cheque_id:'CHEQUES'},desc:'Cheques: folios, consecutivos, estados, cancelaciones y reposiciones. Papelera sólo administrador.'}),
-  P('bloques_cheques','bloques_cheques','BLOQUES_CHEQUES','CHEQUES','obra',{desc:'Bloques de entrega de cheques.'}),
-  P('control_lotes_cheques_nomina','control_lotes_cheques_nomina','LOTES_CHEQUES','CHEQUES','obra',{desc:'Lotes de cheques de nómina.'}),
-  P('control_retiros_cheques_auto','control_retiros_cheques_auto','RETIROS_CHEQUES','CHEQUES','obra',{rel:{cheque_id:'CHEQUES'},desc:'Retiros automáticos de cheques con su estado anterior.'}),
-  P('folios_cheque','folios_cheque','FOLIOS_JUSTIFICADOS','CHEQUES','global',{desc:'Folios de chequera justificados.'}),
-  P('reuniones_entrega_cheques','reuniones_entrega_cheques','REUNIONES_ENTREGA','CHEQUES','empresa',{desc:'Reuniones de entrega de cheques.'}),
-  P('reunion_cheques_entrega','reunion_cheques_entrega','REUNION_CHEQUES','CHEQUES','padre',{padre:{fuente:'reuniones_entrega_cheques',campo:'id',destino:'reunion_id'},rel:{reunion_id:'REUNIONES_ENTREGA',cheque_id:'CHEQUES'},desc:'Cheques entregados en cada reunión.'}),
-  P('reunion_bloques_cheques','reunion_bloques_cheques','REUNION_BLOQUES','CHEQUES','padre',{pk:['reunion_id','bloque_id'],padre:{fuente:'reuniones_entrega_cheques',campo:'id',destino:'reunion_id'},rel:{reunion_id:'REUNIONES_ENTREGA',bloque_id:'BLOQUES_CHEQUES'},desc:'Bloques asignados a reuniones.'}),
-  P('control_permisos_cheques','control_permisos_cheques','PERMISOS_CHEQUES','CHEQUES','global',{permiso:'admin',pk:['user_id'],desc:'Permisos puntuales sobre cheques (sólo administrador).'}),
-  P('documentos','documentos','DOCUMENTOS','EXPEDIENTE','obra',{rel:{conciliacion_archivo_id:'ARCHIVOS_CONCILIACION'},
-   desc:'Inventario del expediente: propietario, nombre original, tipo, fecha, estado, ruta lógica privada y huella. Los originales permanecen en Storage privado.'}),
-  P('control_documentos_cumplimiento','control_documentos_cumplimiento','CUMPLIMIENTO','EXPEDIENTE','obra',{desc:'Documentos de cumplimiento del centro con vigencia.'}),
-  P('archivo_recibo_periodo','(interna)','ARCHIVO_RECIBOS','EXPEDIENTE','interna',{permiso:'vip',rel:{cierre_id:'CIERRES',documento_id:'DOCUMENTOS'},desc:'Archivo de recibos por periodo (interna; sólo VIP).'}),
-  P('lecturas_fiscales_documentos','(interna)','LECTURAS_FISCALES','EXPEDIENTE','interna',{permiso:'vip',pk:['documento_id'],rel:{documento_id:'DOCUMENTOS'},desc:'Lecturas fiscales de documentos (interna; sólo VIP).'}),
-  P('cfdi_pdf_verificados','(interna)','CFDI_PDF_VERIFICADOS','EXPEDIENTE','interna',{permiso:'vip',pk:['documento_id'],rel:{documento_id:'DOCUMENTOS'},desc:'Recibos PDF verificados contra CFDI (interna; sólo VIP).'}),
-  P('recibos_ia','(interna)','RECIBOS_IA','EXPEDIENTE','interna',{permiso:'vip',rel:{documento_id:'DOCUMENTOS'},desc:'Lecturas asistidas de recibos y su confirmación (interna; sólo VIP).'}),
-  P('control_casos_imss','control_casos_imss','CASOS_IMSS','IMSS','obra',{permiso:'salud',rel:{incidente_id:'INCIDENTES'},desc:'Casos IMSS e incapacidades (permiso de salud).'}),
-  P('control_casos_imss_semanas','control_casos_imss_semanas','CASOS_IMSS_SEMANAS','IMSS','padre',{permiso:'salud',padre:{fuente:'control_casos_imss',campo:'id',destino:'caso_id'},rel:{caso_id:'CASOS_IMSS',descuento_id:'DESCUENTOS'},desc:'Semanas de cada caso IMSS.'}),
-  P('control_st7_acuses','control_st7_acuses','ST7_ACUSES','IMSS','obra',{permiso:'salud',rel:{incidente_id:'INCIDENTES',caso_imss_id:'CASOS_IMSS'},desc:'Acuses ST-7 (permiso de salud).'}),
-  P('control_incidentes_laborales','control_incidentes_laborales','INCIDENTES','IMSS','obra',{permiso:'salud',desc:'Incidentes laborales (permiso de salud).'}),
-  P('imss_auditoria_integraciones','(interna)','IMSS_AUDITORIA','IMSS','interna',{permiso:'vip_salud',rel:{caso_id:'CASOS_IMSS'},desc:'Auditoría de integraciones IMSS (interna; VIP y salud).'}),
-  P('infonavit_avisos_importaciones','infonavit_avisos_importaciones','INFONAVIT_AVISOS','IMSS','empresa',{desc:'Importaciones de avisos INFONAVIT con su comparación.'}),
-  P('infonavit_avisos_aplicaciones','infonavit_avisos_aplicaciones','INFONAVIT_APLICACIONES','IMSS','obra',{rel:{importacion_id:'INFONAVIT_AVISOS',descuento_id:'DESCUENTOS'},desc:'Aplicaciones de avisos INFONAVIT con antes y después.'}),
-  P('infonavit_avisos_archivos','infonavit_avisos_archivos','INFONAVIT_ARCHIVOS','IMSS','padre',{pk:['importacion_id'],select:'importacion_id',padre:{fuente:'infonavit_avisos_importaciones',campo:'id',destino:'importacion_id'},
-   omitidos:{contenido:'Archivo original del aviso: permanece en la base privada; no se incrusta.'},rel:{importacion_id:'INFONAVIT_AVISOS'},desc:'Constancia de archivo original por importación (sin contenido).'}),
-  P('historial','historial','HISTORIAL','AUDITORIA','obra',{desc:'Historial completo de cambios con antes, después, usuario y fecha.'}),
-  P('control_bitacora','control_bitacora','BITACORA','AUDITORIA','obra',{desc:'Bitácora de control por módulo y acción.'}),
-  P('historial_automatizaciones','historial_automatizaciones','AUTOMATIZACIONES','AUDITORIA','global',{permiso:'vip',desc:'Historial de procesos automáticos (global; sólo VIP).'}),
-  P('config','config','CONFIGURACION','CONFIGURACION','config',{opcional:true,pk:['clave'],desc:'Configuración autorizada: sólo claves y campos explícitos; nunca credenciales.'}),
-  P('app_usuarios','app_usuarios','ACCESOS','CONFIGURACION','global',{opcional:true,permiso:'admin_vip',pk:['user_id'],
-   select:'user_id,email,nombre,rol,activo,full_access,puede_escribir,puede_eliminar,solo_contratos,empresas_permitidas,obras_permitidas,areas_permitidas,created_at,updated_at',
-   omitidos:{notas:'Notas internas de cuentas: no forman parte del respaldo.'},desc:'Usuarios y alcances (sólo administrador con acceso VIP).'})
- ]);
- const POR_CLAVE=new Map(FUENTES.map(f=>[f.clave,f]));
- /* Configuración: lista cerrada de claves y campos. Nunca credenciales ni tokens. */
- const CAMPOS_EMPRESA=['razon','rfc','domicilio','representante','repCargo','escritura_fecha','folio_mercantil','inscripcion_fecha','instrumento','notaria_ciudad','notaria_num','notario','rppc','volumen','poder_en_constitutiva'];
- const CONFIG_PERMITIDA=e=>({app_version:['v','nota'],carta_finiquito:['dest','lugar','sufijo'],catalogo_puestos:'*ARREGLO*',
-  fiscal:['anio','ceav','fuentes','isn','seguro_danos_bim','sm','sm_frontera','subsidio_calibracion_fuente','subsidio_fuente','subsidio_pct','subsidio_semanal_metodo','subsidio_semanal_valor_anterior','subsidio_semanal_valor_calibrado','subsidio_tope_mensual','uma','umi'],
-  motores_nomina:['fuente','version','SEMANAL','QUINCENAL'],tabulador:'*NUMEROS*',['empresa_'+e]:CAMPOS_EMPRESA,['contrato_empresa_'+e]:CAMPOS_EMPRESA});
- const EXCLUSIONES=Object.freeze([
-  ['config: claves de credenciales o de seguridad y cualquier clave no listada','Excluidas por seguridad: nunca se respaldan en Excel.'],
-  ['ia_config','Configuración con llaves de servicios: nunca se respalda.'],
-  ['ia_embeddings, ia_cola_embeddings','Índice y cola técnicos regenerables a partir de las fuentes respaldadas.'],
-  ['control_eventos_integracion','Aviso técnico de sincronización entre sesiones; el antes/después está en HISTORIAL y BITACORA.'],
-  ['control_actividad_actual','Presencia efímera de sesiones.'],
-  ['respaldo_* (tablas de migraciones puntuales)','Copias técnicas sin política de lectura de cliente; permanecen en la base.'],
-  ['Vistas v_* y control_saldos_pago','Derivadas: se recalculan con las hojas de origen.'],
-  ['Tablas internas técnicas de lectura documental (colas, bloqueos, errores)','Colas, bloqueos y errores técnicos transitorios.'],
-  ['Vistas internas fiscales','Derivadas de DOCUMENTOS y de las lecturas fiscales.'],
-  ['Archivos originales (Storage privado, contenido de avisos y fuentes de prestaciones)','Permanecen en Storage o en la base privada; el libro sólo lleva metadatos, ruta lógica y huella. Sin URLs firmadas.']
- ]);
- const LEGADO_COLS=[['contratista','CONTRATISTA'],['estatus','ESTATUS'],['no_trab','NO. TRAB.'],['fecha_alta','FECHA ALTA'],['fecha_baja','FECHA BAJA'],['monto_finiquito','MONTO FINIQUITO'],['semana_ingreso','SEMANA DE INGRESO'],['periodo_pago','PERIODO DE PAGO'],['primer_apellido','PRIMER APELLIDO'],['segundo_apellido','SEGUNDO APELLIDO'],['nombres','NOMBRE(S)'],['estado_civil','ESTADO CIVIL'],['escolaridad','ESCOLARIDAD'],['funciones','FUNCIONES'],['puesto','PUESTO'],['beneficiario','BENEFICIARIO'],['sd','SD'],['sdi','SDI'],['sal_semanal','SAL. PERIODO'],['rfc','RFC'],['curp','CURP'],['nacionalidad','NACIONALIDAD'],['fecha_nacimiento','FECHA DE NACIMIENTO'],['nss','NSS'],['cuenta','CUENTA'],['clabe','CUENTA CLABE'],['banco','BANCO'],['edo_nacimiento','EDO. NACIMIENTO'],['direccion','DIRECCION'],['cp','C.P.'],['telefono','TELEFONO'],['correo','CORREO ELECTRONICO'],['genero','GENERO'],['turno','TURNO'],['forma_pago','FORMA DE PAGO'],['observaciones','OBSERVACIONES'],['drive_link','CARPETA DRIVE']];
- const COMPATIBILIDAD=Object.freeze([
-  ['Hoja por centro (padrón V0)','Se conserva con el mismo nombre y columnas; al final se agregan DOCS ENTREGADOS, FECHA REINGRESO e ID TRABAJADOR. Fuente fiel: PADRON.'],
-  ['CHEQUES (V0)','CHEQUES con todas las columnas e IDs; el estado de papelera se ve en eliminado.'],
-  ['DESCUENTOS (V0: sólo activos)','DESCUENTOS con activos e inactivos; filtra activo = VERDADERO para reproducir V0.'],
-  ['EXPEDIENTE DIGITAL (V0: sin anulados)','DOCUMENTOS con estado_documento; filtra VIGENTE para reproducir V0.'],
-  ['HISTORIAL RECIENTE (V0: 500 eventos)','HISTORIAL completo con antes y después.'],
-  ['Nombre RESPALDO_BASE_TRABAJADORES_<fecha>.xlsx','RESPALDO_INTEGRAL_V1_<razón social>_<fecha y hora>.xlsx (partes numeradas si se divide).']
- ]);
- const DESC={id:'Identificador estable del registro; clave para relacionar hojas.',obra_id:'Centro de trabajo (CENTROS.id).',centro:'Nombre del centro (derivado de CENTROS).',
-  trabajador_id:'Persona del padrón (PADRON.id).',empleado_id:'Persona del padrón (PADRON.id).',empresa_codigo:'Razón social.',created_at:'Creación (ISO 8601).',updated_at:'Última modificación (ISO 8601).',
-  creado_por:'Usuario que creó el registro.',actualizado_por:'Usuario que modificó por última vez.',estado:'Estado del registro en su flujo.',estatus:'Estatus del registro.',
-  activo:'Vigencia del registro (FALSO = inactivo, se conserva).',anulado:'Documento anulado (se conserva trazable).',eliminado:'En papelera (sólo administrador).',version:'Número de versión.',
-  vigente:'Indica la versión vigente.',importe:'Importe en pesos.',monto:'Importe en pesos.',semana:'Semana interna del centro.',curp:'CURP (texto).',rfc:'RFC (texto).',nss:'NSS (texto).',
-  clabe:'CLABE interbancaria (texto; conserva ceros iniciales).',cuenta:'Cuenta bancaria (texto; conserva ceros iniciales).',num_tarjeta:'Tarjeta de nómina (texto).',no_trab:'Número de trabajador en el centro.',
-  fecha_alta:'Fecha de alta original.',fecha_baja:'Fecha de baja vigente.',fecha_reingreso:'Fecha del reingreso vigente; los anteriores están en MOVIMIENTOS_LABORALES.',
-  hash:'Huella del archivo.',huella:'Huella de integridad.',sha256:'Huella SHA-256.',archivo:'Ruta lógica privada en Storage (no es enlace público).',ruta:'Ruta lógica privada en Storage.',
-  nombre_archivo:'Nombre original del archivo.',motivo:'Motivo capturado.',observaciones:'Observaciones capturadas.',notas:'Notas capturadas.',retirado_en:'Fecha de retiro (aplicación retirada, se conserva).',
-  datos_antes:'Fotografía anterior al cambio (JSON).',datos_despues:'Fotografía posterior al cambio (JSON).',snapshot:'Fotografía completa (JSON).',detalle:'Detalle (JSON).',
-  entradas:'Entradas del cálculo (JSON).',resultado:'Resultado del cálculo (JSON).',folio:'Folio (texto).',consecutivo:'Consecutivo (texto).',num_cheque:'Número de cheque (texto).',
-  campos_cambiados:'Campos que difieren entre antes y después (derivado).',estado_documento:'VIGENTE o ANULADO (derivado de anulado).',almacenamiento:'Dónde está el original (derivado).',
-  docs_entregados:'Documentos base entregados (derivado del campo docs).'};
- const MONEDA=/(^|_)(importe|monto|total|neto|bruto|isr|exento|gravado|sueldo|salario|sal_semanal|sd|sdi|presupuesto|percepciones|deducciones|subsidio|imss|ajuste|diferencia|cuota|uma|real|transferencia|efectivo|original|acreditado|causado|platinum|noi)(_|$)/;
- const TEXTO_SENSIBLE=/^(clabe|cuenta|cuenta_mask|nss|rfc|rfc_origen|rfc_validado|curp|cp|telefono|benef_telefono|num_tarjeta|numero_credito|num_cheque|consecutivo|registro_patronal|registro_siroc|codigo_verificacion|cfdi_uuid|uuid|uuid_fiscal|hash|huella|sha256)$|^(folio|codigo|clave)(_|$)|_sha256$/;
- const URL_FIRMA=/[?&](token|signature|x-amz-signature|x-amz-credential|sig|se)=/i;
-
- /* ---------- utilidades puras ---------- */
- const dormir=ms=>ms>0?new Promise(r=>setTimeout(r,ms)):Promise.resolve();
- const texto=v=>v==null?'':String(v);
- function nombreHoja(base,usados){
-  let s=texto(base).replace(/[\\\/\?\*\[\]:]/g,' ').replace(/\s+/g,' ').trim().replace(/^'+|'+$/g,'').trim()||'HOJA';
-  if(s.toLowerCase()==='history')s='History_';
-  s=s.slice(0,31).trim();let n=s,k=1;
-  while(usados.has(n.toLowerCase())){k++;const suf=' ('+k+')';n=s.slice(0,31-suf.length).trim()+suf;}
-  usados.add(n.toLowerCase());return n;
- }
- function partirTexto(s,tam=TROZO){
-  const out=[];let i=0;
-  while(i<s.length){let j=Math.min(s.length,i+tam);const c=s.charCodeAt(j-1);if(j<s.length&&c>=0xD800&&c<=0xDBFF)j--;out.push(s.slice(i,j));i=j;}
-  return out.length?out:[''];
- }
- const centavos=v=>{const n=Number(v);return Number.isFinite(n)?Math.round(n*100):0;};
- async function sha256(s){
-  const c=root.crypto||(typeof crypto!=='undefined'?crypto:null);
-  if(!c||!c.subtle||typeof TextEncoder==='undefined')return '';
-  const b=await c.subtle.digest('SHA-256',new TextEncoder().encode(s));
-  return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');
- }
- function uuid(){
-  const c=root.crypto||(typeof crypto!=='undefined'?crypto:null);
-  if(c&&c.randomUUID)return c.randomUUID();
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,ch=>{const r=Math.random()*16|0;return (ch==='x'?r:(r&3|8)).toString(16);});
- }
- async function enParalelo(items,n,fn){
-  const res=new Array(items.length);let i=0;
-  await Promise.all(Array.from({length:Math.max(1,Math.min(n,items.length))},async()=>{while(i<items.length){const k=i++;res[k]=await fn(items[k],k);}}));
-  return res;
- }
- function tipoDe(campo,tipoBD,muestra){
-  const t=texto(tipoBD).toLowerCase();
-  if(campo==='id'||/_id$/.test(campo)||t==='uuid')return 'ID';
-  if(TEXTO_SENSIBLE.test(campo))return 'TEXTO'; // conserva ceros aunque falten metadatos del servidor
-  if(t.endsWith('[]'))return 'LISTA';
-  if(t==='jsonb'||t==='json')return 'JSON';
-  if(t==='boolean')return 'BOOLEANO';
-  if(t==='date')return 'FECHA';
-  if(t.startsWith('timestamp'))return 'FECHA_HORA';
-  if(/^(integer|smallint|bigint)$/.test(t))return 'ENTERO';
-  if(t.startsWith('numeric')||t==='double precision'||t==='real')return MONEDA.test(campo)?'IMPORTE':'NUMERO';
-  if(t)return 'TEXTO';
-  if(muestra===undefined||muestra===null)return 'TEXTO';
-  if(typeof muestra==='boolean')return 'BOOLEANO';
-  if(typeof muestra==='number')return MONEDA.test(campo)?'IMPORTE':'NUMERO';
-  if(typeof muestra==='object')return Array.isArray(muestra)?'LISTA':'JSON';
-  if(/^\d{4}-\d{2}-\d{2}$/.test(muestra))return 'FECHA';
-  if(/^\d{4}-\d{2}-\d{2}T/.test(muestra))return 'FECHA_HORA';
-  return 'TEXTO';
- }
- /* Valor lógico de una celda: null, '', número, booleano, texto o {largo}. */
- function valorLogico(v,tipo){
-  if(v===undefined||v===null)return null;
-  if(tipo==='JSON'||tipo==='LISTA'||(typeof v==='object'))return JSON.stringify(v);
-  if(typeof v==='number'&&(tipo==='ID'||tipo==='TEXTO'||tipo==='FECHA'||tipo==='FECHA_HORA'))return String(v);
-  if(typeof v==='number'&&!Number.isFinite(v))return String(v);
-  return v;
- }
- const ESTILO={
-  enc:{font:{bold:true,color:{rgb:'FFFFFF'},name:'Calibri',sz:10},fill:{fgColor:{rgb:'1F2F52'}},alignment:{vertical:'center',wrapText:true}},
-  txt:{numFmt:'@'},nulo:{numFmt:'@',font:{color:{rgb:'8A8F98'},italic:true}},dinero:{numFmt:'#,##0.00'},entero:{numFmt:'0'}
+ const FORMATO='RESPALDO_TRABAJADORES_V2',VERSION='2026-11-18',NULO='Sin dato',PAGINA=1000;
+ const FUENTES=[
+  {"clave":"obras","tabla":"obras","alcance":"centros","permiso":null,"pk":["id"],"grupo":null,"campos":[["id","uuid"],["nombre","text"],["activa","boolean"],["registro_patronal","text"],["fecha_inicio","date"],["empresa_codigo","text"]],"select":"id,nombre,activa,registro_patronal,fecha_inicio,empresa_codigo"},
+  {"clave":"cuadrillas","tabla":"cuadrillas","alcance":"obra","permiso":null,"pk":["id"],"grupo":null,"campos":[["id","uuid"],["obra_id","uuid"],["contratista","text"],["nombre","text"],["lider_id","uuid"],["lider_nombre_externo","text"],["activa","boolean"]],"select":"id,obra_id,contratista,nombre,lider_id,lider_nombre_externo,activa"},
+  {"clave":"catalogo_incidencias","tabla":"catalogo_incidencias","alcance":"global","permiso":null,"pk":["id"],"grupo":null,"campos":[["id","smallint"],["nombre","text"],["clase","text"]],"select":"id,nombre,clase"},
+  {"clave":"catalogo_percepciones_extra","tabla":"catalogo_percepciones_extra","alcance":"global","permiso":null,"pk":["id"],"grupo":null,"campos":[["id","text"],["nombre","text"],["naturaleza_importe","USER-DEFINED"],["aplica_integracion_sbc","boolean"]],"select":"id,nombre,naturaleza_importe,aplica_integracion_sbc"},
+  {"clave":"trabajadores","tabla":"trabajadores","alcance":"obra","permiso":null,"pk":["id"],"grupo":null,"campos":[["id","uuid"],["obra_id","uuid"],["contratista","text"],["estatus","text"],["no_trab","integer"],["fecha_alta","date"],["fecha_baja","date"],["monto_finiquito","numeric"],["semana_ingreso","text"],["primer_apellido","text"],["segundo_apellido","text"],["nombres","text"],["estado_civil","text"],["escolaridad","text"],["funciones","text"],["puesto","text"],["area","text"],["beneficiario","text"],["sd","numeric"],["sdi","numeric"],["sal_semanal","numeric"],["rfc","text"],["curp","text"],["nacionalidad","text"],["fecha_nacimiento","date"],["nss","text"],["cuenta","text"],["clabe","text"],["banco","text"],["edo_nacimiento","text"],["direccion","text"],["cp","text"],["telefono","text"],["correo","text"],["genero","text"],["turno","text"],["forma_pago","text"],["num_tarjeta","text"],["observaciones","text"],["docs","jsonb"],["drive_link","text"],["creado_por","text"],["actualizado_por","text"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"],["periodo_pago","text"],["movimiento_imss","text"],["fecha_mov_imss","date"],["tipo_contrato","text"],["fecha_fin_contrato","date"],["motivo_baja","text"],["pendiente_manual","boolean"],["motivo_pendiente","text"],["eliminado","boolean"],["eliminado_en","timestamp with time zone"],["eliminado_por","text"],["motivo_eliminacion","text"],["fecha_reingreso","date"],["registro_patronal","text"],["prima_rt","numeric"],["benef_parentesco","text"],["benef_telefono","text"],["benef_porcentaje","numeric"],["id_cuadrilla","uuid"]],"select":"id,obra_id,contratista,estatus,no_trab,fecha_alta,fecha_baja,monto_finiquito,semana_ingreso,primer_apellido,segundo_apellido,nombres,estado_civil,escolaridad,funciones,puesto,area,beneficiario,sd,sdi,sal_semanal,rfc,curp,nacionalidad,fecha_nacimiento,nss,cuenta,clabe,banco,edo_nacimiento,direccion,cp,telefono,correo,genero,turno,forma_pago,num_tarjeta,observaciones,docs,drive_link,creado_por,actualizado_por,created_at,updated_at,periodo_pago,movimiento_imss,fecha_mov_imss,tipo_contrato,fecha_fin_contrato,motivo_baja,pendiente_manual,motivo_pendiente,eliminado,eliminado_en,eliminado_por,motivo_eliminacion,fecha_reingreso,registro_patronal,prima_rt,benef_parentesco,benef_telefono,benef_porcentaje,id_cuadrilla,monto_finiquito__origen:monto_finiquito::text,sd__origen:sd::text,sdi__origen:sdi::text,sal_semanal__origen:sal_semanal::text,prima_rt__origen:prima_rt::text,benef_porcentaje__origen:benef_porcentaje::text"},
+  {"clave":"historial","tabla":"historial","alcance":"obra","permiso":null,"pk":["id"],"grupo":null,"campos":[["id","bigint"],["trabajador_id","uuid"],["trabajador_nombre","text"],["obra_id","uuid"],["usuario","text"],["accion","text"],["datos_antes","jsonb"],["datos_despues","jsonb"],["fecha","timestamp with time zone"]],"select":"id,trabajador_id,trabajador_nombre,obra_id,usuario,accion,datos_antes,datos_despues,fecha"},
+  {"clave":"sueldos_internos","tabla":"sueldos_internos","alcance":"obra","permiso":"vip","pk":["trabajador_id"],"grupo":"Salarios e historial","campos":[["trabajador_id","uuid"],["obra_id","uuid"],["sueldo_imss","numeric"],["sueldo_real","numeric"],["notas","text"],["actualizado_por","text"],["updated_at","timestamp with time zone"]],"select":"trabajador_id,obra_id,sueldo_imss,sueldo_real,notas,actualizado_por,updated_at,sueldo_imss__origen:sueldo_imss::text,sueldo_real__origen:sueldo_real::text"},
+  {"clave":"diferenciales","tabla":"diferenciales","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Salarios e historial","campos":[["id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["semana","integer"],["monto","numeric"],["motivo","text"],["activo","boolean"],["creado_por","text"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"]],"select":"id,obra_id,trabajador_id,semana,monto,motivo,activo,creado_por,created_at,updated_at,monto__origen:monto::text"},
+  {"clave":"control_isr_ajustes_quincenales","tabla":"control_isr_ajustes_quincenales","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Salarios e historial","campos":[["id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["desde","date"],["hasta","date"],["entradas","jsonb"],["resultado","jsonb"],["contexto","jsonb"],["archivo_nombre","text"],["revision","integer"],["actor_id","uuid"],["actor_email","text"],["updated_at","timestamp with time zone"]],"select":"id,obra_id,trabajador_id,desde,hasta,entradas,resultado,contexto,archivo_nombre,revision,actor_id,actor_email,updated_at"},
+  {"clave":"control_movimientos_seguridad_social","tabla":"control_movimientos_seguridad_social","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Movimientos IMSS","campos":[["id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["trabajador_numero","integer"],["trabajador_nombre","text"],["tipo","text"],["fecha_solicitud","date"],["fecha_efectiva","date"],["fecha_proceso_interno","date"],["fecha_limite_legal","date"],["canales","ARRAY"],["estado","text"],["folio","text"],["evidencia_url","text"],["observaciones","text"],["responsable","text"],["creado_por","uuid"],["creado_por_email","text"],["presentado_en","timestamp with time zone"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"]],"select":"id,obra_id,trabajador_id,trabajador_numero,trabajador_nombre,tipo,fecha_solicitud,fecha_efectiva,fecha_proceso_interno,fecha_limite_legal,canales,estado,folio,evidencia_url,observaciones,responsable,creado_por,creado_por_email,presentado_en,created_at,updated_at"},
+  {"clave":"control_altas_bajas_cortas","tabla":"control_altas_bajas_cortas","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Movimientos IMSS","campos":[["id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["anio","integer"],["semana","integer"],["estado_servicio","text"],["fecha_alta_base","date"],["fecha_baja_base","date"],["fecha_alta_idse","date"],["fecha_baja_idse","date"],["fecha_alta_modelo_noi","date"],["fecha_baja_modelo_noi","date"],["faltas_modelo_noi","numeric"],["dias_pagados_noi","numeric"],["neto_noi","numeric"],["observaciones","text"],["fuente","text"],["creado_por","uuid"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"],["baja_operacion_id","uuid"],["reversion_baja_id","uuid"]],"select":"id,obra_id,trabajador_id,anio,semana,estado_servicio,fecha_alta_base,fecha_baja_base,fecha_alta_idse,fecha_baja_idse,fecha_alta_modelo_noi,fecha_baja_modelo_noi,faltas_modelo_noi,dias_pagados_noi,neto_noi,observaciones,fuente,creado_por,created_at,updated_at,baja_operacion_id,reversion_baja_id,faltas_modelo_noi__origen:faltas_modelo_noi::text,dias_pagados_noi__origen:dias_pagados_noi::text,neto_noi__origen:neto_noi::text"},
+  {"clave":"incidencias_empleados","tabla":"incidencias_empleados","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Incidencias e incapacidades","campos":[["id","uuid"],["obra_id","uuid"],["empleado_id","uuid"],["fecha_aplicacion","date"],["id_incidencia","smallint"],["percepcion_id","text"],["prestamo_id","uuid"],["credito_id","uuid"],["clase","text"],["naturaleza_importe","USER-DEFINED"],["pagador","text"],["ramo","text"],["folio","text"],["monto_valor","numeric"],["semana_origen","integer"],["semana_aplicacion","integer"],["desde_origen","date"],["hasta_origen","date"],["desde_aplicacion","date"],["hasta_aplicacion","date"],["retroactivo","boolean"],["estado","text"],["descuento_id","uuid"],["detalle","jsonb"],["version","integer"],["creado_por","uuid"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"]],"select":"id,obra_id,empleado_id,fecha_aplicacion,id_incidencia,percepcion_id,prestamo_id,credito_id,clase,naturaleza_importe,pagador,ramo,folio,monto_valor,semana_origen,semana_aplicacion,desde_origen,hasta_origen,desde_aplicacion,hasta_aplicacion,retroactivo,estado,descuento_id,detalle,version,creado_por,created_at,updated_at,monto_valor__origen:monto_valor::text"},
+  {"clave":"vacaciones","tabla":"vacaciones","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Incidencias e incapacidades","campos":[["id","uuid"],["trabajador_id","uuid"],["obra_id","uuid"],["tipo","text"],["fecha_inicio","date"],["fecha_fin","date"],["dias","integer"],["notas","text"],["activo","boolean"],["creado_por","text"],["actualizado_por","text"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"]],"select":"id,trabajador_id,obra_id,tipo,fecha_inicio,fecha_fin,dias,notas,activo,creado_por,actualizado_por,created_at,updated_at"},
+  {"clave":"control_faltas_historicas","tabla":"control_faltas_historicas","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Incidencias e incapacidades","campos":[["id","uuid"],["cadena_id","uuid"],["version","integer"],["anterior_id","uuid"],["estado","text"],["empresa_codigo","text"],["obra_id","uuid"],["trabajador_id","uuid"],["ejercicio","integer"],["tramo_inicio","date"],["modo","text"],["rango_desde","date"],["fecha_corte","date"],["fechas","ARRAY"],["total_acreditado","numeric"],["digitales_al_registrar","numeric"],["naturaleza","text"],["motivo","text"],["fuente","text"],["referencia","text"],["soporte_archivo","text"],["actor_id","uuid"],["actor_email","text"],["created_at","timestamp with time zone"],["cerrado_por","uuid"],["cerrado_en","timestamp with time zone"],["motivo_cierre","text"]],"select":"id,cadena_id,version,anterior_id,estado,empresa_codigo,obra_id,trabajador_id,ejercicio,tramo_inicio,modo,rango_desde,fecha_corte,fechas,total_acreditado,digitales_al_registrar,naturaleza,motivo,fuente,referencia,soporte_archivo,actor_id,actor_email,created_at,cerrado_por,cerrado_en,motivo_cierre,total_acreditado__origen:total_acreditado::text,digitales_al_registrar__origen:digitales_al_registrar::text"},
+  {"clave":"control_casos_imss","tabla":"control_casos_imss","alcance":"obra","permiso":"salud","pk":["id"],"grupo":"Incidencias e incapacidades","campos":[["id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["incidente_id","uuid"],["tipo_caso","text"],["fecha_evento","date"],["ramo_certificado","text"],["tipo_certificado","text"],["probable_riesgo_trabajo","boolean"],["calificacion_rt","text"],["certificado_desde","date"],["certificado_hasta","date"],["dias_certificados","integer"],["folio_certificado","text"],["folio_st7","text"],["folio_st9","text"],["folio_st2","text"],["referencia_evidencia","text"],["observaciones_operativas","text"],["estado","text"],["creado_por","uuid"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"],["eliminado_en","timestamp with time zone"],["eliminado_por","uuid"],["motivo_eliminacion","text"],["certificado_archivo","text"],["certificado_mime","text"],["datos_documento","jsonb"],["extraccion_revisada_en","timestamp with time zone"]],"select":"id,obra_id,trabajador_id,incidente_id,tipo_caso,fecha_evento,ramo_certificado,tipo_certificado,probable_riesgo_trabajo,calificacion_rt,certificado_desde,certificado_hasta,dias_certificados,folio_certificado,folio_st7,folio_st9,folio_st2,referencia_evidencia,observaciones_operativas,estado,creado_por,created_at,updated_at,eliminado_en,eliminado_por,motivo_eliminacion,certificado_archivo,certificado_mime,datos_documento,extraccion_revisada_en"},
+  {"clave":"control_casos_imss_semanas","tabla":"control_casos_imss_semanas","alcance":"padre","permiso":"salud","pk":["id"],"grupo":"Incidencias e incapacidades","campos":[["id","uuid"],["caso_id","uuid"],["anio","integer"],["semana","integer"],["dias_pagados_empresa","integer"],["dias_sin_salario_patronal","integer"],["descuento_id","uuid"],["neto_noi","numeric"],["estado","text"],["nota","text"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"],["detalle_dias","jsonb"],["dias_imss_estimados","integer"],["dias_sin_subsidio","integer"]],"select":"id,caso_id,anio,semana,dias_pagados_empresa,dias_sin_salario_patronal,descuento_id,neto_noi,estado,nota,created_at,updated_at,detalle_dias,dias_imss_estimados,dias_sin_subsidio,neto_noi__origen:neto_noi::text","padre":{"fuente":"control_casos_imss","campo":"id","destino":"caso_id"}},
+  {"clave":"control_st7_acuses","tabla":"control_st7_acuses","alcance":"obra","permiso":"salud","pk":["id"],"grupo":"Incidencias e incapacidades","campos":[["id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["incidente_id","uuid"],["caso_imss_id","uuid"],["folio_st7","text"],["accidente_en_centro","boolean"],["accidente_en","timestamp with time zone"],["recibido_en","timestamp with time zone"],["recibido_de","text"],["recibido_por","text"],["registrado_en","timestamp with time zone"],["registrado_por","uuid"],["devuelto_en","timestamp with time zone"],["devuelto_a","text"],["devuelto_por","text"],["devolucion_registrada_en","timestamp with time zone"],["aviso_imss_en","timestamp with time zone"],["aviso_stps_en","timestamp with time zone"],["acuse_firmado_archivo","text"],["observaciones","text"]],"select":"id,obra_id,trabajador_id,incidente_id,caso_imss_id,folio_st7,accidente_en_centro,accidente_en,recibido_en,recibido_de,recibido_por,registrado_en,registrado_por,devuelto_en,devuelto_a,devuelto_por,devolucion_registrada_en,aviso_imss_en,aviso_stps_en,acuse_firmado_archivo,observaciones"},
+  {"clave":"control_incidentes_laborales","tabla":"control_incidentes_laborales","alcance":"obra","permiso":"salud","pk":["id"],"grupo":"Incidencias e incapacidades","campos":[["id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["trabajador_numero","integer"],["trabajador_nombre","text"],["tipo","text"],["fecha_hora","timestamp with time zone"],["lugar","text"],["descripcion","text"],["severidad","text"],["posible_riesgo_trabajo","boolean"],["calificacion","text"],["incapacidad_desde","date"],["incapacidad_hasta","date"],["dias_incapacidad","integer"],["folio_st7","text"],["folio_imss","text"],["evidencia_url","text"],["testigos","text"],["acciones_inmediatas","text"],["seguimiento","text"],["estado","text"],["responsable","text"],["creado_por","uuid"],["creado_por_email","text"],["cerrado_en","timestamp with time zone"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"]],"select":"id,obra_id,trabajador_id,trabajador_numero,trabajador_nombre,tipo,fecha_hora,lugar,descripcion,severidad,posible_riesgo_trabajo,calificacion,incapacidad_desde,incapacidad_hasta,dias_incapacidad,folio_st7,folio_imss,evidencia_url,testigos,acciones_inmediatas,seguimiento,estado,responsable,creado_por,creado_por_email,cerrado_en,created_at,updated_at"},
+  {"clave":"control_jornada_eventos","tabla":"control_jornada_eventos","alcance":"obra","pk":["id"],"permiso":null,"grupo":"Incidencias e incapacidades","campos":[["id","uuid"],["obra_id","uuid"],["empresa_codigo","text"],["trabajador_id","uuid"],["identidad","text"],["tipo","text"],["fecha_trabajada","date"],["semana_servicio","date"],["captura","jsonb"],["calculo","jsonb"],["bruto","numeric"],["exento","numeric"],["gravado","numeric"],["periodicidad","text"],["semana_origen","integer"],["desde_origen","date"],["hasta_origen","date"],["semana_aplicacion","integer"],["desde_aplicacion","date"],["hasta_aplicacion","date"],["fecha_pago","date"],["periodo_aplicacion","jsonb"],["retroactivo","boolean"],["estado","text"],["reemplaza_id","uuid"],["anulado_por","uuid"],["anulado_en","timestamp with time zone"],["motivo_anulacion","text"],["version","integer"],["creado_por","uuid"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"]],"select":"id,obra_id,empresa_codigo,trabajador_id,identidad,tipo,fecha_trabajada,semana_servicio,captura,calculo,bruto,exento,gravado,periodicidad,semana_origen,desde_origen,hasta_origen,semana_aplicacion,desde_aplicacion,hasta_aplicacion,fecha_pago,periodo_aplicacion,retroactivo,estado,reemplaza_id,anulado_por,anulado_en,motivo_anulacion,version,creado_por,created_at,updated_at,bruto__origen:bruto::text,exento__origen:exento::text,gravado__origen:gravado::text","sinMarcaRpc":true},
+  {"clave":"descuentos","tabla":"descuentos","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Créditos y préstamos","campos":[["id","uuid"],["trabajador_id","uuid"],["obra_id","uuid"],["tipo","text"],["motivo","text"],["monto","numeric"],["recurrente","boolean"],["semana","text"],["activo","boolean"],["creado_por","text"],["actualizado_por","text"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"],["excepciones","jsonb"],["periodicidad","text"],["cuota_mensual","numeric"],["modalidad","text"],["factor","numeric"],["recalculo_auto","boolean"],["ultimo_recalculo","timestamp with time zone"],["numero_credito","text"],["fonacot_prorrateo","text"],["ajustes_semana","jsonb"],["fonacot_prorrateo_desde","date"],["infonavit_avisos_historial","jsonb"],["calendario_evento_id","uuid"]],"select":"id,trabajador_id,obra_id,tipo,motivo,monto,recurrente,semana,activo,creado_por,actualizado_por,created_at,updated_at,excepciones,periodicidad,cuota_mensual,modalidad,factor,recalculo_auto,ultimo_recalculo,numero_credito,fonacot_prorrateo,ajustes_semana,fonacot_prorrateo_desde,infonavit_avisos_historial,calendario_evento_id,monto__origen:monto::text,cuota_mensual__origen:cuota_mensual::text,factor__origen:factor::text"},
+  {"clave":"prestamos_empleados","tabla":"prestamos_empleados","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Créditos y préstamos","campos":[["id","uuid"],["obra_id","uuid"],["empleado_id","uuid"],["monto_inicial","numeric"],["interes","numeric"],["fecha","date"],["autorizacion_referencia","text"],["creado_por","uuid"],["created_at","timestamp with time zone"],["version","integer"]],"select":"id,obra_id,empleado_id,monto_inicial,interes,fecha,autorizacion_referencia,creado_por,created_at,version,monto_inicial__origen:monto_inicial::text,interes__origen:interes::text"},
+  {"clave":"infonavit_avisos_aplicaciones","tabla":"infonavit_avisos_aplicaciones","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Créditos y préstamos","campos":[["id","uuid"],["importacion_id","uuid"],["folio","text"],["descuento_id","uuid"],["trabajador_id","uuid"],["obra_id","uuid"],["empresa_codigo","text"],["registro_patronal","text"],["fecha_recepcion","date"],["vigente_desde","date"],["motivo","text"],["datos_antes","jsonb"],["datos_despues","jsonb"],["confirmado_por","uuid"],["confirmado_en","timestamp with time zone"]],"select":"id,importacion_id,folio,descuento_id,trabajador_id,obra_id,empresa_codigo,registro_patronal,fecha_recepcion,vigente_desde,motivo,datos_antes,datos_despues,confirmado_por,confirmado_en"},
+  {"clave":"prima_pagos","tabla":"prima_pagos","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Prestaciones y finiquitos","campos":[["id","uuid"],["trabajador_id","uuid"],["obra_id","uuid"],["periodo","integer"],["monto","numeric"],["fecha_pago","date"],["notas","text"],["activo","boolean"],["creado_por","text"],["created_at","timestamp with time zone"]],"select":"id,trabajador_id,obra_id,periodo,monto,fecha_pago,notas,activo,creado_por,created_at,monto__origen:monto::text"},
+  {"clave":"control_aguinaldo_lineas","tabla":"control_aguinaldo_lineas","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Prestaciones y finiquitos","campos":[["id","uuid"],["lote_id","uuid"],["obra_id","uuid"],["empresa_codigo","text"],["trabajador_id","uuid"],["identidad","text"],["ejercicio","integer"],["periodicidad","text"],["semana","integer"],["periodo_desde","date"],["periodo_hasta","date"],["fecha_pago","date"],["salario_base","numeric"],["dias_pactados","numeric"],["dias_computables","numeric"],["denominador","integer"],["bruto_causado","numeric"],["acreditado_previo","numeric"],["bruto","numeric"],["exento","numeric"],["gravado","numeric"],["isr","numeric"],["neto","numeric"],["metodo_isr","text"],["uma","numeric"],["exento_usado","numeric"],["desglose","jsonb"],["huella_fuentes","text"],["estado","text"],["version","integer"],["retirado_por","uuid"],["retirado_en","timestamp with time zone"],["motivo_retiro","text"],["created_at","timestamp with time zone"]],"select":"id,lote_id,obra_id,empresa_codigo,trabajador_id,identidad,ejercicio,periodicidad,semana,periodo_desde,periodo_hasta,fecha_pago,salario_base,dias_pactados,dias_computables,denominador,bruto_causado,acreditado_previo,bruto,exento,gravado,isr,neto,metodo_isr,uma,exento_usado,desglose,huella_fuentes,estado,version,retirado_por,retirado_en,motivo_retiro,created_at,salario_base__origen:salario_base::text,dias_pactados__origen:dias_pactados::text,dias_computables__origen:dias_computables::text,bruto_causado__origen:bruto_causado::text,acreditado_previo__origen:acreditado_previo::text,bruto__origen:bruto::text,exento__origen:exento::text,gravado__origen:gravado::text,isr__origen:isr::text,neto__origen:neto::text,uma__origen:uma::text,exento_usado__origen:exento_usado::text"},
+  {"clave":"control_aguinaldo_conciliaciones","tabla":"control_aguinaldo_conciliaciones","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Prestaciones y finiquitos","campos":[["id","uuid"],["operacion_id","uuid"],["empresa_codigo","text"],["obra_id","uuid"],["trabajador_id","uuid"],["ejercicio","integer"],["fecha_baja","date"],["version","integer"],["anterior_id","uuid"],["estado","text"],["estado_operacion","text"],["importe_bruto","numeric"],["exento","numeric"],["fecha_pago","date"],["fuente_clave","text"],["respaldo_clave","text"],["motivo","text"],["referencia","text"],["fuente","jsonb"],["respaldo","jsonb"],["actor_id","uuid"],["actor_email","text"],["created_at","timestamp with time zone"]],"select":"id,operacion_id,empresa_codigo,obra_id,trabajador_id,ejercicio,fecha_baja,version,anterior_id,estado,estado_operacion,importe_bruto,exento,fecha_pago,fuente_clave,respaldo_clave,motivo,referencia,fuente,respaldo,actor_id,actor_email,created_at,importe_bruto__origen:importe_bruto::text,exento__origen:exento::text"},
+  {"clave":"prestaciones_papeles","tabla":"prestaciones_papeles","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Prestaciones y finiquitos","campos":[["id","uuid"],["operacion_id","uuid"],["obra_id","uuid"],["empresa_codigo","text"],["trabajador_id","uuid"],["numero","integer"],["nombre","text"],["semana","integer"],["ejercicio","integer"],["fecha_baja","date"],["origen","text"],["revision","integer"],["anterior_id","uuid"],["entradas","jsonb"],["resultado","jsonb"],["fuente","jsonb"],["actor_id","uuid"],["actor_email","text"],["created_at","timestamp with time zone"]],"select":"id,operacion_id,obra_id,empresa_codigo,trabajador_id,numero,nombre,semana,ejercicio,fecha_baja,origen,revision,anterior_id,entradas,resultado,fuente,actor_id,actor_email,created_at"},
+  {"clave":"control_finiquitos_transferencia","tabla":"control_finiquitos_transferencia","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Prestaciones y finiquitos","campos":[["id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["anio","integer"],["semana","integer"],["importe","numeric"],["estado","text"],["pago_id","uuid"],["fecha_declarada","date"],["referencia_declarada","text"],["motivo","text"],["cheque_id","uuid"],["registrado_por","uuid"],["registrado_en","timestamp with time zone"],["actualizado_en","timestamp with time zone"]],"select":"id,obra_id,trabajador_id,anio,semana,importe,estado,pago_id,fecha_declarada,referencia_declarada,motivo,cheque_id,registrado_por,registrado_en,actualizado_en,importe__origen:importe::text"},
+  {"clave":"bajas_operaciones","tabla":"(interna)","alcance":"interna","permiso":"vip","pk":["id"],"grupo":"Prestaciones y finiquitos","campos":[["id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["inicio_ciclo","date"],["fecha_baja","date"],["actor","uuid"],["resultado","jsonb"],["created_at","timestamp with time zone"],["reversion_id","uuid"]],"select":"id,obra_id,trabajador_id,inicio_ciclo,fecha_baja,actor,resultado,created_at,reversion_id"},
+  {"clave":"control_cierres_nomina","tabla":"control_cierres_nomina","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Nóminas individuales","campos":[["id","uuid"],["obra_id","uuid"],["semana","integer"],["periodo","text"],["estado","text"],["created_at","timestamp with time zone"]],"select":"id,obra_id,semana,periodo,estado,created_at,items:snapshot->items,filas_modelo:snapshot->modelo->filas,desde:snapshot->desde,hasta:snapshot->hasta"},
+  {"clave":"control_cierre_versiones","tabla":"control_cierre_versiones","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Nóminas individuales","campos":[["id","uuid"],["cierre_origen","uuid"],["obra_id","uuid"],["version","integer"],["estado_origen","text"],["created_at","timestamp with time zone"]],"select":"id,cierre_origen,obra_id,version,estado_origen,created_at,items:snapshot->items,filas_modelo:snapshot->modelo->filas,desde:snapshot->desde,hasta:snapshot->hasta"},
+  {"clave":"control_desglose_noi","tabla":"control_desglose_noi","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Nóminas individuales","campos":[["id","uuid"],["obra_id","uuid"],["anio","integer"],["semana","integer"],["trabajador_id","uuid"],["trabajador_numero","integer"],["trabajador_nombre","text"],["contratista","text"],["tipo_calculo","text"],["percepciones","numeric"],["isr","numeric"],["imss","numeric"],["subsidio","numeric"],["total_deducciones","numeric"],["neto","numeric"],["archivo_nombre","text"],["fila_origen","integer"],["importado_por","uuid"],["importado_en","timestamp with time zone"],["fuente_documental","text"],["ajuste_origen","numeric"],["nota_origen","text"],["cheque_referencia_id","uuid"],["metodo_pago_origen","text"]],"select":"id,obra_id,anio,semana,trabajador_id,trabajador_numero,trabajador_nombre,contratista,tipo_calculo,percepciones,isr,imss,subsidio,total_deducciones,neto,archivo_nombre,fila_origen,importado_por,importado_en,fuente_documental,ajuste_origen,nota_origen,cheque_referencia_id,metodo_pago_origen,percepciones__origen:percepciones::text,isr__origen:isr::text,imss__origen:imss::text,subsidio__origen:subsidio::text,total_deducciones__origen:total_deducciones::text,neto__origen:neto::text,ajuste_origen__origen:ajuste_origen::text"},
+  {"clave":"control_conciliacion_noi","tabla":"control_conciliacion_noi","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Nóminas individuales","campos":[["id","uuid"],["cierre_id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["trabajador_numero","integer"],["trabajador_nombre","text"],["tipo_calculo","text"],["monto_platinum","numeric"],["monto_noi","numeric"],["diferencia","numeric"],["estatus","text"],["detalle","jsonb"],["importado_por","uuid"],["importado_por_email","text"],["created_at","timestamp with time zone"],["metodo_pago","text"],["pago_id","uuid"],["cheque_id","uuid"]],"select":"id,cierre_id,obra_id,trabajador_id,trabajador_numero,trabajador_nombre,tipo_calculo,monto_platinum,monto_noi,diferencia,estatus,detalle,importado_por,importado_por_email,created_at,metodo_pago,pago_id,cheque_id,monto_platinum__origen:monto_platinum::text,monto_noi__origen:monto_noi::text,diferencia__origen:diferencia::text"},
+  {"clave":"excepciones_noi_individuales","tabla":"(interna)","alcance":"interna","permiso":"vip","pk":["id"],"grupo":"Nóminas individuales","campos":[["id","uuid"],["cierre_id","uuid"],["trabajador_id","uuid"],["neto_original","numeric"],["nomina_transferencia","numeric"],["finiquito_efectivo","numeric"],["pago_nomina_id","uuid"],["autorizacion_origen","text"],["autorizacion_texto","text"],["registrado_en","timestamp with time zone"]],"select":"id,cierre_id,trabajador_id,neto_original,nomina_transferencia,finiquito_efectivo,pago_nomina_id,autorizacion_origen,autorizacion_texto,registrado_en"},
+  {"clave":"control_obligaciones_pago","tabla":"control_obligaciones_pago","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Obligaciones individuales","campos":[["id","uuid"],["cierre_origen","uuid"],["cierre_id","uuid"],["version_id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["semana","integer"],["tipo","text"],["numero","integer"],["nombre","text"],["contratista","text"],["importe","numeric"],["metodo","text"],["vigente","boolean"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"],["fuente_documentada","jsonb"]],"select":"id,cierre_origen,cierre_id,version_id,obra_id,trabajador_id,semana,tipo,numero,nombre,contratista,importe,metodo,vigente,created_at,updated_at,fuente_documentada,importe__origen:importe::text"},
+  {"clave":"pagos","tabla":"pagos","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Pagos y cheques","campos":[["id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["semana","text"],["medio","text"],["banco","text"],["cuenta_mask","text"],["titular","text"],["importe","numeric"],["estado","text"],["fecha_pago","date"],["folio_lote","text"],["descripcion","text"],["archivo","text"],["nombre_archivo","text"],["creado_por","text"],["created_at","timestamp with time zone"],["origen","text"],["conciliacion_archivo_id","uuid"],["conciliacion_linea","integer"],["banco_contexto","jsonb"],["banco_operacion_clave","text"]],"select":"id,obra_id,trabajador_id,semana,medio,banco,cuenta_mask,titular,importe,estado,fecha_pago,folio_lote,descripcion,archivo,nombre_archivo,creado_por,created_at,origen,conciliacion_archivo_id,conciliacion_linea,banco_contexto,banco_operacion_clave,importe__origen:importe::text"},
+  {"clave":"cheques","tabla":"cheques","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Pagos y cheques","campos":[["id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["no_trab","integer"],["contratista","text"],["nombre","text"],["puesto","text"],["curp","text"],["semana","text"],["periodo","text"],["importe","numeric"],["tipo_pago","text"],["num_cheque","text"],["consecutivo","text"],["estatus","text"],["observaciones","text"],["creado_por","text"],["actualizado_por","text"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"],["eliminado","boolean"],["eliminado_por","text"],["eliminado_en","timestamp with time zone"],["motivo_eliminado","text"],["cierre_id","uuid"],["origen_generacion","text"],["lote_nomina_id","uuid"],["reemplaza_cheque_id","uuid"]],"select":"id,obra_id,trabajador_id,no_trab,contratista,nombre,puesto,curp,semana,periodo,importe,tipo_pago,num_cheque,consecutivo,estatus,observaciones,creado_por,actualizado_por,created_at,updated_at,eliminado,eliminado_por,eliminado_en,motivo_eliminado,cierre_id,origen_generacion,lote_nomina_id,reemplaza_cheque_id,importe__origen:importe::text"},
+  {"clave":"control_evidencias_pago","tabla":"control_evidencias_pago","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Pagos y cheques","campos":[["id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["semana","integer"],["clave","text"],["importe","numeric"],["pago_id","uuid"],["cheque_id","uuid"],["created_at","timestamp with time zone"]],"select":"id,obra_id,trabajador_id,semana,clave,importe,pago_id,cheque_id,created_at,importe__origen:importe::text"},
+  {"clave":"control_pago_aplicaciones","tabla":"control_pago_aplicaciones","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Vínculos de pagos","campos":[["id","uuid"],["obra_id","uuid"],["obligacion_id","uuid"],["evidencia_id","uuid"],["version_id","uuid"],["importe","numeric"],["actor_id","uuid"],["motivo","text"],["created_at","timestamp with time zone"],["retirado_en","timestamp with time zone"],["retirado_por","uuid"],["motivo_retiro","text"]],"select":"id,obra_id,obligacion_id,evidencia_id,version_id,importe,actor_id,motivo,created_at,retirado_en,retirado_por,motivo_retiro,importe__origen:importe::text"},
+  {"clave":"documentos","tabla":"documentos","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Documentos del expediente","campos":[["id","uuid"],["trabajador_id","uuid"],["obra_id","uuid"],["categoria","text"],["subtipo","text"],["semana","text"],["fecha_doc","date"],["archivo","text"],["nombre_archivo","text"],["notas","text"],["anulado","boolean"],["subido_por","text"],["created_at","timestamp with time zone"],["anulado_por","text"],["anulado_en","timestamp with time zone"],["motivo_anulacion","text"],["cfdi_uuid","text"],["cfdi_total","numeric"],["cfdi_fecha_pago","date"],["periodo_inicio","date"],["periodo_fin","date"],["mime_type","text"],["nomina_neto","numeric"],["nomina_tipo","text"],["conciliacion_archivo_id","uuid"]],"select":"id,trabajador_id,obra_id,categoria,subtipo,semana,fecha_doc,archivo,nombre_archivo,notas,anulado,subido_por,created_at,anulado_por,anulado_en,motivo_anulacion,cfdi_uuid,cfdi_total,cfdi_fecha_pago,periodo_inicio,periodo_fin,mime_type,nomina_neto,nomina_tipo,conciliacion_archivo_id,cfdi_total__origen:cfdi_total::text,nomina_neto__origen:nomina_neto::text"},
+  {"clave":"archivo_recibo_periodo","tabla":"(interna)","alcance":"interna","permiso":"vip","pk":["id"],"grupo":"Documentos del expediente","campos":[["id","uuid"],["cierre_id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["actor_id","uuid"],["ruta","text"],["formato","text"],["uuid_fiscal","text"],["datos","jsonb"],["solo_revision","boolean"],["documento_id","uuid"],["estado","text"],["creado_en","timestamp with time zone"],["finalizado_en","timestamp with time zone"],["contexto","jsonb"],["revisiones","jsonb"]],"select":"id,cierre_id,obra_id,trabajador_id,actor_id,ruta,formato,uuid_fiscal,datos,solo_revision,documento_id,estado,creado_en,finalizado_en,contexto,revisiones"},
+  {"clave":"lecturas_fiscales_documentos","tabla":"(interna)","alcance":"interna","permiso":"vip","pk":["documento_id"],"grupo":"Documentos del expediente","campos":[["documento_id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["archivo","text"],["uuid","text"],["neto","numeric"],["desde","date"],["hasta","date"],["tipo","text"],["concepto_estado","text"],["datos","jsonb"],["lote_id","uuid"],["verificado_en","timestamp with time zone"]],"select":"documento_id,obra_id,trabajador_id,archivo,uuid,neto,desde,hasta,tipo,concepto_estado,datos,lote_id,verificado_en"},
+  {"clave":"cfdi_pdf_verificados","tabla":"(interna)","alcance":"interna","permiso":"vip","pk":["documento_id"],"grupo":"Documentos del expediente","campos":[["documento_id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["archivo","text"],["uuid","text"],["neto","numeric"],["desde","date"],["hasta","date"],["evidencia","jsonb"],["actor_id","uuid"],["verificado_en","timestamp with time zone"]],"select":"documento_id,obra_id,trabajador_id,archivo,uuid,neto,desde,hasta,evidencia,actor_id,verificado_en"},
+  {"clave":"recibos_ia","tabla":"(interna)","alcance":"interna","permiso":"vip","pk":["id"],"grupo":"Documentos del expediente","campos":[["id","uuid"],["documento_id","uuid"],["obra_id","uuid"],["revision","text"],["datos","jsonb"],["motivos","jsonb"],["estado","text"],["creado_por","uuid"],["creado_en","timestamp with time zone"],["confirmado_por","uuid"],["confirmado_en","timestamp with time zone"]],"select":"id,documento_id,obra_id,revision,datos,motivos,estado,creado_por,creado_en,confirmado_por,confirmado_en"},
+  {"clave":"constancias_laborales","tabla":"constancias_laborales","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Documentos del expediente","campos":[["id","uuid"],["folio","text"],["codigo_verificacion","text"],["obra_id","uuid"],["trabajador_id","uuid"],["empresa_codigo","text"],["tipo_constancia","text"],["destinatario","text"],["proposito","text"],["fecha_expedicion","date"],["lugar_expedicion","text"],["periodo_desde","date"],["periodo_hasta","date"],["dias_trabajados","integer"],["salario","numeric"],["periodicidad_salario","text"],["incluir_salario","boolean"],["incluir_curp","boolean"],["incluir_rfc","boolean"],["incluir_nss","boolean"],["incluir_funciones","boolean"],["firmante_nombre","text"],["firmante_cargo","text"],["snapshot","jsonb"],["emitida_por","uuid"],["emitida_por_email","text"],["emitida_en","timestamp with time zone"]],"select":"id,folio,codigo_verificacion,obra_id,trabajador_id,empresa_codigo,tipo_constancia,destinatario,proposito,fecha_expedicion,lugar_expedicion,periodo_desde,periodo_hasta,dias_trabajados,salario,periodicidad_salario,incluir_salario,incluir_curp,incluir_rfc,incluir_nss,incluir_funciones,firmante_nombre,firmante_cargo,snapshot,emitida_por,emitida_por_email,emitida_en,salario__origen:salario::text"},
+  {"clave":"control_expedientes_pendientes","tabla":"control_expedientes_pendientes","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Documentos del expediente","campos":[["id","uuid"],["obra_id","uuid"],["nombre_completo","text"],["nombre_norm","text"],["puesto","text"],["semana_ingreso","text"],["ultima_semana_registrada","text"],["semanas_adeudadas","integer"],["entregado","boolean"],["fecha_entrega","date"],["notas","text"],["creado_por","text"],["actualizado_por","text"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"],["estado","text"],["semana_no_presentado","text"],["fecha_no_presentado","date"],["fecha_alta_detectada","date"],["trabajador_id","uuid"]],"select":"id,obra_id,nombre_completo,nombre_norm,puesto,semana_ingreso,ultima_semana_registrada,semanas_adeudadas,entregado,fecha_entrega,notas,creado_por,actualizado_por,created_at,updated_at,estado,semana_no_presentado,fecha_no_presentado,fecha_alta_detectada,trabajador_id"},
+  {"clave":"rrhh_procesos","tabla":"rrhh_procesos","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Procesos del expediente","campos":[["id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["plantilla_id","uuid"],["tipo","text"],["semana","integer"],["fecha_evento","date"],["clave_origen","text"],["origen_tipo","text"],["origen_id","text"],["estado","text"],["revision","integer"],["creado_por","uuid"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"]],"select":"id,obra_id,trabajador_id,plantilla_id,tipo,semana,fecha_evento,clave_origen,origen_tipo,origen_id,estado,revision,creado_por,created_at,updated_at"},
+  {"clave":"rrhh_tareas","tabla":"rrhh_tareas","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Procesos del expediente","campos":[["id","uuid"],["proceso_id","uuid"],["obra_id","uuid"],["codigo","text"],["titulo","text"],["orden","integer"],["comprobacion","text"],["obligatoria","boolean"],["depende_de","ARRAY"],["rol_responsable","text"],["responsable_id","uuid"],["fecha_objetivo","date"],["estado","text"],["nota","text"],["huella_confirmada","text"],["confirmado_por","uuid"],["confirmado_en","timestamp with time zone"],["revision","integer"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"]],"select":"id,proceso_id,obra_id,codigo,titulo,orden,comprobacion,obligatoria,depende_de,rol_responsable,responsable_id,fecha_objetivo,estado,nota,huella_confirmada,confirmado_por,confirmado_en,revision,created_at,updated_at"},
+  {"clave":"rrhh_eventos","tabla":"rrhh_eventos","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Procesos del expediente","campos":[["id","bigint"],["proceso_id","uuid"],["obra_id","uuid"],["tarea_id","uuid"],["accion","text"],["detalle","jsonb"],["actor_id","uuid"],["created_at","timestamp with time zone"]],"select":"id,proceso_id,obra_id,tarea_id,accion,detalle,actor_id,created_at"},
+  {"clave":"actas","tabla":"actas","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Procesos del expediente","campos":[["id","uuid"],["trabajador_id","uuid"],["obra_id","uuid"],["tipo","text"],["fecha","date"],["motivo","text"],["descripcion","text"],["sancion","text"],["testigo1","text"],["testigo2","text"],["activo","boolean"],["creado_por","text"],["actualizado_por","text"],["created_at","timestamp with time zone"],["updated_at","timestamp with time zone"]],"select":"id,trabajador_id,obra_id,tipo,fecha,motivo,descripcion,sancion,testigo1,testigo2,activo,creado_por,actualizado_por,created_at,updated_at"},
+  {"clave":"nom035","tabla":"nom035","alcance":"obra","permiso":"salud","pk":["id"],"grupo":"Procesos del expediente","campos":[["id","uuid"],["trabajador_id","uuid"],["obra_id","uuid"],["guia","text"],["fecha","date"],["puntaje","numeric"],["resultado","text"],["requiere_atencion","boolean"],["notas","text"],["activo","boolean"],["creado_por","text"],["created_at","timestamp with time zone"]],"select":"id,trabajador_id,obra_id,guia,fecha,puntaje,resultado,requiere_atencion,notas,activo,creado_por,created_at,puntaje__origen:puntaje::text"},
+  {"clave":"control_reversiones_baja","tabla":"control_reversiones_baja","alcance":"obra","permiso":null,"pk":["id"],"grupo":"Procesos del expediente","campos":[["id","uuid"],["historial_id","bigint"],["obra_id","uuid"],["trabajador_id","uuid"],["estado","text"],["transaccion","bigint"],["actor_id","uuid"],["actor_email","text"],["created_at","timestamp with time zone"],["antes","jsonb"],["restaurar","jsonb"],["efectos","jsonb"],["resultado","jsonb"]],"select":"id,historial_id,obra_id,trabajador_id,estado,transaccion,actor_id,actor_email,created_at,antes,restaurar,efectos,resultado"},
+  {"clave":"noi_identidades_resueltas","tabla":"(interna)","alcance":"interna","permiso":"vip","pk":["id"],"grupo":"Procesos del expediente","campos":[["id","uuid"],["obra_id","uuid"],["trabajador_id","uuid"],["desde","date"],["hasta","date"],["rfc_origen","text"],["rfc_validado","text"],["curp","text"],["nss","text"],["nombre","text"],["evidencia","jsonb"],["created_at","timestamp with time zone"]],"select":"id,obra_id,trabajador_id,desde,hasta,rfc_origen,rfc_validado,curp,nss,nombre,evidencia,created_at"},
+  {"clave":"prestaciones_fuentes_historicas","tabla":"prestaciones_fuentes_historicas","grupo":null,"alcance":"obra","pk":["obra_id","sha256"],"permiso":null,"campos":[["obra_id","uuid"],["sha256","text"],["archivo","text"],["created_at","timestamp with time zone"]],"select":"obra_id,sha256,archivo,created_at"}
+ ];
+ const porClave=new Map(FUENTES.map(f=>[f.clave,f]));
+ const CADENA=/^(id|.*_id|rfc|curp|nss|cp|codigo_postal|cuenta|clabe|telefono|benef_telefono|num_tarjeta|num_cheque|consecutivo|numero_credito|folio.*|registro_patronal|registro_siroc|uuid.*|cfdi_uuid)$/i;
+ const SECRETO=/^(token|access_token|refresh_token|jwt|authorization|password|contrasena|api_key|apikey|secret|service_role|firma_solicitud|clave_idempotencia|hash|huella|sha256|texto_completo|texto_pdf|texto_extraido|raw_text|ocr_text|contenido_base64|base64|formula_version|formula|codigo_fuente|sql)$/i;
+ const OMITIR=/(_sha256|_huella|__origen)$/;
+ const etiquetas={
+  id:'Referencia del registro',trabajador_id:'Referencia del trabajador de origen',empleado_id:'Referencia del empleado de origen',obra_id:'Referencia del centro',empresa_codigo:'Razón social del registro',no_trab:'Número registrado en origen',numero:'Número registrado',nombre:'Nombre registrado',nombres:'Nombres',primer_apellido:'Primer apellido',segundo_apellido:'Segundo apellido',
+  dias_imss_estimados:'Días IMSS estimados',dias_certificados:'Días certificados',dias_pagados_empresa:'Días pagados por la empresa',telefono:'Teléfono',correo:'Correo electrónico',rfc:'RFC',curp:'CURP',nss:'NSS',cp:'Código postal',sdi:'SDI / SBC registrado',sd:'Salario diario',sal_semanal:'Salario registrado del periodo',sueldo_imss:'Sueldo IMSS del periodo (control interno)',sueldo_real:'Sueldo real del periodo (control interno)',periodo_pago:'Periodicidad de pago',fecha_alta:'Fecha de alta inicial',fecha_reingreso:'Fecha de reingreso vigente',fecha_baja:'Fecha de baja registrada',fecha_fin_contrato:'Fecha de término contractual',tipo_contrato:'Modalidad contractual',fecha_mov_imss:'Fecha del movimiento IMSS',movimiento_imss:'Presentación IMSS registrada',edo_nacimiento:'Estado de nacimiento',genero:'Sexo registrado',benef_parentesco:'Parentesco del beneficiario',benef_telefono:'Teléfono del beneficiario',benef_porcentaje:'Porcentaje del beneficiario',direccion:'Domicilio registrado',drive_link:'Referencia de carpeta',id_cuadrilla:'Referencia de cuadrilla',
+  created_at:'Fecha de registro',updated_at:'Fecha de actualización',creado_en:'Fecha de registro',creado_por:'Registrado por',actor_email:'Usuario responsable',usuario:'Usuario responsable',datos_antes:'Antes del cambio',datos_despues:'Después del cambio',num_cheque:'Número de cheque',consecutivo:'Consecutivo de cheque',reemplaza_cheque_id:'Referencia del cheque sustituido',retirado_en:'Fecha de retiro de aplicación',vigente:'Vigente',eliminado:'En papelera',anulado:'Documento anulado',anulado_en:'Fecha de anulación',archivo:'Referencia del archivo',ruta:'Referencia privada del archivo',docs:'Recepción de documentos',cfdi_total:'Total CFDI registrado',nomina_neto:'Neto del recibo',monto_valor:'Importe o valor capturado',id_incidencia:'Incidencia',percepcion_id:'Percepción extraordinaria',dias:'Días',
+  estado:'Estado del registro',estatus:'Estatus',clabe:'CLABE',imss:'Cuota IMSS',isr:'ISR',isr_precision:'ISR con precisión capturada',d001:'D001 aplicado',d001_propuesto:'D001 propuesto',exento_ag:'Aguinaldo exento',exento_pv:'Prima vacacional exenta',sd_raw:'Salario diario de cálculo',neto_con_credito:'Neto después de créditos',fecha_evento:'Fecha efectiva del evento',desde:'Desde',hasta:'Hasta',tipo:'Tipo',detalle:'Detalle',datos:'Datos registrados',
+  w:'Datos laborales conservados',items:'Conceptos individuales',filas_modelo:'Desglose individual',anterior_id:'Revisión anterior',cierre_id:'Referencia del cierre',cierre_origen:'Referencia del cierre original',version_id:'Referencia de versión',obligacion_id:'Referencia de obligación',evidencia_id:'Referencia de evidencia',pago_id:'Referencia del pago',documento_id:'Referencia del documento',cheque_id:'Referencia del cheque',caso_id:'Referencia del caso IMSS',proceso_id:'Referencia del proceso',tarea_id:'Referencia de tarea',
+  __empresa:'Razón social',__centro:'Centro actual del expediente',__centro_registro:'Centro del registro',__trabajador:'Referencia del trabajador',__numero:'Número de trabajador',__nombre:'Nombre completo',__contratista:'Contratista actual',__vinculo:'Vínculo del expediente',__origen:'Tipo de registro',__cuadrilla:'Cuadrilla actual',__registro:'Referencia del registro',__periodo:'Periodo registrado',__estado:'Estado de la nómina',__version:'Versión conservada'
  };
- /* Celda XLSX desde el valor lógico. Nunca produce fórmulas: toda cadena es t:'s' con formato @. */
- function celda(v,tipo){
-  if(v===null)return {t:'s',v:NULO,s:ESTILO.nulo};
-  if(v===''||v===undefined)return null;
-  if(typeof v==='object'&&v.largo)return {t:'s',v:MARCA+' TEXTO_LARGO ref='+v.largo+' partes='+v.partes+' longitud='+v.longitud,s:ESTILO.nulo};
-  if(typeof v==='boolean')return {t:'b',v};
-  if(typeof v==='number')return tipo==='IMPORTE'?{t:'n',v,s:ESTILO.dinero}:tipo==='ENTERO'?{t:'n',v,s:ESTILO.entero}:{t:'n',v};
-  let s=String(v);if(s.charCodeAt(0)===0x2205)s=MARCA+s; // escapa valores reales que empiezan con ∅
-  return {t:'s',v:s,s:ESTILO.txt};
+ const rotulos={sueldos_internos:'Sueldo interno vigente',diferenciales:'Previsión o diferencial del periodo',historial:'Cambio del expediente',control_cierres_nomina:'Fotografía de nómina',control_cierre_versiones:'Versión histórica de nómina',control_desglose_noi:'Desglose de NOI',control_conciliacion_noi:'Comparación individual NOI',pagos:'Pago registrado',cheques:'Cheque físico',control_evidencias_pago:'Evidencia de pago (referencia)',control_pago_aplicaciones:'Aplicación de pago a obligación',control_obligaciones_pago:'Obligación de pago',documentos:'Documento archivado',prestaciones_papeles:'Papel de prestaciones',prestaciones_archivos_historicos:'Papel histórico importado',control_casos_imss:'Incapacidad o caso IMSS',control_casos_imss_semanas:'Calendario de incapacidad por periodo',control_jornada_eventos:'Jornada extraordinaria',archivo_recibo_periodo:'Recibo vinculado al periodo',lecturas_fiscales_documentos:'Importes fiscales leídos',cfdi_pdf_verificados:'PDF fiscal verificado',recibos_ia:'Lectura documental revisada',control_aguinaldo_lineas:'Aguinaldo individual',descuentos:'Crédito o descuento',prestamos_empleados:'Préstamo del trabajador',control_reversiones_baja:'Reversión de baja',infonavit_avisos_aplicaciones:'Aviso INFONAVIT aplicado'};
+ const txt=v=>v==null?'':String(v);
+ const label=k=>etiquetas[k]||txt(k).replace(/^control_|^rrhh_/,'').replace(/_/g,' ').replace(/\b(imss|isr|rfc|curp|nss|noi|cfdi|st7|sbc)\b/gi,s=>s.toUpperCase()).replace(/^./,s=>s.toUpperCase());
+ const origen=f=>rotulos[f.clave]||label(f.clave);
+ // Sólo los aliases ::text de columnas NUMERIC se convierten cuando Excel conserva todos sus dígitos.
+ const numeroExacto=(origen,valor)=>{if(origen==null)return valor;const s=String(origen);return /^[-+]?\d+(\.\d+)?$/.test(s)&&s.replace(/[-+.]/g,'').replace(/^0+/,'').length<=15?Number(s):s;};
+ const nombre=w=>[w.primer_apellido,w.segundo_apellido,w.nombres].filter(v=>v!=null&&v!=='').join(' ');
+ const dormir=ms=>new Promise(r=>setTimeout(r,ms));
+ const limpio=k=>!SECRETO.test(k)&&!OMITIR.test(k);
+ const iguales=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+ function seguro(v){
+  if(typeof v!=='string')return v;
+  // Ni enlaces temporales, ni credenciales embebidas en notas o campos anidados.
+  return v.replace(/https?:\/\/[^\s<>"']+/gi,u=>{
+   try{const x=new URL(u);if(x.username||x.password||/\/object\/(sign|authenticated)\//i.test(x.pathname)||/[?&](token|signature|sig|x-amz-[^=&]+|x-goog-[^=&]+|key|credential|se)=/i.test(x.search))return '[Referencia temporal privada omitida]';return u;}catch(e){return '[Referencia no válida]';}
+  }).replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,'[Credencial omitida]');
  }
- function sanearUrl(s,cont){
-  if(typeof s!=='string'||!/^https?:\/\//i.test(s)||!URL_FIRMA.test(s))return s;
-  cont.urls++;return s.split('?')[0]+' [firma temporal omitida]';
+ function hojasNombre(base,usados){
+  let n=txt(base).replace(/[\\/?*\[\]:]/g,' ').replace(/^'+|'+$/g,'').trim()||'Información';if(/^history$/i.test(n))n='Historial';
+  let s=n.slice(0,31),i=1;while(usados.has(s.toLowerCase())){const suf=' ('+(++i)+')';s=n.slice(0,31-suf.length)+suf;}usados.add(s.toLowerCase());return s;
  }
-
- /* ---------- movimientos laborales: un evento por movimiento documentado ---------- */
- function movimientosLaborales(trabajadores,historial,nombreCentro,reversiones=[]){
-  const revertidas=new Map((reversiones||[]).filter(r=>texto(r.estado).toUpperCase()==='APLICADA'&&r.historial_id!=null).map(r=>[String(r.historial_id),r]));
-  const f10=v=>v?String(v).slice(0,10):null,eventos=[],porId=new Map(trabajadores.map(w=>[w.id,w]));
-  for(const h of historial){
-   if(!h||!h.trabajador_id)continue;
-   const a=h.datos_antes&&typeof h.datos_antes==='object'?h.datos_antes:{},d=h.datos_despues&&typeof h.datos_despues==='object'?h.datos_despues:{};
-   let n=0;
-   const add=(tipo,fecha,anterior)=>eventos.push({evento_id:'H'+h.id+'-'+(++n),trabajador_id:h.trabajador_id,obra_id:h.obra_id??d.obra_id??null,tipo_evento:tipo,
-    fecha_efectiva:f10(fecha),fecha_anterior:f10(anterior),estatus_antes:a.estatus??null,estatus_despues:d.estatus??null,obra_antes:a.obra_id??null,obra_despues:d.obra_id??null,
-    fecha_registro:h.fecha??null,usuario:h.usuario??null,fuente:'HISTORIAL',historial_id:String(h.id),accion_origen:h.accion,nombre_historial:h.trabajador_nombre??null});
-   const cambio=k=>f10(a[k])!==f10(d[k]);
-   switch(h.accion){
-    case 'ALTA':add('ALTA',d.fecha_alta,null);break;
-    case 'BAJA':add('BAJA',d.fecha_baja,a.fecha_baja);break;
-    case 'REACTIVACION':add('REINGRESO',d.fecha_reingreso||d.fecha_alta,a.fecha_reingreso);break;
-    case 'CORRECCION_REINGRESO':add('CORRECCION_REINGRESO',d.fecha_reingreso,a.fecha_reingreso);break;
-    case 'ELIMINACION':add('ELIMINACION',null,null);break;
-    case 'MODIFICACION':
-     if((a.estatus??null)!==(d.estatus??null)&&'estatus' in d){
-      if(d.estatus==='BAJA')add('BAJA',d.fecha_baja,a.fecha_baja);
-      else if(a.estatus==='BAJA'&&d.estatus==='ACTIVO')add('REINGRESO',d.fecha_reingreso||d.fecha_alta,a.fecha_reingreso);
-      else add('CAMBIO_ESTATUS',null,null);
-     }else{
-      if('fecha_alta' in d&&cambio('fecha_alta'))add('CORRECCION_FECHA_ALTA',d.fecha_alta,a.fecha_alta);
-      if('fecha_baja' in d&&cambio('fecha_baja'))add('CORRECCION_FECHA_BAJA',d.fecha_baja,a.fecha_baja);
-      if('fecha_reingreso' in d&&cambio('fecha_reingreso'))add('CORRECCION_REINGRESO',d.fecha_reingreso,a.fecha_reingreso);
-     }
-     if(a.obra_id&&d.obra_id&&a.obra_id!==d.obra_id)add('TRASLADO',f10(h.fecha),null);
-     break;
-   }
-  }
-  // Estado vigente del padrón: sólo agrega fechas que el historial no documenta.
-  const documentadas=new Set(eventos.map(e=>e.trabajador_id+'|'+e.tipo_evento.replace(/^CORRECCION_FECHA_|^CORRECCION_/,'')+'|'+e.fecha_efectiva));
-  const sinEvidencia={reingresos:0,altas:0,bajas:0};
-  for(const w of trabajadores){
-   for(const [tipo,campo,k] of [['ALTA','fecha_alta','altas'],['BAJA','fecha_baja','bajas'],['REINGRESO','fecha_reingreso','reingresos']]){
-    const f=f10(w[campo]);if(!f||(tipo==='BAJA'&&w.estatus!=='BAJA'&&!w.fecha_baja))continue;
-    const clave=tipo==='REINGRESO'?['REINGRESO','REINGRESO'].map(t=>w.id+'|'+t+'|'+f):[w.id+'|'+tipo+'|'+f,w.id+'|'+(tipo==='ALTA'?'ALTA':'BAJA')+'|'+f];
-    if(clave.some(x=>documentadas.has(x)))continue;
-    sinEvidencia[k]++;
-    eventos.push({evento_id:'P-'+w.id+'-'+tipo,trabajador_id:w.id,obra_id:w.obra_id,tipo_evento:tipo,fecha_efectiva:f,fecha_anterior:null,estatus_antes:null,estatus_despues:w.estatus??null,
-     obra_antes:null,obra_despues:null,fecha_registro:null,usuario:null,fuente:'PADRON_VIGENTE',historial_id:null,accion_origen:null,nombre_historial:null});
-   }
-  }
-  const grupos=new Map();
-  for(const e of eventos){if(!grupos.has(e.trabajador_id))grupos.set(e.trabajador_id,[]);grupos.get(e.trabajador_id).push(e);}
-  const salida=[];let ciclosSinAlta=0;
-  const orden=t=>({ALTA:0,REINGRESO:1,CORRECCION_FECHA_ALTA:2,CORRECCION_REINGRESO:2,TRASLADO:3,CAMBIO_ESTATUS:4,BAJA:5,CORRECCION_FECHA_BAJA:6,ELIMINACION:7}[t]??8);
-  for(const [id,lista] of grupos){
-   lista.sort((x,y)=>texto(x.fecha_efectiva||texto(x.fecha_registro).slice(0,10)).localeCompare(texto(y.fecha_efectiva||texto(y.fecha_registro).slice(0,10)))
-    ||orden(x.tipo_evento)-orden(y.tipo_evento)||texto(x.fecha_registro).localeCompare(texto(y.fecha_registro))||Number(x.historial_id||0)-Number(y.historial_id||0));
-   let ciclo=0,conAlta=false;const w=porId.get(id);
-   for(const e of lista){
-    if(e.tipo_evento==='ALTA'){if(!ciclo)ciclo=1;conAlta=true;}
-    else if(e.tipo_evento==='REINGRESO')ciclo=(ciclo||1)+1;
-    else if(!ciclo)ciclo=1;
-    const parcial=ciclo===1&&!conAlta;
-    salida.push({...e,ciclo,no_trab:w?w.no_trab??null:null,nombre:w?[w.primer_apellido,w.segundo_apellido,w.nombres].filter(Boolean).join(' '):e.nombre_historial,
-     centro:nombreCentro(e.obra_id),evidencia:e.fuente==='HISTORIAL'?(parcial?'HISTORIAL_SIN_ALTA_PREVIA':'HISTORIAL'):'SOLO_PADRON_VIGENTE',
-     revertida:e.historial_id&&revertidas.has(e.historial_id)?'SI':null,reversion_id:e.historial_id&&revertidas.has(e.historial_id)?revertidas.get(e.historial_id).id:null,
-     observacion:e.historial_id&&revertidas.has(e.historial_id)?'Baja revertida (REVERSIONES_BAJA); el evento se conserva tal como quedó en el historial.':e.fuente==='PADRON_VIGENTE'?'Fecha vigente del padrón sin evento en historial; no sustituye ciclos anteriores.':(parcial?'Ciclo antiguo sin alta documentada: se conserva lo disponible.':null)});
-   }
-   if(lista.length&&!conAlta)ciclosSinAlta++;
-  }
-  salida.sort((x,y)=>(Number(x.no_trab)||9e9)-(Number(y.no_trab)||9e9)||texto(x.trabajador_id).localeCompare(texto(y.trabajador_id))||x.ciclo-y.ciclo);
-  return {eventos:salida,limitaciones:{sin_evidencia:sinEvidencia,ciclos_sin_alta:ciclosSinAlta}};
- }
- const COLS_MOV=['evento_id','trabajador_id','obra_id','centro','no_trab','nombre','ciclo','tipo_evento','fecha_efectiva','fecha_anterior','estatus_antes','estatus_despues','obra_antes','obra_despues','fecha_registro','usuario','fuente','historial_id','accion_origen','evidencia','revertida','reversion_id','observacion'];
- const TIPOS_MOV={evento_id:'TEXTO',trabajador_id:'ID',obra_id:'ID',obra_antes:'ID',obra_despues:'ID',historial_id:'ID',reversion_id:'ID',no_trab:'ENTERO',ciclo:'ENTERO',fecha_efectiva:'FECHA',fecha_anterior:'FECHA',fecha_registro:'FECHA_HORA'};
-
- /* ---------- ambiente (inyectable para pruebas) ---------- */
+ async function hash(v){const b=await root.crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(v)));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}
+ async function paralelo(arr,n,fn){let i=0,error=null;await Promise.all(Array.from({length:Math.min(n,arr.length)},async()=>{while(!error&&i<arr.length){const k=i++;try{await fn(arr[k],k);}catch(e){error??=e;}}}));if(error)throw error;}
  function ambiente(op){
-  const v=(x,n)=>x!==undefined?x:root[n];
-  return {
-   sb:op.sb||v(typeof sb!=='undefined'?sb:undefined,'sb'),
-   XLSX:op.XLSX||v(typeof XLSX!=='undefined'?XLSX:undefined,'XLSX'),
-   JSZip:op.JSZip!==undefined?op.JSZip:v(typeof JSZip!=='undefined'?JSZip:undefined,'JSZip'),
-   obras:op.obrasCatalogo||v(typeof OBRAS!=='undefined'?OBRAS:undefined,'OBRAS')||[],
-   empresaActiva:op.empresa||v(typeof EMPRESA_ACTIVA!=='undefined'?EMPRESA_ACTIVA:undefined,'EMPRESA_ACTIVA')||'PLATINUM',
-   empresas:v(typeof EMPRESAS!=='undefined'?EMPRESAS:undefined,'EMPRESAS')||{},
-   usuario:v(typeof USER!=='undefined'?USER:undefined,'USER')||null,
-   version:op.versionApp||v(typeof APP_VERSION!=='undefined'?APP_VERSION:undefined,'APP_VERSION')||'',
-   docs:v(typeof DOCS!=='undefined'?DOCS:undefined,'DOCS')||[],
-   esVip:typeof esVip==='function'?esVip:()=>false,esAdmin:typeof esAdmin==='function'?esAdmin:()=>false,
-   empresaDeObra:typeof empresaDeObra==='function'?empresaDeObra:(o=>texto(o&&o.empresa_codigo).toUpperCase()||'PLATINUM'),
-   marca:op.marca===false?null:(op.marca||(typeof aplicarMarcaCorporativaXlsx==='function'?aplicarMarcaCorporativaXlsx:null)),
-   registrar:op.registrar===false?null:(op.registrar||(typeof registrarExportacion==='function'?registrarExportacion:null)),
-   descargar:op.descargar||descargarNavegador,
-   espera:op.espera??300,intentos:op.intentos??3,paralelo:op.paralelo??4,paginasParalelas:op.paginasParalelas??3,
-   ciclos:op.ciclosConsistencia??3,limiteFilas:op.limiteFilas||LIM_FILAS_EXCEL,presupuesto:op.presupuesto||PRESUPUESTO_CARACTERES,
-   reloj:op.reloj||(()=>new Date()),progreso:op.progreso||(()=>{})
-  };
+  return {sb:op.sb||(typeof sb!=='undefined'?sb:root.sb),XLSX:op.XLSX||(typeof XLSX!=='undefined'?XLSX:root.XLSX),JSZip:op.JSZip||(typeof JSZip!=='undefined'?JSZip:root.JSZip),
+   progreso:op.progreso||(()=>{}),descargar:op.descargar||descargar,limiteFilas:Math.min(1048576,op.limiteFilas||1048576),intentos:op.intentos??3,espera:op.espera??200,
+   edad:op.edad||(typeof edad==='function'?edad:root.edad),sesion:op.sesion||(()=>typeof USER!=='undefined'?USER?.id:root.USER?.id),reloj:op.reloj||(()=>new Date())};
  }
- function descargarNavegador(bytes,nombre){
-  const blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(a.href),8000);
- }
- const errTexto=e=>texto(e&&(e.message||e.details||e.hint||e.code)||e)||'Error desconocido';
- const esFaltaRpc=e=>/PGRST202|42883/.test(texto(e&&e.code))||/control_respaldo/.test(errTexto(e))&&/not find|does not exist|no existe|could not find/i.test(errTexto(e));
- async function conReintento(fn,am,nota){
-  let ultimo=null;
-  for(let k=1;k<=am.intentos;k++){
-   try{return await fn(k);}catch(e){ultimo=e;nota&&nota(k,e);if(e&&e.noReintentar)break;if(k<am.intentos)await dormir(am.espera*k);}
-  }
-  throw ultimo;
- }
-
- /* ---------- marcas del servidor ---------- */
- async function marcas(am,ctx,claves,columnas){
-  const pedir=async lista=>{
-   const {data,error}=await am.sb.rpc(RPC,{p_accion:'MARCAS',p_datos:{empresa:ctx.empresa,obras:ctx.obrasPedidas,fuentes:lista,columnas:!!columnas}});
-   if(error)throw error;if(!data||typeof data!=='object'||!data.marcas)throw Error('Respuesta de marcas inválida');return data;
-  };
-  const esTiempo=e=>/57014|timeout|tiempo|canceling statement/i.test(texto(e&&e.code)+' '+errTexto(e));
-  // Producción (2026-11-13): 15 fuentes ≈ 4.7 s frente al límite de 8 s; con más de 8 fuentes se piden por grupos desde el inicio.
-  try{if(claves.length>8)throw Object.assign(Error('canceling statement: marcas por grupos'),{code:'57014'});return await conReintento(()=>pedir(claves),{...am,intentos:2});}
-  catch(e){
-   if(esFaltaRpc(e)||!esTiempo(e))throw e;
-   // Tiempo agotado (statement_timeout): por grupos y, si un grupo sigue excediendo, tabla por tabla.
-   // Una tabla que aun sola excede queda SIN marca (el respaldo se declara INCOMPLETO), no aborta.
-   const grupos=[];for(let i=0;i<claves.length;i+=8)grupos.push(claves.slice(i,i+8));
-   const partes=[],sinMarca=[];
-   await enParalelo(grupos,2,async g=>{
-    try{partes.push(await conReintento(()=>pedir(g),{...am,intentos:2}));}
-    catch(e2){
-     if(!esTiempo(e2))throw e2;
-     for(const k of g){try{partes.push(await conReintento(()=>pedir([k]),{...am,intentos:2}));}catch(e3){if(!esTiempo(e3))throw e3;sinMarca.push(k);}}
-    }
-   });
-   if(!partes.length)throw e;
-   const r={...partes[0],marcas:{},columnas:{},por_grupos:true,sin_marca:sinMarca};
-   for(const p of partes){Object.assign(r.marcas,p.marcas);Object.assign(r.columnas,p.columnas||{});}
-   for(const k of sinMarca)r.marcas[k]={error:'TIEMPO_AGOTADO'};
-   return r;
-  }
- }
- const ALCANCE_MARCA={COMPLETA:'Huella de cada fila completa: detecta cualquier alta, baja o edición durante la exportación.',
-  LIGERA:'Bitácora de sólo inserción: conteo, llave y fechas máximas y huella de llaves; detecta altas y bajas.'};
- const firma=m=>m?[m.filas,m.max_actualizado,m.max_creado,m.huella].join('|'):'';
-
- /* ---------- lectura ---------- */
- function selectDe(f){
-  const base=f.select||'*',extra=(f.precision||[]).map(c=>c+'__origen:'+c+'::text');
-  return f.select?base:[base,...extra].join(',');
- }
- function construir(am,ctx,f,ids){
-  let q=am.sb.from(f.tabla).select(selectDe(f));
-  if(f.alcance==='centros')q=q.in('id',ctx.obras);
-  else if(f.alcance==='obra')q=q.in('obra_id',ctx.obras);
-  else if(f.alcance==='obra_o_global')q=ctx.permisos.vip?q.or('obra_id.in.('+ctx.obras.join(',')+'),obra_id.is.null'):q.in('obra_id',ctx.obras);
-  else if(f.alcance==='empresa')q=q.eq('empresa_codigo',ctx.empresa);
-  else if(f.alcance==='padre')q=q.in(f.padre.destino,ids);
-  else if(f.alcance==='config')q=q.in('clave',Object.keys(CONFIG_PERMITIDA(ctx.empresa)));
-  if(f.filtro)q=f.filtro(q,ctx);
-  return q;
- }
- async function paginar(am,hacer,orden,est){
-  const filas=[];let desde=0,fin=false;
-  while(!fin){
-   const offs=Array.from({length:am.paginasParalelas},(_,k)=>desde+k*PAGINA);
-   const lotes=await Promise.all(offs.map(o=>conReintento(async()=>{
-    let q=hacer();for(const c of orden)q=q.order(c,{ascending:true});
-    const {data,error}=await q.range(o,o+PAGINA-1);
-    if(error){if(error.code==='PGRST103')return [];throw error;}
-    if(!Array.isArray(data))throw Error('Respuesta sin filas');
-    est.paginas++;return data;
-   },am,(k,e)=>{est.reintentos++;est.ultimoError=errTexto(e);})));
-   for(const l of lotes){if(fin)break;for(const x of l)filas.push(x);if(l.length<PAGINA)fin=true;}
-   desde+=am.paginasParalelas*PAGINA;
-  }
-  return filas;
- }
- async function leerInterna(am,ctx,f,est){
-  const filas=[];let despues=null;
+ async function intentar(am,fn){let e;for(let n=0;n<am.intentos;n++){try{return await fn();}catch(x){e=x;if(/42501|PGRST301/.test(txt(x.code)))break;if(n+1<am.intentos)await dormir(am.espera*(n+1));}}throw e;}
+ async function pagina(am,hacer,orden=['id'],esperadas=null){
+  const out=[],ids=new Set();let off=0;
   for(;;){
-   const r=await conReintento(async()=>{
-    const {data,error}=await am.sb.rpc(RPC,{p_accion:'LEER',p_datos:{empresa:ctx.empresa,obras:ctx.obrasPedidas,fuente:f.clave,despues,limite:PAGINA}});
-    if(error)throw error;if(!data||!Array.isArray(data.filas))throw Error('Respuesta sin filas');est.paginas++;return data;
-   },am,(k,e)=>{est.reintentos++;est.ultimoError=errTexto(e);});
-   for(const x of r.filas)filas.push(x);
-   if(!r.siguiente)break;despues=r.siguiente;
+   const data=await intentar(am,async()=>{let q=hacer();for(const k of orden)q=q.order(k,{ascending:true});const r=await q.range(off,off+PAGINA-1);if(r.error)throw r.error;if(!Array.isArray(r.data))throw Error('La fuente no devolvió una lista.');return r.data;});
+   if(!data.length)break;
+   for(const r of data){const k=orden.map(c=>txt(r[c])).join('|');if(ids.has(k))throw Error('Registros repetidos al paginar; reintenta el respaldo.');ids.add(k);out.push(r);}
+   off+=data.length; // Respeta incluso un límite de servidor menor a 1,000.
+   if(esperadas!=null&&off>=esperadas)break;
   }
-  return filas;
+  if(esperadas!=null&&out.length!==esperadas)throw Error('Conteo incompleto: se recibieron '+out.length+' de '+esperadas+' registros.');return out;
  }
- const llave=(f,x)=>f.pk.map(c=>texto(x[c])).join('|');
- async function leerFuente(am,ctx,f,datos){
-  const est={clave:f.clave,paginas:0,reintentos:0,ultimoError:null,inicio:Date.now()};
-  let filas;
-  if(f.alcance==='interna')filas=await leerInterna(am,ctx,f,est);
-  else if(f.alcance==='padre'){
-   const padre=datos.get(f.padre.fuente);
-   if(!padre||padre.error)throw Object.assign(Error('La fuente '+f.padre.fuente+' no se leyó completa.'),{noReintentar:true});
-   const ids=[...new Set(padre.filas.map(x=>x[f.padre.campo]).filter(v=>v!=null))];filas=[];
-   for(let i=0;i<ids.length;i+=150){const lote=ids.slice(i,i+150);for(const x of await paginar(am,()=>construir(am,ctx,f,lote),f.orden,est))filas.push(x);}
-  }else filas=await paginar(am,()=>construir(am,ctx,f),f.orden,est);
+ async function marcas(am,empresa,fuentes){
+  const grupos=[];for(let i=0;i<fuentes.length;i+=6)grupos.push(fuentes.slice(i,i+6));
+  const r={marcas:{},obras:[],permisos:null};
+  for(const g of grupos){
+   const leer=async lista=>intentar(am,async()=>{const x=await am.sb.rpc('control_respaldo',{p_accion:'MARCAS',p_datos:{empresa,obras:[],fuentes:lista,columnas:false}});if(x.error)throw x.error;if(!x.data?.marcas||!Array.isArray(x.data.obras))throw Error('No se verificó el alcance del respaldo.');return x.data;});
+   let partes;try{partes=[await leer(g)];}catch(e){if(!/57014|timeout|canceling statement/i.test(txt(e.code)+' '+e.message)||g.length===1)throw e;partes=[];for(const k of g)partes.push(await leer([k]));}
+   for(const p of partes){
+    if(r.permisos&&(!iguales(r.permisos,p.permisos)||!iguales([...r.obras].sort(),[...p.obras].sort())))throw Error('El alcance cambió durante la lectura. Reintenta.');
+    r.permisos=p.permisos;r.obras=p.obras;Object.assign(r.marcas,p.marcas);
+   }
+  }return r;
+ }
+ async function leerFuente(am,ctx,f,datos,esperadas){
+  if(f.alcance==='interna'){
+   const out=[],ids=new Set();let despues=null;
+   for(;;){const x=await intentar(am,async()=>{const r=await am.sb.rpc('control_respaldo',{p_accion:'LEER',p_datos:{empresa:ctx.empresa,obras:[],fuente:f.clave,limite:PAGINA,despues}});if(r.error)throw r.error;if(!Array.isArray(r.data?.filas))throw Error('Respuesta de expediente inválida.');return r.data;});
+    for(const row of x.filas){const id=f.pk.map(k=>txt(row[k])).join('|');if(ids.has(id))throw Error('Página interna repetida.');ids.add(id);out.push(row);}if(!x.siguiente)break;if(x.siguiente===despues)throw Error('No avanzó la lectura.');despues=x.siguiente;
+   }if(out.length!==esperadas)throw Error('Conteo de fuente interna incompleto.');return out;
+  }
+  const make=ids=>{
+   // Los snapshots internos conservan previsión; sin VIP se usa NOI individual,
+   // sin solicitar las ramas de la fotografía que contienen información restringida.
+   const select=!ctx.permisos.vip&&['control_cierres_nomina','control_cierre_versiones'].includes(f.clave)?f.select.split(',').filter(s=>!s.startsWith('items:')&&!s.startsWith('filas_modelo:')).join(','):f.select;
+   let q=am.sb.from(f.tabla).select(select);
+   if(f.alcance==='centros')q=q.in('id',ctx.obras);
+   else if(f.alcance==='obra')q=q.in('obra_id',ctx.obras);
+   else if(f.alcance==='padre')q=q.in(f.padre.destino,ids);
+   if(f.clave==='trabajadores'||f.clave==='cheques'){if(!ctx.permisos.admin)q=q.eq('eliminado',false);}
+   if(f.clave==='control_obligaciones_pago'&&!ctx.permisos.vip)q=q.neq('tipo','PREVISION_SOCIAL');
+   return q;
+  };
+  if(f.alcance==='padre'){
+   const p=datos.get(f.padre.fuente);if(!p)throw Error('No se leyó el expediente padre.');const ids=[...new Set(p.map(x=>x[f.padre.campo]).filter(Boolean))],out=[];
+   for(let i=0;i<ids.length;i+=150)out.push(...await pagina(am,()=>make(ids.slice(i,i+150)),f.pk));if(out.length!==esperadas)throw Error('Conteo de calendario incompleto.');return out;
+  }
+  let rows=await pagina(am,()=>make(),f.pk,f.clave==='control_pago_aplicaciones'&&!ctx.permisos.vip?null:esperadas);
   if(f.clave==='control_pago_aplicaciones'&&!ctx.permisos.vip){
-   // Previsión social sólo VIP: se descartan aplicaciones de esas obligaciones.
-   const prev=await paginar(am,()=>am.sb.from('control_obligaciones_pago').select('id').in('obra_id',ctx.obras).eq('tipo','PREVISION_SOCIAL'),['id'],est);
-   const s=new Set(prev.map(x=>x.id));filas=filas.filter(x=>!s.has(x.obligacion_id));
-  }
-  const vistas=new Set();for(const x of filas){const k=llave(f,x);if(vistas.has(k))throw Error('Fila repetida durante la paginación ('+k+'); se vuelve a leer.');vistas.add(k);}
-  est.ms=Date.now()-est.inicio;
-  return {filas,est,leidaEn:ctx.marcaActual};
+   const permitidas=new Set((datos.get('control_obligaciones_pago')||[]).map(x=>x.id));rows=rows.filter(x=>permitidas.has(x.obligacion_id));
+   // El conteo autorizado de aplicaciones ya excluye previsión en el servidor.
+   if(rows.length!==esperadas)throw Error('El alcance de las aplicaciones de pago no coincide.');
+  }return rows;
  }
-
- /* ---------- exportación ---------- */
+ async function recolectar(am){
+  const fuenteObras=porClave.get('obras');
+  const centros=await pagina(am,()=>am.sb.from('obras').select(fuenteObras.select));
+  const empresas=[...new Set(centros.map(o=>o.empresa_codigo).filter(Boolean))].sort();if(!empresas.length)throw Error('No hay centros accesibles para respaldar.');
+  const conjuntos=[],omisiones=[];
+  for(const empresa of empresas){
+   const candidatas=FUENTES.filter(f=>!f.sinMarcaRpc),claves=candidatas.map(f=>f.clave);
+   let terminado=null;
+   for(let intento=1;intento<=3;intento++){
+    am.progreso({texto:'Verificando alcance y fuentes de '+empresa+'…'});
+    const a=await marcas(am,empresa,claves),ctx={empresa,obras:a.obras,permisos:a.permisos};
+    if(!a.permisos?.registrado||!ctx.obras.length)throw Error('No se verificó el permiso de respaldo.');
+    const activas=FUENTES.filter(f=>f.sinMarcaRpc||!a.marcas[f.clave]?.omitida);
+    for(const f of candidatas)if(!a.marcas[f.clave])throw Error('La fuente '+origen(f)+' no tiene verificación de integridad.');
+    const datos=new Map();
+    // Las dependencias se leen después de sus padres, sin consultas por trabajador.
+    for(const fase of [activas.filter(f=>f.alcance!=='padre'&&f.clave!=='control_pago_aplicaciones'),activas.filter(f=>f.alcance==='padre'||f.clave==='control_pago_aplicaciones')]){
+     await paralelo(fase,3,async f=>{am.progreso({texto:empresa+': leyendo '+origen(f)+'…'});datos.set(f.clave,await leerFuente(am,ctx,f,datos,f.sinMarcaRpc?null:Number(a.marcas[f.clave].filas)));});
+    }
+    const b=await marcas(am,empresa,claves);
+    let cambia=!iguales(a.permisos,b.permisos)||!iguales([...a.obras].sort(),[...b.obras].sort());
+    for(const f of candidatas)if(!iguales(a.marcas[f.clave],b.marcas[f.clave]))cambia=true;
+    for(const f of activas.filter(f=>f.sinMarcaRpc))if(await hash(datos.get(f.clave))!==await hash(await leerFuente(am,ctx,f,datos,null)))cambia=true;
+    if(cambia){if(intento===3)throw Error('Hubo cambios concurrentes durante el respaldo; no se descargó un archivo incompleto. Inténtalo de nuevo.');continue;}
+    for(const f of candidatas)if(a.marcas[f.clave].omitida)omisiones.push({empresa,fuente:origen(f),motivo:'No disponible con los permisos de esta sesión'});
+    if(!ctx.permisos.vip)omisiones.push({empresa,fuente:'Fotografías internas de nómina',motivo:'Sin acceso VIP. Se conserva el desglose individual de NOI accesible.'});
+    terminado={...ctx,datos,marcas:b.marcas};break;
+   }conjuntos.push(terminado);
+  }
+  const despues=await pagina(am,()=>am.sb.from('obras').select(fuenteObras.select));
+  if(!iguales(centros,despues))throw Error('Cambió el catálogo de centros. Vuelve a generar el respaldo.');
+  // Cierra también la ventana entre empresas: una lectura posterior no deja
+  // sin comprobar cambios en la primera empresa ya recorrida.
+  for(const c of conjuntos){const fin=await marcas(am,c.empresa,FUENTES.filter(f=>!f.sinMarcaRpc).map(f=>f.clave));if(!iguales(fin.marcas,c.marcas)||!iguales(fin.permisos,c.permisos)||!iguales([...fin.obras].sort(),[...c.obras].sort()))throw Error('Hubo cambios mientras se leía otra razón social. Reintenta el respaldo.');for(const f of FUENTES.filter(f=>f.sinMarcaRpc))if(await hash(c.datos.get(f.clave))!==await hash(await leerFuente(am,c,f,c.datos,null)))throw Error('Cambió el calendario durante el respaldo. Reintenta.');}
+  return {conjuntos,centros,omisiones};
+ }
+ const PERSONALES=new Set(['primer_apellido','segundo_apellido','nombres','rfc','curp','nss','estado_civil','escolaridad','beneficiario','benef_parentesco','benef_telefono','benef_porcentaje','nacionalidad','fecha_nacimiento','edo_nacimiento','telefono','correo','genero','edad','contacto_emergencia','telefono_emergencia']);
+ const DOMICILIO=/^(direccion|domicilio|cp|codigo_postal|calle|numero_exterior|numero_interior|num_ext|num_int|colonia|localidad|municipio|estado_domicilio|referencias_domicilio)$/;
+ const BANCARIO=/^(cuenta|clabe|banco|num_tarjeta|titular|titular_cuenta|forma_pago)$/;
+ const SALARIO=/^(sd|sdi|sbc|sal_semanal|salario.*|sueldo.*|prima_rt)$/;
+ const BASE=['__trabajador','__numero','__nombre','__empresa','__centro','__centro_registro','__contratista'];
+ function grupoTrabajador(k){if(PERSONALES.has(k))return 'Datos personales y contacto';if(DOMICILIO.test(k))return 'Domicilios';if(BANCARIO.test(k))return 'Datos bancarios';if(SALARIO.test(k))return 'Salarios e historial';if(k==='docs'||k==='drive_link')return 'Documentos del expediente';return 'Datos laborales y contratos';}
+ // Sólo relaciones registradas. No se equiparan personas por nombre.
+ function trabajadorDe(r,indices){
+  const id=r.trabajador_id||r.empleado_id||r.w?.id||r.trabajador?.id;
+  if(id)return txt(id);
+  for(const [campo,fuente] of [['documento_id','documentos'],['caso_id','control_casos_imss'],['proceso_id','rrhh_procesos'],['obligacion_id','control_obligaciones_pago'],['evidencia_id','control_evidencias_pago'],['pago_id','pagos'],['cheque_id','cheques']]){
+   if(r[campo]){const padre=indices.get(fuente)?.get(txt(r[campo]));if(padre){const p=padre.trabajador_id||padre.empleado_id;if(p)return txt(p);}}
+  }return null;
+ }
+ function aplanar(v,ruta,fn){
+  if(v&&typeof v==='object'){
+   const entries=Object.entries(v).filter(([k])=>limpio(k));
+   if(!entries.length){fn(ruta,Array.isArray(v)?'Sin elementos':'Sin campos registrados');return;}
+   for(const [k,x] of entries)aplanar(x,ruta.concat(k),fn);
+  }else fn(ruta,seguro(v));
+ }
+ function preparar(corte,am){
+  const centros=new Map(corte.centros.map(o=>[o.id,o])),datos=new Map(),contextos=new Map(),indices=new Map(),sinVinculo=[];
+  for(const c of corte.conjuntos)for(const [k,rows] of c.datos){
+   if(!datos.has(k))datos.set(k,[]);for(const r of rows)datos.get(k).push({...r,__empresaFuente:c.empresa});
+  }
+  // IDs de catálogo globales se pueden repetir entre empresas; no deduplicar por nombre.
+  for(const [k,rows] of datos){const f=porClave.get(k),seen=new Map();for(const r of rows){const id=f.pk.map(c=>txt(r[c])).join('|');const prev=seen.get(id);if(prev){const a={...prev},b={...r};delete a.__empresaFuente;delete b.__empresaFuente;if(!iguales(a,b))throw Error('Un registro cambió entre razones sociales: '+origen(f));}else seen.set(id,r);}datos.set(k,[...seen.values()]);indices.set(k,new Map([...seen.values()].map(r=>[txt(r.id||r.documento_id||r.trabajador_id),r])));}
+  const archivosHistoricos=new Map((datos.get('prestaciones_fuentes_historicas')||[]).map(r=>[r.obra_id+'|'+r.sha256,r]));
+  const trabajadores=datos.get('trabajadores')||[];
+  for(const w of trabajadores){const o=centros.get(w.obra_id);if(!o)throw Error('Un trabajador no tiene centro verificado.');contextos.set(w.id,{__trabajador:w.id,__numero:w.no_trab??null,__nombre:nombre(w),__empresa:o.empresa_codigo,__centro:o.nombre,__contratista:w.contratista??null});}
+  const hojas=new Map(),matriz=[],largos=[];
+  const añadir=(grupo,row)=>{if(!hojas.has(grupo))hojas.set(grupo,[]);hojas.get(grupo).push(row);};
+  const mapear=(fuente,campo,hoja,columna)=>matriz.push({dato:label(campo),fuente:fuente+'.'+campo,hoja,columna});
+  const contexto=(r,f,id=trabajadorDe(r,indices))=>{
+   const w=contextos.get(id),padre=f.padre?indices.get(f.padre.fuente)?.get(txt(r[f.padre.destino])):null,o=centros.get(r.obra_id||padre?.obra_id);
+   if(!w&&f.grupo)sinVinculo.push({fuente:origen(f),referencia:r.id||r.documento_id||null,trabajador:id});
+   return {...(w||{__trabajador:id,__numero:r.no_trab??r.numero??r.trabajador_numero??null,__nombre:r.trabajador_nombre??r.nombre??null,__empresa:o?.empresa_codigo||r.__empresaFuente,__centro:null,__contratista:null}),__centro_registro:o?.nombre??null,...(!w?{__vinculo:'Sin vínculo verificable al padrón'}:{})};
+  };
+  const resolver=(k,v)=>{
+   if(k==='id_cuadrilla')return v;
+   if(k==='id_incidencia'&&v!=null){const x=indices.get('catalogo_incidencias')?.get(txt(v));return x?.nombre||x?.descripcion||x?.clave||v;}
+   if(k==='percepcion_id'&&v!=null){const x=indices.get('catalogo_percepciones_extra')?.get(txt(v));return x?.nombre||x?.descripcion||x?.clave||v;}
+   return v;
+  };
+  const detalle=(grupo,c,f,ref,path,v)=>{
+   const campo=path.map(k=>/^\d+$/.test(k)?'Elemento '+(Number(k)+1):label(k)).join(' / ');
+   añadir('Detalle de expedientes',{...c,__origen:origen(f),__registro:ref,'Sección':grupo,'Dato':campo,'Valor':v});
+  };
+  const vinculoIgual=(a,b)=>a!=null&&txt(a)===txt(b);
+  const registro=(grupo,r,f,extra={},id)=>{
+   const c={...contexto(r,f,id),...extra},ref=txt(r.id||r.documento_id||r.trabajador_id||r.__ref||''),out={...c,__origen:origen(f),__registro:ref};
+   for(const [k,original] of Object.entries(r)){
+    if(!limpio(k)||k==='__empresaFuente'||k==='__ref'||k==='items'||k==='filas_modelo'||k==='id'||(k==='trabajador_id'&&vinculoIgual(r[k],c.__trabajador))||(k==='empleado_id'&&vinculoIgual(r[k],c.__trabajador)))continue;
+    if(k==='snapshot'&&['control_cierres_nomina','control_cierre_versiones'].includes(f.clave))throw Error('No debe exportarse una fotografía general.');
+    const v=resolver(k,original);
+    if(v&&typeof v==='object')aplanar(v,[k],(p,x)=>detalle(grupo,c,f,ref,p,x));
+    else {out[label(k)]=seguro(numeroExacto(r[k+'__origen'],v));if(k==='id_incidencia'||k==='percepcion_id')out[k==='id_incidencia'?'Clave de incidencia registrada':'Clave de percepción registrada']=original;}
+   }añadir(grupo,out);
+  };
+  const wFuente=porClave.get('trabajadores');
+  for(const [k] of wFuente.campos){if(['id','obra_id'].includes(k))continue;mapear('trabajadores',k,grupoTrabajador(k),k==='no_trab'?'Número de trabajador':label(k));}
+  mapear('trabajadores','fecha_nacimiento','Datos personales y contacto','Edad a la fecha del respaldo (años), derivada por el helper vigente de la ficha');mapear('trabajadores','id','Padrón completo','Referencia del trabajador');mapear('trabajadores','obra_id','Padrón completo','Centro actual del expediente (referencia resuelta)');mapear('obras','registro_patronal','Datos laborales y contratos','Registro patronal del centro');mapear('cuadrillas','nombre','Datos laborales y contratos','Cuadrilla');mapear('cuadrillas','lider_id','Datos laborales y contratos','Líder de cuadrilla registrado (por ID)');mapear('historial','datos_antes / datos_despues','Cambios del expediente / Salarios e historial','Dato, valor anterior y valor posterior');mapear('historial','accion / fecha / usuario','Altas bajas y reingresos','Movimiento, fecha de captura y usuario');mapear('prestaciones_fuentes_historicas','archivo / sha256 / created_at','Prestaciones y finiquitos','Archivo histórico de origen, referencia documental y fecha, por vínculo de fuente');
+  for(const w of trabajadores){
+   const c={...contextos.get(w.id),__centro_registro:centros.get(w.obra_id)?.nombre??null},cuad=indices.get('cuadrillas')?.get(txt(w.id_cuadrilla));
+   añadir('Padrón completo',{...c,'Estatus laboral':w.estatus??null,'En papelera':w.eliminado??null,'Puesto':w.puesto??null,'Cuadrilla':cuad?.nombre??null,'Fecha de alta inicial':w.fecha_alta??null,'Fecha de baja registrada':w.fecha_baja??null,'Fecha de reingreso vigente':w.fecha_reingreso??null,'Periodicidad':w.periodo_pago??null});
+   const partes=new Map();
+   for(const [k,v] of Object.entries(w)){
+    if(['id','obra_id','no_trab','__empresaFuente'].includes(k)||!limpio(k))continue;
+    const grupo=grupoTrabajador(k);if(!partes.has(grupo))partes.set(grupo,{...c});
+    if(v&&typeof v==='object')aplanar(v,[k],(p,x)=>detalle(grupo,c,wFuente,w.id,p,x));
+    else partes.get(grupo)[label(k)]=seguro(numeroExacto(w[k+'__origen'],resolver(k,v)));
+   }
+   const laboral=partes.get('Datos laborales y contratos');
+   if(am.edad&&w.fecha_nacimiento){const anios=am.edad(w.fecha_nacimiento,am.reloj());if(anios!==''&&Number.isFinite(anios))partes.get('Datos personales y contacto')['Edad a la fecha del respaldo (años)']=anios;}
+   if(cuad){laboral['Cuadrilla']=cuad.nombre;laboral['Líder de cuadrilla registrado']=contextos.get(cuad.lider_id)?.__nombre??cuad.lider_nombre_externo??null;laboral['Cuadrilla activa']=cuad.activa??null;}
+   laboral['Registro patronal del centro']=centros.get(w.obra_id)?.registro_patronal??null;
+   for(const [g,r] of partes)añadir(g,r);
+  }
+  const historial=datos.get('historial')||[],hFuente=porClave.get('historial'),rev=new Map((datos.get('control_reversiones_baja')||[]).filter(r=>r.estado==='APLICADA').map(r=>[txt(r.historial_id),r]));
+  const conocidos=new Set();
+  for(const h of historial){
+   const c=contexto(h,hFuente),a=h.datos_antes||{},d=h.datos_despues||{};
+   const tipos={ALTA:['ALTA','fecha_alta'],BAJA:['BAJA','fecha_baja'],REACTIVACION:['REINGRESO','fecha_reingreso'],REINGRESO:['REINGRESO','fecha_reingreso'],CORRECCION_REINGRESO:['CORRECCIÓN DE REINGRESO','fecha_reingreso']};
+   let mov=tipos[h.accion];if(!mov&&h.accion==='MODIFICACION'&&a.estatus!==d.estatus){if(d.estatus==='BAJA')mov=['BAJA','fecha_baja'];else if(a.estatus==='BAJA'&&d.estatus==='ACTIVO')mov=['REINGRESO','fecha_reingreso'];}
+   const cambiosFechas=!mov&&h.accion==='MODIFICACION'?['fecha_alta','fecha_baja','fecha_reingreso'].filter(k=>k in d&&!iguales(a[k],d[k])).map(k=>['CORRECCIÓN '+label(k),k]):[];
+   for(const [tipo,campo] of mov?[mov]:cambiosFechas){
+    const fecha=d[campo]??(tipo==='REINGRESO'?d.fecha_alta:null)??null;conocidos.add(h.trabajador_id+'|'+campo+'|'+fecha);
+    añadir('Altas bajas y reingresos',{...c,__registro:txt(h.id),'Movimiento':tipo,'Fecha efectiva registrada':fecha,'Fecha anterior':a[campo]??null,'Fecha de captura':h.fecha??null,'Usuario':h.usuario??null,'Ciclo registrado':d.ciclo_id??d.inicio_ciclo??h.ciclo_id??null,'Estado anterior':a.estatus??null,'Estado posterior':d.estatus??null,'Motivo':d.motivo_baja??d.motivo??null,'Baja revertida':rev.has(txt(h.id))?'Sí':'No','Referencia de reversión':rev.get(txt(h.id))?.id??null,'Origen':'Movimiento conservado en historial'});
+   }
+   const aa=new Map(),dd=new Map();aplanar(a,[],(p,v)=>aa.set(p.join('.'),{p,v}));aplanar(d,[],(p,v)=>dd.set(p.join('.'),{p,v}));
+   for(const key of new Set([...aa.keys(),...dd.keys()])){if(!key)continue;const antes=aa.get(key),despues=dd.get(key);if(iguales(antes?.v,despues?.v))continue;const p=despues?.p||antes.p,k=p[p.length-1];
+    const g=SALARIO.test(k)?'Salarios e historial':'Cambios del expediente';
+    añadir(g,{...c,__origen:'Cambio conservado',__registro:txt(h.id),'Fecha de captura':h.fecha??null,'Acción':h.accion,'Usuario':h.usuario??null,'Dato':p.map(label).join(' / '),'Valor anterior':antes?.v??null,'Valor posterior':despues?.v??null});
+   }
+  }
+  for(const w of trabajadores)for(const [campo,tipo] of [['fecha_alta','ALTA'],['fecha_baja','BAJA'],['fecha_reingreso','REINGRESO']])if(w[campo]&&!conocidos.has(w.id+'|'+campo+'|'+w[campo]))añadir('Altas bajas y reingresos',{...contextos.get(w.id),'Movimiento':tipo,'Fecha efectiva registrada':w[campo],'Origen':'Fecha conservada en ficha; sin evento equivalente localizado','Ciclo registrado':null});
+  for(const f of FUENTES.filter(f=>f.grupo)){
+   for(const [k,t] of f.campos){
+    if(['jsonb','json','ARRAY'].includes(t))mapear(f.clave,k,'Detalle de expedientes','Dato = '+label(k)+' / ruta registrada; Valor');
+    else if(k==='id')mapear(f.clave,k,f.grupo,'Referencia del registro');
+    else if(k==='trabajador_id'||k==='empleado_id')mapear(f.clave,k,f.grupo,'Referencia del trabajador');
+    else mapear(f.clave,k,f.grupo,label(k));
+   }
+   for(const r of datos.get(f.clave)||[]){
+    if(['control_cierres_nomina','control_cierre_versiones'].includes(f.clave)){
+     mapear(f.clave,'snapshot.items[]',f.grupo,'Una fila por concepto individual; campos escalares');
+     mapear(f.clave,'snapshot.modelo.filas[]','Detalle de expedientes','Desglose conservado / ruta registrada; Valor');
+     const comunes={__periodo:r.periodo??null,__estado:r.estado??r.estado_origen??null,__version:r.version??null,'Semana':r.semana??null,'Desde':r.desde??null,'Hasta':r.hasta??null,'Referencia de cierre':r.id,'Fecha de conservación':r.created_at??null};
+     const modelos=Array.isArray(r.filas_modelo)?r.filas_modelo:[],usados=new Set();
+     for(const [i,item] of (r.items||[]).entries()){
+      const relacionados=modelos.filter((m,j)=>{const mismo=trabajadorDe(m,indices)===item.trabajador_id;if(mismo)usados.add(j);return mismo;});
+      registro(f.grupo,{...item,...(relacionados.length?{desglose_conservado:relacionados}:{}),obra_id:r.obra_id,__empresaFuente:r.__empresaFuente,__ref:r.id+':'+i},f,comunes);
+     }
+     for(const [j,m] of modelos.entries())if(!usados.has(j))registro(f.grupo,{...m,obra_id:r.obra_id,__empresaFuente:r.__empresaFuente,__ref:r.id+':modelo:'+j},f,{...comunes,'Contenido':'Desglose sin concepto individual vinculado'});
+    }else if(f.clave==='prestaciones_papeles'){
+     const archivo=archivosHistoricos.get(r.obra_id+'|'+r.fuente?.sha256);
+     registro(f.grupo,r,f,archivo?{'Archivo histórico de origen':archivo.archivo,'Referencia documental de origen':archivo.sha256,'Fecha de archivo de origen':archivo.created_at}:{});
+    }else registro(f.grupo,r,f);
+   }
+  }
+  const resumen=[{'Concepto':'Generado el','Resultado':am.reloj().toISOString()},{'Concepto':'Alcance','Resultado':'Todos los expedientes de todas las razones sociales y centros autorizados; sin filtros de pantalla ni de estatus.'},{'Concepto':'Trabajadores','Resultado':trabajadores.length},
+   {'Concepto':'Lectura','Resultado':'Lectura por páginas y verificación inicial/final por fuente. No es una transacción única de base de datos.'},
+   {'Concepto':'Ciclos','Resultado':'Se conservan movimientos y correcciones; no se inventan ciclos ni fechas faltantes.'},
+   {'Concepto':'Importes','Resultado':'Obligaciones, pagos, cheques y aplicaciones son registros relacionados, no importes acumulables entre sí. No se duplican como deuda nueva.'},
+   {'Concepto':'Campos sin dato','Resultado':'Sin dato = valor nulo registrado; vacío = cadena vacía o campo ajeno a ese tipo de registro; cero es cero. Fechas ISO y zona original.'},
+   {'Concepto':'Documentos','Resultado':'Sólo metadatos y referencias privadas existentes; los archivos originales y contratos firmados permanecen archivados.'}];
+  for(const c of corte.conjuntos){resumen.push({'Concepto':'Razón social','Resultado':c.empresa});for(const id of c.obras){const n=trabajadores.filter(w=>w.obra_id===id).length;resumen.push({'Concepto':'Trabajadores por centro','Resultado':centros.get(id)?.nombre||id,'Razón social':c.empresa,'Cantidad':n});}for(const [k,rows] of c.datos)if(porClave.get(k).grupo||k==='trabajadores'||k==='historial')resumen.push({'Concepto':'Registros verificados','Resultado':origen(porClave.get(k)),'Razón social':c.empresa,'Cantidad':rows.length});}
+  for(const o of corte.omisiones)resumen.push({'Concepto':'Contenido excluido por permiso','Resultado':o.fuente,'Razón social':o.empresa,'Observación':o.motivo});
+  if(sinVinculo.length)resumen.push({'Concepto':'Registros sin vínculo verificable','Resultado':sinVinculo.length,'Observación':'Se conservan en su sección con referencia y contexto de origen; no se asociaron por nombre.'});
+  hojas.set('Resumen del respaldo',resumen);
+  return {hojas,matriz,trabajadores:trabajadores.length,sinVinculo,largos};
+ }
+ function tipoCelda(k,v){
+  if(v===null||v===undefined)return {t:'s',v:NULO,z:'@',s:{font:{color:{rgb:'7A8493'},italic:true}}};
+  if(typeof v==='boolean')return {t:'s',v:v?'Sí':'No',z:'@'};
+  if(CADENA.test(k)||/^(Referencia|RFC|CURP|NSS|CLABE|Cuenta|Teléfono|Código postal|Folio|Número de cheque|Consecutivo)/i.test(k))return {t:'s',v:txt(v),z:'@'};
+  if(typeof v==='number'&&Number.isFinite(v))return {t:'n',v,z:Number.isInteger(v)?'0':'#,##0.00########'};
+  const s=txt(v);
+  // Las columnas numéricas de origen llegan como texto exacto. Sólo pasar a número si Excel conserva sus dígitos.
+  if(/^[-+]?\d+(\.\d+)?$/.test(s)&&!/^0\d/.test(s)&&s.replace(/[-+.]/g,'').replace(/^0+/,'').length<=15&&/salario|sueldo|sdi|sbc|importe|monto|neto|bruto|isr|cuota|factor|exento|gravado|retenci|porcentaje/i.test(k))return {t:'n',v:Number(s),z:'#,##0.00########'};
+  return {t:'s',v:s,z:'@'};
+ }
+ function nombreArchivo(d){return 'RESPALDO_COMPLETO_TRABAJADORES_'+d.toISOString().replace(/[:.]/g,'-')+'.xlsx';}
+ async function escribir(am,libro){
+  const X=am.XLSX,wb=X.utils.book_new(),usados=new Set(),orden=['Padrón completo','Datos personales y contacto','Domicilios','Datos laborales y contratos','Salarios e historial','Datos bancarios','Altas bajas y reingresos','Movimientos IMSS','Incidencias e incapacidades','Créditos y préstamos','Prestaciones y finiquitos','Nóminas individuales','Obligaciones individuales','Pagos y cheques','Vínculos de pagos','Documentos del expediente','Procesos del expediente','Cambios del expediente','Detalle de expedientes','Resumen del respaldo'];
+  const textos=[];
+  for(const g of orden){const rows=libro.hojas.get(g);if(!rows?.length)continue;const claves=new Set();for(const r of rows)for(const k of Object.keys(r))claves.add(k);const columnas=[...claves];if(columnas.length>16384)throw Error('La sección excede las columnas de Excel.');
+   for(let off=0,parte=1;off<rows.length;off+=am.limiteFilas-1,parte++){
+    const ws={},n=hojasNombre(g+(parte>1?' '+parte:''),usados),sub=rows.slice(off,off+am.limiteFilas-1);
+    columnas.forEach((k,c)=>{ws[X.utils.encode_cell({r:0,c})]={t:'s',v:label(k),s:{font:{name:'Calibri',sz:11,bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1F3657'}},alignment:{wrapText:true,vertical:'center'}}};});
+    for(let i=0;i<sub.length;i++)for(let c=0;c<columnas.length;c++){const k=columnas[c];if(!Object.hasOwn(sub[i],k))continue;let v=sub[i][k];if(typeof v==='string'&&v.length>32767){const ref='Texto '+(textos.length+1);let pos=0;for(let p=1;pos<v.length;p++){let fin=Math.min(pos+30000,v.length);if(fin<v.length&&/[\uD800-\uDBFF]/.test(v[fin-1]))fin--;textos.push({'Referencia':ref,'Sección':g,'Referencia del registro':sub[i].__registro||sub[i].__trabajador||null,'Dato':label(k),'Parte':p,'Texto':v.slice(pos,fin)});pos=fin;}v='Ver Textos extensos: '+ref;}ws[X.utils.encode_cell({r:i+1,c})]=tipoCelda(k,v);}
+    ws['!ref']=X.utils.encode_range({s:{r:0,c:0},e:{r:sub.length,c:columnas.length-1}});ws['!autofilter']={ref:ws['!ref']};ws['!cols']=columnas.map(k=>({wch:/nombre|direcci|domicilio|observaci|referencia|dato|texto|resultado/i.test(label(k))?42:25}));ws['!rows']=[{hpt:36}];X.utils.book_append_sheet(wb,ws,n);
+   }
+  }
+  if(textos.length){libro.hojas.set('Textos extensos',textos);const resto=await escribirTextos(am,textos,usados);for(const [n,ws] of resto)X.utils.book_append_sheet(wb,ws,n);}
+  let bytes=X.write(wb,{type:'array',bookType:'xlsx',bookSST:true,compression:true});
+  const zip=await am.JSZip.loadAsync(bytes);
+  for(let i=0;i<wb.SheetNames.length;i++){const file='xl/worksheets/sheet'+(i+1)+'.xml',f=zip.file(file);if(!f)throw Error('Falta una hoja en el libro generado.');let xml=await f.async('string');const panel='<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>';xml=/<sheetViews[\s>]/.test(xml)?xml.replace(/<sheetViews[\s\S]*?<\/sheetViews>/,panel):xml.replace(/<sheetFormatPr|<cols|<sheetData/,panel+'$&');zip.file(file,xml);}
+  bytes=await zip.generateAsync({type:'uint8array',compression:'DEFLATE',compressionOptions:{level:6}});
+  return {bytes,hojas:wb.SheetNames,filas:Object.fromEntries([...libro.hojas].map(([k,v])=>[k,v.length]))};
+ }
+ async function escribirTextos(am,rows,usados){
+  const X=am.XLSX,out=[];for(let off=0;off<rows.length;off+=am.limiteFilas-1){const sub=rows.slice(off,off+am.limiteFilas-1),ks=Object.keys(rows[0]),ws=X.utils.aoa_to_sheet([ks,...sub.map(r=>ks.map(k=>r[k]??null))]);for(const a of Object.keys(ws))if(!a.startsWith('!')&&typeof ws[a].v==='string'){ws[a].t='s';ws[a].z='@';delete ws[a].f;}ws['!autofilter']={ref:ws['!ref']};ws['!cols']=ks.map(()=>({wch:35}));out.push([hojasNombre('Textos extensos'+(off?' '+(off/(am.limiteFilas-1)+1):''),usados),ws]);}return out;
+ }
  async function exportar(op={}){
-  const am=ambiente(op),t0=Date.now();
-  if(!am.sb)throw Error('Sin conexión con la base.');
-  if(!am.XLSX)throw Error('No está disponible el generador de Excel.');
-  const empresa=texto(op.empresa||am.empresaActiva).toUpperCase();
-  const catalogo=am.obras.filter(o=>am.empresaDeObra(o)===empresa);
-  const pedidas=(op.obras&&op.obras.length?op.obras:catalogo.map(o=>o.id)).slice();
-  const ctx={empresa,obrasPedidas:pedidas,obras:pedidas.slice(),permisos:{registrado:true,vip:!!am.esVip(),salud:false,admin:!!am.esAdmin()},marcaActual:0,
-   incluirConfiguracion:!!op.incluirConfiguracion,idRespaldo:uuid(),inicio:am.reloj()};
-  const R={estado:'COMPLETO',motivos:[],errores:[],fuentes:{},limitaciones:[],omitidos:[],excluidas:[],marcas:[],modoMarcas:'SERVIDOR',archivos:[]};
-  const motivo=m=>{if(!R.motivos.includes(m))R.motivos.push(m);R.estado='INCOMPLETO';};
-  const candidatas=FUENTES.filter(f=>!f.opcional||ctx.incluirConfiguracion);
-  am.progreso({fase:'marcas',texto:'Tomando marcas de consistencia…'});
-  let M=null,columnas={};
-  try{M=await marcas(am,ctx,candidatas.map(f=>f.clave),true);}
-  catch(e){
-   // Sin permiso operativo o de razón social: no hay nada que respaldar.
-   if(texto(e&&e.code)==='42501')throw Object.assign(Error(errTexto(e)),{causa:e});
-   // Cualquier otra falla (función ausente, tiempo agotado): se respalda por RLS y queda INCOMPLETO.
-   R.modoMarcas='NO_DISPONIBLE';motivo('SIN_MARCAS_SERVIDOR');R.errores.push(['(marcas)',errTexto(e)]);
-   R.limitaciones.push(esFaltaRpc(e)?'El servidor no tiene la función de marcas: no se pudo verificar consistencia ni leer tablas internas.':'Las marcas del servidor no respondieron ('+errTexto(e)+'): no se verificó consistencia ni se leyeron tablas internas; reintente más tarde.');
-   try{const {data,error}=await am.sb.rpc('control_puede_ver_salud');ctx.permisos.salud=!error&&data===true;}catch(x){ctx.permisos.salud=false;}
-  }
-  if(M){
-   ctx.permisos={registrado:!!M.permisos?.registrado,vip:!!M.permisos?.vip,salud:!!M.permisos?.salud,admin:!!M.permisos?.admin};
-   ctx.obras=(M.obras||[]).slice();columnas=M.columnas||{};R.marcas.push(M);
-   for(const k of M.sin_marca||[])R.limitaciones.push('La marca de '+k+' excedió el tiempo del servidor: se leyó sin verificación de consistencia.');
-   if(M.por_grupos)R.limitaciones.push('Las marcas se tomaron por grupos de tablas por tiempo de respuesta; cada tabla se verificó antes y después.');
-   for(const id of M.obras_rechazadas||[])R.excluidas.push(['Centro '+id,'Fuera del alcance del usuario o de la razón social.']);
-  }
-  const permitida=f=>{
-   const p=f.permiso,c=ctx.permisos;
-   if(M){const m=M.marcas[f.clave];return !!m&&!m.omitida;}
-   if(f.alcance==='interna')return false;
-   return !p||(p==='vip'&&c.vip)||(p==='salud'&&c.salud)||(p==='admin'&&c.admin)||(p==='admin_vip'&&c.admin&&c.vip)||(p==='vip_salud'&&c.vip&&c.salud);
-  };
-  const activas=[];
-  for(const f of candidatas){
-   if(permitida(f))activas.push(f);
-   else{const m=M&&M.marcas[f.clave];R.fuentes[f.clave]={estado:'OMITIDA_PERMISO',motivo:m&&m.omitida||('Requiere permiso '+(f.alcance==='interna'&&!M?'de servidor':f.permiso))};}
-  }
-  if(!ctx.obras.length)throw Error('No tienes centros visibles para respaldar en esta razón social.');
-  const datos=new Map();
-  const leer=async lista=>{
-   const fases=[lista.filter(f=>f.alcance!=='padre'),lista.filter(f=>f.alcance==='padre')];
-   for(const fase of fases)await enParalelo(fase,am.paralelo,async f=>{
-    am.progreso({fase:'lectura',fuente:f.clave,hoja:f.hoja});
-    try{datos.set(f.clave,await conReintento(()=>leerFuente(am,ctx,f,datos),{...am,intentos:2}));}
-    catch(e){datos.set(f.clave,{filas:[],error:errTexto(e),est:{paginas:0,reintentos:0}});}
-   });
-  };
-  await leer(activas);
-  // Consistencia: cada tabla debe coincidir con la última marca; se relee lo que cambió.
-  let ultima=M;
-  if(M){
-   for(let ciclo=1;;ciclo++){
-    ctx.marcaActual=ciclo;
-    let N;
-    try{N=await marcas(am,ctx,activas.map(f=>f.clave),false);}
-    catch(e){motivo('SIN_MARCA_FINAL');R.errores.push(['(marcas)','No se pudo tomar la marca final: '+errTexto(e)]);ultima=null;break;}
-    R.marcas.push(N);
-    const relee=[],cambiadas=new Set();
-    for(const f of activas){
-     const d=datos.get(f.clave),a=ultima.marcas[f.clave],b=N.marcas[f.clave];
-     if(d.error){relee.push(f);continue;}
-     if(d.sinMarca||(a&&a.error)||(b&&b.error)){d.sinMarca=true;continue;}
-     // Válida sólo si no cambió entre la marca anterior y ésta y el conteo coincide con el servidor.
-     if(firma(a)!==firma(b))cambiadas.add(f.clave);
-     if(cambiadas.has(f.clave)||!b||Number(b.filas)!==d.filas.length)relee.push(f);
-    }
-    ultima=N;
-    if(!relee.length)break;
-    if(ciclo>=am.ciclos){
-     for(const f of relee){
-      const d=datos.get(f.clave);
-      if(d.error)continue;
-      const b=N.marcas[f.clave];
-      d.inconsistente=cambiadas.has(f.clave)?'CAMBIO_CONCURRENTE':'CONTEO_DIFERENTE';
-     }
-     break;
-    }
-    am.progreso({fase:'relectura',texto:'Releyendo '+relee.length+' fuentes que cambiaron…'});
-    for(const f of relee)datos.delete(f.clave);
-    await leer(relee);
-   }
-  }
-  // Estado por fuente.
-  for(const f of activas){
-   const d=datos.get(f.clave),m=ultima&&ultima.marcas[f.clave];
-   const reg={estado:d.error?'ERROR':d.inconsistente||(d.sinMarca?'LEIDA_SIN_MARCA':'LEIDA'),filas:d.filas.length,filas_servidor:m&&m.filas!=null?Number(m.filas):null,huella:m&&m.huella||null,
-    max_actualizado:m?m.max_actualizado:null,tipo_marca:m&&m.tipo||null,paginas:d.est.paginas,reintentos:d.est.reintentos,error:d.error||null,por_obra:m&&m.por_obra||null};
-   R.fuentes[f.clave]=reg;
-   if(d.error){motivo('ERROR_LECTURA');R.errores.push([f.clave,d.error]);}
-   else if(d.sinMarca){motivo('SIN_MARCA_TABLA');}
-   else if(d.inconsistente){motivo(d.inconsistente);R.errores.push([f.clave,d.inconsistente==='CONTEO_DIFERENTE'?'El conteo leído no coincide con el servidor.':'La tabla siguió cambiando durante la exportación.']);}
-  }
-  am.progreso({fase:'armado',texto:'Armando el libro…'});
-  const libro=await armar(am,ctx,R,activas,datos,columnas);
-  am.progreso({fase:'escritura',texto:'Escribiendo Excel…'});
-  const partes=planificar(libro.hojas,am);
-  const fecha=am.reloj(),sello=fecha.getFullYear()+'-'+String(fecha.getMonth()+1).padStart(2,'0')+'-'+String(fecha.getDate()).padStart(2,'0')+'_'+String(fecha.getHours()).padStart(2,'0')+String(fecha.getMinutes()).padStart(2,'0');
-  const base=FORMATO+'_'+empresa+'_'+sello+(R.estado==='INCOMPLETO'?'_INCOMPLETO':'');
-  partes.forEach((p,i)=>{p.nombre=base+(partes.length>1?'_parte'+(i+1)+'de'+partes.length:'')+'.xlsx';});
-  R.duracion_preparacion_ms=Date.now()-t0;
-  for(let i=0;i<partes.length;i++){
-   const man=manifiesto(am,ctx,R,libro,partes,i);
-   const bytes=await escribir(am,ctx,[man,...partes[i].hojas]);
-   partes[i].bytes=bytes;
-  }
-  R.duracion_ms=Date.now()-t0;
-  for(const p of partes){
-   await am.descargar(p.bytes,p.nombre);
-   R.archivos.push({nombre:p.nombre,bytes:p.bytes.length,hojas:p.hojas.map(h=>h.nombre)});
-   if(am.registrar){try{await am.registrar({SheetNames:p.hojas.map(h=>h.nombre),__auditObraIds:ctx.obras},p.nombre);}catch(e){R.limitaciones.push('No se registró la exportación en bitácora: '+errTexto(e));}}
-   if(partes.length>1)await dormir(am.espera);
-  }
-  return {estado:R.estado,motivos:R.motivos,errores:R.errores,archivos:R.archivos,fuentes:R.fuentes,control:libro.control,manifiestoBase:{id:ctx.idRespaldo,formato:FORMATO,empresa,obras:ctx.obras,permisos:ctx.permisos},
-   partes:partes.map(p=>({nombre:p.nombre,bytes:p.bytes})),duracion_ms:R.duracion_ms,cuadre:libro.cuadre,movimientos:libro.movimientos,
-   reintentar:()=>exportar(op)};
+  const am=ambiente(op),inicio=Date.now(),sesion=am.sesion();if(!am.sb||!am.XLSX||!am.JSZip)throw Error('No se cargaron las herramientas de respaldo. Recarga la plataforma.');if(am.limiteFilas<2)throw Error('Límite de hoja inválido.');
+  const corte=await recolectar(am);if(am.sesion()!==sesion)throw Error('Cambió la sesión; no se descargará información de otra cuenta.');
+  am.progreso({texto:'Organizando los expedientes y sus historiales…'});const libro=preparar(corte,am);
+  const esperado=corte.conjuntos.reduce((s,c)=>s+Number(c.marcas.trabajadores.filas),0);if(libro.trabajadores!==esperado)throw Error('El padrón exportado no coincide con el total accesible.');
+  am.progreso({texto:'Escribiendo un solo Excel…'});await dormir(0);const archivo=await escribir(am,libro);if(am.sesion()!==sesion)throw Error('Cambió la sesión antes de la descarga.');
+  const name=nombreArchivo(am.reloj());await am.descargar(archivo.bytes,name);
+  return {estado:'COMPLETO',formato:FORMATO,trabajadores:libro.trabajadores,archivos:[{nombre:name,bytes:archivo.bytes.length,hojas:archivo.hojas}],hojas:archivo.filas,matriz:libro.matriz,omisiones:corte.omisiones,sinVinculo:libro.sinVinculo.length,duracion_ms:Date.now()-inicio};
  }
-
- /* ---------- armado de hojas lógicas ---------- */
- async function armarHojas(am,ctx,R,activas,datos,columnas){
-  const obrasMap=new Map(am.obras.map(o=>[o.id,o]));
-  const cent=datos.get('obras');if(cent&&!cent.error)for(const o of cent.filas)obrasMap.set(o.id,{...obrasMap.get(o.id),...o});
-  const nombreCentro=id=>id&&obrasMap.get(id)?obrasMap.get(id).nombre:null;
-  const largos=[],cont={urls:0},hojas=[],control=[];
-  const registraLargo=(hoja,registro,campo,s)=>{const ref='TL'+String(largos.length+1).padStart(6,'0'),p=partirTexto(s);largos.push({ref,hoja,registro,campo,partes:p,longitud:s.length});return {largo:ref,partes:p.length,longitud:s.length};};
-  const logica=(nombre,dominio,fuente,cols,filas,extra={})=>{const h={nombre,dominio,fuente,cols,filas,...extra};hojas.push(h);return h;};
-  const pkIdx=(cols,pk)=>pk.map(c=>cols.findIndex(x=>x.campo===c));
-  for(const f of activas){
-   const d=datos.get(f.clave),filas=d.filas;
-   const meta=columnas[f.clave]||null;
-   let campos=meta?meta.map(c=>c[0]):[];
-   const tipoBD=new Map(meta?meta.map(c=>[c[0],c[1]]):[]);
-   if(f.select)campos=f.select.split(',');
-   for(const x of filas)for(const k of Object.keys(x))if(!campos.includes(k)&&!/__origen$/.test(k))campos.push(k);
-   const omit=[];
-   if(!ctx.permisos.vip&&f.omitirSinVip)for(const c of f.omitirSinVip){omit.push(c);R.omitidos.push([f.hoja,c,'Requiere acceso VIP (previsión social / datos internos).']);}
-   for(const [c,m] of Object.entries(f.omitidos||{})){R.omitidos.push([f.hoja,c,m]);campos=campos.filter(x=>x!==c);}
-   if(f.clave==='infonavit_avisos_archivos'||f.clave==='prestaciones_fuentes_historicas'||f.clave==='app_usuarios')campos=campos.filter(c=>f.select.split(',').includes(c));
-   campos=campos.filter(c=>!omit.includes(c)&&tipoBD.get(c)!=='bytea');
-   if(f.clave==='config'){
-    const hc=hojaConfig(ctx,f,filas),reg=R.fuentes[f.clave];hojas.push(hc);
-    control.push([f.dominio,f.hoja,f.clave,'(TOTAL)',null,filas.length,reg.filas_servidor,hc.filas.length,reg.filas_servidor==null?'SIN_MARCA':(reg.filas_servidor===filas.length?'SI':'NO'),null,null,null,'Una fila por clave leída; la hoja tiene una fila por campo autorizado.']);
-    continue;
-   }
-   const cols=[];
-   for(const c of campos){
-    const muestra=filas.find(x=>x[c]!=null);
-    cols.push({campo:c,tipo:tipoDe(c,tipoBD.get(c),muestra&&muestra[c]),origen:(f.alcance==='interna'?'interna:'+f.clave:f.tabla)+'.'+c,tipoBD:tipoBD.get(c)||''});
-    if(c==='obra_id')cols.push({campo:'centro',tipo:'TEXTO',origen:'DERIVADO: CENTROS.nombre',derivado:true});
-    if((f.precision||[]).includes(c))cols.push({campo:c+'__origen',tipo:'TEXTO',origen:'TEXTO_ORIGEN: '+f.tabla+'.'+c+'::text',precisionDe:c});
-   }
-   if(f.clave==='trabajadores'){cols.push({campo:'docs_entregados',tipo:'ENTERO',origen:'DERIVADO: docs',derivado:true});cols.push({campo:'bajas_revertidas',tipo:'ENTERO',origen:'DERIVADO: REVERSIONES_BAJA (estado APLICADA)',derivado:true});}
-   if(f.clave==='documentos'){cols.push({campo:'estado_documento',tipo:'TEXTO',origen:'DERIVADO: anulado',derivado:true});cols.push({campo:'almacenamiento',tipo:'TEXTO',origen:'DERIVADO: archivo',derivado:true});}
-   if(f.clave==='historial')cols.push({campo:'campos_cambiados',tipo:'TEXTO',origen:'DERIVADO: datos_antes vs datos_despues',derivado:true});
-   for(const c of cols){
-    c.clave=f.pk.includes(c.campo)?'PK':null;
-    const rel=c.campo==='obra_id'?'CENTROS':(f.rel&&f.rel[c.campo])||(['trabajador_id','empleado_id'].includes(c.campo)&&f.clave!=='trabajadores'?'PADRON':null);
-    if(rel&&!c.clave){c.clave='FK';c.relacion=rel+'.id';}
-    c.permiso=f.permiso||null;c.desc=DESC[c.campo]||null;
-   }
-   const RVt=datos.get('control_reversiones_baja'),revPorTrab=new Map();
-   for(const r of RVt&&!RVt.error?RVt.filas:[])if(texto(r.estado).toUpperCase()==='APLICADA')revPorTrab.set(r.trabajador_id,(revPorTrab.get(r.trabajador_id)||0)+1);
-   const urlCampo=new Set(cols.filter(c=>/url|link|evidencia|archivo|ruta/.test(c.campo)).map(c=>c.campo));
-   const docsBase=am.docs;
-   const salida=new Array(filas.length);
-   for(let i=0;i<filas.length;i++){
-    const x=filas[i],fila=new Array(cols.length);
-    for(let k=0;k<cols.length;k++){
-     const c=cols[k];let v;
-     if(c.campo==='centro')v=nombreCentro(x.obra_id);
-     else if(c.precisionDe)v=x[c.campo]===undefined?null:x[c.campo];
-     else if(c.campo==='bajas_revertidas')v=revPorTrab.get(x.id)||0;
-     else if(c.campo==='docs_entregados'){const dd=x.docs&&typeof x.docs==='object'?x.docs:{};v=docsBase.length?docsBase.filter(k2=>dd[k2]==='ENTREGADO').length:Object.values(dd).filter(y=>y==='ENTREGADO').length;}
-     else if(c.campo==='estado_documento')v=x.anulado?'ANULADO':'VIGENTE';
-     else if(c.campo==='almacenamiento')v=x.archivo?'STORAGE_PRIVADO':null;
-     else if(c.campo==='campos_cambiados')v=camposCambiados(x.datos_antes,x.datos_despues);
-     else v=valorLogico(x[c.campo],c.tipo);
-     if(typeof v==='string'){
-      if(urlCampo.has(c.campo))v=sanearUrl(v,cont);
-      if(v.length>LIM_CELDA)v=registraLargo(f.hoja,llave(f,x),c.campo,v);
-     }
-     fila[k]=v;
-    }
-    salida[i]=fila;
-   }
-   const h=logica(f.hoja,f.dominio,f.clave,cols,salida,{desc:f.desc,permiso:f.permiso||null,pkIdx:pkIdx(cols,f.pk),pk:f.pk,estado:R.fuentes[f.clave].estado});
-   control.push(...controlDe(f,h,filas,R.fuentes[f.clave],nombreCentro));
-  }
-  // Movimientos laborales derivados (reingresos por evento).
-  const T=datos.get('trabajadores'),H=datos.get('historial');let mov=null;
-  if(T&&H){
-   const RV=datos.get('control_reversiones_baja');
-   mov=movimientosLaborales(T.filas,H.filas,nombreCentro,RV&&!RV.error?RV.filas:[]);
-   const cols=COLS_MOV.map(c=>({campo:c,tipo:TIPOS_MOV[c]||'TEXTO',origen:'DERIVADO: HISTORIAL y PADRON',derivado:true,clave:c==='evento_id'?'PK':(['trabajador_id','obra_id','historial_id'].includes(c)?'FK':null),
-    relacion:{trabajador_id:'PADRON.id',obra_id:'CENTROS.id',historial_id:'HISTORIAL.id'}[c]||null,desc:{ciclo:'Ciclo laboral (1 = alta original; cada reingreso abre uno nuevo).',fecha_efectiva:'Fecha efectiva del movimiento.',
-     fuente:'HISTORIAL (evento documentado) o PADRON_VIGENTE (fecha vigente sin evento).',evidencia:'Calidad de la evidencia del evento.'}[c]||DESC[c]||null}));
-   const filas=mov.eventos.map(e=>COLS_MOV.map(c=>e[c]===undefined?null:e[c]));
-   logica('MOVIMIENTOS_LABORALES','MOVIMIENTOS','(derivado)',cols,filas,{desc:'Un evento por movimiento documentado: alta, baja, reingreso con fecha efectiva, traslado y correcciones, con ciclo y fuente.',pkIdx:[0],pk:['evento_id'],estado:(T.error||H.error)?'INCOMPLETA':'DERIVADA'});
-   const porTipo=new Map();
-   for(const e of mov.eventos){const k=e.tipo_evento+'|'+(e.obra_id||'');porTipo.set(k,(porTipo.get(k)||0)+1);}
-   for(const [k,n] of [...porTipo].sort()){const [t,o]=k.split('|');control.push(['MOVIMIENTOS','MOVIMIENTOS_LABORALES','(derivado) '+t,o||null,nombreCentro(o),n,n,null,'SI',null,null,null,'Eventos '+t]);}
-   const L=mov.limitaciones;
-   if(L.sin_evidencia.reingresos)R.limitaciones.push(L.sin_evidencia.reingresos+' reingresos vigentes del padrón no tienen evento en historial; se registran como SOLO_PADRON_VIGENTE.');
-   if(L.ciclos_sin_alta)R.limitaciones.push(L.ciclos_sin_alta+' personas tienen movimientos sin alta documentada en historial (ciclo antiguo): se conserva lo disponible.');
-   if(T.error||H.error)R.limitaciones.push('MOVIMIENTOS_LABORALES incompleto: no se leyó completo el padrón o el historial.');
-  }
-  // Hojas de compatibilidad V0 (una por centro, mismo nombre y columnas).
-  if(T&&!T.error){
-   const lc=LEGADO_COLS.map(([c,l])=>({campo:c,etiqueta:l,tipo:tipoDe(c,(columnas.trabajadores||[]).find(x=>x[0]===c)?.[1]),origen:'PADRON.'+c,legado:true}))
-    .concat([{campo:'docs_entregados',etiqueta:'DOCS ENTREGADOS',tipo:'TEXTO',origen:'DERIVADO: docs',legado:true,derivado:true},{campo:'fecha_reingreso',etiqueta:'FECHA REINGRESO',tipo:'FECHA',origen:'PADRON.fecha_reingreso',legado:true},{campo:'id',etiqueta:'ID TRABAJADOR',tipo:'ID',origen:'PADRON.id',legado:true}]);
-   const totalDocs=am.docs.length||7;
-   for(const id of ctx.obras){
-    const o=obrasMap.get(id);if(!o)continue;
-    const ws=T.filas.filter(w=>w.obra_id===id&&!w.eliminado).sort((a,b)=>(a.no_trab??9e9)-(b.no_trab??9e9));
-    const filas=ws.map(w=>lc.map(c=>{
-     if(c.campo==='docs_entregados'){const dd=w.docs||{};return (am.docs.length?am.docs.filter(k=>dd[k]==='ENTREGADO').length:0)+'/'+totalDocs;}
-     const v=valorLogico(w[c.campo],c.tipo);if(typeof v==='string'&&v.length>LIM_CELDA)return registraLargo(o.nombre,w.id,c.campo,v);return v===null?'':v;
-    }));
-    logica(o.nombre,'PADRON','(compatibilidad V0)',lc,filas,{legado:true,obra_id:id,desc:'Vista de compatibilidad V0 del padrón del centro (sin papelera).'});
-   }
-  }
-  const cuadre=cuadreTablero(ctx,datos);
-  for(const c of cuadre.filas)control.push(c);
-  return {hojas,control,largos,cont,cuadre,movimientos:mov,obrasMap,R};
- }
- function camposCambiados(a,d){
-  if(!a||!d||typeof a!=='object'||typeof d!=='object')return null;
-  const out=[];
-  for(const k of new Set([...Object.keys(a),...Object.keys(d)])){
-   const x=a[k],y=d[k];
-   if(x===y)continue;
-   if(x&&y&&typeof x==='object'&&typeof y==='object'&&JSON.stringify(x)===JSON.stringify(y))continue;
-   out.push(k);
-  }
-  return out.join(',');
- }
- function hojaConfig(ctx,f,filas){
-  const permit=CONFIG_PERMITIDA(ctx.empresa),out=[];
-  for(const r of filas.slice().sort((a,b)=>texto(a.clave).localeCompare(texto(b.clave)))){
-   const regla=permit[r.clave];if(!regla)continue;const v=r.valor;
-   if(regla==='*ARREGLO*'){if(Array.isArray(v))out.push([r.clave,'(arreglo)',JSON.stringify(v),r.actualizado_por??null,r.updated_at??null]);continue;}
-   if(!v||typeof v!=='object')continue;
-   const campos=regla==='*NUMEROS*'?Object.keys(v).filter(k=>typeof v[k]==='number'):regla.filter(k=>k in v);
-   for(const k of campos.sort())out.push([r.clave,k,JSON.stringify(v[k]),r.actualizado_por??null,r.updated_at??null]);
-  }
-  const cols=[['clave','TEXTO','PK'],['campo','TEXTO','PK'],['valor_json','JSON',null],['actualizado_por','TEXTO',null],['updated_at','FECHA_HORA',null]].map(([c,t,k])=>({campo:c,tipo:t,clave:k,origen:'config.'+(c==='valor_json'?'valor->campo':c),desc:{valor_json:'Valor del campo autorizado (JSON).'}[c]||DESC[c]||null}));
-  return {nombre:f.hoja,dominio:f.dominio,fuente:f.clave,cols,filas:out,desc:f.desc,pk:['clave','campo'],pkIdx:[0,1],estado:'LEIDA'};
- }
- function controlDe(f,h,filas,reg,nombreCentro){
-  const out=[],grupos=new Map();
-  const conObra=filas.some(x=>'obra_id' in x);
-  for(const x of filas){const k=conObra?(x.obra_id||''):'';if(!grupos.has(k))grupos.set(k,[]);grupos.get(k).push(x);}
-  const porObra=reg.por_obra||{};
-  const filasHoja=h.filas.length;
-  const fila=(o,lista,campo)=>{
-   const serv=o==='(TOTAL)'?reg.filas_servidor:(o&&porObra[o]!==undefined?Number(porObra[o]):(conObra&&reg.por_obra?0:null));
-   const tot=campo?lista.reduce((s,x)=>s+centavos(x[campo]),0):null;
-   return [f.dominio,f.hoja,f.clave,o==='(TOTAL)'?'(TOTAL)':(o||null),o==='(TOTAL)'?null:nombreCentro(o),lista.length,serv,o==='(TOTAL)'?filasHoja:null,
-    serv==null?'SIN_MARCA':(serv===lista.length?'SI':'NO'),campo,tot==null?null:tot/100,tot==null?null:String(tot),reg.estado];
-  };
-  const campos=(f.totales||[]).filter(c=>h.cols.some(x=>x.campo===c));
-  for(const [o,lista] of conObra?[...grupos].sort():[]){
-   if(!campos.length)out.push(fila(o,lista,null));
-   for(const c of campos)out.push(fila(o,lista,c));
-  }
-  if(!campos.length)out.push(fila('(TOTAL)',filas,null));
-  for(const c of campos)out.push(fila('(TOTAL)',filas,c));
-  if(f.clave==='control_pago_aplicaciones'){
-   const vig=filas.filter(x=>!x.retirado_en),ret=filas.filter(x=>x.retirado_en);
-   out.push([f.dominio,f.hoja,f.clave+' (vigentes)','(TOTAL)',null,vig.length,null,null,'SIN_MARCA','importe',vig.reduce((s,x)=>s+centavos(x.importe),0)/100,String(vig.reduce((s,x)=>s+centavos(x.importe),0)),'Aplicaciones sin retiro']);
-   out.push([f.dominio,f.hoja,f.clave+' (retiradas)','(TOTAL)',null,ret.length,null,null,'SIN_MARCA','importe',ret.reduce((s,x)=>s+centavos(x.importe),0)/100,String(ret.reduce((s,x)=>s+centavos(x.importe),0)),'Aplicaciones retiradas (se conservan)']);
-  }
-  if(f.clave==='control_obligaciones_pago'){
-   const vig=filas.filter(x=>x.vigente===true);
-   out.push([f.dominio,f.hoja,f.clave+' (vigentes)','(TOTAL)',null,vig.length,null,null,'SIN_MARCA','importe',vig.reduce((s,x)=>s+centavos(x.importe),0)/100,String(vig.reduce((s,x)=>s+centavos(x.importe),0)),'Obligaciones vigentes']);
-  }
-  return out;
- }
- /* Cuadre con el tablero: si el modelo del tablero está cargado, calcula sus
-    medidas sobre las mismas fuentes exportadas para compararlas al centavo. */
- const CUADRE_DESDE='2000-01-01',CUADRE_HASTA='2099-12-31';
- const diaMX=ts=>{if(!ts)return null;const d=new Date(ts);return Number.isFinite(+d)?new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).format(d):null;};
- /* Efectivo autorizado como lo deriva el tablero: finiquito de un cierre con excepción NOI individual
-    cuyo finiquito_efectivo coincide con el importe de la obligación; fecha = día local de registro. */
- function efectivoDe(ob,exc){
-  if(!ob||!exc)return [];
-  const idx=new Map(exc.map(x=>[x.cierre_id+'|'+x.trabajador_id,x])),out=[];
-  for(const o of ob){
-   if(texto(o.tipo).toUpperCase()!=='FINIQUITO'||!o.cierre_id)continue;
-   const x=idx.get(o.cierre_id+'|'+o.trabajador_id);
-   if(x&&x.finiquito_efectivo!=null&&centavos(x.finiquito_efectivo)===centavos(o.importe))out.push({obligacion_id:o.id,importe:x.finiquito_efectivo,fecha:diaMX(x.registrado_en)});
-  }
-  return out;
- }
- /* Comprobantes fiscales: XML/recibos con UUID del expediente y lecturas PDF con UUID. */
- function cfdiDe(docs,lect){
-  const out=[],conUuid=new Set();
-  for(const d of docs){
-   if(!['CFDI_NOMINA','RECIBO_NOMINA'].includes(d.categoria)||!texto(d.cfdi_uuid).trim())continue;conUuid.add(d.id);
-   out.push({documento_id:d.id,obra_id:d.obra_id,trabajador_id:d.trabajador_id,uuid:d.cfdi_uuid,neto:d.categoria==='CFDI_NOMINA'?d.cfdi_total:(d.nomina_neto??d.cfdi_total),
-    desde:d.periodo_inicio,hasta:d.periodo_fin,tipo:d.nomina_tipo,formato:d.categoria==='CFDI_NOMINA'?'XML':'PDF',anulado:!!d.anulado});
-  }
-  for(const l of lect)if(texto(l.uuid).trim()&&!conUuid.has(l.documento_id))
-   out.push({documento_id:l.documento_id,obra_id:l.obra_id,trabajador_id:l.trabajador_id,uuid:l.uuid,neto:l.neto,desde:l.desde,hasta:l.hasta,tipo:l.tipo,formato:'PDF',anulado:false});
-  return out;
- }
- function cuadreTablero(ctx,datos){
-  const g=k=>{const d=datos.get(k);return d&&!d.error?d.filas:null;};
-  const ob=g('control_obligaciones_pago'),ev=g('control_evidencias_pago'),ap=g('control_pago_aplicaciones');
-  const filas=[],sum=(l,f)=>l?l.reduce((s,x)=>s+(f(x)?centavos(x.importe):0),0):null;
-  const add=(medida,origen,c,nota)=>filas.push(['CUADRE_TABLERO',medida,origen,'(TOTAL)',null,null,null,null,null,'importe',c==null?null:c/100,c==null?null:String(c),nota]);
-  add('obligaciones_vigentes','RESPALDO',sum(ob,x=>x.vigente===true),'Suma de importe de obligaciones vigentes exportadas.');
-  add('evidencias','RESPALDO',sum(ev,()=>true),'Suma de importe de evidencias exportadas.');
-  add('aplicaciones_vigentes','RESPALDO',sum(ap,x=>!x.retirado_en),'Suma de aplicaciones no retiradas.');
-  const M=root.PLATINUM_TABLERO_MODELO;
-  if(!M||typeof M.calcular!=='function'){add('modelo_tablero','NO_DISPONIBLE',null,'PLATINUM_TABLERO_MODELO no estaba cargado al exportar; compare con el tablero usando las sumas anteriores.');return {disponible:false,filas};}
-  if(!ob||!ev||!ap){add('modelo_tablero','INCOMPLETO',null,'Faltan obligaciones, evidencias o aplicaciones completas para cuadrar.');return {disponible:true,filas};}
-  try{
-   // Mismas filas exportadas, con la forma de fuentes de PLATINUM_TABLERO_MODELO.calcular (A1).
-   const fuentes={ahora:ctx.inicio.toISOString(),obras:g('obras')||[],cierres:g('control_cierres_nomina')||[],versiones:g('control_cierre_versiones')||[],flujo:g('control_flujo_cierres')||[],
-    trabajadores:g('trabajadores')||[],cuadrillas:g('cuadrillas')||[],obligaciones:ob,evidencias:ev,aplicaciones:ap,pagos:g('pagos')||[],cheques:g('cheques')||[],historial:g('historial')||[],
-    finiquitos_transferencia:g('control_finiquitos_transferencia')||[],desglose_noi:g('control_desglose_noi')||[],entregas:g('reunion_cheques_entrega')||[],
-    cfdi:cfdiDe(g('documentos')||[],g('lecturas_fiscales_documentos')||[]),efectivo_autorizado:efectivoDe(ob,g('excepciones_noi_individuales')),errores:[],
-    permisos:{vip:!!ctx.permisos.vip,obras:ctx.obras.slice(),empresas:[ctx.empresa]}};
-   const res={};
-   for(const persp of ['PERIODO','PAGO']){
-    const r=M.calcular(fuentes,{empresa:ctx.empresa,obras:ctx.obras.slice(),perspectiva:persp,desde:CUADRE_DESDE,hasta:CUADRE_HASTA});
-    res[persp]=r;const medidas=r&&r.medidas||{};
-    for(const k of ['neto_conciliado','pagado_registrado','pagado_conciliado','saldo_por_cubrir','excedentes','sin_asignar','pendiente_conciliacion']){
-     const m=medidas[k];if(!m)continue;const v=typeof m==='number'?m:m.valor;
-     add(k,'PLATINUM_TABLERO_MODELO · '+persp,v==null?null:Math.round(Number(v)*100),'Rango '+CUADRE_DESDE+' a '+CUADRE_HASTA+'. '+(m.formula?String(m.formula).slice(0,400):''));
-    }
-    filas.push(['CUADRE_TABLERO','huella_tablero','PLATINUM_TABLERO_MODELO · '+persp,'(TOTAL)',null,null,null,null,null,null,null,null,(r&&r.version||'')+' '+(r&&r.huella||'')]);
-   }
-   if(!datos.get('excepciones_noi_individuales')||datos.get('excepciones_noi_individuales').error)
-    filas.push(['CUADRE_TABLERO','efectivo_autorizado','SIN_FUENTE','(TOTAL)',null,null,null,null,null,null,null,null,'Sin acceso VIP no se exportan las excepciones NOI: el cuadre excluye finiquitos en efectivo autorizados y puede diferir del tablero del servidor.']);
-   filas.push(['CUADRE_TABLERO','respaldo_fiscal','NO_CUADRADO','(TOTAL)',null,null,null,null,null,null,null,null,'La medida respaldo_fiscal no se cuadra en el respaldo (depende de lecturas fiscales internas).']);
-   return {disponible:true,filas,resultado:res};
-  }catch(e){add('modelo_tablero','ERROR',null,'El modelo del tablero no pudo calcular: '+errTexto(e));return {disponible:true,filas,error:errTexto(e)};}
- }
-
- /* ---------- partes y hojas físicas ---------- */
- function tamFila(f){let s=0;for(const v of f)s+=typeof v==='string'?v.length+4:12;return s;}
- function planificar(logicas,am){
-  const maxFilas=am.limiteFilas-1,pres=am.presupuesto,usados=new Set(['manifiesto']);
-  const partes=[];let actual={hojas:[],tam:0};partes.push(actual);
-  const nueva=()=>{actual={hojas:[],tam:0};partes.push(actual);};
-  const fisica=(L,k,desde)=>({L,nombre:null,k,desde,filas:[],tam:0});
-  for(const L of logicas){
-   let k=0,ch=fisica(L,k,0);
-   for(let i=0;i<L.filas.length;i++){
-    const t=tamFila(L.filas[i]);
-    if(ch.filas.length&&(ch.filas.length>=maxFilas||actual.tam+ch.tam+t>pres)){
-     actual.hojas.push(ch);actual.tam+=ch.tam;
-     if(actual.tam+t>pres&&actual.hojas.length)nueva();
-     ch=fisica(L,++k,i);
-    }
-    ch.filas.push(L.filas[i]);ch.tam+=t;
-   }
-   if(actual.tam+ch.tam>pres&&actual.hojas.length)nueva();
-   actual.hojas.push(ch);actual.tam+=ch.tam;
-  }
-  if(!partes[partes.length-1].hojas.length)partes.pop();
-  for(const p of partes)for(const h of p.hojas){
-   const base=h.k===0?h.L.nombre:(h.L.nombre.slice(0,26)+'_P'+(h.k+1));
-   h.nombre=nombreHoja(base,usados);h.hasta=h.desde+h.filas.length;
-  }
-  return partes.map(p=>({hojas:p.hojas,tam:p.tam}));
- }
- /* Las hojas de control (CONTROL, DICCIONARIO, TEXTOS_LARGOS) se agregan como lógicas. */
- function hojasControl(ctx,R,libro){
-  const L=[];
-  const C=['DOMINIO','HOJA','FUENTE','OBRA_ID','CENTRO','FILAS_EXPORTADAS','FILAS_SERVIDOR','FILAS_HOJA','COINCIDE','CAMPO_IMPORTE','TOTAL_IMPORTE','TOTAL_CENTAVOS','NOTA'];
-  const tiposC={OBRA_ID:'ID',FILAS_EXPORTADAS:'ENTERO',FILAS_SERVIDOR:'ENTERO',FILAS_HOJA:'ENTERO',TOTAL_IMPORTE:'IMPORTE',TOTAL_CENTAVOS:'TEXTO'};
-  L.push({nombre:'CONTROL',dominio:'CONTROL',fuente:'(control)',cols:C.map(c=>({campo:c,tipo:tiposC[c]||'TEXTO',origen:'CONTROL'})),filas:libro.control,desc:'Conteos y totales verificables por dominio y centro; cuadre con el tablero.',control:true});
-  const D=['HOJA','CAMPO','TIPO','CLAVE','RELACION','PERMISO','ORIGEN','DESCRIPCION','ETIQUETA_LEGADO'],dic=[];
-  for(const h of libro.hojas){
-   if(h.legado){continue;}
-   for(const c of h.cols)dic.push([h.nombre,c.campo,c.tipo,c.clave||null,c.relacion||null,c.permiso||h.permiso||null,c.origen||null,c.desc||(c.precisionDe?'Precisión de origen como texto de '+c.precisionDe+'.':'Campo '+c.campo+' de '+(h.fuente||h.nombre)+'.'),null]);
-  }
-  for(const [hoja,campo,m] of R.omitidos)dic.push([hoja,campo,'OMITIDO',null,null,null,'NO_EXPORTADO',m,null]);
-  const lc=libro.hojas.find(h=>h.legado);
-  if(lc)for(const c of lc.cols)dic.push(['(hoja por centro V0)',c.campo,c.tipo,null,c.campo==='id'?'PADRON.id':null,null,c.origen,'Vista de compatibilidad V0.',c.etiqueta]);
-  L.push({nombre:'DICCIONARIO',dominio:'CONTROL',fuente:'(control)',cols:D.map(c=>({campo:c,tipo:'TEXTO',origen:'DICCIONARIO'})),filas:dic,desc:'Campo, tipo, clave, relación, permiso, origen y descripción.',control:true});
-  if(libro.largos.length){
-   const T=['ref','hoja','registro','campo','parte','partes','longitud_total','sha256','fragmento'],fl=[];
-   for(const x of libro.largos)x.partes.forEach((p,i)=>fl.push([x.ref,x.hoja,x.registro,x.campo,i+1,x.partes.length,x.longitud,x.sha256||null,p]));
-   L.push({nombre:'TEXTOS_LARGOS',dominio:'CONTROL',fuente:'(control)',cols:T.map(c=>({campo:c,tipo:['parte','partes','longitud_total'].includes(c)?'ENTERO':'TEXTO',origen:'TEXTOS_LARGOS'})),filas:fl,
-    desc:'Textos de más de 32,767 caracteres en partes ordenadas; concatena por ref y parte.',control:true});
-  }
-  return L;
- }
- function manifiesto(am,ctx,R,libro,partes,i){
-  const C=['SECCION','CLAVE','VALOR','DETALLE','HOJA_LOGICA','FUENTE','PARTE','DESDE_FILA','HASTA_FILA','DOMINIO'],f=[];
-  const add=(s,k,v,d,hl,fu,pa,de,ha,dom)=>f.push([s,k,v===undefined?null:v,d??null,hl??null,fu??null,pa??null,de??null,ha??null,dom??null]);
-  const sn=b=>b?'SI':'NO',u=am.usuario||{};
-  add('GENERAL','formato',FORMATO);add('GENERAL','version_exportador',VERSION_EXPORTADOR);add('GENERAL','version_app',am.version||null);
-  add('GENERAL','id_respaldo',ctx.idRespaldo);add('GENERAL','generado_en',ctx.inicio.toISOString(),'Hora local: '+ctx.inicio.toString());
-  add('GENERAL','usuario',u.email||null);add('GENERAL','razon_social',ctx.empresa,(am.empresas[ctx.empresa]||{}).nombre||null);
-  add('GENERAL','estado',R.estado,R.motivos.join(', ')||null);add('GENERAL','parte',i+1,'de '+partes.length);
-  add('GENERAL','alcance','INTEGRAL','Todas las fuentes autorizadas de los centros seleccionados; sin filtros de fecha ni de vista.');
-  add('GENERAL','filtros','ninguno');
-  const m0=R.marcas[0],mf=R.marcas[R.marcas.length-1];
-  add('GENERAL','fuente_temporal',mf&&mf.generado_en||null,R.modoMarcas==='SERVIDOR'?'Instantánea equivalente: cada tabla coincide con la marca final del servidor (conteo, máximos de fecha y huella); MARCAS se calcula en una sola consulta.':'Sin marcas del servidor: no se verificó consistencia.');
-  add('GENERAL','marca_inicial',m0&&m0.generado_en||null);add('GENERAL','tomas_de_marcas',R.marcas.length);
-  add('GENERAL','permisos','VIP='+sn(ctx.permisos.vip)+' · SALUD='+sn(ctx.permisos.salud)+' · ADMIN='+sn(ctx.permisos.admin));
-  add('GENERAL','configuracion',sn(ctx.incluirConfiguracion),'Sólo claves y campos explícitos; nunca credenciales.');
-  add('GENERAL','originales','Storage privado','Los archivos originales no se incrustan ni se enlazan con URLs firmadas; DOCUMENTOS lleva ruta lógica privada y huella.');
-  add('GENERAL','duracion_preparacion_ms',R.duracion_preparacion_ms??null,'Lectura, verificación y armado (sin escritura).');
-  add('GENERAL','urls_firmadas_saneadas',libro.cont.urls);
-  for(const id of ctx.obras){const o=libro.obrasMap.get(id)||{};add('CENTRO',id,o.nombre||null,o.activa===false?'INACTIVO':'ACTIVO');}
-  for(const [obj,m] of R.excluidas)add('CENTRO_EXCLUIDO',obj,null,m);
-  partes.forEach((p,k)=>add('ARCHIVO',p.nombre,p.hojas.length+1,k===i?'este archivo':null,null,null,k+1));
-  partes.forEach((p,k)=>{for(const h of p.hojas)add('HOJA',h.nombre,h.filas.length,h.L.desc||null,h.L.nombre,h.L.fuente,k+1,h.desde+1,h.hasta,h.L.dominio);});
-  for(const fu of FUENTES){
-   const r=R.fuentes[fu.clave];if(!r)continue;
-   add('FUENTE',fu.clave,r.estado,r.error||r.motivo||null,fu.hoja,fu.tabla,null,r.filas??null,r.filas_servidor??null,fu.dominio);
-   if(r.huella)add('FUENTE_HUELLA',fu.clave,r.huella,'max_actualizado='+(r.max_actualizado||'∅')+' · páginas='+r.paginas+' · reintentos='+r.reintentos);
-   if(r.estado!=='OMITIDA_PERMISO')add('FUENTE_MARCA',fu.clave,r.tipo_marca||'SIN_MARCA',ALCANCE_MARCA[r.tipo_marca]||'Sin marca del servidor: no se verificó consistencia de esta fuente.');
-  }
-  for(const [obj,m] of EXCLUSIONES)add('EXCLUSION',obj,null,m);
-  for(const [h,c,m] of R.omitidos)add('CAMPO_OMITIDO',h+'.'+c,null,m);
-  for(const l of R.limitaciones)add('LIMITACION',null,null,l);
-  for(const [fu,e] of R.errores)add('ERROR',fu,null,e);
-  for(const [a,b] of COMPATIBILIDAD)add('COMPATIBILIDAD',a,null,b);
-  add('CONVENCION',NULO,null,'Valor nulo en la base (distinto de vacío y de cero).');
-  add('CONVENCION','(celda vacía)',null,'Texto vacío.');
-  add('CONVENCION','0',null,'Cero numérico.');
-  add('CONVENCION',MARCA+MARCA,null,'Un valor real que empieza con '+MARCA+' se guarda con un '+MARCA+' adicional al inicio.');
-  add('CONVENCION',MARCA+' TEXTO_LARGO',null,'El texto completo está en TEXTOS_LARGOS (ref, parte).');
-  add('CONVENCION','__origen',null,'Columna con la precisión de origen como texto.');
-  add('CONVENCION','Fechas',null,'FECHA = AAAA-MM-DD; FECHA_HORA = ISO 8601 tal como la base.');
-  add('CONVENCION','Textos',null,'IDs, CURP, RFC, NSS, CLABE, cuentas, folios y códigos son texto (@); ninguna cadena se evalúa como fórmula.');
-  const tipos={VALOR:'TEXTO',PARTE:'ENTERO',DESDE_FILA:'ENTERO',HASTA_FILA:'ENTERO'};
-  return {nombre:'MANIFIESTO',L:{nombre:'MANIFIESTO',cols:C.map(c=>({campo:c,tipo:tipos[c]||'TEXTO'})),desc:'Manifiesto'},filas:f,manifiesto:true};
- }
-
- /* ---------- escritura ---------- */
- function hojaXlsx(X,h){
-  const cols=h.L.cols,ws={},n=h.filas.length,anchos=cols.map(c=>Math.min(14,Math.max(8,texto(c.etiqueta||c.campo).length+2)));
-  for(let c=0;c<cols.length;c++)ws[X.utils.encode_cell({r:0,c})]={t:'s',v:texto(cols[c].etiqueta||cols[c].campo),s:ESTILO.enc};
-  const legado=!!h.L.legado;
-  for(let r=0;r<n;r++){
-   const fila=h.filas[r];
-   for(let c=0;c<cols.length;c++){
-    const v=fila[c];
-    const cel=legado&&(v===''||v===null)?null:celda(v,cols[c].tipo);
-    if(!cel)continue;
-    ws[X.utils.encode_cell({r:r+1,c})]=cel;
-    if(r<200&&cel.t==='s')anchos[c]=Math.min(50,Math.max(anchos[c],String(cel.v).length+1));
-   }
-  }
-  const ref=X.utils.encode_range({s:{r:0,c:0},e:{r:Math.max(n,1),c:Math.max(cols.length-1,0)}});
-  ws['!ref']=ref;ws['!autofilter']={ref:X.utils.encode_range({s:{r:0,c:0},e:{r:n,c:Math.max(cols.length-1,0)}})};
-  ws['!cols']=anchos.map(w=>({wch:w}));
-  return ws;
- }
- const PANEL='<sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView>';
- async function escribir(am,ctx,hojas){
-  const X=am.XLSX,wb=X.utils.book_new();
-  wb.__empresaPorHoja={};wb.__auditObraIds=ctx.obras.slice();
-  for(const h of hojas){X.utils.book_append_sheet(wb,hojaXlsx(X,h),h.nombre);wb.__empresaPorHoja[h.nombre]=ctx.empresa;}
-  let bytes=X.write(wb,{type:'array',bookType:'xlsx',compression:true});
-  if(am.JSZip){
-   const zip=await am.JSZip.loadAsync(bytes);
-   for(let i=0;i<wb.SheetNames.length;i++){
-    const ruta='xl/worksheets/sheet'+(i+1)+'.xml',f=zip.file(ruta);if(!f)continue;
-    let xml=await f.async('string');
-    xml=xml.replace(/<sheetView workbookViewId="0"\s*\/>/,PANEL);
-    zip.file(ruta,xml);
-   }
-   if(am.marca){try{await am.marca(zip,wb);}catch(e){/* la marca es estética; el respaldo no depende de ella */}}
-   bytes=await zip.generateAsync({type:'uint8array',compression:'DEFLATE',compressionOptions:{level:6}});
-  }
-  return bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);
- }
-
- /* Integra hojas de control y hashes de textos largos antes de planificar. */
- async function armar(am,ctx,R,activas,datos,columnas){
-  const libro=await armarHojas(am,ctx,R,activas,datos,columnas);
-  for(const x of libro.largos)x.sha256=await sha256(x.partes.join(''));
-  const ctl=hojasControl(ctx,R,libro);
-  // Orden: CONTROL y DICCIONARIO al inicio; TEXTOS_LARGOS al final.
-  const largos=ctl.filter(h=>h.nombre==='TEXTOS_LARGOS');
-  libro.hojas=[...ctl.filter(h=>h.nombre!=='TEXTOS_LARGOS'),...libro.hojas,...largos];
-  return libro;
- }
-
- /* ---------- interfaz ---------- */
+ function descargar(bytes,nombre){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));a.href=url;a.download=nombre;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),8000);}
  function abrir(op={}){
-  const am=ambiente(op),e=typeof esc==='function'?esc:texto;
-  const empresas=Object.keys(am.empresas).filter(c=>am.obras.some(o=>am.empresaDeObra(o)===c));
-  const emp=empresas.includes(am.empresaActiva)?am.empresaActiva:(empresas[0]||am.empresaActiva);
-  const centros=c=>am.obras.filter(o=>am.empresaDeObra(o)===c);
-  const lista=c=>centros(c).map(o=>'<label style="display:flex;gap:6px;align-items:center;font-size:12.5px"><input type="checkbox" class="rsi-obra" value="'+e(o.id)+'" checked> '+e(o.nombre)+(o.activa===false?' <span style="color:var(--mut)">(inactivo)</span>':'')+'</label>').join('');
-  modal('<div class="m-head"><h2>Respaldo integral</h2><button class="x" type="button" id="rsi-cerrar">×</button></div><div class="m-body">'+
-   '<p style="font-size:12.5px;color:var(--mut);margin-top:0">Genera un libro con todas las fuentes autorizadas para tu usuario, relacionadas por ID, con MANIFIESTO, DICCIONARIO y CONTROL. Es distinto de la exportación filtrada del tablero. Los originales de documentos permanecen en Storage privado.</p>'+
-   '<label>Razón social</label><select id="rsi-empresa">'+empresas.map(c=>'<option value="'+e(c)+'"'+(c===emp?' selected':'')+'>'+e((am.empresas[c]||{}).corto||c)+'</option>').join('')+'</select>'+
-   '<div style="margin:10px 0 4px;font-weight:700;font-size:12px">Centros</div><div id="rsi-obras" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px">'+lista(emp)+'</div>'+
-   '<label style="display:flex;gap:6px;align-items:center;margin-top:10px;font-size:12.5px"><input type="checkbox" id="rsi-config"> Incluir configuración autorizada (campos explícitos; sin credenciales)</label>'+
-   '<div id="rsi-estado" style="margin-top:12px;font-size:12.5px" aria-live="polite"></div></div>'+
-   '<div class="m-foot"><button class="btn" type="button" id="rsi-cancelar">Cerrar</button><button class="btn dark" type="button" id="rsi-generar">Generar respaldo integral</button></div>','lg');
-  const $$=id=>document.getElementById(id);
-  const cerrar=()=>{if(typeof closeModal==='function')closeModal();};
-  $$('rsi-cerrar').addEventListener('click',cerrar);$$('rsi-cancelar').addEventListener('click',cerrar);
-  $$('rsi-empresa').addEventListener('change',ev=>{$$('rsi-obras').innerHTML=lista(ev.target.value);});
-  const generar=async()=>{
-   const boton=$$('rsi-generar'),estado=$$('rsi-estado');
-   const obras=[...document.querySelectorAll('.rsi-obra')].filter(x=>x.checked).map(x=>x.value);
-   if(!obras.length){estado.textContent='Selecciona al menos un centro.';return;}
-   boton.disabled=true;estado.textContent='Preparando…';
-   const opciones={...op,empresa:$$('rsi-empresa').value,obras,incluirConfiguracion:$$('rsi-config').checked,progreso:p=>{if(estado)estado.textContent=p.texto||('Leyendo '+(p.hoja||p.fuente)+'…');}};
-   try{
-    const r=await exportar(opciones);
-    const err=r.errores.map(x=>'<li>'+e(x[0])+': '+e(x[1])+'</li>').join('');
-    estado.innerHTML='<div style="font-weight:700;color:'+(r.estado==='COMPLETO'?'var(--green)':'var(--red)')+'">Respaldo '+e(r.estado)+(r.motivos.length?' · '+e(r.motivos.join(', ')):'')+'</div>'+
-     '<div>'+r.archivos.map(a=>e(a.nombre)).join('<br>')+'</div><div style="color:var(--mut)">'+Math.round(r.duracion_ms/100)/10+' s</div>'+(err?'<ul>'+err+'</ul>':'')+
-     (r.estado!=='COMPLETO'?'<button class="btn" type="button" id="rsi-reintentar">Reintentar respaldo</button>':'');
-    const re=$$('rsi-reintentar');if(re)re.addEventListener('click',()=>{re.remove();generar();});
-    if(typeof toast==='function')toast('Respaldo '+r.estado.toLowerCase()+': '+r.archivos.length+' archivo(s).',r.estado==='COMPLETO'?'ok':'err');
-    if(op.porCorreo)setTimeout(()=>correo(r),800);
-   }catch(x){estado.innerHTML='<div style="color:var(--red)">No se generó el respaldo: '+e(errTexto(x))+'</div><button class="btn" type="button" id="rsi-reintentar">Reintentar</button>';
-    const re=$$('rsi-reintentar');if(re)re.addEventListener('click',()=>{re.remove();generar();});}
-   finally{boton.disabled=false;}
+  const e=typeof esc==='function'?esc:txt;
+  modal('<div class="m-head"><h2>Respaldo completo de trabajadores</h2><button class="x" id="rsi-cerrar" type="button">×</button></div><div class="m-body"><p>Todos los trabajadores de todas las razones sociales y centros a los que tienes acceso: activos, bajas y reingresos. Incluye datos de ficha, historiales, salarios, créditos, incidencias, nóminas, pagos y referencias documentales según tus permisos.</p><p class="fhint">Un solo Excel organizado por contenido. No depende del centro abierto, los filtros ni la selección. Los documentos originales permanecen archivados.</p><div id="rsi-estado" aria-live="polite"></div></div><div class="m-foot"><button class="btn" id="rsi-cancelar" type="button">Cerrar</button><button class="btn dark" id="rsi-generar" type="button">Exportar respaldo completo de trabajadores</button></div>','lg');
+  const host=document.getElementById('rsi-estado'),boton=document.getElementById('rsi-generar'),vigente=()=>document.getElementById('rsi-estado')===host;let ejecutando=false;
+  const cerrar=()=>{if(ejecutando){if(!confirm('La generación sigue en curso. ¿Cerrar esta ventana?'))return;}closeModal();};
+  document.getElementById('rsi-cerrar').onclick=cerrar;document.getElementById('rsi-cancelar').onclick=cerrar;
+  boton.onclick=async()=>{if(ejecutando)return;ejecutando=true;boton.disabled=true;host.textContent='Preparando el respaldo…';
+   try{const r=await exportar({...op,progreso:p=>{if(vigente())host.textContent=p.texto;}});if(!vigente())return;host.innerHTML='<strong>Respaldo completo descargado</strong><p>'+r.trabajadores+' trabajadores · '+r.archivos[0].hojas.length+' hojas · '+(r.archivos[0].bytes/1048576).toFixed(2)+' MB</p><p>'+e(r.archivos[0].nombre)+'</p>'+(r.omisiones.length?'<p>Algunos contenidos no están disponibles con tus permisos; se detallan en Resumen del respaldo.</p>':'')+(r.sinVinculo?'<p>Hay antecedentes sin vínculo verificable; se conservaron con su contexto original y están señalados en el libro.</p>':'');if(op.porCorreo)root.location.href='mailto:?subject='+encodeURIComponent('Respaldo de trabajadores')+'&body='+encodeURIComponent('Adjunta manualmente el archivo descargado: '+r.archivos[0].nombre);}
+   catch(x){if(vigente())host.textContent='No se completó el respaldo ni se descargó un archivo parcial: '+(x.message||txt(x));}
+   finally{ejecutando=false;if(vigente())boton.disabled=false;}
   };
-  $$('rsi-generar').addEventListener('click',generar);
  }
- function correo(r){
-  const f=new Date(),nombres=r.archivos.map(a=>a.nombre).join('\n');
-  const filas=Object.values(r.fuentes).reduce((s,x)=>s+(x.filas||0),0);
-  const body=encodeURIComponent('Respaldo integral PLATINUM ('+FORMATO+') del '+f.toLocaleDateString('es-MX')+'.\n\nEstado: '+r.estado+(r.motivos.length?' ('+r.motivos.join(', ')+')':'')+'\nFilas exportadas: '+filas+
-   '\n\nIMPORTANTE: adjunta a este correo los archivos que se acaban de descargar:\n'+nombres+'\n(normalmente en tu carpeta de Descargas)');
-  root.location.href='mailto:?subject='+encodeURIComponent('Respaldo integral PLATINUM · '+f.toLocaleDateString('es-MX'))+'&body='+body;
- }
-
- root.PLATINUM_RESPALDO=Object.freeze({FORMATO,VERSION:VERSION_EXPORTADOR,NULO,
-  fuentes:()=>FUENTES.map(f=>({clave:f.clave,tabla:f.tabla,hoja:f.hoja,dominio:f.dominio,alcance:f.alcance,permiso:f.permiso||null,pk:f.pk.slice(),opcional:!!f.opcional,desc:f.desc})),
-  dominios:()=>({...DOMINIOS}),exclusiones:()=>EXCLUSIONES.map(x=>x.slice()),compatibilidad:()=>COMPATIBILIDAD.map(x=>x.slice()),
-  abrir,exportar,
-  _pruebas:Object.freeze({nombreHoja,partirTexto,celda,tipoDe,valorLogico,movimientosLaborales,planificar,camposCambiados,CONFIG_PERMITIDA,LEGADO_COLS})});
+ root.PLATINUM_RESPALDO=Object.freeze({FORMATO,VERSION,NULO,abrir,exportar,fuentes:()=>FUENTES.map(f=>({...f,campos:f.campos.map(c=>c.slice())})),_pruebas:Object.freeze({pagina,marcas,recolectar,preparar,escribir,tipoCelda,seguro,hojasNombre,grupoTrabajador,trabajadorDe,aplanar,label})});
 })(typeof window!=='undefined'?window:globalThis);
