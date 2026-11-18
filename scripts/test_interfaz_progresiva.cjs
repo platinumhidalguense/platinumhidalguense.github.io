@@ -32,10 +32,15 @@ async function main(){
   c.DOCSX=[{trabajador_id:'w',categoria:'ACUSE_IMSS',subtipo:'ALTA',created_at:'2026-10-07'}];assert.match(c.marcadoresIMSS(w),/por cotejar/,'La fecha de subida no prueba el movimiento');
   c.DOCSX=[{trabajador_id:'w',categoria:'ACUSE_IMSS',subtipo:'BAJA',fecha_doc:'2026-10-01',anulado:true}];assert.match(c.marcadoresIMSS({...w,estatus:'BAJA',fecha_baja:'2026-10-01'}),/Baja pendiente/);
   c.DOCSX[0].anulado=false;assert.match(c.marcadoresIMSS({...w,estatus:'BAJA',fecha_baja:'2026-10-01'}),/Baja con acuse/);
-  c.WORKERS=[w];c.renderTable();assert.equal(($('tbody').innerHTML.match(/<td/g)||[]).length,6);assert.doesNotMatch($('tbody').innerHTML,/SECRET_ACCOUNT|SECRET_PHONE|2400|ALBAÑIL/);assert.match($('tbody').innerHTML,/ALTA IMSS/);w.movimiento_imss='ALTA PRESENTADA';c.renderTable();assert.doesNotMatch($('tbody').innerHTML,/ALTA IMSS/);assert.match($('tbody').innerHTML,/Alta pendiente|por cotejar/);
+  // La lista real ya vive en el módulo70; el DOM mínimo de navegación no lo sustituye.
+  const {document:tabla}=require('linkedom').parseHTML(html);for(const el of tabla.querySelectorAll('#view-trab [id]'))ids.set(el.id,el);
+  c.document.querySelectorAll=q=>tabla.querySelectorAll(q);c.document.querySelector=q=>tabla.querySelector(q);c.document.createElement=t=>tabla.createElement(t);
+  const contexto={};c.window.PLATINUM_PERSONAL={contexto:()=>contexto,vigente:()=>true};c.OBRA_CARGA_COMPLETA=true;
+  vm.runInContext(fs.readFileSync('frontend/modulos/70-padron-movimientos.js','utf8'),c);w.obra_id=c.OBRA.id;
+  c.WORKERS=[w];c.renderTable();assert.equal(($('tbody').innerHTML.match(/<td/g)||[]).length,9);assert.doesNotMatch($('tbody').innerHTML,/SECRET_ACCOUNT|SECRET_PHONE|2400|ALBAÑIL/);assert.match($('tbody').innerHTML,/Alta por presentar/);w.movimiento_imss='ALTA PRESENTADA';c.renderTable();assert.match($('tbody').innerHTML,/Alta presentada/);assert.match($('tbody').innerHTML,/Alta pendiente|por cotejar/);
   $('q').value='10';assert.equal(c.baseFiltered().length,1);c.resetWorkerFilters();assert.equal($('q').value,'');
   // La ficha por secciones se prueba con DOM en test_padron_ficha_personal.cjs.
   for(const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(m[1]);
-  console.log('OK: inicio, empresa/obra, menú, carga fallida/concurrente, búsqueda, seis columnas, acuses por episodio. Sin acceso a producción.');
+  console.log('OK: inicio, empresa/obra, menú, carga fallida/concurrente, búsqueda, nueve columnas, acuses por episodio. Sin acceso a producción.');
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

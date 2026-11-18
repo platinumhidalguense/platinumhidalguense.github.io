@@ -40,11 +40,13 @@ async function saveReingreso(){
 
 /* ---------- historial ---------- */
 const IGNORE_H=['updated_at','created_at','actualizado_por','creado_por','id'];
+function consultaHistorialTrabajador(trabId,campos='*',consulta=sb.from('historial')){
+  const q=consulta.select(campos);return trabId?q.eq('trabajador_id',trabId):q;
+}
 async function openHistorial(trabId,host=null){
   const obra=OBRA?.id,uid=USER?.id,turno=typeof NAV_MENU_ACCION==='undefined'?null:NAV_MENU_ACCION;
   if(host)host.innerHTML='<p role="status">Consultando historial…</p>';
-  let q=sb.from('historial').select('*').order('fecha',{ascending:false}).limit(trabId?400:1200);
-  if(trabId)q=q.eq('trabajador_id',trabId);
+  const q=consultaHistorialTrabajador(trabId).order('fecha',{ascending:false}).limit(trabId?400:1200);
   const {data,error}=await q;
   if(obra!==OBRA?.id||uid!==USER?.id||host&&$('ficha-historial')!==host||
     typeof NAV_MENU_ACCION!=='undefined'&&turno!==NAV_MENU_ACCION)return;

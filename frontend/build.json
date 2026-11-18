@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-18.2",
-  "entry": "assets/platinum-app.0f3e969725ddfe09.js",
-  "sha256": "0f3e969725ddfe095af8f617aab6bdff1532ffcdd98d0f8e68c3cda80c0b0c26",
-  "integrity": "sha384-QRCznHC6iEO2wvheiljxGrM/kwxY+RWt/6P8nvmelP7/6muLL6Iz+nZlJsinnbgj",
+  "version": "2026-11-18.3",
+  "entry": "assets/platinum-app.50e1342e3c276091.js",
+  "sha256": "50e1342e3c276091fceb2da3ae72be0c312be8bcbfb153f0f827186adaffc30a",
+  "integrity": "sha384-j1HWibuvCz/6X/S+4yv5Lmgvw84zVB35nZgSDi41+hFZXdXp9mlHE2Vr1T5KsmD4",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "7e98c0646f5867d6bd8875489f555379f34599e7a203eeb6dd8d3abc14c7688a"
+      "sha256": "26a382d78445fe77c99f689f6be7a269986a0b348faf023758167bd5b9035064"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -22,7 +22,7 @@
     },
     {
       "path": "frontend/modulos/04-padron-expedientes.js",
-      "sha256": "bbcd7ccfafad8e8cf11e425cb62df919877a0c3f9340b39623224c63d5b0cfbc"
+      "sha256": "37196edbf092438b85a82f7d3443f0608e9182ba36e40a555853cadc543393e4"
     },
     {
       "path": "frontend/modulos/05-alta-edicion.js",
@@ -30,7 +30,7 @@
     },
     {
       "path": "frontend/modulos/06-movimientos-historial.js",
-      "sha256": "b3c04238ace3689d79e43e3139818dd1c5c46688f67b88512ff0bab007b5e6d2"
+      "sha256": "70cc80284b214e4a6efeb15c200c676ee31aa797a9de324c356b079c5071b92e"
     },
     {
       "path": "frontend/modulos/07-exportacion-corporativa.js",
@@ -286,7 +286,7 @@
     },
     {
       "path": "frontend/modulos/70-padron-movimientos.js",
-      "sha256": "f2cd08569d622bcb16921a60c3dbc23e0dbd3cac149f395bc70ca2f48e6db552"
+      "sha256": "6dfd9ec8a93dd7bad5cfe6c58059461b1e5397f62a7329844005dc58d4ed1125"
     },
     {
       "path": "frontend/modulos/71-ficha-personal.js",

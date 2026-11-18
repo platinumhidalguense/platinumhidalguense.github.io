@@ -671,8 +671,31 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
   .ia-typing i{animation:none}
   .ia-msgs{scroll-behavior:auto}
 }
+
+/* Padrón unificado: estilo local, no modifica la ficha ni otros listados. */
+.app-shell #view-trab table.padron-table{min-width:1414px;table-layout:fixed}
+.app-shell #view-trab table.padron-table th:nth-child(1){width:64px}
+.app-shell #view-trab table.padron-table th:nth-child(2){width:240px}
+.app-shell #view-trab table.padron-table th:nth-child(3){width:140px}
+.app-shell #view-trab table.padron-table th:nth-child(4){width:130px}
+.app-shell #view-trab table.padron-table th:nth-child(5){width:110px}
+.app-shell #view-trab table.padron-table th:nth-child(6){width:110px}
+.app-shell #view-trab table.padron-table th:nth-child(7){width:185px}
+.app-shell #view-trab table.padron-table th:nth-child(8){width:200px}
+.app-shell #view-trab table.padron-table th:nth-child(9){width:135px}
+.app-shell #view-trab table.padron-table td,.app-shell #view-trab table.padron-table th{padding:8px 10px;vertical-align:top;height:auto;line-height:1.35;white-space:normal;overflow-wrap:anywhere}
+#view-trab .padron-table small{display:block;font-size:10.5px;line-height:1.3;margin-top:2px;color:var(--mut)}
+#view-trab .padron-nombre{background:none;border:0;padding:0;color:var(--txt);font:inherit;font-weight:700;text-align:left;cursor:pointer}
+#view-trab .padron-nombre:hover{text-decoration:underline}#view-trab .padron-titulo{font-weight:700}
+#view-trab .padron-acciones .btn{font-size:11px;padding:3px 7px;margin:0 3px 3px 0}
+#view-trab .padron-historial summary{font-size:11px;color:var(--blue,var(--txt));cursor:pointer;margin-top:3px}
+#view-trab .padron-historial [data-padron-hist-cuerpo]{font-size:11px;max-height:250px;overflow:auto;border-top:1px solid var(--border);margin-top:5px;padding-top:5px}
+#view-trab .padron-hist-movimientos{padding-left:15px;margin:5px 0}#view-trab .padron-hist-movimientos li{margin:0 0 6px}
+#view-trab .padron-hist-movimientos time{display:block;font-variant-numeric:tabular-nums}
+#view-trab .padron-historial .btn{font-size:10.5px;padding:3px 5px;margin-bottom:4px}
+#view-trab .padron-hist-fechas{margin:0;color:var(--mut)}
 </style>
-<link rel="stylesheet" href="assets/platinum-cinta.css?v=20261118.2">
+<link rel="stylesheet" href="assets/platinum-cinta.css?v=20261118.3">
 <link rel="stylesheet" href="assets/platinum-tablero.css?v=20261111.1">
 </head>
 <body>
@@ -924,19 +947,9 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
     <!-- ===== VISTA TRABAJADORES ===== -->
     <div id="view-trab">
       <div id="pago-sabado-aviso" hidden style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:12px"></div>
-      <div class="padron-toolbar">
-        <div id="padron-vistas" role="group" aria-label="Vistas del padrón">
-          <button class="btn" type="button" data-padron-vista="activos" aria-pressed="true">Activos</button>
-          <button class="btn" type="button" data-padron-vista="altas" aria-pressed="false">Altas</button>
-          <button class="btn" type="button" data-padron-vista="bajas" aria-pressed="false">Bajas</button>
-          <button class="btn" type="button" data-padron-vista="reingresos" aria-pressed="false">Reingresos</button>
-        </div>
+      <div class="padron-toolbar" id="padron-lista">
+        <span class="padron-titulo">Padrón completo del centro</span>
         <button class="btn dark" type="button" id="padron-nueva" onclick="sbGo(()=>openForm(null),this,false)" hidden>＋ Nueva alta</button>
-      </div>
-      <div class="padron-toolbar" id="padron-rango" hidden>
-        <label>Fecha efectiva desde <input id="padron-desde" type="date" onchange="renderTable()"></label>
-        <label>Hasta <input id="padron-hasta" type="date" onchange="renderTable()"></label>
-        <label><input id="padron-especial" type="checkbox" onchange="renderTable()"> <span id="padron-especial-texto"></span></label>
       </div>
       <div id="padron-aviso" role="status" aria-live="polite"></div>
       <details class="worker-filters"><summary>Filtros y resumen <span id="worker-count" aria-live="polite"></span></summary>
@@ -959,16 +972,19 @@ thead th{position:sticky;top:0;background:var(--head-bg);z-index:5}
       </details>
       <div class="worker-search"><label for="q">Trabajadores</label><input id="q" type="search" placeholder="Buscar nombre, número, CURP, RFC, NSS o puesto…" oninput="renderTable()"><span class="worker-hint">Selecciona un nombre para abrir su ficha</span></div>
       <div class="tbl-card worker-list" tabindex="0" aria-label="Lista de trabajadores, desplázate para ver más filas">
-        <table class="trab-table">
+        <table class="trab-table padron-table">
           <thead><tr id="padron-columnas">
-            <th data-sort="nombre"><button onclick="setSort('nombre')">Nombre completo ↕</button></th>
-            <th data-sort="estatus"><button onclick="setSort('estatus')">Estatus ↕</button></th>
-            <th data-sort="contratista"><button onclick="setSort('contratista')">Contratista ↕</button></th>
-            <th data-sort="fecha_alta"><button onclick="setSort('fecha_alta')">Ingreso / reingreso ↕</button></th>
-            <th data-sort="fecha_baja"><button onclick="setSort('fecha_baja')">Fecha baja ↕</button></th>
-            <th>Acuses IMSS</th>
+<th scope="col" data-sort="no_trab"><button type="button" onclick="setSort('no_trab')">Número</button></th>
+<th scope="col" data-sort="nombre"><button type="button" onclick="setSort('nombre')">Nombre completo</button></th>
+<th scope="col" data-sort="contratista"><button type="button" onclick="setSort('contratista')">Contratista</button></th>
+<th scope="col" data-sort="estatus"><button type="button" onclick="setSort('estatus')">Estatus laboral</button></th>
+<th scope="col" data-sort="fecha_alta"><button type="button" onclick="setSort('fecha_alta')">Fecha de alta</button></th>
+<th scope="col" data-sort="fecha_baja"><button type="button" onclick="setSort('fecha_baja')">Fecha de baja</button></th>
+<th scope="col" data-sort="fecha_reingreso"><button type="button" onclick="setSort('fecha_reingreso')">Reingresos</button></th>
+<th scope="col">Estatus IMSS</th>
+<th scope="col">Acciones</th>
           </tr></thead>
-          <tbody id="tbody"><tr class="loading-row"><td colspan="6">Selecciona un centro de trabajo.</td></tr></tbody>
+          <tbody id="tbody"><tr class="loading-row"><td colspan="9">Selecciona un centro de trabajo.</td></tr></tbody>
         </table>
       </div>
       <div id="worker-pagina" class="lista-pagina" aria-label="Páginas de trabajadores" hidden></div>

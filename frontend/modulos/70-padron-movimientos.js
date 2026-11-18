@@ -1,10 +1,9 @@
-/* El padrón conserva la identidad por ID. El historial aporta episodios con fecha efectiva. */
+/* Una fila por trabajador; consulta histórica bajo demanda, sin operaciones laborales. */
 (function(){
  'use strict';
- const tipos={activos:'Activos',altas:'Altas',bajas:'Bajas',reingresos:'Reingresos'};
  const movimientos={altas:['ALTA','fecha_alta'],bajas:['BAJA','fecha_baja'],reingresos:['REINGRESO','fecha_reingreso']};
- const columna={altas:'Alta',bajas:'Baja',reingresos:'Reingreso'};
- let vista='activos',hist=null,cuad=null,alcance=null,generacion=0;
+ let cuad=null,alcance=null,generacion=0;
+ const historiales=new Map();
  const api=()=>window.PLATINUM_PERSONAL;
  const fecha=v=>fechaAcuseISO(v);
  function hoyLocal(){
@@ -52,7 +51,7 @@
  }
  function ajustarAlcance(){
   const c=api().contexto();
-  if(c!==alcance){alcance=c;hist=null;cuad=null;vista='activos';}
+  if(c!==alcance){alcance=c;historiales.clear();cuad=null;}
   return c;
  }
  function idCuadrilla(w){return Object.hasOwn(w,'id_cuadrilla')?w.id_cuadrilla:cuad?.asignacion?.get(w.id);}
@@ -83,122 +82,103 @@
   const id=$('flt-cuadrilla')?.value;
   return !id||idCuadrilla(w)===id;
  }
- async function consultar(tipo,desde,hasta,identificador){
-  const c=alcance,obra=OBRA.id,campo=movimientos[tipo][1],fechaE='datos_despues->>'+campo,fechaA='datos_antes->>'+campo;
-  const acciones={altas:['ALTA','MODIFICACION'],bajas:['BAJA','MODIFICACION'],reingresos:['REACTIVACION','MODIFICACION','CORRECCION_REINGRESO']};
-  const seleccionado='id,obra_id,trabajador_id,fecha,accion,trabajador_nombre,efectiva:'+fechaE+',anterior:'+fechaA+',estado:datos_despues->>estatus,estado_anterior:datos_antes->>estatus,contratista:datos_despues->>contratista,puesto:datos_despues->>puesto,no_trab:datos_despues->>no_trab';
-  const rango=k=>'and('+k+'.gte.'+desde+','+k+'.lte.'+hasta+')';
-  const incompleto='and('+fechaE+'.is.null,fecha.gte.'+desde+'T00:00:00-06:00,fecha.lte.'+hasta+'T23:59:59.999-06:00)';
-  const s={identificador,estado:'leyendo'};hist=s;
-  try{
-   const r=await api().leer('historial',identificador+':'+generacion,q=>q.select(seleccionado).eq('obra_id',obra)
-    .in('accion',acciones[tipo]).or([rango(fechaE),rango(fechaA),incompleto].join(',')));
-   if(!api().vigente(c)||hist!==s)return;
-   const ids=[...new Set(r.filas.map(h=>h.trabajador_id).filter(Boolean))].filter(id=>!WORKERS.some(w=>w.id===id));
-   const personas=[];
-   for(let i=0;i<ids.length;i+=80){
-    const lote=ids.slice(i,i+80);
-   const extra=await api().leer('trabajadores','hist:'+lote.join(','),q=>q.select('id,obra_id,no_trab,nombres,primer_apellido,segundo_apellido,estatus,contratista,puesto,curp,rfc,nss,telefono,correo,periodo_pago,semana_ingreso,fecha_alta,fecha_baja,fecha_reingreso,eliminado').in('id',lote));
-    if(!api().vigente(c)||hist!==s)return;
-   personas.push(...extra.filas);
-   const conocidos=new Set(extra.filas.map(w=>w.id));
-   for(const id of lote.filter(x=>!conocidos.has(x))){
-    const evidencia=r.filas.find(h=>h.trabajador_id===id);
-    personas.push({id,nombres:evidencia.trabajador_nombre,no_trab:evidencia.no_trab,contratista:evidencia.contratista,puesto:evidencia.puesto,estatus:'Por verificar',historico:true});
+ function historialDe(w){const h=historiales.get(w.id);return h?.version===w.updated_at?h:null;}
+ function movimientosDe(w,filas){
+  const obra=OBRA.id,hoy=hoyLocal(),revertidas=new Set(filas.filter(h=>h.accion==='BAJA_REVERTIDA').map(h=>String(h.reversion_historial_id)));
+  const resultado=[];
+  for(const clase of Object.keys(movimientos)){
+   const campo=movimientos[clase][1];
+   const historial=filas.map(h=>({...h,efectiva:h[campo],anterior:h['antes_'+campo]}));
+   for(const r of filasMovimientos(clase,[w],historial,'0001-01-01','9999-12-31',obra,hoy)){
+    const revertida=clase==='bajas'&&r.h&&revertidas.has(String(r.h.id));
+    resultado.push({...r,revertida});
    }
-   }
-   s.personas=personas;s.filas=r.filas;s.estado='ok';
-  }catch(e){if(hist===s){s.estado='error';s.error=e.message;}}
-  if(api().vigente(c)&&hist===s&&VIEW==='trab')repintar();
+  }
+  return resultado.sort((a,b)=>(a.fecha||'9999-12-31').localeCompare(b.fecha||'9999-12-31')||String(a.h?.id||'').localeCompare(String(b.h?.id||''),undefined,{numeric:true}));
  }
- function repintar(){
-  const l=document.querySelector('.worker-list'),top=l?.scrollTop,left=l?.scrollLeft;
-  const id=document.activeElement?.dataset?.padronId;
-  renderTable();
-  if(l){l.scrollTop=top;l.scrollLeft=left;if(id)[...$('tbody').querySelectorAll('[data-padron-id]')].find(b=>b.dataset.padronId===id)?.focus({preventScroll:true});}
+ function fechaTexto(f){return fecha(f)?fmtD(fecha(f)):'—';}
+ function contenidoHistorial(w,h){
+  if(!h||h.estado==='leyendo')return '<p role="status">Consultando movimientos de este trabajador…</p>';
+  if(h.estado==='error')return '<p role="alert">No se pudo verificar el historial: '+esc(h.error)+'</p><button type="button" class="btn" data-padron-refrescar="'+esc(w.id)+'">Reintentar</button>';
+  const filas=movimientosDe(w,h.filas);
+  const registros=filas.map(r=>{
+   const tipo=r.revertida?'Baja revertida':r.tipo==='BAJA'?(w.estatus==='BAJA'&&r.fecha===fecha(w.fecha_baja)?'Baja vigente':'Baja histórica'):r.tipo==='REINGRESO'?'Reingreso':'Alta registrada';
+   return '<li><span>'+esc(tipo)+(r.programado?' · programado':'')+'</span><time>'+fechaTexto(r.fecha)+'</time>'+(r.h?.fecha?'<small>Captura: '+fechaTexto(r.h.fecha)+'</small>':'')+'</li>';
+  }).join('');
+  return '<p class="padron-hist-fechas">Movimientos de este centro · fechas efectivas<br>Alta registrada: '+fechaTexto(w.fecha_alta)+(w.fecha_reingreso?' · Reingreso del ciclo registrado: '+fechaTexto(w.fecha_reingreso):'')+'</p><ol class="padron-hist-movimientos">'+(registros||'<li>Sin movimientos laborales registrados.</li>')+'</ol><button type="button" class="btn" data-padron-refrescar="'+esc(w.id)+'">Actualizar historial</button><button type="button" class="btn" data-padron-seccion="historial" data-worker-id="'+esc(w.id)+'">Historial detallado</button>';
+ }
+ function estadoLaboral(w,reingresos=0){
+  const programacion=programado(w),antecedente=w.estatus==='ACTIVO'&&(w.fecha_reingreso||reingresos);
+  return '<span class="badge '+esc(w.estatus)+'">'+esc(w.estatus||'—')+'</span>'+(antecedente&&!programacion?'<small>Con reingreso</small>':'')+(programacion?'<small>'+esc(programacion)+'</small>':'')+(w._pendiente_visual?'<small>Guardando…</small>':'');
+ }
+ function actualizarDetalle(w,detalle,h){
+  const n=h?.estado==='ok'?movimientosDe(w,h.filas).filter(r=>r.tipo==='REINGRESO').length:null;
+  detalle.querySelector('summary').textContent=n===null?'Ver historial':'Ver historial · '+n+' reingreso'+(n===1?'':'s');
+  detalle.querySelector('[data-padron-hist-cuerpo]').innerHTML=contenidoHistorial(w,h);
+  if(h?.estado==='ok'){const movs=movimientosDe(w,h.filas),ultima=movs.filter(r=>r.tipo==='REINGRESO').map(r=>r.fecha).filter(Boolean).sort().at(-1)||w.fecha_reingreso;const row=detalle.closest('tr');row.querySelector('[data-padron-ultima]').textContent=fechaTexto(ultima);row.querySelector('[data-activity-field=ESTATUS]').innerHTML=estadoLaboral(w,n);}
+ }
+ async function consultarHistorial(id,detalle,forzar=false){
+  const c=ajustarAlcance(),w=WORKERS.find(w=>w.id===id&&w.obra_id===OBRA.id&&!w.eliminado);
+  if(!w||!detalle.isConnected)return;
+  const previo=historialDe(w);
+  if(!forzar&&previo){actualizarDetalle(w,detalle,previo);return;}
+  const s={estado:'leyendo',version:w.updated_at,generacion};historiales.set(id,s);actualizarDetalle(w,detalle,s);
+  const vigente=()=>api().vigente(c)&&detalle.isConnected&&historiales.get(id)===s&&s.generacion===generacion;
+  try{
+   const campos='id,obra_id,trabajador_id,accion,fecha,fecha_alta:datos_despues->>fecha_alta,fecha_baja:datos_despues->>fecha_baja,fecha_reingreso:datos_despues->>fecha_reingreso,antes_fecha_alta:datos_antes->>fecha_alta,antes_fecha_baja:datos_antes->>fecha_baja,antes_fecha_reingreso:datos_antes->>fecha_reingreso,estado:datos_despues->>estatus,estado_anterior:datos_antes->>estatus,reversion_historial_id:datos_despues->>reversion_historial_id';
+   const r=await api().leer('historial','padron:'+OBRA.id+':'+id+':'+generacion,q=>consultaHistorialTrabajador(id,campos,q).eq('obra_id',OBRA.id).in('accion',['ALTA','BAJA','REACTIVACION','MODIFICACION','CORRECCION_REINGRESO','BAJA_REVERTIDA']).order('fecha',{ascending:true}));
+   if(!vigente())return;
+   s.filas=r.filas.filter(h=>h.trabajador_id===id&&h.obra_id===OBRA.id);s.estado='ok';
+  }catch(e){if(!vigente())return;s.estado='error';s.error=e.message;}
+  if(vigente())actualizarDetalle(w,detalle,s);
  }
  function invalidar(tabla){
-  if(!$('padron-vistas')||!alcance||!api().vigente(alcance))return;
+  if(!alcance||!api().vigente(alcance))return;
   if(tabla==='cuadrillas')cuad=null;
-  if(tabla==='trabajadores'&&hist){
-   // La nueva fila no confirma que la lectura histórica en curso incluyera el movimiento.
-   hist=null;generacion++;
-  }
+  if(tabla==='trabajadores'){historiales.clear();generacion++;}
  }
- function reset(){
-  vista='activos';hist=null;cuad=null;alcance=null;
-  const hoy=hoyLocal(),desde=$('padron-desde'),hasta=$('padron-hasta');
-  if(desde)desde.value=hoy.slice(0,7)+'-01';
-  if(hasta)hasta.value=hoy;
-  if($('padron-especial'))$('padron-especial').checked=false;
- }
- function seleccionar(clase){
-  ajustarAlcance();vista=clase;
-  $('padron-especial').checked=false;
-  const l=document.querySelector('.worker-list');if(l)l.scrollTop=0;
-  renderTable();
+ function reset(){cuad=null;alcance=null;historiales.clear();generacion++;}
+ function personasDelCentro(base){
+  const ids=new Set();return base.filter(w=>w.id&&w.obra_id===OBRA.id&&!w.eliminado&&!ids.has(w.id)&&!!ids.add(w.id));
  }
  function render(base){
-  if(!$('padron-vistas')||!OBRA)return false;
+  if(!$('padron-lista')||!OBRA)return false;
   ajustarAlcance();
-  if(!$('padron-desde').value||!$('padron-hasta').value){
-   const hoy=hoyLocal();$('padron-desde').value||=hoy.slice(0,7)+'-01';$('padron-hasta').value||=hoy;
-  }
-  const hoy=hoyLocal(),activos=vista==='activos',desde=fecha($('padron-desde').value),hasta=fecha($('padron-hasta').value),especial=$('padron-especial').checked;
-  const botones=[...$('padron-vistas').querySelectorAll('[data-padron-vista]')];
-  for(const b of botones){b.setAttribute('aria-pressed',String(vista===b.dataset.padronVista));b.onclick=()=>seleccionar(b.dataset.padronVista);}
-  $('padron-rango').hidden=activos;
-  $('padron-especial-texto').textContent=vista==='bajas'?'Bajas actuales, fuera del rango inclusive':vista==='reingresos'?'Reingresos programados':'Altas pendientes y programadas';
   $('padron-nueva').hidden=!puedeEditarTrabajador();
   $('padron-reintentar-cuadrillas').onclick=()=>{cuad=null;renderTable();};
-  // El catálogo no bloquea el padrón inicial ni su primera pintura.
   if(!cuad&&!OBRA_CARGA_COMPLETA)setTimeout(()=>{if(alcance&&api().vigente(alcance)&&VIEW==='trab')catalogoCuadrillas();},0);
   dibujarCuadrillas();
-  const aviso=$('padron-aviso');aviso.innerHTML='';
-  const alcanceHist=!activos&&!especial&&desde&&hasta&&desde<=hasta;
-  const identificador=[vista,desde,hasta].join('|');
-  if(alcanceHist&&hist?.identificador!==identificador)consultar(vista,desde,hasta,identificador);
-  const h=alcanceHist&&hist?.identificador===identificador?hist:null;
-  if(h?.estado==='leyendo')aviso.textContent='Consultando el historial del rango. Se muestran los movimientos del padrón mientras llega.';
-  if(h?.estado==='error'){
-   aviso.textContent='Historial sin verificar: '+h.error+' ';
-   const b=document.createElement('button');b.type='button';b.className='btn';b.textContent='Reintentar';b.onclick=()=>{hist=null;renderTable();};aviso.appendChild(b);
+  const rows=personasDelCentro(base).filter(coincideCuadrilla),valor=w=>SORT.k==='nombre'?fullName(w):SORT.k==='fecha_baja'?(w.estatus==='BAJA'?w.fecha_baja:null):w[SORT.k];
+  rows.sort((a,b)=>{const x=valor(a),y=valor(b);return x==null||x===''?(y==null||y===''?String(a.id).localeCompare(String(b.id)):1):y==null||y===''?-1:(SORT.asc?1:-1)*String(x).localeCompare(String(y),'es',{numeric:true})||String(a.id).localeCompare(String(b.id));});
+  window._NAVIDS=rows.map(w=>w.id);
+  $('worker-count').textContent=rows.length+' visibles · '+personasDelCentro(WORKERS).length+' en el padrón del centro';
+  const cols=[['Número','no_trab'],['Nombre completo','nombre'],['Contratista','contratista'],['Estatus laboral','estatus'],['Fecha de alta','fecha_alta'],['Fecha de baja','fecha_baja'],['Reingresos','fecha_reingreso'],['Estatus IMSS',''],['Acciones','']];
+  const head=$('padron-columnas');if(head._firma!=='lista-unica'){
+   head.innerHTML=cols.map(([n,k])=>'<th scope="col" '+(k?'data-sort="'+k+'"><button type="button" onclick="setSort(\''+k+'\')">'+n+'</button>': '>'+n)+'</th>').join('');head._firma='lista-unica';
   }
-  if(!activos&&!especial&&!alcanceHist)aviso.textContent='Selecciona un rango de fechas efectivo válido.';
-  const estatus=$('f-estatus')?.value;
-  const personas=base.concat(baseFiltered((h?.personas||[]).filter(w=>!w.eliminado)).filter(w=>!estatus||w.estatus===estatus)).filter(coincideCuadrilla);
-  const rows=activos?personas.filter(w=>w.obra_id===OBRA.id&&!w.eliminado&&w.estatus==='ACTIVO'&&!programado(w,hoy)).map(w=>({w,fecha:w.fecha_reingreso||w.fecha_alta}))
-   :especial||alcanceHist?filasMovimientos(vista,personas,h?.filas||[],desde,hasta,OBRA.id,hoy,especial):[];
-  const sort=SORT.k==='fecha_alta'?'fecha':SORT.k,valor=r=>sort==='nombre'?fullName(r.w):sort==='fecha'?r.fecha:r.w[sort];
-  rows.sort((a,b)=>{const x=valor(a),y=valor(b);return x==null||x===''?(y==null||y===''?0:1):y==null||y===''?-1:(SORT.asc?1:-1)*String(x).localeCompare(String(y),'es',{numeric:true})||String(a.w.id).localeCompare(String(b.w.id));});
-  window._NAVIDS=[...new Set(rows.filter(r=>r.w.obra_id===OBRA.id).map(r=>r.w.id))];
-  $('worker-count').textContent=rows.length+' '+(activos?'personas':'movimientos')+' con estos filtros · '+WORKERS.length+' en el padrón del centro';
-  const cols=activos?[['Trabajador','nombre'],['Puesto','puesto'],['Contratista / cuadrilla','contratista'],['Estatus','estatus'],['Ingreso efectivo','fecha_alta'],['Acuses IMSS','']]
-   :[[columna[vista]+' · fecha efectiva','fecha_alta'],['Trabajador','nombre'],['Situación actual','estatus'],['Centro del movimiento',''],['Contratista / cuadrilla','contratista'],['IMSS actual / acción','']];
-  const head=$('padron-columnas'),firma=JSON.stringify(cols);
-  if(head._firma!==firma){head.innerHTML=cols.map(([n,k])=>'<th scope="col" '+(k?'data-sort="'+k+'"><button type="button" onclick="setSort(\''+k+'\')">'+n+'</button>': '>'+n)+'</th>').join('');head._firma=firma;}
   head.querySelectorAll('[data-sort]').forEach(th=>th.setAttribute('aria-sort',SORT.k===th.dataset.sort?(SORT.asc?'ascending':'descending'):'none'));
   const filtros=['q','f-estatus','flt-contratista','f-periodo','f-semana','flt-puesto','flt-cuadrilla'].map(id=>$(id)?.value);
-  const visibles=window.PLATINUM_DATOS?.pagina('trabajadores',rows,$('worker-pagina'),JSON.stringify([identificador,especial,filtros,SORT.k,SORT.asc]),renderTable,80)??rows;
+  const visibles=window.PLATINUM_DATOS?.pagina('trabajadores',rows,$('worker-pagina'),JSON.stringify([filtros,SORT.k,SORT.asc]),renderTable,80)??rows;
   const acuses=indiceAcusesIMSS(DOCSX),sinServicio=new Set(ALTAS_CORTAS.filter(x=>x.estado_servicio==='SIN_SERVICIO_CONFIRMADO').map(x=>x.trabajador_id));
-  $('tbody').innerHTML=visibles.length?visibles.map(({w,h,fecha:f,programado:prog})=>{
-   const local=w.obra_id===OBRA.id,numero=h?.no_trab||(w.no_trab??'—'),nombre=esc(h?.trabajador_nombre||fullName(w));
-   const ficha=local?'<button type="button" data-padron-id="'+esc(w.id)+'"><span class="worker-number">#'+esc(numero)+'</span>'+nombre+'</button>'
-    :'<span>#'+esc(numero)+' · '+nombre+'</span><small>'+(w.historico?'La situación actual no está disponible':'Ficha en '+esc(OBRAS.find(o=>o.id===w.obra_id)?.nombre||'otro centro autorizado'))+'</small>';
-   const status='<span class="badge '+esc(w.estatus)+'">'+esc(w.estatus)+'</span>'+(programado(w,hoy)?'<small>'+programado(w,hoy)+'</small>':'')+(w._pendiente_visual?'<small>Guardando…</small>':'');
-   const imss=local?marcadoresIMSS(w,acuses)+(altaImssPendiente(w,acuses)?'<small class="imss-alert">⚠ Alta IMSS por presentar</small>':'')+(sinServicio.has(w.id)?'<small>Sin servicio confirmado</small>':''):'—';
-   const fechaHtml=f?fmtD(f):'Fecha sin evidencia';
-   const asignacion=esc(h?.contratista||w.contratista)||'—',cuadrilla=equipo(w);
-   const tr='<tr'+(local?' data-padron-trabajador="'+esc(w.id)+'"':'')+'>';
-   return activos?tr+'<td data-activity-field="NOMBRE">'+ficha+'</td><td data-activity-field="PUESTO">'+esc(puestoNombre(w)||'—')+'</td><td data-activity-field="CONTRATISTA">'+asignacion+(cuadrilla?'<small>'+esc(cuadrilla)+'</small>':'')+'</td><td data-activity-field="ESTATUS">'+status+'</td><td data-activity-field="INGRESO">'+fechaHtml+(w.fecha_reingreso?'<small>Reingreso</small>':'')+'</td><td data-activity-field="ACUSES">'+imss+'</td></tr>'
-    :tr+'<td data-activity-field="'+(vista==='bajas'?'BAJA':'INGRESO')+'">'+fechaHtml+(prog?'<small>Programado</small>':'')+(h?.fecha?'<small>Captura '+fmtD(h.fecha)+'</small>':'<small>Fecha de ficha</small>')+'</td><td data-activity-field="NOMBRE">'+ficha+'</td><td data-activity-field="ESTATUS">'+status+'</td><td data-activity-field="NINGUNO">'+esc(OBRA.nombre)+(h?'':'<small>Centro actual de ficha</small>')+'</td><td data-activity-field="CONTRATISTA">'+asignacion+(h?'<small>Asignación de movimiento, si consta</small>':'')+'</td><td data-activity-field="ACUSES">'+imss+(vista==='bajas'&&local&&w.estatus==='BAJA'&&puedeEditarTrabajador()&&!w._pendiente_visual?'<button type="button" class="btn" data-padron-reingreso="'+esc(w.id)+'">Reingresar</button>':'')+'</td></tr>';
-  }).join(''):'<tr><td colspan="6"><div class="empty">'+(h?.estado==='leyendo'?'Consultando movimientos…':'Sin coincidencias con los filtros de esta vista.')+'</div></td></tr>';
+  $('tbody').innerHTML=visibles.length?visibles.map(w=>{
+   const h=historialDe(w),reingresos=h?.estado==='ok'?movimientosDe(w,h.filas).filter(r=>r.tipo==='REINGRESO'):null;
+   const fechaReingreso=reingresos?.map(r=>r.fecha).filter(Boolean).sort().at(-1)||w.fecha_reingreso;
+   const status=estadoLaboral(w,reingresos?.length||0);
+   const tipo=w.estatus==='BAJA'?'BAJA':'ALTA',nombre=tipo==='BAJA'?'Baja':w.fecha_reingreso?'Reingreso':'Alta',estado=estadoAcuseIMSS(w,tipo,acuses);
+   const presentacion=!(w.fecha_alta||w.fecha_reingreso||w.fecha_baja)?'Sin fecha de movimiento para cotejar':nombre+(estado.porCotejar?' por cotejar':estado.presentada?' presentada':' por presentar');
+   const imss='<span class="padron-imss-presentacion">'+esc(presentacion)+'</span>'+(w.movimiento_imss?'<small>'+esc(w.movimiento_imss)+'</small>':'')+marcadoresIMSS(w,acuses)+(sinServicio.has(w.id)?'<small>Sin servicio confirmado</small>':'');
+   return '<tr data-padron-trabajador="'+esc(w.id)+'"><td data-activity-field="NUMERO">'+esc(w.no_trab??'—')+'</td><td data-activity-field="NOMBRE"><button type="button" class="padron-nombre" data-padron-id="'+esc(w.id)+'">'+esc(fullName(w))+'</button></td><td data-activity-field="CONTRATISTA">'+(esc(w.contratista)||'—')+(equipo(w)?'<small>'+esc(equipo(w))+'</small>':'')+'</td><td data-activity-field="ESTATUS">'+status+'</td><td data-activity-field="ALTA">'+fechaTexto(w.fecha_alta)+'</td><td data-activity-field="BAJA">'+(w.estatus==='BAJA'?fechaTexto(w.fecha_baja):'—')+'</td><td data-activity-field="REINGRESO"><span data-padron-ultima>'+fechaTexto(fechaReingreso)+'</span><details class="padron-historial" data-padron-historial="'+esc(w.id)+'"><summary>Ver historial'+(reingresos?' · '+reingresos.length+' reingreso'+(reingresos.length===1?'':'s'):'')+'</summary><div data-padron-hist-cuerpo>'+contenidoHistorial(w,h)+'</div></details></td><td data-activity-field="ACUSES">'+imss+'</td><td class="padron-acciones"><button type="button" class="btn" data-padron-id="'+esc(w.id)+'">Ficha</button><button type="button" class="btn" data-padron-seccion="imss" data-worker-id="'+esc(w.id)+'">IMSS</button>'+(w.estatus==='BAJA'&&puedeEditarTrabajador()&&!w._pendiente_visual?'<button type="button" class="btn" data-padron-reingreso="'+esc(w.id)+'">Reingresar</button>':'')+'</td></tr>';
+  }).join(''):'<tr><td colspan="9"><div class="empty">Sin coincidencias con los filtros del padrón.</div></td></tr>';
+  $('tbody').querySelectorAll('[data-padron-historial]').forEach(d=>{d.ontoggle=()=>{if(d.open)consultarHistorial(d.dataset.padronHistorial,d);};});
   $('tbody').onclick=e=>{
-   const b=e.target.closest('[data-padron-id],[data-padron-reingreso]');
-   if(b?.dataset.padronId)return openDetail(b.dataset.padronId,undefined,{ids:window._NAVIDS,origen:b});
-   if(b?.dataset.padronReingreso)return doReactivar(b.dataset.padronReingreso);
+   const b=e.target.closest('[data-padron-id],[data-padron-reingreso],[data-padron-seccion],[data-padron-refrescar]');if(!b)return;
+   const id=b.dataset.padronId||b.dataset.padronReingreso||b.dataset.workerId||b.dataset.padronRefrescar,w=WORKERS.find(w=>w.id===id&&w.obra_id===OBRA.id&&!w.eliminado);
+   if(!w||!api().vigente(alcance))return;
+   if(b.dataset.padronRefrescar)return consultarHistorial(id,b.closest('details'),true);
+   if(b.dataset.padronReingreso){if(w.estatus==='BAJA'&&puedeEditarTrabajador()&&!w._pendiente_visual)return doReactivar(id);return;}
+   return openDetail(id,undefined,{ids:window._NAVIDS,origen:b,seccion:b.dataset.padronSeccion});
   };
   return true;
  }
- window.PLATINUM_PADRON=Object.freeze({render,reset,invalidar,filasMovimientos,programado});
+ window.PLATINUM_PADRON=Object.freeze({render,reset,invalidar,filasMovimientos,programado,personasDelCentro});
 })();

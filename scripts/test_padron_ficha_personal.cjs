@@ -66,7 +66,7 @@ cargar('03-navegacion-presentacion.js',['sbGo']);
 require('./soporte_contratos_campos.cjs').instalar(c);
 cargar('04-padron-expedientes.js');
 cargar('05-alta-edicion.js');
-cargar('06-movimientos-historial.js',['doReactivar','saveReingreso']);
+cargar('06-movimientos-historial.js',['doReactivar','saveReingreso','consultaHistorialTrabajador']);
 c.formValidarSesion=async()=>true;
 cargar('64-datos-centro-en-vivo.js');
 cargar('69-personal-lecturas.js');
@@ -89,7 +89,7 @@ const movimientos=[
  assert.deepEqual(Array.from(delMes('reingresos',movimientos).filter(m=>m.w.id==='a'),m=>m.fecha),['2026-11-02','2026-11-06']);
  assert.equal(delMes('reingresos',[],true)[0].programado,true);
  assert.equal(modelo.programado(futuro,'2026-11-10'),'Reingreso programado');
- c.renderTable();assert.equal($('tbody').querySelectorAll('[data-padron-id]').length,1);
+ c.renderTable();assert.equal($('tbody').querySelectorAll('[data-padron-trabajador]').length,3,'Padrón completo: activo, baja y reingreso programado juntos');
  assert.equal(document.querySelector('[data-padron-id]').dataset.padronId,'a');
  const boton=document.querySelector('[data-padron-id]'),lista=document.querySelector('.worker-list');lista.scrollTop=96;boton.focus();
  let release;hold=(t,ops)=>t==='trabajadores'&&ops.some(p=>p[0]==='id'&&p[1]==='a')?new Promise(r=>release=r):null;

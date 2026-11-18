@@ -155,33 +155,12 @@ function marcadoresIMSS(w,indice){
 }
 function renderTable(){
   const fe=$('f-estatus').value;
-  const datos=window.PLATINUM_DATOS,base=baseFiltered(datos?.vista('trabajadores',WORKERS)??WORKERS);
-  let rows=base.filter(w=>!fe||w.estatus===fe);
+  const datos=window.PLATINUM_DATOS,fuente=datos?.vista('trabajadores',WORKERS)??WORKERS;
+  const base=baseFiltered(window.PLATINUM_PADRON?.personasDelCentro(fuente)??fuente);
+  const rows=base.filter(w=>!fe||w.estatus===fe);
   renderStats(base);
   if(window.PLATINUM_PADRON?.render(rows))return;
-  const k=SORT.k;
-  document.querySelectorAll('.trab-table th[data-sort]').forEach(th=>th.setAttribute('aria-sort',th.dataset.sort===k?(SORT.asc?'ascending':'descending'):'none'));
-  rows.sort((x,y)=>{
-    let a=k==='nombre'?fullName(x):(k==='fecha_alta'?(x.fecha_reingreso||x.fecha_alta):x[k]),
-        b=k==='nombre'?fullName(y):(k==='fecha_alta'?(y.fecha_reingreso||y.fecha_alta):y[k]);
-    if(a==null||a==='')return 1; if(b==null||b==='')return -1;
-    if(typeof a==='number'&&typeof b==='number')return SORT.asc?a-b:b-a;
-    return SORT.asc?String(a).localeCompare(String(b)):String(b).localeCompare(String(a));
-  });
-  window._NAVIDS=rows.map(w=>w.id); // orden actual de la tabla, para las flechas ‹ › de la ficha
-  if($('worker-count'))$('worker-count').textContent=rows.length+' visibles · '+WORKERS.length+' en el centro';
-  rows=datos?.pagina('trabajadores',rows,$('worker-pagina'),['q','f-estatus','flt-contratista','f-periodo','f-semana','flt-puesto'].map(id=>$(id)?.value).join('|')+'|'+k+'|'+SORT.asc,renderTable,80)??rows;
-  if(!rows.length){$('tbody').innerHTML='<tr><td colspan="6"><div class="empty"><div class="big">🗂</div>Sin trabajadores que coincidan.<br>La opción <b>Nueva alta</b> está en el menú ☰ → Operación.</div></td></tr>';return;}
-  const acuses=indiceAcusesIMSS(DOCSX);
-  $('tbody').innerHTML=rows.map(w=>`
-    <tr onclick="openDetail('${w.id}')">
-      <td><button onclick="event.stopPropagation();openDetail('${w.id}')" aria-label="Abrir ficha de ${esc(fullName(w))}"><span class="worker-number">#${w.no_trab??'—'}</span>${esc(fullName(w))}</button></td>
-      <td><span class="estado-trab"><span class="badge ${w.estatus}">${w.estatus}</span>${w._pendiente_visual?'<span class="badge PENDIENTE">Guardando…</span>':''}${altaImssPendiente(w,acuses)?'<span class="badge PENDIENTE imss-alert" title="Alta o reingreso actual pendiente de presentar ante el IMSS">⚠ ALTA IMSS</span>':''}${ALTAS_CORTAS.some(a=>a.trabajador_id===w.id&&a.estado_servicio==='SIN_SERVICIO_CONFIRMADO')?'<span class="badge PENDIENTE" title="Alta y baja con registro IMSS; sin trabajo efectivo confirmado. Verifica acuses y fecha real.">SIN SERVICIO</span>':''}</span></td>
-      <td>${esc(w.contratista)||'—'}</td>
-      <td title="${w.fecha_reingreso?'Fecha de reingreso':'Fecha de ingreso'}">${w.fecha_reingreso?'<b style="color:var(--amber)">'+fmtD(w.fecha_reingreso)+'</b><small style="display:block;color:var(--amber)">REINGRESO</small>'+(w.fecha_alta&&w.fecha_alta!==w.fecha_reingreso?'<small style="display:block;color:var(--mut)">Alta inicial: '+fmtD(w.fecha_alta)+'</small>':''):'<b style="color:var(--green)">'+fmtD(w.fecha_alta)+'</b><small style="display:block;color:var(--green)">INGRESO</small>'}</td>
-      <td>${w.fecha_baja?'<span style="color:var(--red)">'+fmtD(w.fecha_baja)+'</span>':'—'}</td>
-      <td>${marcadoresIMSS(w,acuses)}</td>
-    </tr>`).join('');
+  $('tbody').innerHTML='<tr><td colspan="9"><div class="empty">No se pudo cargar la vista del padrón. Recarga la plataforma.</div></td></tr>';
 }
 
 /* ---------- navegación entre trabajadores (flechas de la ficha) ---------- */
