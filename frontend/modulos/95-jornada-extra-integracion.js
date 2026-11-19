@@ -35,15 +35,36 @@ function jornadaEnPeriodo(e,w,sem){
    ISR(ordinario + aguinaldo gravado + este gravado) − ISR(ordinario + aguinaldo gravado).
    Semanal: pasos de ISR y subsidio del motor 52 (espejo verificado del aguinaldo).
    Quincenal: tarifa y perfil del motor 53 con sus días fiscales. */
-function jornadaIsrDe(f,sem){
-  const w=f.w,fis=FISC(),ag=Number(f.aguinaldo?.gravado||0),r=redondearCentavos;
-  if(periodoPago(w)==='QUINCENAL'){
-    const p=calendarioNominaDe(w,sem),perfil=perfilNominaQuincenal(w),N=nominaQuincenal(w,{dias:p.dias,desde:p.desde,hasta:p.hasta});
-    const base=r(N.bruto+ag),isr=g=>isrOrdinarioQuincenal(r(base+g),perfil.dias_fiscales,perfil,{...fis,mes:p.desde.slice(0,7)});
-    return {metodo:'ART96_QUINCENAL',bruto_ordinario:N.bruto,aguinaldo_gravado:ag,dias_fiscales:perfil.dias_fiscales,ajuste_mensual:!!f.isr_mensual,isr};
+/* Incidencias del mismo periodo (faltas, incapacidad IMSS y premios) tal como
+   las guardó el calendario en su descuento grupal. El ISR adicional se calcula
+   sobre ese mismo bruto ordinario: con faltas, la base es menor y el subsidio
+   puede absorber el impuesto, igual que en NOI (2026-11-19). */
+function jornadaContextoIncidencias(w,sem){
+  const p=calendarioNominaDe(w,sem),n=Number(String(sem||'').replace(/\D/g,''));
+  const xs=(typeof DESC!=='undefined'&&Array.isArray(DESC)?DESC:[]).filter(d=>d&&d.trabajador_id===w.id&&d.activo&&!d.recurrente
+    &&['FALTA','INCIDENCIA'].includes(String(d.tipo||'').toUpperCase())
+    &&(d.ajustes_semana?._periodo_nomina?d.ajustes_semana._periodo_nomina.desde===p.desde&&d.ajustes_semana._periodo_nomina.hasta===p.hasta
+      :Number(String(d.semana||'').replace(/\D/g,''))===n));
+  let faltas=0,incapacidadIMSS=0,premios=0,sinDesglose=false;
+  for(const d of xs){
+    const m=d.ajustes_semana?._calculo_incidencia;
+    if(m&&(m.modo==='AUTOMATICO'||m.modo==='INCREMENTAL_IMSS')){
+      faltas=Math.max(faltas,Number(m.faltas)||0);incapacidadIMSS=Math.max(incapacidadIMSS,Number(m.incapacidad_imss)||0);premios=Math.max(premios,Number(m.premios)||0);
+    }else sinDesglose=true;
   }
-  const N=nominaSemanal(w,{faltas:0}),base=r(N.bruto+ag),A=window.PLATINUM_AGUINALDO;
-  return {metodo:'ART96_SEMANAL',bruto_ordinario:N.bruto,aguinaldo_gravado:ag,dias:7,isr:g=>A.isrSemanalMotor(r(base+g),7,fis,isrPeriodo)};
+  return {faltas,incapacidadIMSS,premios,sin_desglose:sinDesglose,descuentos:xs.map(d=>d.id)};
+}
+function jornadaIsrDe(f,sem){
+  const w=f.w,fis=FISC(),ag=Number(f.aguinaldo?.gravado||0),r=redondearCentavos,inc=jornadaContextoIncidencias(w,sem);
+  const ctx={faltas:inc.faltas,incapacidadIMSS:inc.incapacidadIMSS,premios:inc.premios};
+  const comun={aguinaldo_gravado:ag,faltas:inc.faltas,incapacidad_imss:inc.incapacidadIMSS,incidencias_sin_desglose:inc.sin_desglose};
+  if(periodoPago(w)==='QUINCENAL'){
+    const p=calendarioNominaDe(w,sem),perfil=perfilNominaQuincenal(w),N=nominaQuincenal(w,{dias:p.dias,desde:p.desde,hasta:p.hasta,...ctx});
+    const base=r(N.bruto+ag),isr=g=>isrOrdinarioQuincenal(r(base+g),perfil.dias_fiscales,perfil,{...fis,mes:p.desde.slice(0,7)});
+    return {metodo:'ART96_QUINCENAL',bruto_ordinario:N.bruto,...comun,dias_fiscales:perfil.dias_fiscales,ajuste_mensual:!!f.isr_mensual,isr};
+  }
+  const N=nominaSemanal(w,ctx),base=r(N.bruto+ag),A=window.PLATINUM_AGUINALDO;
+  return {metodo:'ART96_SEMANAL',bruto_ordinario:N.bruto,...comun,dias:7,isr:g=>A.isrSemanalMotor(r(base+g),7,fis,isrPeriodo)};
 }
 function jornadaAplicarModelo(m,eventos){
   const xs=(eventos||[]).filter(e=>e&&e.estado==='APLICADO').map(jornadaEventoValido);
@@ -59,7 +80,7 @@ function jornadaAplicarModelo(m,eventos){
     const agg=J.agregarPeriodo(es.map(e=>({...e.calculo,id:e.id}))),ctx=jornadaIsrDe(f,m.sem),efecto=J.efectoIsr(agg.gravado,ctx.isr);
     const jor={...agg,isr:efecto.isr,neto:r(agg.bruto-efecto.isr),fecha_pago:es[0].fecha_pago,periodo_desde:es[0].desde_aplicacion,periodo_hasta:es[0].hasta_aplicacion,
       retroactivos:es.filter(e=>e.retroactivo).map(e=>({id:e.id,semana_origen:e.semana_origen,fecha:e.fecha_trabajada})),
-      isr_detalle:{metodo:ctx.metodo,bruto_ordinario:ctx.bruto_ordinario,aguinaldo_gravado:ctx.aguinaldo_gravado,isr_sin:efecto.isr_sin,isr_con:efecto.isr_con,subsidio_sin:efecto.subsidio_sin,subsidio_con:efecto.subsidio_con,efecto_subsidio:efecto.efecto_subsidio,ajuste_mensual:!!ctx.ajuste_mensual}};
+      isr_detalle:{metodo:ctx.metodo,bruto_ordinario:ctx.bruto_ordinario,aguinaldo_gravado:ctx.aguinaldo_gravado,faltas:ctx.faltas,incapacidad_imss:ctx.incapacidad_imss,incidencias_sin_desglose:ctx.incidencias_sin_desglose,isr_sin:efecto.isr_sin,isr_con:efecto.isr_con,subsidio_sin:efecto.subsidio_sin,subsidio_con:efecto.subsidio_con,efecto_subsidio:efecto.efecto_subsidio,ajuste_mensual:!!ctx.ajuste_mensual}};
     return {...f,jornada:jor,neto:r(f.neto+jor.neto)};
   });
   if(!toca)return m;

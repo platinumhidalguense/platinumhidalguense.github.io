@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-18.7",
-  "entry": "assets/platinum-app.284d549441025f5d.js",
-  "sha256": "284d549441025f5d0d97d69861fa6f5e1fdd6acaac99d5a0fc24daf9cacf681c",
-  "integrity": "sha384-kRA3phb9Qd641nwIdC5Nzm5OVfTCrFgVvHbMjZZh7xpql7jrM5IAtBewanBF060q",
+  "version": "2026-11-19.1",
+  "entry": "assets/platinum-app.9e4b54df5cedbe10.js",
+  "sha256": "9e4b54df5cedbe102bdc599cf6ce76c1a2ce7dcea770ac74ceb4ace761ea7695",
+  "integrity": "sha384-1PFjkCcGXHnwS2Y/xZ7akL1gtjUsuNYqHuitNvimLc+zrAbX5C3WoEb8xWyzjJFn",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "5064b2ee73567a522635d032a8fb84e992105453dfa89fcb140cb225f8ff2d85"
+      "sha256": "3540d996d2cd34d5ad2fa397c16ae7d5f0ce90575310e9c411836d1fed68ce7a"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -234,7 +234,7 @@
     },
     {
       "path": "frontend/modulos/57-calendario-trabajador.js",
-      "sha256": "b49dcfd543c9bb443b41a335426f6d1b2c32fb894cc8688fdfd672a15942e9cc"
+      "sha256": "9fb3ff026dcb58e8254e1cc32d8cd2b7dd9e0d5b9474dcd4e5e7f19513915da6"
     },
     {
       "path": "frontend/modulos/58-conciliador-core.js",
@@ -374,7 +374,7 @@
     },
     {
       "path": "frontend/modulos/95-jornada-extra-integracion.js",
-      "sha256": "053b0f370eff1bdc9abb2311c077afa0e8245b09af1b6d7a2e0e333586bfa320"
+      "sha256": "5df4fc2dd4037e426e6fd7a3ba44f7a845660497de89090f9ab67d77fd43457e"
     },
     {
       "path": "frontend/modulos/96-jornada-extra-interfaz.js",

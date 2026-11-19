@@ -110,6 +110,28 @@ ok(/jornadaAplicarModelo\(modelo,\(globalThis\._PY_JORNADAS/.test(src('39-rrhh-a
 for(const mo of ['52-motor-nomina-semanal','53-motor-nomina-quincenal'])ok(!/jornada/i.test(src(mo)),'motor intacto '+mo);
 ok(!/NETO_DIRECTO/.test(src('96-jornada-extra-interfaz')+src('95-jornada-extra-integracion')),'no usa la inyección neta');
 
+// Caso tipo #381 (2026-11-19): festivo laborado y 2 faltas en la misma semana. El ISR del festivo
+// se calcula sobre el bruto ordinario CON las faltas del periodo (descuento grupal del calendario).
+const wm=W('30000000-0000-4000-8000-000000000381',381,{sd:329,sdi:345.2247,sal_semanal:2200.93});
+const sem34=box.calendarioNominaDe(wm,'S34');
+const descFaltas={id:'d-faltas',trabajador_id:wm.id,obra_id:O,tipo:'FALTA',monto:703.86,semana:'S34',activo:true,recurrente:false,
+ ajustes_semana:{_periodo_nomina:{desde:sem34.desde,hasta:sem34.hasta},_grupo_calendario:true,_calculo_incidencia:{modo:'AUTOMATICO',faltas:2,incapacidad_imss:0,premios:0,sd:329,dias:7}}};
+const cf=J.calcularSemana([{id:'f381',tipo:'DESCANSO_OBLIGATORIO',fecha:'2026-11-16',fecha_pago:'2026-11-20',orden:'1',captura:cap({salario_base:329,sd_registrado:329,laboro:true})}]).eventos[0];
+eq([cf.descanso_adicional,cf.exento,cf.gravado],[658,329,329],'381: festivo $658, exento $329');
+const N0=box.nominaSemanal(wm,{faltas:0}),N1=box.nominaSemanal(wm,{faltas:1}),N2=box.nominaSemanal(wm,{faltas:2});
+eq([r2(N0.neto-N1.neto),r2(N1.neto-N2.neto),r2(N0.neto-N2.neto)],[332.51,371.35,703.86],'381: el reparto por orden de captura es marginal; el total del grupo es 703.86');
+const ev381=evento(wm,cf,{desde_aplicacion:sem34.desde,hasta_aplicacion:sem34.hasta});
+const f381=fila(wm,{sueldo:2200.93,incidencias:703.86,costo:r2(2200.93-703.86),neto:r2(2200.93-703.86)});
+box.DESC=[descFaltas];
+const j381=box.jornadaAplicarModelo({filas:[f381],items:[],sem:'S34',neto:f381.neto,costo:f381.costo},[ev381]).filas[0];
+const ISR=b=>box.PLATINUM_AGUINALDO.isrSemanalMotor(b,7,box.FISC(),box.isrPeriodo).isr;
+eq([j381.jornada.isr_detalle.faltas,j381.jornada.isr_detalle.bruto_ordinario],[2,N2.bruto],'381: contexto con las 2 faltas');
+eq(j381.jornada.isr,r2(ISR(r2(N2.bruto+329))-ISR(N2.bruto)),'381: ISR = con − sin en el contexto de las faltas');
+eq(j381.jornada.isr,0,'381: el subsidio absorbe el ISR del festivo (antes se cobraban 35.79)');
+eq(j381.neto,r2(N2.neto+658),'381: neto = nómina completa con faltas y festivo');
+box.DESC=[];
+eq(box.jornadaAplicarModelo({filas:[f381],items:[],sem:'S34',neto:f381.neto,costo:f381.costo},[ev381]).filas[0].jornada.isr,35.79,'381: sin el contexto de faltas el ISR sería 35.79 (la diferencia contra NOI)');
+
 // ---------- B. Calendario → captura → servidor → reapertura → prenómina → obligación ----------
 async function recorrido(llamar,leer,etiqueta){
  llamadas.length=0;
@@ -169,6 +191,17 @@ async function recorrido(llamar,leer,etiqueta){
   if(acc==='PREVIA')return q;
   if(acc==='CONFIRMAR'){if(d.firma!==q.firma)throw Error('La vista previa cambió');await tick(3);guardados.push({...evento(w1,e),id:d.clave_idempotencia,protegido:false});return {id:d.clave_idempotencia,semana_aplicacion:34,redistribuidas:0};}
  };
+ // Calendario: las 2 faltas del grupo se muestran por partes iguales; el registro por captura queda en el título.
+ box.WORKERS.push(wm);box.DESC=[descFaltas];
+ rpcImpl=async(fn,acc)=>fn==='control_calendario_trabajador'?{eventos:[
+   {id:'a1',clase:'AUSENCIA',estado:'APLICADO',fecha_aplicacion:'2026-11-18',monto_valor:332.51,semana_aplicacion:34,descuento_id:'d-faltas',retroactivo:false,id_incidencia:2},
+   {id:'a2',clase:'AUSENCIA',estado:'APLICADO',fecha_aplicacion:'2026-11-19',monto_valor:371.35,semana_aplicacion:34,descuento_id:'d-faltas',retroactivo:false,id_incidencia:2}],
+   catalogo:[{id:2,nombre:'FALTA',clase:'FALTA'}],percepciones:[],prestamos:[],creditos:[],anteriores:[],certificados:[]}:{eventos:[]};
+ await box.PLATINUM_CALENDARIO.montar(wm.id,'2026-11');await espera(()=>/por día/.test(document.getElementById('cal-contenido').innerHTML));
+ const html381=document.getElementById('cal-contenido').innerHTML;
+ eq((html381.match(/\$351\.93 por día/g)||[]).length,2,'381: cada falta muestra $351.93 por día');
+ ok(/total semanal \$703\.86 por 2 faltas/.test(html381)&&/Registro por orden de captura: \$332\.51/.test(html381)&&/Registro por orden de captura: \$371\.35/.test(html381),'381: total y registro de auditoría visibles');
+ box.WORKERS.pop();box.DESC=[];
  await recorrido(simulado,()=>guardados,'simulado');
 
  const dir=path.join(__dirname,'..','supabase/migrations'),mig=fs.existsSync(dir)&&fs.readdirSync(dir).find(x=>x.endsWith('_jornada_extra_descansos_laborados.sql')),priv=path.join(__dirname,'..','work/jornada_20261118/prod_calendario.sql');
