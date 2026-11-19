@@ -38,7 +38,7 @@
     encabezado de sección, de modo que «Titular de la cuenta» nunca absorbe la etiqueta siguiente. En formatos de
     dos columnas (cuenta de retiro | cuenta de depósito) los titulares siguen el orden de sus cuentas: el primero
     es el ordenante y el segundo el beneficiario. La empresa ordenante nunca se usa como beneficiario. */
- const LECTOR_VERSION='BANCO_ROLES_V2';
+ const LECTOR_VERSION='BANCO_ROLES_V3';
  const ETIQUETAS=['Titular de la cuenta','Nombre del beneficiario','Beneficiario','Nombre del ordenante','Ordenante','Nombre banco destino','Banco destino',
   'Cuenta de retiro','Cuenta de cargo','Cuenta origen','Cuenta de origen','Cuenta de dep[oó]sito','Cuenta destino','Cuenta del beneficiario','CLABE(?: de dep[oó]sito)?','Divisa de la cuenta',
   'Fecha de creaci[oó]n','Fecha de aplicaci[oó]n','Fecha de operaci[oó]n','Concepto de pago','Referencia num[eé]rica','Instrumento de seguridad','Hora de captura en el canal',

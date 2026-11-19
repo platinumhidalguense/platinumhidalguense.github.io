@@ -71,3 +71,7 @@ supabase/migrations/*_jornada_papelera_por_marca.sql
 
 # Recibos: periodo por fechas del comprobante (privada)
 supabase/migrations/*_recibos_periodo_por_fechas.sql
+
+# Banco: propuesta acotada y máscara (SQL operativo privado).
+supabase/migrations/*_banco_propuesta_acotada_y_mascara.sql
+supabase/migrations/*_banco_identidad_cuenta_completa.sql

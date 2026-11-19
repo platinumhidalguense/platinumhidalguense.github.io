@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-19.3",
-  "entry": "assets/platinum-app.6a8a838254bda537.js",
-  "sha256": "6a8a838254bda537bf26fa9a646d8bbb3ddb2490174ccdb1c9cc33ed3ad144f0",
-  "integrity": "sha384-15q3YfiptlrMTjM7G1I6rKd+BHTTgN2Tfqv0UKj1g6W9sj1ikzSZGHJ0uZRDqLgH",
+  "version": "2026-11-19.4",
+  "entry": "assets/platinum-app.b650ce51358d6c5c.js",
+  "sha256": "b650ce51358d6c5cbe9d000db2597920ed123ad37d7c6d541c342a62df178f60",
+  "integrity": "sha384-pU1MfJ/BAky9tZeBjjyQLWbw7cf7ASoq9/yMVp58eFo3PvRKvI0p/ldj3eM+Lxat",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "f2b45c83950c6b79c1840885dcf09a3272da965f3df5a01f48e6d889f4464ae8"
+      "sha256": "e7e30accb7c3fce6d97d69e924343bb1bb6e7de3c610237c8f401043d2a3bac2"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -238,7 +238,7 @@
     },
     {
       "path": "frontend/modulos/58-conciliador-core.js",
-      "sha256": "e642310ca90f839a206a88c431a3a196a3779c0bd046b9886eca20ece7eecd62"
+      "sha256": "7a9ec3ab18b88fab8f13cde2737d51a92db8541cd576fca0ae3a1bd5de4c8a05"
     },
     {
       "path": "frontend/modulos/59-conciliador-persistencia.js",
@@ -318,11 +318,11 @@
     },
     {
       "path": "frontend/modulos/78-banco-historico-servicio.js",
-      "sha256": "a96bc0e1b9be5832db2c5d211610ef7f15ae691e38e4bf587578c077c6a94186"
+      "sha256": "c9644570cfe66f850ade5173ffd96d4b1d3e3a09af281206ea137d4381ad7b84"
     },
     {
       "path": "frontend/modulos/79-importacion-bancaria-interfaz.js",
-      "sha256": "e8553fe3f7bfaa7ecb9ed7cee4b0d0b156d7c4d3610a325489509648b855672b"
+      "sha256": "f0af596af2ddeed50e84964bc1b6523350f3232801d09731810b1cd0e62f3a34"
     },
     {
       "path": "frontend/modulos/80-puestos-central.js",

@@ -42,7 +42,7 @@ const individual=(benef,cuenta,importe,estado='Operado')=>`Fecha y hora de consu
  eq(core.asociar({titular:'PERSONA PRUEBA TRES',cuenta:'7777'},personas).estado,'AMBIGUO','homónimos sin cuenta compatible: ambigüedad real');
  eq(core.asociar({titular:'PERSONA PRUEBA UNO',cuenta:'5200000000001234'},personas).estado,'CUENTA_NO_DOCUMENTADA','cuenta desconocida: revisión, no asociación automática');
  // ---------- 3. Recorrido de servicio: subir → archivar → leer → asociar → proponer → confirmar → registrado ----------
- const srv={archivos:new Map(),pagos:[],resol:[],llamadas:[],bytes:new Map(),previaFalla:0};
+ const srv={archivos:new Map(),pagos:[],resol:[],llamadas:[],bytes:new Map(),previaFalla:0,previaFija:false,tramos:[]};
  const prev=(a,f)=>{const rec=a.propuesta.records[f-1],w=rec.trabajador_id;
   if(!w)return{fila:f,estado:'IDENTIDAD_POR_REVISAR',trabajador_id:null,huella:'H'+f,opciones:[],pagos_similares:[],cheques:[],accion_cheque:'NINGUNA'};
   return{fila:f,estado:'VINCULACION_PENDIENTE',trabajador_id:w,huella:'H'+f+':'+w,periodo:{semana:33},opciones:[{clave:'OB:'+w,trabajador_id:w,nombre:rec.titular,semana:30,concepto:'NOMINA',importe:rec.importe,desde:'2026-10-19',hasta:'2026-10-25'}],
@@ -54,7 +54,10 @@ const individual=(benef,cuenta,importe,estado='Operado')=>`Fecha y hora de consu
   if(a==='PROPUESTA'){if(d.revision!==ar.revision)throw Error('La lectura cambió en otra sesión; actualiza el archivo');ar.propuesta=clone(d.propuesta);ar.estado='LEIDO';ar.revision++;return clone(ar);}
   if(a==='ABRIR')return clone(ar);
   if(a==='ERROR'){ar.estado='ERROR';return clone(ar);}
-  if(a==='PREVISUALIZAR'){if(srv.previaFalla>0){srv.previaFalla--;throw Error('canceling statement due to statement timeout');}return{archivo_id:ar.id,revision:ar.revision,filas:ar.propuesta.records.map((_,i)=>prev(ar,i+1))};}
+  // Igual que el servidor vigente: tramos desde/hasta con total; un tiempo agotado aislado o persistente.
+  if(a==='PREVISUALIZAR'){if(srv.previaFija||srv.previaFalla>0){if(!srv.previaFija)srv.previaFalla--;throw Error('canceling statement due to statement timeout');}
+   const n=ar.propuesta.records.length,de=Math.max(1,d.desde||1),ha=Math.min(n,d.hasta||n);srv.tramos.push([de,ha]);
+   return{archivo_id:ar.id,revision:ar.revision,total:n,desde:de,hasta:ha,filas:Array.from({length:Math.max(0,ha-de+1)},(_,k)=>prev(ar,de+k))};}
   if(a==='CONFIRMAR'){if(d.revision!==ar.revision)throw Error('La lectura cambió en otra sesión; actualiza el archivo');const out=[];
    for(const c of d.confirmaciones){const p=prev(ar,c.fila),rec=ar.propuesta.records[c.fila-1];if(p.huella!==c.huella)throw Error('FUENTES_CAMBIARON: actualiza la vista previa antes de confirmar');
     let pago=p.pagos_similares[0],reutilizado=!!pago;if(!pago){pago={id:'PAGO'+(srv.pagos.length+1),trabajador_id:p.trabajador_id,fecha:rec.fecha,importe:rec.importe,folio:rec.folio,semana:'S33'};srv.pagos.push(pago);}
@@ -93,8 +96,12 @@ const individual=(benef,cuenta,importe,estado='Operado')=>`Fecha y hora de consu
  await assert.rejects(s2.reprocesar(),/registradas o conciliadas/);n++;
  viejo.resoluciones=[];await s2.seleccionar('A1');
  // Fallo de la vista previa automática: lectura conservada, error visible y reintento.
- srv.previaFalla=1;await s2.reprocesar();e=s2.estado();ok(/timeout/.test(e.previaError||'')&&e.archivo.propuesta.records[0].titular==='PERSONA PRUEBA UNO','fallo de la propuesta no pierde la lectura');
+ srv.previaFija=true;await s2.reprocesar();e=s2.estado();srv.previaFija=false;ok(/timeout/.test(e.previaError||'')&&e.archivo.propuesta.records[0].titular==='PERSONA PRUEBA UNO','fallo de la propuesta no pierde la lectura');
  await s2.revisar();ok(s2.estado().previa,'reintento de la propuesta');
+ // Un tiempo agotado aislado se recupera dividiendo el tramo, sin error visible.
+ srv.previaFalla=1;srv.tramos=[];await s2.revisar();e=s2.estado();ok(e.previa&&!e.previaError&&e.previa.filas.length===e.archivo.propuesta.records.length&&srv.tramos[0][1]-srv.tramos[0][0]<59,'tramo dividido tras un tiempo agotado');
+ // Una sola operación no recalcula las demás.
+ srv.tramos=[];const unaFila=await s2.previaFila(0);ok(unaFila&&unaFila.fila===1&&srv.tramos.length===1&&srv.tramos[0][0]===1&&srv.tramos[0][1]===1,'vista previa de una sola operación');
  // ---------- 5. Comprobante global: varias personas y excepciones identificadas ----------
  const global='RESUMEN GENERAL  Número de registros: 3  Importe total: 6,000.00  '+
   '13/11/2026 ******4444 PERSONA PRUEBA DOS EXITOSA $2,000.00 MXN  13/11/2026 ******8642 PERSONA PRUEBA UNO EXITOSA $1,357.90 MXN  13/11/2026 ******0000 PERSONA DESCONOCIDA EXITOSA $2,642.10 MXN';
@@ -115,7 +122,7 @@ const individual=(benef,cuenta,importe,estado='Operado')=>`Fecha y hora de consu
  box.window=box;vm.createContext(box);vm.runInContext(fs.readFileSync('frontend/modulos/79-importacion-bancaria-interfaz.js','utf8'),box);
  const q=s=>document.querySelector(s);
  await box.PLATINUM_IMPORTACION_BANCARIA.abrir({semana:33});await tick();
- srv.previaFalla=2; // la propuesta automática y el primer intento de Resolver fallan
+ srv.previaFija=true; // la propuesta automática y el primer intento de Resolver fallan
  const input=q('[data-bh-files]');Object.defineProperty(input,'files',{value:[{name:'PAGO PERSONA TRES.pdf',size:10,arrayBuffer:async()=>new TextEncoder().encode('%PDF-TRES').buffer}]});
  input.dispatchEvent(new window.Event('change',{bubbles:true}));await tick();
  ok(/PERSONA PRUEBA TRES/.test(q('[data-bh-lectura]').textContent)&&/Ordenante: EMPRESA FICTI CIA/.test(q('[data-bh-lectura]').textContent),'fila muestra beneficiario y ordenante por separado');
@@ -125,10 +132,10 @@ const individual=(benef,cuenta,importe,estado='Operado')=>`Fecha y hora de consu
  ok(dlg(),'el diálogo abre siempre');
  ok(/No se construyó la propuesta/.test(q('[data-bh-lectura]').textContent),'fallo de la propuesta automática visible con reintento');
  eq(dlg().dataset.brEstado,'ERROR','Resolver sin vista previa: error visible en el mismo diálogo');ok(/vista previa/.test(dlg().textContent),'motivo accionable');
- q('[data-br-reintentar]').click();await tick();
+ srv.previaFija=false;q('[data-br-reintentar]').click();await tick();
  eq(dlg().dataset.brEstado,'LISTO','diálogo operativo con datos y alternativas');
  ok(q('[data-br-trabajador]')&&q('[data-br-trabajador]').querySelectorAll('option').length===personas.length+1,'selector de trabajador con todas las personas del centro');
- q('[data-br-trabajador]').value='W3';srv.previaFalla=1;q('[data-br-guardar]').click();await tick();
+ q('[data-br-trabajador]').value='W3';srv.previaFija=true;q('[data-br-guardar]').click();await tick();srv.previaFija=false;
  ok(/No se guardó/.test(q('[data-br-mensaje]').textContent)&&!q('[data-br-guardar]').disabled,'fallo al guardar: error en el diálogo y botón disponible');
  q('[data-br-guardar]').click();await tick();eq(q('#modal2').innerHTML,'','guardado: diálogo cerrado');
  ok(srv.archivos.get('A1').propuesta.records[0].trabajador_id==='W3'&&srv.archivos.get('A1').propuesta.records[0].asociacion.metodo==='RESOLVER_OPERACION','corrección persistida en la propuesta');

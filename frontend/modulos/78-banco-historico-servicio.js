@@ -82,10 +82,33 @@
   const desactualizada=a=>!!(a?.propuesta?.records?.length&&versionLector()&&a.propuesta.lector_version!==versionLector());
   const registradas=a=>(a?.resoluciones||[]).filter(r=>r.pago_id||FIN_ETAPA.has(r.estado)||r.aplicacion_id);
   const resumenLectura=p=>({lector_version:p?.lector_version||null,records:(p?.records||[]).map(r=>({titular:r.titular||'',ordenante:r.ordenante||null,mask:r.mask||String(r.cuenta||'').slice(-4),importe:r.importe,fecha:r.fecha,estado:r.estado,trabajador_id:r.trabajador_id||null}))});
+  // Vista previa por tramos (servidor con desde/hasta): progreso real por operaciones, un tramo que agota el
+  // tiempo se divide y se reintenta; lo ya calculado se conserva. Un servidor anterior responde completo de una vez.
+  const TRAMO_PREVIA=60;
+  async function previaPorTramos(id,revision,t){
+   const filas=[];let desde=1,total=null,tam=TRAMO_PREVIA;estado.previaProgreso={hechas:0,total:estado.archivo?.propuesta?.records?.length||null};avisar();
+   try{
+    for(;;){
+     let r;try{r=await rpc('PREVISUALIZAR',{archivo_id:id,revision,desde,hasta:desde+tam-1},t);}
+     catch(e){if((e.code==='57014'||/statement timeout/i.test(e.message))&&tam>1){tam=Math.max(1,Math.floor(tam/2));continue;}throw e;}
+     exigir(t);if(r.total==null)return r;
+     total=r.total;filas.push(...(r.filas||[]));estado.previaProgreso={hechas:Math.min(total,r.hasta||desde+tam-1),total};avisar();
+     if(!(r.hasta<total))return{archivo_id:r.archivo_id,revision:r.revision,filas,total};
+     desde=r.hasta+1;if(tam<TRAMO_PREVIA)tam=Math.min(TRAMO_PREVIA,tam*2);
+    }
+   }finally{if(estado)estado.previaProgreso=null;}
+  }
+  // Una sola operación (Resolver operación): no recalcula las demás.
+  async function previaFilaInterna(i,t){const a=estado.archivo;const r=await rpc('PREVISUALIZAR',{archivo_id:a.id,revision:a.revision,desde:i+1,hasta:i+1},t);exigir(t);
+   const fila=(r.filas||[]).find(x=>x.fila===i+1)||(r.total==null?(r.filas||[])[i]:null);
+   if(estado.previa&&estado.previa.revision===a.revision&&!estado.previa.parcial){const k=estado.previa.filas.findIndex(x=>x.fila===i+1);if(k>=0&&fila)estado.previa.filas[k]=fila;}
+   else if(estado.archivo?.id===a.id&&estado.archivo.revision===a.revision)estado.previa={archivo_id:a.id,revision:a.revision,filas:fila?[fila]:[],parcial:true};
+   avisar();return fila;}
+  async function previaFila(i){return tarea(t=>previaFilaInterna(i,t));}
   // Tras leer o abrir: vista previa de obligaciones sin pasos manuales. Un fallo conserva la lectura y queda visible con reintento.
   async function previaAuto(t){const a=estado.archivo;if(!a||a.padre_id||!a.propuesta?.records?.length||!estado.puede_importar)return null;
    estado.previaError=null;estado.previaCargando=true;avisar();
-   try{const r=await rpc('PREVISUALIZAR',{archivo_id:a.id,revision:a.revision},t);if(estado.archivo?.id===a.id&&estado.archivo.revision===a.revision)estado.previa=r;return r;}
+   try{const r=await previaPorTramos(a.id,a.revision,t);if(estado.archivo?.id===a.id&&estado.archivo.revision===a.revision)estado.previa=r;return r;}
    catch(e){if(!vigente(t))throw e;estado.previaError=e.message;return null;}finally{if(estado)estado.previaCargando=false;avisar();}}
   // Etapas comprobadas por operación: Archivado → Leído → Asociado → Registrado → Conciliado.
   function etapa(i){const a=estado?.archivo;if(!a)return null;const r=a.propuesta?.records?.[i];if(!r)return 'ARCHIVADO';
@@ -109,6 +132,9 @@
   async function bytesOriginal(a,t){if(cacheBytes.has(a.id))return cacheBytes.get(a.id).slice(0);const r=await cfg.storage.from('conciliacion-nomina').download(a.ruta);exigir(t);if(r.error||!r.data)throw Error(r.error?.message||'No se descargó el original archivado');const b=await r.data.arrayBuffer();if(await cfg.hash(b)!==a.sha256)throw Error('La huella del original cambió');exigir(t);cacheBytes.set(a.id,b.slice(0));return b;}
   function asociar(rows){const personas=new Map();for(const f of estado.fuentes||[])personas.set(f.trabajador_id,{id:f.trabajador_id,nombre:f.nombre,cuenta:f.cuenta,clabe:f.clabe});for(const w of estado.personas||[])if(!personas.has(w.id))personas.set(w.id,w);
    return rows.map(r=>{if(r.trabajador_id)return r;const a=cfg.core.asociar(r,[...personas.values()]);return{...r,asociacion:a,trabajador_id:a.trabajador_id,seleccionado:!!a.trabajador_id,concepto:estado.archivo.contexto.concepto};});}
+  // El folio de confirmación del global identifica el lote, no a cada operación: se registra como referencia del lote
+  // en las operaciones que no lo traen impreso (identidad de la operación: lote + página + renglón + cuenta + importe).
+  const folioDelLote=(rs,folio)=>(rs||[]).map(r=>r.folio?r:{...r,folio,folio_origen:'LOTE'});
   function reunir(p){const anteriores=new Map((p.records||[]).map(r=>[r.pagina+':'+r.ordinal_pagina+':'+llave(r),r]));return asociar(p.paginas.flatMap(pg=>pg.records.map((r,i)=>({
    ...r,...(anteriores.get(pg.numero+':'+(i+1)+':'+llave(r))||{}),pagina:pg.numero,ordinal_pagina:i+1}))));}
   async function completarInterno(pagina,t){
@@ -119,7 +145,7 @@
     const j=await cfg.ia(f.id);exigir(t);if(!j?.ok)throw Error(j?.error||'Lectura complementaria pendiente');
     const lectura=cfg.core.validarIA(j,pg.texto||'');
     if(!lectura.records.length)throw Error(lectura.validacion.errores.join('. ')||'No se reconocieron operaciones en el fragmento');
-    pg.records=combinarPagina(pg.records||[],lectura.records,cfg.core);pg.fragmento_id=f.id;pg.lector='TRADICIONAL_Y_COMPLEMENTARIO';pg.error=null;
+    pg.records=combinarPagina(pg.records||[],lectura.records,cfg.core);if(p.tipo==='GLOBAL'&&p.folio_lote)pg.records=folioDelLote(pg.records,p.folio_lote);pg.fragmento_id=f.id;pg.lector='TRADICIONAL_Y_COMPLEMENTARIO';pg.error=null;
     pg.pendiente=pg.records.some(r=>!cfg.core.revisarBanco({records:[r]}).ok);if(pg.pendiente)pg.error=lectura.validacion.errores.join('. ');
    }catch(e){pg.pendiente=true;pg.error=e.message;}
    await prepararAsociacion(p.paginas.flatMap(x=>x.records||[]),t);p.records=reunir(p);p.lector_version=versionLector();
@@ -130,15 +156,17 @@
    if(a.propuesta?.records?.length&&!motivo&&!desactualizada(a)){estado.archivo=a;avisar();return a;}
    const paginas=await cfg.paginas(bytes.slice(0));exigir(t);
    const global=paginas.some(x=>/RESUMEN GENERAL|GRUPO DE PAGO|TOTAL DE OPERACIONES|NUMERO DE REGISTROS/i.test(String(x.texto).normalize('NFD').replace(/[\u0300-\u036f]/g,'')));
-   let esperados=null,totalEsperado=null,tipo=global?'GLOBAL':'INDIVIDUAL';
+   let esperados=null,totalEsperado=null,tipo=global?'GLOBAL':'INDIVIDUAL',folioLote='';
    const pp=[];
    for(const x of paginas){const text=global&&!/RESUMEN GENERAL|GRUPO DE PAGO/i.test(x.texto)?'RESUMEN GENERAL '+x.texto:x.texto;
     const r=cfg.core.leerTradicional(text,cfg.legacy);if(r.esperados!=null&&global)esperados=r.esperados;if(r.totalEsperado!=null&&global)totalEsperado=r.totalEsperado;
+    if(global&&r.folio&&!folioLote)folioLote=r.folio;
     const pendiente=!r.records.length||r.records.some(y=>!cfg.core.revisarBanco({records:[y]}).ok);
     pp.push({numero:x.numero,texto:x.texto,records:r.records,lector:'TRADICIONAL',pendiente,error:pendiente?'Página con lectura pendiente':null});
    }
    const previa=a.propuesta?.records?.length?[{fecha:new Date().toISOString(),revision:a.revision,motivo:motivo||'LECTOR_ACTUALIZADO',anterior:resumenLectura(a.propuesta)}]:[];
-   let p={tipo,esperados:global?esperados:null,totalEsperado:global?totalEsperado:null,paginas:pp,records:[],lector_version:versionLector(),lecturas:[...(a.propuesta?.lecturas||[]),...previa]};
+   if(global&&folioLote)for(const pg of pp)pg.records=folioDelLote(pg.records,folioLote);
+   let p={tipo,esperados:global?esperados:null,totalEsperado:global?totalEsperado:null,folio_lote:global?folioLote||null:null,paginas:pp,records:[],lector_version:versionLector(),lecturas:[...(a.propuesta?.lecturas||[]),...previa]};
    const crudos=pp.flatMap(pg=>pg.records.map((r,i)=>({...r,pagina:pg.numero,ordinal_pagina:i+1})));await prepararAsociacion(crudos,t);
    p.records=asociar(crudos);p.validacion=cfg.core.revisarBanco(p,paginas.map(x=>x.texto).join('\n'));
    await guardar(p,t);
@@ -155,8 +183,8 @@
   async function recuperar(id){return tarea(async t=>{const f=estado.anteriores?.find(x=>x.id===id);if(!f)throw Error('Original anterior no disponible en este contexto');const bytes=await bytesOriginal(f,t);const a=await archivar(bytes,f.nombre,estado.contexto,t);estado.archivo=a;estado.previa=null;if(!estado.archivos.some(x=>x.id===a.id))estado.archivos.unshift(a);await leerInterno(a,bytes,t);await previaAuto(t);return estado.archivo;});}
   async function reanudar(){return tarea(async t=>{const a=estado.archivo;if(!a)throw Error('Selecciona un original');return leerInterno(a,await bytesOriginal(a,t),t);});}
   async function editar(i,cambios){return tarea(t=>{const p=copia(estado.archivo.propuesta);if(!p.records[i])throw Error('La operación no existe');p.records[i]={...p.records[i],...cambios};return guardar(p,t);});}
-  async function revisar(){return tarea(async t=>{const a=estado.archivo;estado.previa=await rpc('PREVISUALIZAR',{archivo_id:a.id,revision:a.revision},t);avisar();return estado.previa;});}
-  async function confirmar(confirmaciones){return tarea(async t=>{const a=estado.archivo;if(!estado.previa||estado.previa.revision!==a.revision)throw Error('Actualiza la vista previa antes de confirmar');
+  async function revisar(){return tarea(async t=>{const a=estado.archivo;estado.previa=await previaPorTramos(a.id,a.revision,t);estado.previaError=null;avisar();return estado.previa;});}
+  async function confirmar(confirmaciones){return tarea(async t=>{const a=estado.archivo;if(!estado.previa||estado.previa.revision!==a.revision||estado.previa.parcial&&confirmaciones.some(c=>!estado.previa.filas.some(x=>x.fila===c.fila)))throw Error('Actualiza la vista previa antes de confirmar');
    let r;try{r=await rpc('CONFIRMAR',{archivo_id:a.id,revision:a.revision,confirmado:true,confirmaciones},t);}
    catch(error){
     exigir(t);let guardado;try{guardado=await rpc('ABRIR',{archivo_id:a.id},t);}catch{throw error;}
@@ -174,7 +202,7 @@
   const LISTAS=new Set(['LISTO','YA_CONCILIADO']),FINALES=new Set(['CONCILIADO','CONCILIADO_REUTILIZADO','CHEQUE_CANCELADO']),TRAMO=20;
   const categoria=p=>p.estado==='DUPLICADO_EN_ARCHIVO'?'DUPLICADO':p.accion_cheque==='CONFIRMAR_CANCELACION'||/CHEQUE/.test(p.estado)?'CHEQUE':['PAGO_PARCIAL','EXCEDENTE'].includes(p.estado)?'IMPORTE':'REVISION';
   function resumenListas(){
-   const a=estado?.archivo,pv=estado?.previa;if(!a||!pv||pv.revision!==a.revision)return null;
+   const a=estado?.archivo,pv=estado?.previa;if(!a||!pv||pv.parcial||pv.revision!==a.revision)return null;
    const recs=a.propuesta?.records||[],hechas=new Map((estado.resultados||[]).map(r=>[r?.fila,r])),listas=[],excluidas={CHEQUE:[],IMPORTE:[],REVISION:[],DUPLICADO:[]};let conciliadas=0,desmarcadas=0;
    for(const p of pv.filas){const r=recs[p.fila-1]||{};
     if(FINALES.has(hechas.get(p.fila)?.estado)){conciliadas++;continue;}
@@ -196,7 +224,7 @@
    if(soloFallidas&&!estado.lote)throw Error('No hay un lote previo para reintentar');
    const id=estado.archivo.id;
    // Revalida la versión: vista previa de la revisión vigente antes de confirmar.
-   if(!estado.previa||estado.previa.revision!==estado.archivo.revision){estado.previa=await rpc('PREVISUALIZAR',{archivo_id:id,revision:estado.archivo.revision},t);avisar();}
+   if(!estado.previa||estado.previa.parcial||estado.previa.revision!==estado.archivo.revision){estado.previa=await previaPorTramos(id,estado.archivo.revision,t);avisar();}
    let res=resumenListas(),l=estado.lote,filas;
    if(soloFallidas){const f=new Set(Object.keys(l.filas).filter(k=>l.filas[k].estado==='FALLIDO').map(Number));filas=res.listas.filter(x=>f.has(x.fila));
     for(const k of f)l.filas[k]=filas.some(x=>x.fila===k)?{...l.filas[k],estado:'PENDIENTE',motivo:null}:{...l.filas[k],estado:'PENDIENTE',motivo:'Ya no está lista en la vista previa; revísala'};}
@@ -213,7 +241,7 @@
     catch(e){
      if(intento>0||!/FUENTES_CAMBIARON|cambió en otra sesión/.test(e.message))throw e;
      // La versión cambió: nueva vista previa; sólo siguen las que continúan listas.
-     estado.archivo=await rpc('ABRIR',{archivo_id:id},t);estado.previa=await rpc('PREVISUALIZAR',{archivo_id:id,revision:estado.archivo.revision},t);
+     estado.archivo=await rpc('ABRIR',{archivo_id:id},t);estado.previa=await previaPorTramos(id,estado.archivo.revision,t);
      const vig=new Map(resumenListas().listas.map(x=>[x.fila,x])),quedan=[];
      for(const x of tramo){const n=vig.get(x.fila);if(n)quedan.push(n);else Object.assign(l.filas[x.fila],{estado:'PENDIENTE',motivo:'Su vista previa cambió y ya no está lista; revísala'});}
      if(!quedan.length)return null;tramo.splice(0,tramo.length,...quedan);
@@ -246,7 +274,7 @@
    }finally{l.en_curso=false;l.totales=totalesLote(l);}
   });}
   function cerrar(){secuencia++;estado=null;cacheBytes.clear();avisar();}
-  return Object.freeze({abrir,reintentar,mas,seleccionar,subir,completar,recuperar,reanudar,reprocesar,etapa,desactualizada,editar,marcarTodas,revisar,confirmar,resumenListas,confirmarListas,reintentarFallidas,cerrar,estado:()=>estado,ocupado:()=>ocupado});
+  return Object.freeze({abrir,reintentar,mas,seleccionar,subir,completar,recuperar,reanudar,reprocesar,etapa,desactualizada,editar,marcarTodas,revisar,previaFila,confirmar,resumenListas,confirmarListas,reintentarFallidas,cerrar,estado:()=>estado,ocupado:()=>ocupado});
  }
  return Object.freeze({crear,combinarPagina,llave});
 });
