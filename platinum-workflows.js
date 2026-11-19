@@ -21,9 +21,9 @@
   if(r.error)throw Error(r.error.message||'No se pudo completar la operación');
   if(!r.data||typeof r.data!=='object')throw Error('La base no confirmó una respuesta completa');return r.data;
  }
- async function operation(fn){
-  if(busy)return;busy=true;
-  try{return await fn();}catch(e){cfg.toast(e.message||String(e),'err');}
+ async function operation(fn,op={}){
+  if(busy){if(op.propagar)throw Error('Hay otra operación financiera en curso. Espera y reintenta.');return;}busy=true;
+  try{return await fn();}catch(e){if(op.propagar)throw e;cfg.toast(e.message||String(e),'err');}
   finally{busy=false;}
  }
  function head(title,back='openControlEmpresarial()'){
@@ -81,11 +81,11 @@
   cfg.modal(head('Vista previa · regularización histórica',`PLATINUM_FLOWS.abrirCierre('${id}')`)+`<div class="m-body"><p>No se ha cambiado el cierre. El administrador debe aprobar esta propuesta antes de aplicarla.</p>${table(['No.','Trabajador','Concepto','Anterior','Propuesto'],rows)}<label>Motivo de la regularización</label><textarea id="flow-reason" rows="3"></textarea></div><div class="m-foot"><button class="btn dark" onclick="PLATINUM_FLOWS.enviarPropuesta('${id}')">Solicitar aprobación de esta fotografía</button></div>`,'lg');
  }
  async function enviarPropuesta(id){return operation(async()=>{ensureState(id);if(!state.proposal)throw Error('Genera una vista previa nueva.');await call('SOLICITAR',{cierre_id:id,tipo:'REGULARIZACION',motivo:el('flow-reason').value,propuesta:state.proposal});cfg.toast('Propuesta enviada al administrador. No se aplicó ningún importe.','ok');await abrirCierre(id);});}
- async function importarNOI(st,c){return operation(async()=>{
+ async function importarNOI(st,c,op={}){return operation(async()=>{
   if(!st?.rows||!c?.id)throw Error('Vuelve a leer el archivo NOI.');
   const r=await call('IMPORTAR_NOI',{cierre_id:c.id,filas:st.rows,archivo:st.file.name,sha256:st.hash,revision:c.snapshot_sha256});
-  cfg.toast(r.sin_cambios?`NOI verificado: ${r.filas} filas idénticas a la versión autorizada. No se modificó el cierre.`:`NOI guardado completo: ${r.filas} filas. Revisa la conciliación antes de autorizar.`,'ok');if(!root.PLATINUM_CONCILIADOR_SEMANAL)await cfg.reload();if(!root.PLATINUM_CONCILIADOR)await cfg.openNoi(c.id);return r;
- });}
+  if(!op.silencioso)cfg.toast(r.sin_cambios?`NOI verificado: ${r.filas} filas idénticas a la versión autorizada. No se modificó el cierre.`:`NOI guardado completo: ${r.filas} filas. Revisa la conciliación antes de autorizar.`,'ok');if(!op.silencioso&&!root.PLATINUM_CONCILIADOR_SEMANAL)await cfg.reload();if(!root.PLATINUM_CONCILIADOR)await cfg.openNoi(c.id);return r;
+ },op);}
  async function transicion(id,estado){return operation(async()=>{
   await loadPermissions();if(!permissions.escritura)throw Error('Tu cuenta es de consulta.');
   if(['AUTORIZADO','PAGADO'].includes(estado)&&!permissions.aprobar_cierre)throw Error('Se requiere acceso VIP para autorizar o marcar pagado.');

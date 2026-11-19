@@ -98,3 +98,13 @@ Al existir después una fotografía compatible, el periodo ofrece revisar y conf
 
 Pruebas locales: servicio asíncrono, descarte de respuestas tardías, archivo previo a lectura, reanudación y DOM sintético. Las comprobaciones de PostgreSQL del paquete privado prueban aislamiento, deduplicación y vínculo posterior; no son pruebas visuales ni una importación operativa en producción.
 
+
+## Guardado NOI comprobado y recuperación
+
+El paso 1 distingue original recibido, lectura/comparación pendiente de guardar, guardado en curso y conciliación comprobada. El botón invoca el servicio IMPORTAR_NOI existente; no escribe tablas directamente ni autoriza, timbra o acredita pagos. El módulo97 verifica archivo, propuesta, contexto, fotografía y huella, espera la respuesta transaccional y relee detalle y resumen canónicos (filas guardadas, fotografía y reporte). Después vincula el original mediante la persistencia existente y vuelve a comprobarlo.
+
+Una respuesta perdida o un fallo del vínculo posterior se recupera consultando el servidor antes de reenviar. El vínculo pendiente se distingue del guardado fallido. Dos clics comparten la operación; cambio de contexto o lectura descarta la respuesta. Los originales permanecen disponibles para recomparar contra una fotografía nueva, identificados por referencia, fecha y huella; no se elige otro reporte sólo porque su comparación dé cero.
+
+Autorizar exige el diagnóstico persistido y fuentes vigentes. Un cambio real de cuenta o salario conserva el procedimiento de preparar explícitamente y volver a comparar el original. Los metadatos excluidos de la huella no se convierten en cambios financieros. Los motores, lectores y transacción importar_noi permanecen conservados.
+
+Prueba pública test_conciliador_noi_guardado: contrato y recuperación con adaptadores unitarios. Las pruebas privadas del recorrido usan DOM sintético, XLSX real y PostgreSQL aislado con las funciones y permisos equivalentes: no son aceptación visual ni pruebas financieras sobre producción.

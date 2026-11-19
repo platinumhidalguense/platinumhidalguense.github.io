@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-19.2",
-  "entry": "assets/platinum-app.1acb2836c46df59d.js",
-  "sha256": "1acb2836c46df59d531a5121158bf3107c62274626d9ab745b49edbbd238401f",
-  "integrity": "sha384-QpwOnsY88Rof4w+VGMWWeoiCtZMSpsIj8088kLFO0B3c6SPUedH7I+OYQlJm0XJV",
+  "version": "2026-11-19.3",
+  "entry": "assets/platinum-app.6a8a838254bda537.js",
+  "sha256": "6a8a838254bda537bf26fa9a646d8bbb3ddb2490174ccdb1c9cc33ed3ad144f0",
+  "integrity": "sha384-15q3YfiptlrMTjM7G1I6rKd+BHTTgN2Tfqv0UKj1g6W9sj1ikzSZGHJ0uZRDqLgH",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "8d3c1548efb34cbd6c5b916028b081e60ddbab7e7799f5af1e96bdc7a18ca622"
+      "sha256": "f2b45c83950c6b79c1840885dcf09a3272da965f3df5a01f48e6d889f4464ae8"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -246,7 +246,7 @@
     },
     {
       "path": "frontend/modulos/60-conciliador-general-stepper.js",
-      "sha256": "c23a69380ec572aae66ba8b97922a2462472927e483ab10b9b5751b8314c6b4a"
+      "sha256": "84e2428a21c1f38bbc51f5216ef533b183b10a90569b2130162d023a9772def3"
     },
     {
       "path": "frontend/modulos/61-conciliacion-semanal.js",
@@ -379,6 +379,10 @@
     {
       "path": "frontend/modulos/96-jornada-extra-interfaz.js",
       "sha256": "9dbc6bec56bc1cdeae210d134eb56d0aadbfcc8f43c2f70c2defdb1491dfa46a"
+    },
+    {
+      "path": "frontend/modulos/97-conciliador-noi-guardado.js",
+      "sha256": "626b09664a2a24ef4decd1f26972b4ac06f9b4bedb2016f8bc3cada716048cbd"
     }
   ]
 }
