@@ -168,6 +168,12 @@
    }else Object.assign(f,preparado);
    return f;
   }
+  // Original subido en un periodo que no contiene sus fechas: el servidor lo reubica al periodo del
+  // calendario del centro que sí las contiene (sin volver a subirlo y sólo si aún no está registrado).
+  async function reubicar(id){return ejecutar(async()=>{
+   if(!estado.archivos.some(x=>x.id===id))throw Error('Selecciona un archivo del periodo.');
+   return rpc('REUBICAR',{archivo_id:id});
+  });}
   async function vincular(id,cierre_id,confirmado=false){return ejecutar(async()=>rpc(confirmado?'VINCULAR':'PROPONER_VINCULOS',{archivo_id:id,cierre_id,confirmado}));}
   async function completar(id,k,literal,ia=false){return ejecutar(async()=>{
    const g=generacion,f=estado.archivos.find(x=>x.id===id),region=f?.lectura?.pendientes?.[k]?.region;
@@ -177,7 +183,7 @@
    }
    if(!valido(g))return;const evidencia={region,literal};dep.incorporar(f,evidencia);(f.transcripciones??=[]).push(evidencia);await lecturaGuardar(f,g);
   });}
-  return Object.freeze({abrir,subir,reanudar,confirmar,resumen,confirmarLote,reintentarFallidos,vincular,completar,verificar:id=>ejecutar(()=>verificar(estado.archivos.find(f=>f.id===id))),estado:()=>estado,ocupado:()=>ocupado,cerrar:()=>{cerrado=true;generacion++;}});
+  return Object.freeze({abrir,subir,reanudar,reubicar,confirmar,resumen,confirmarLote,reintentarFallidos,vincular,completar,verificar:id=>ejecutar(()=>verificar(estado.archivos.find(f=>f.id===id))),estado:()=>estado,ocupado:()=>ocupado,cerrar:()=>{cerrado=true;generacion++;}});
  }
  root.PLATINUM_RECIBOS_CONTEXTO=Object.freeze({crear});
 })(window);

@@ -61,6 +61,8 @@
     </div>`:'';
    q('[data-rl-lista]').innerHTML=panel+`<div class="cg-table" style="overflow:auto;max-height:48vh"><table><thead><tr><th>Original</th><th>Trabajador / periodo leído</th><th>Neto / UUID</th><th>Resultado y acciones</th></tr></thead><tbody>${files.slice(v.pagina*50,v.pagina*50+50).map(f=>{
     const d=f.datos||{},r=d.resultado||f,trab=r.trabajador||'Identidad por revisar';
+    const fuera=!f.documento_id&&f.id&&/^\d{4}-\d{2}-\d{2}$/.test(d.desde||'')&&/^\d{4}-\d{2}-\d{2}$/.test(d.hasta||'')&&s.contexto?.desde&&(d.desde<s.contexto.desde||d.hasta>s.contexto.hasta);
+    const sug=(f.contexto_sugerido||r.contexto_sugerido);
     return `<tr><td>${esc(d.nombre||f.file?.name||'Original')}<br><button class="btn" data-rl="original" data-id="${esc(f.id||'')}" ${!f.id?'disabled':''}>Ver original</button></td>
      <td>${esc(trab)}<br>${esc(d.desde||'—')} al ${esc(d.hasta||'—')} · ${esc(d.concepto||'concepto pendiente')}</td><td>${d.neto==null?'—':'$'+esc(d.neto)}<br><small>${esc(d.uuid||'')}</small></td>
      <td><p role="status" aria-live="polite">${esc(f.asistencia?.texto||'')}</p><b>${esc(etiquetas[f.estado]||f.estado)}</b>
@@ -68,6 +70,7 @@
       ${lote?.filas?.[f.id]?`<p class="fhint" data-rl-resultado="${esc(f.id)}">Lote: ${esc(RESULTADO[lote.filas[f.id].estado]||lote.filas[f.id].estado)}${lote.filas[f.id].motivo?' · '+esc(lote.filas[f.id].motivo):''}${lote.filas[f.id].aviso?' · '+esc(lote.filas[f.id].aviso):''}</p>`:''}<p class="fhint">${esc(f.motivo||d.resultado?.motivo||d.motivo||'')}</p>
       ${s.escritura?`<button class="btn" data-rl="releer" data-id="${esc(f.id||'')}" ${!f.id?'disabled':''}>Releer original</button>
        ${f.documento_id?`<button class="btn" data-rl="verificar" data-id="${esc(f.id)}">Verificar timbrado</button>`:r.estado==='VALIDO'||f.estado==='VALIDO'?`<button class="btn dark" data-rl="confirmar" data-id="${esc(f.id)}">Confirmar registro</button>`:''}
+       ${fuera?`<p class="fhint" data-rl-fuera="${esc(f.id)}">Las fechas del comprobante (${esc(d.desde)} al ${esc(d.hasta)}) no están en este periodo${sug?.desde?'; corresponden a '+(sug.periodicidad==='SEMANAL'?'S'+esc(sug.semana):esc(sug.mes)+'/Q'+esc(sug.quincena))+' ('+esc(sug.desde)+' al '+esc(sug.hasta)+')':''}. El número de nómina impreso no define la semana.</p><button class="btn dark" data-rl="reubicar" data-id="${esc(f.id)}">Mover al periodo de sus fechas</button>`:''}
        ${f.documento_id&&s.cierres.length?`<button class="btn" data-rl="vincular" data-id="${esc(f.id)}">Revisar vínculo con fotografía</button>`:''}`:''}
       ${(f.lectura?.pendientes||[]).map((p,k)=>p.region?`<details><summary>${esc(p.campo)} · ${esc(p.causa)}</summary><code>${esc(p.region.texto)}</code><input data-rl-literal="${esc(f.id)}-${k}" aria-label="Transcripción literal"><button class="btn" data-rl="literal" data-id="${esc(f.id)}" data-k="${k}">Usar transcripción</button><button class="btn" data-rl="gemini" data-id="${esc(f.id)}" data-k="${k}">Completar sólo este campo con Gemini</button></details>`:`<details><summary>${esc(p.campo)} · seleccionar región del original</summary><p>Abre el original, verifica la página y confirma el valor. No se inventarán caracteres.</p><select data-rl-region="${esc(f.id)}-${k}">${root.PLATINUM_CAMPOS_RECIBO.regiones(f.lectura,p.campo).map((r,j)=>`<option value="${j}">Página ${r.pagina} · ${esc(r.texto_original)}</option>`).join('')}</select><button class="btn" data-rl="region" data-id="${esc(f.id)}" data-k="${k}">Usar región seleccionada</button><p>Si no aparece una región legible, conserva el pendiente y revisa el PDF original o su XML.</p></details>`).join('')}
      </td></tr>`;}).join('')||'<tr><td colspan="4">No hay originales archivados en este periodo.</td></tr>'}</tbody></table></div>
@@ -89,6 +92,15 @@
    if(v.sucio)throw Error('Carga el nuevo contexto antes de continuar.');
    if(a==='pagina'){v.pagina=Number(b.dataset.page);return pintar(v.servicio.estado());}
    if(a==='releer')await v.servicio.reanudar(archivo);
+   if(a==='reubicar'){
+    if(!confirm('¿Mover este original al periodo del calendario del centro que contiene sus fechas? No se registra, no se paga y no cambia el cierre; después se relee en ese periodo.'))return;
+    const r=await v.servicio.reubicar(archivo),c=r.contexto;
+    q('[data-rl-anio]').value=c.anio;if(q('[data-rl-per]').value!==c.periodicidad)q('[data-rl-per]').value=c.periodicidad;
+    if(c.periodicidad==='SEMANAL')q('[data-rl-semana]').value=c.semana;else{q('[data-rl-mes]').value=c.mes;q('[data-rl-quin]').value=c.quincena;}
+    periodos();await cargar();
+    const f=v.servicio.estado().archivos.find(x=>x.id===archivo);if(f)await v.servicio.reanudar(archivo);
+    mensaje('Original movido a '+c.desde+' al '+c.hasta+' y releído en ese periodo.');
+   }
    if(a==='confirmar'&&confirm('¿Confirmas la identidad, el concepto y las fechas leídas del original? No se registrará un pago ni se modificará el cierre.'))await v.servicio.confirmar(archivo);
    if(a==='verificar')await v.servicio.verificar(archivo);
    if(a==='lote'){

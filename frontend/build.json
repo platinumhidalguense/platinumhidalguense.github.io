@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-19.1",
-  "entry": "assets/platinum-app.9e4b54df5cedbe10.js",
-  "sha256": "9e4b54df5cedbe102bdc599cf6ce76c1a2ce7dcea770ac74ceb4ace761ea7695",
-  "integrity": "sha384-1PFjkCcGXHnwS2Y/xZ7akL1gtjUsuNYqHuitNvimLc+zrAbX5C3WoEb8xWyzjJFn",
+  "version": "2026-11-19.2",
+  "entry": "assets/platinum-app.1acb2836c46df59d.js",
+  "sha256": "1acb2836c46df59d531a5121158bf3107c62274626d9ab745b49edbbd238401f",
+  "integrity": "sha384-QpwOnsY88Rof4w+VGMWWeoiCtZMSpsIj8088kLFO0B3c6SPUedH7I+OYQlJm0XJV",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "3540d996d2cd34d5ad2fa397c16ae7d5f0ce90575310e9c411836d1fed68ce7a"
+      "sha256": "8d3c1548efb34cbd6c5b916028b081e60ddbab7e7799f5af1e96bdc7a18ca622"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -182,7 +182,7 @@
     },
     {
       "path": "frontend/modulos/44-respaldo-recibos.js",
-      "sha256": "0174b4a8c41df7b07a2db43383c758fdef06791094c3611400004e066a46461f"
+      "sha256": "04eb7d7c0710538b5d04131a8487245cb00ac2ffe7fc55abe3f67f447ab70a99"
     },
     {
       "path": "frontend/modulos/45-exportacion-altas-noi.js",
@@ -278,7 +278,7 @@
     },
     {
       "path": "frontend/modulos/68-lectura-contextual-recibos.js",
-      "sha256": "98d11e23226600ce32e27a576b0b04bae847146b542bcf9a55c0d6724787acb7"
+      "sha256": "c9e3b33dc2ad535ee93e2004de484c166aa5676a94b5357d016691ab15c821c6"
     },
     {
       "path": "frontend/modulos/69-personal-lecturas.js",
@@ -338,11 +338,11 @@
     },
     {
       "path": "frontend/modulos/83-recibos-contexto-servicio.js",
-      "sha256": "3b3b36bf6cb078b14b27b91d699782c09b08a1d1fd510a5e5f212a8ca596d803"
+      "sha256": "6acf19b01919a19121e7fa93bd6ea69cd6847d97b2966cca9234b8ab34358cc4"
     },
     {
       "path": "frontend/modulos/84-recibos-contexto-interfaz.js",
-      "sha256": "58801f35505382627b7294ac23a82a1be7b2418287c04c5a166358acf611dd50"
+      "sha256": "914e3b920a45058e9ffce3ebfb2832792b9522e89bef3ece5a03dc2874a05a6a"
     },
     {
       "path": "frontend/modulos/85-lectura-asistida.js",

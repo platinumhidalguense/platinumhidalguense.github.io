@@ -83,7 +83,7 @@
   const compacto=bloque?bloque[1].replace(/\s/g,''):'';
   const sello=/^[a-zA-Z0-9+/=]{40,4096}$/.test(compacto)?'Sello Digital del SAT: '+compacto:null;
   const emisor=ids.find(x=>/^[A-ZÑ&]{3}[0-9]{6}[A-Z0-9]{3}$/.test(x))||null;
-  return {neto,tipo,errores,datos:{recibos:netos.length,nombre:null,numero:null,rfc:null,curp:null,nss:null,rfc_emisor:emisor,identificadores:ids,periodo_inicio:desde,periodo_fin:hasta,percepciones,deducciones,otros_pagos:otros||0,neto,evidencia_neto:netos[0]?.[0]||'',
+  return {neto,tipo,errores,datos:{recibos:netos.length,nombre:null,numero:null,rfc:null,curp:null,nss:null,rfc_emisor:emisor,identificadores:ids,periodo_inicio:desde,periodo_fin:hasta,percepciones,deducciones,otros_pagos:otros??(/Total\s+(?:de\s+)?otros\s+pagos/i.test(t)?null:0),neto,evidencia_neto:netos[0]?.[0]||'',
     concepto,cfdi_uuid:uuid&&sello?uuid:null,evidencia_timbrado:uuid&&sello?(folio?.[0]||'Folio fiscal: '+uuid)+' | '+sello:null}};
  }
  root.PLATINUM_RESPALDO_RECIBO=Object.freeze({parsear,clasificarPercepciones,clasificarTexto,extraerXML});

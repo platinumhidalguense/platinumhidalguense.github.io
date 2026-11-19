@@ -13,7 +13,8 @@ const eq=(a,b,m)=>{assert.deepEqual(a,b,m);pruebas++;};const window={},box=vm.cr
    if(a==='REGISTRAR'){eq(j.confirmado,true);return{data:{estado:'ARCHIVADO',documento_id:'d'}};}
    if(a==='ABRIR')return{data:{...originales.values().next().value,ya_subido:true}};
    if(a==='PROPONER_VINCULOS')return{data:{estado:'VINCULO_PROPUESTO'}};
-   if(a==='VINCULAR')return{data:{estado:'VINCULADO'}};assert.fail(a);
+   if(a==='VINCULAR')return{data:{estado:'VINCULADO'}};
+   if(a==='REUBICAR'){eq(j.archivo_id,'a');eq(j.contexto.semana,9);return{data:{estado:'REUBICADO',id:'a',contexto:{...j.contexto,semana:12}}};}assert.fail(a);
   },storage:{from:()=>({upload:async()=>{llamadas.push('UPLOAD');up++;return{};},download:async()=>({data:new Uint8Array([1,2,3])})})},
   leer:async f=>{llamadas.push('LEER');read++;assert(up>0,'original antes de leer');if(fail)throw Error('Texto ilegible');f.huella='a'.repeat(64);f.datos={neto:'2000.00'};f.lectura={datos:{neto:2000,recibos:1,percepciones:2500,deducciones:500},errores:[],pendientes:[]};},
   verificar:async b=>{enviadas=b.transcripciones||[];verif++;return{};},fragmento:async()=>{gemini++;return{error:{context:{status:503}}};},incorporar:f=>{f.lectura.pendientes=[];f.datos.neto='2000.00';}};
@@ -21,7 +22,7 @@ const eq=(a,b,m)=>{assert.deepEqual(a,b,m);pruebas++;};const window={},box=vm.cr
  const file={name:'recibo.pdf',size:3,arrayBuffer:async()=>new Uint8Array([1,2,3]).buffer};await svc.subir([file]);eq(s.archivos[0].estado,'VALIDO');eq(up,1);eq(llamadas.indexOf('UPLOAD')<llamadas.indexOf('LEER'),true);eq(busy,false);
  await svc.confirmar('a');eq(verif,1);eq(s.archivos[0].estado,'VERIFICADO');eq(llamadas.includes('PREPARAR'),true);eq(llamadas.includes('CREAR_CIERRE'),false);
  await svc.subir([file]);eq(up,1,'reimportación no sustituye original');
- await svc.reanudar('a');eq(read,3);eq((await svc.vincular('a','c')).estado,'VINCULO_PROPUESTO');eq((await svc.vincular('a','c',true)).estado,'VINCULADO');
+ await svc.reanudar('a');eq(read,3);eq((await svc.reubicar('a')).contexto.semana,12,'reubica desde el contexto vigente');await assert.rejects(svc.reubicar('zz'),/Selecciona un archivo/);pruebas++;eq((await svc.vincular('a','c')).estado,'VINCULO_PROPUESTO');eq((await svc.vincular('a','c',true)).estado,'VINCULADO');
  fail=true;await svc.reanudar('a');eq(s.archivos[0].estado,'REVISAR');eq(llamadas.at(-1),'LECTURA','fallo queda registrado');
  s.archivos[0].lectura.pendientes=[{region:{texto:'RFC por leer'}}];await assert.rejects(svc.completar('a',0,'',true),/reintenta|Reintenta/);pruebas++;
  await assert.rejects(svc.completar('a',0,'',true),/pausa/);pruebas++;eq(gemini,1,'no bucle IA');

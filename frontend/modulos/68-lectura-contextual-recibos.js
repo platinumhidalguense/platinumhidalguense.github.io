@@ -7,7 +7,7 @@
   rfc_emisor:{etiqueta:/\bRFC\s+(?:DEL\s+)?EMISOR\b/i,valor:new RegExp('^'+rfc+'$','i')},
   rfc:{etiqueta:/\bRFC\s+(?:DEL\s+)?(?:RECEPTOR|TRABAJADOR|EMPLEADO)\b/i,valor:/^[A-ZÑ&]{4}\d{6}[A-Z0-9]{3}$/i},
   curp:{etiqueta:/\bCURP\b/i,valor:new RegExp('^'+curp+'$','i')},
-  nss:{etiqueta:/\b(?:NSS|REGISTRO\s+IM\s*SS|N[ÚU]MERO\s+DE\s+SEGURIDAD\s+SOCIAL|SEGURIDAD\s+SOCIAL)\b/i,valor:/^\d{11}$/},
+  nss:{etiqueta:/\b(?:NSS|REGISTRO\s+IM\s*SS|R\s*\.?\s*IM\s*SS|N[ÚU]MERO\s+DE\s+SEGURIDAD\s+SOCIAL|SEGURIDAD\s+SOCIAL)\b/i,valor:/^\d{11}$/},
   cfdi_uuid:{etiqueta:/\b(?:FOLIO\s+FISCAL|UUID)\b/i,valor:new RegExp('^'+folio+'$','i')},
   neto:{etiqueta:/\bNETO\s+PAGADO\b/i,valor:/^\d+(?:,\d{3})*\.\d{2}$/},
   periodo:{etiqueta:/\b(?:PER[IÍ]ODO|DEL)\s+(?=\d)/i,valor:/^.{1,85}$/}
@@ -17,7 +17,7 @@
  const etiquetar=s=>visible(s).replace(/\bR\s*\.?\s*F\s*\.?\s*C\s*\.?(?=\s|:|$)/gi,'RFC').replace(/\bC\s*\.?\s*U\s*\.?\s*R\s*\.?\s*P\s*\.?(?=\s|:|$)/gi,'CURP');
  const limpio=s=>String(s||'').trim().replace(/^[:$\s]+/,'').trim();
  const etiquetaGeneral=/\b(?:RFC|R\.F\.C\.)\s*:?/i;
- const finValor=/\s+(?:(?:R\.F\.C\.|RFC|CURP|NSS|N[ÚU]MERO DE SEGURIDAD SOCIAL|REFERENCIA|FOLIO|CUENTA|CLABE|NETO|PERCEPCIONES|DEDUCCIONES|SELLO)\b|FECHA DE|D[IÍ]AS\s+(?:TRABAJADOS|PAGADOS)|N[ÚU]M\s*ERO\s+DE\s+N[ÓO]M\s*INA|(?:SUELDO|SALARIO)\s+DIARIO|REGISTRO\s+PATRONAL)/i;
+ const finValor=/\s+(?:(?:R\.F\.C\.|RFC|CURP|NSS|N[ÚU]MERO DE SEGURIDAD SOCIAL|REFERENCIA|FOLIO|CUENTA|CLABE|NETO|PERCEPCIONES|DEDUCCIONES|SELLO)\b|FECHA DE|D[IÍ]AS\s+(?:TRABAJADOS|PAGADOS)|N[ÚU]M\s*ERO\s+DE\s+N[ÓO]M\s*INA|NO\.?\s*N[ÓO]M\s*INA|(?:SUELDO|SALARIO)\s+DIARIO|REGISTRO\s+PATRONAL)/i;
  function lineas(items,pagina){
   const filas=[];
   for(const item of items){
@@ -41,9 +41,17 @@
   return paginas;
  }
  function fragmento(fila,marca,campo){
-  const inicio=marca.index,despues=inicio+marca[0].length,valor=limpio(fila.texto.slice(despues).split(finValor)[0]).slice(0,110);
+  const inicio=marca.index,despues=inicio+marca[0].length;let valor=limpio(fila.texto.slice(despues).split(finValor)[0]);
+  const partes=fila.partes||[],iEtiqueta=partes.findIndex(p=>etiquetar(p.texto).toUpperCase().includes(marca[0].toUpperCase().trim()));
+  // Formatos de dos columnas (JIRE): «CURP: valor ‖ No. Nómina: 43». El valor termina
+  // donde empieza, a su derecha, la siguiente parte que es una etiqueta («Texto:»).
+  if(iEtiqueta>=0)for(const p of partes.slice(iEtiqueta+1)){
+   const t=etiquetar(p.texto).trim();
+   if(/[A-ZÁÉÍÓÚÑ]{2}/i.test(t)&&/:\s*$/.test(t)){const k=valor.indexOf(t);if(k>=0)valor=limpio(valor.slice(0,k));break;}
+  }
+  valor=valor.slice(0,110);
   const texto=(marca[0]+' '+valor).trim();
-  const part=(fila.partes||[]).find(p=>p.texto.toUpperCase().includes(marca[0].toUpperCase()));
+  const part=partes[iEtiqueta]||partes.find(p=>p.texto.toUpperCase().includes(marca[0].toUpperCase()));
   return {campo,pagina:fila.pagina,x:part?.x??fila.x,y:fila.y,ancho:fila.ancho,alto:fila.alto,etiqueta:marca[0],texto,valor,texto_original:fila.texto_original||fila.texto};
  }
  function resolverLiteral(region,literal,lector){
@@ -59,6 +67,30 @@
   if(!campos[campo]?.valor.test(v))throw Error('El valor transcrito no tiene el formato de '+campo+'.');
   return {[campo]:campo==='neto'?Number(v.replace(/,/g,'')):v};
  }
+ /* Importe de un resumen por posición: la etiqueta y su importe pueden quedar en
+    renglones de PDF.js separados por pocos puntos (JIRE: «Total otros pagos:» y
+    «0.00» a 3 pt). Sólo se acepta un importe único a la derecha, dentro de media
+    línea de altura; si hay dos posibles, no se asocia. */
+ const IMPORTE=/^\$?\s*\d+(?:,\d{3})*\.\d{2}$/;
+ function importesEspaciales(filas,etiqueta){
+  const hallazgos=[];
+  for(const f of filas)for(const p of f.partes||[]){
+   if(!etiqueta.test(sinAcento(etiquetar(p.texto)).trim()))continue;
+   const tope=Math.max(f.alto||10,8)*0.6,fin=p.x+(p.ancho||0);
+   const cand=filas.filter(g=>g.pagina===f.pagina&&Math.abs(g.y-f.y)<=tope).flatMap(g=>(g.partes||[]).filter(q=>q.x>=fin-1&&IMPORTE.test(q.texto)).map(q=>({g,q,d:Math.abs(g.y-f.y)})));
+   if(!cand.length)continue;
+   const menor=Math.min(...cand.map(c=>c.d)),cerca=cand.filter(c=>c.d===menor).sort((a,b)=>a.q.x-b.q.x);
+   if(cand.filter(c=>c.d<=menor+1).length>1&&new Set(cand.filter(c=>c.d<=menor+1).map(c=>c.q.texto)).size>1){hallazgos.push({ambiguo:true});continue;}
+   const {g,q}=cerca[0],valor=Number(q.texto.replace(/[$,\s]/g,''));
+   hallazgos.push({valor,evidencia:{campo:'resumen',pagina:f.pagina,x:p.x,y:f.y,ancho:(q.x+(q.ancho||0))-p.x,alto:f.alto,etiqueta:p.texto,valor:q.texto,texto:p.texto+' '+q.texto,y_valor:g.y,origen:'POSICION'}});
+  }
+  return hallazgos;
+ }
+ function importeEspacial(filas,etiqueta){
+  const hallazgos=importesEspaciales(filas,etiqueta);
+  return hallazgos.length===1&&!hallazgos[0].ambiguo?hallazgos[0]:null;
+ }
+ const cent=n=>Math.round(Number(n)*100);
  function leer(paginas,lector){
   const bloques=[],paginasConNeto=paginas.filter(p=>lector.parsear(p.texto).datos.recibos===1);
   // Una página con un resumen completo es un límite verificable sólo si
@@ -71,6 +103,23 @@
   }
   const base=lector.parsear(paginas.map(p=>visible(p.texto)).join(' ')),datos={...base.datos},pruebas={},pendientes=[],errores=[...base.errores];
   const filas=paginas.flatMap(p=>p.lineas), candidatos={};
+  // «Total otros pagos» impreso sin importe contiguo en el texto: se busca por posición.
+  const SIN_OTROS='No se pudo asociar el importe literal de otros pagos';
+  if(errores.includes(SIN_OTROS)){
+   const r=importeEspacial(filas,/^TOTAL\s+(?:DE\s+)?OTROS\s+PAGOS\s*:?$/i);
+   if(r){
+    datos.otros_pagos=r.valor;pruebas.otros_pagos=[{...r.evidencia,campo:'otros_pagos'}];errores.splice(errores.indexOf(SIN_OTROS),1);
+    if(datos.neto!=null&&datos.percepciones!=null&&datos.deducciones!=null&&cent(datos.percepciones)+cent(r.valor)-cent(datos.deducciones)!==cent(datos.neto))
+     errores.push('Percepciones, otros pagos y deducciones no cuadran con el neto');
+   }
+  }
+  // Comprobación adicional: cada importe impreso junto a la etiqueta (cuerpo y resumen fiscal)
+  // debe coincidir con el leído; uno que contradice queda visible, nunca se corrige.
+  for(const [rx,campo,nombre] of [[/^TOTAL\s+PERCEPCIONES\s*:?$/i,'percepciones','percepciones'],[/^TOTAL\s*:$/i,'neto','total']]){
+   if(datos[campo]==null)continue;
+   const r=importesEspaciales(filas,rx).find(h=>!h.ambiguo&&cent(h.valor)!==cent(datos[campo]));
+   if(r)errores.push('El '+nombre+' del resumen fiscal impreso ('+r.evidencia.valor+') contradice el del recibo');
+  }
   let rol=null,paginaAnterior=null;
   for(const f of filas){
    if(paginaAnterior!==f.pagina){rol=null;paginaAnterior=f.pagina;}

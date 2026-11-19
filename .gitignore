@@ -68,3 +68,6 @@ supabase/migrations/*_aguinaldo_finiquito_baja_revertida_sin_pago.sql
 
 # Jornada: papelera por marca (SQL operativo privado).
 supabase/migrations/*_jornada_papelera_por_marca.sql
+
+# Recibos: periodo por fechas del comprobante (privada)
+supabase/migrations/*_recibos_periodo_por_fechas.sql
