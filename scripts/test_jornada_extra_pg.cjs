@@ -115,6 +115,13 @@ const uid=()=>crypto.randomUUID();
  // 11. Quincenal: semana que cruza la quincena acumula; periodo y fecha de pago quincenales.
  const qa=await confirmar(he(wQ,'2026-10-30',360),{confirmar_avisos:true});eq([qa.q.destino.desde,qa.q.destino.hasta,qa.q.fecha_pago],['2026-10-16','2026-10-31','2026-10-31'],'segunda quincena de octubre');
  q=await call('admin','PREVIA',he(wQ,'2026-11-01',300));eq([q.destino.desde,q.evento.minutos_dobles,q.evento.minutos_triples],['2026-11-01',180,120],'acumula a través de la quincena');
+ // 11b. Papelera: manda la marca eliminado; una fecha eliminado_en residual de una restauración no bloquea.
+ await owner(db,"update trabajadores set eliminado=false,eliminado_en='2026-08-13T17:51:00Z' where id=$1",[ids.w2]);
+ q=await call('admin','PREVIA',{trabajador_id:ids.w2,fecha:'2026-11-16',tipo:'DESCANSO_OBLIGATORIO',clave_idempotencia:uid(),captura:{laboro:true}});
+ eq(Number(q.evento.descanso_adicional),800,'restaurado de la papelera: festivo laborado se calcula');
+ await owner(db,"update trabajadores set eliminado=true where id=$1",[ids.w2]);
+ await falla('admin','PREVIA',{trabajador_id:ids.w2,fecha:'2026-11-16',tipo:'DESCANSO_OBLIGATORIO',clave_idempotencia:uid(),captura:{laboro:true}},/papelera/,'en papelera sí se bloquea');
+ await owner(db,"update trabajadores set eliminado=false,eliminado_en=null where id=$1",[ids.w2]);
  // 12. Alta, baja y reingreso.
  await owner(db,"update trabajadores set fecha_alta='2026-11-17' where id=$1",[wX]);
  await falla('admin','PREVIA',he(wX,'2026-11-16',60),/anterior al alta/,'antes del alta');

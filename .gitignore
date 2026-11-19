@@ -65,3 +65,6 @@ supabase/migrations/*_jornada_extra_descansos_laborados.sql
 
 # Finiquito de baja revertida sin pago: SQL operativo privado.
 supabase/migrations/*_aguinaldo_finiquito_baja_revertida_sin_pago.sql
+
+# Jornada: papelera por marca (SQL operativo privado).
+supabase/migrations/*_jornada_papelera_por_marca.sql
