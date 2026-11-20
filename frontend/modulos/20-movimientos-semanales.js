@@ -1,5 +1,6 @@
 /* ---------- MOVIMIENTOS POR SEMANA (altas, bajas y pendientes de la semana) ---------- */
 function semRange(n){
+  if(typeof window!=='undefined'&&(window.PLATINUM_PERIODOS?.resolver(OBRA?.id,{semana:n})||window.PLATINUM_PERIODOS?.estricto(OBRA))){const p=window.PLATINUM_PERIODOS.de(OBRA,{semana:n});return[p.desde,p.hasta];}
   const a=new Date(semBase()+'T12:00');a.setDate(a.getDate()+(n-1)*7);
   const b=new Date(a);b.setDate(a.getDate()+6);
   return [a.toISOString().slice(0,10),b.toISOString().slice(0,10)];

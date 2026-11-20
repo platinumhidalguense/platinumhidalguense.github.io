@@ -441,9 +441,4 @@ function renunciaOpts(w,monto,fecha){
 /* Último día (domingo) de la semana de un cheque, según la fecha de inicio de la
    obra. Es la fecha con la que se llena el cheque y que DEBE salir igual en la
    carta de renuncia y el recibo de finiquito del legajo. */
-function domingoDeSemana(sem){
-  const W=parseInt(normSem(sem))||0; if(!W)return null;
-  const base=new Date((OBRA.fecha_inicio?String(OBRA.fecha_inicio).slice(0,10):SEMANA1)+'T12:00');
-  const d=new Date(base); d.setDate(base.getDate()+(W-1)*7+6);
-  return d.toISOString().slice(0,10);
-}
+function domingoDeSemana(sem){const W=parseInt(normSem(sem))||0;return W?semRange(W)[1]:null;}

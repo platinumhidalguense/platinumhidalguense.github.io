@@ -246,5 +246,12 @@
   "asSheet": "Lista de asistencia 2026-11-18: columnas de firma sólo para los días del rango; horario de sábado en su columna; anchos repartidos entre esas columnas.",
   "exportAsistencia": "Lista de asistencia 2026-11-18: envía el día final del rango y avisa si no incluye días laborables.",
   "openRevisarFirmas": "Lista de asistencia 2026-11-18: la revisión por foto usa el mismo número de días del rango.",
-  "asDiasRango": "Lista de asistencia 2026-11-18: fechas de firma del día inicial al final, sin domingo y hasta seis columnas."
+  "asDiasRango": "Lista de asistencia 2026-11-18: fechas de firma del día inicial al final, sin domingo y hasta seis columnas.",
+  "semBase": "20/11/2026: usa periodos documentados por centro antes del calendario legado; JIRE no hereda el inicio de obra. Conserva claves históricas y fecha local México. Pruebas de proveedor, adaptación semanal/quincenal, calendario histórico y regresión; sin cambiar fórmulas de motores.",
+  "isoWeek": "20/11/2026: usa periodos documentados por centro antes del calendario legado; JIRE no hereda el inicio de obra. Conserva claves históricas y fecha local México. Pruebas de proveedor, adaptación semanal/quincenal, calendario histórico y regresión; sin cambiar fórmulas de motores.",
+  "_semRango": "20/11/2026: usa periodos documentados por centro antes del calendario legado; JIRE no hereda el inicio de obra. Conserva claves históricas y fecha local México. Pruebas de proveedor, adaptación semanal/quincenal, calendario histórico y regresión; sin cambiar fórmulas de motores.",
+  "semRange": "20/11/2026: usa periodos documentados por centro antes del calendario legado; JIRE no hereda el inicio de obra. Conserva claves históricas y fecha local México. Pruebas de proveedor, adaptación semanal/quincenal, calendario histórico y regresión; sin cambiar fórmulas de motores.",
+  "isoWeekDe": "20/11/2026: usa periodos documentados por centro antes del calendario legado; JIRE no hereda el inicio de obra. Conserva claves históricas y fecha local México. Pruebas de proveedor, adaptación semanal/quincenal, calendario histórico y regresión; sin cambiar fórmulas de motores.",
+  "domingoDeSemana": "20/11/2026: usa periodos documentados por centro antes del calendario legado; JIRE no hereda el inicio de obra. Conserva claves históricas y fecha local México. Pruebas de proveedor, adaptación semanal/quincenal, calendario histórico y regresión; sin cambiar fórmulas de motores.",
+  "faltantesReciboDe": "20/11: JIRE exige sólo periodos documentados y preserva fotografías existentes; evita fabricar faltantes desde inicio de obra. Regresión de legajos y calendario."
 }

@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "version": "2026-11-20.1",
+  "version": "2026-11-20.2",
   "modules": [
     "frontend/modulos/00-configuracion-utilidades.js",
     "frontend/modulos/01-sesion-centros-sincronizacion.js",
@@ -96,7 +96,9 @@
     "frontend/modulos/94-jornada-extra-core.js",
     "frontend/modulos/95-jornada-extra-integracion.js",
     "frontend/modulos/96-jornada-extra-interfaz.js",
-    "frontend/modulos/97-conciliador-noi-guardado.js"
+    "frontend/modulos/97-conciliador-noi-guardado.js",
+    "frontend/modulos/98-periodos-noi.js",
+    "frontend/modulos/99-recibos-lectura-hibrida.js"
   ],
   "originalSha256": "9c8d55e50d79a8c1d4dda73f83ff26f8b1c9f200e3f6e8c6b96624b12857af04"
 }

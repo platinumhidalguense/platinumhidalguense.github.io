@@ -517,13 +517,8 @@ async function applyPagoImport(){
    El motivo se guarda en las observaciones del propio pago/cheque; si no hay
    ninguno todavía, se anota como nota de conciliación en el trabajador.
    ============================================================ */
-function _semRango(sem){
-  const W=parseInt(normSem(sem))||0; if(!W)return[null,null];
-  const base=new Date((OBRA&&OBRA.fecha_inicio?String(OBRA.fecha_inicio).slice(0,10):SEMANA1)+'T12:00');
-  const d1=new Date(base); d1.setDate(base.getDate()+(W-1)*7);
-  const d2=new Date(d1);   d2.setDate(d1.getDate()+6);
-  return [d1.toISOString().slice(0,10), d2.toISOString().slice(0,10)];
-}
+function _semRango(sem){const W=parseInt(normSem(sem))||0;return W?semRange(W):[null,null];}
+
 function ctrlCierreDeSemana(sem){
   const n=parseInt(normSem(sem))||0;
   return (CIERRES||[]).filter(c=>c.semana===n&&c.estado!=='CANCELADO').sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))[0]||null;

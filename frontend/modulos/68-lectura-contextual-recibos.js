@@ -171,6 +171,8 @@
   if(datos.recibos===0&&datos.neto!=null)datos.recibos=1;
   if(datos.recibos>1)errores.push('No fue posible separar los recibos con certeza');
   datos.identificadores=[datos.rfc,datos.rfc_emisor,datos.curp,datos.nss].filter(Boolean);
+  const nums=filas.flatMap(f=>[...f.texto.matchAll(/\bNO\.?\s*N[ÓO]MINA\s*:\s*(\d{1,6})\b/gi)].map(m=>({valor:m[1],pagina:f.pagina,texto_original:f.texto_original||f.texto})));
+  if(new Set(nums.map(x=>x.valor)).size===1){datos.numero_nomina_impreso=nums[0].valor;pruebas.numero_nomina_impreso=nums;}
   return {datos,errores,pendientes,pruebas,bloques,paginas};
  }
  function regiones(lectura,campo){

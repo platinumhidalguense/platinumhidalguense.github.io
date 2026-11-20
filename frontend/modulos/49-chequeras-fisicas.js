@@ -7,6 +7,7 @@ function cqFisico(c){return cqNumero(c.consecutivo)!==null&&!!String(c.num_chequ
 function cqPeriodo(c,obra){
   const m=String(c.semana??'').trim().match(/^(?:S(?:EMANA)?\s*)?(\d+)$/i),n=m&&cqNumero(m[1]);
   if(!n)throw Error('Semana no válida en el consecutivo '+c.consecutivo+'.');
+  const central=typeof window!=='undefined'&&window.PLATINUM_PERIODOS?.de(obra,{semana:n,anio:Number(c.anio)||undefined});if(central){const p=central;return{semana:String(p.semana),desde:p.desde,hasta:p.hasta,periodo_id:p.periodo_id};}
   const base=String(obra.fecha_inicio||SEMANA1).slice(0,10),d=new Date(base+'T12:00:00Z');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(base)||!Number.isFinite(d.getTime())||d.toISOString().slice(0,10)!==base||d.getUTCDay()!==1)throw Error('Configura el lunes inicial del calendario de '+obra.nombre+'.');
   d.setUTCDate(d.getUTCDate()+(n-1)*7);const desde=d.toISOString().slice(0,10);d.setUTCDate(d.getUTCDate()+6);

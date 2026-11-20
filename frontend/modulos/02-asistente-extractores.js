@@ -143,10 +143,7 @@ const IA_CALCULOS={
     desc:'Proyección de nómina de una semana: a cuántos se paga, sueldos, descuentos por tipo (INFONAVIT, FONACOT...), finiquitos y total a dispersar. Parámetro: semana (número).',
     fn:(a)=>{
       const W=parseInt(a&&a.semana)||semObra(), sem='S'+W;
-      const base=new Date((OBRA&&OBRA.fecha_inicio?String(OBRA.fecha_inicio).slice(0,10):SEMANA1)+'T12:00');
-      const d1=new Date(base);d1.setDate(base.getDate()+(W-1)*7);
-      const d2=new Date(d1);d2.setDate(d1.getDate()+6);
-      const D1=d1.toISOString().slice(0,10),D2=d2.toISOString().slice(0,10);
+      const [D1,D2]=semRange(W);
       const {act,fins}=pyCandidatos(D1,D2,'TODOS');
       const sueldos=act.reduce((s,w)=>s+(Number(w.sal_semanal)||0),0);
       const finiq=fins.reduce((s,w)=>s+(Number(w.monto_finiquito)||0),0);

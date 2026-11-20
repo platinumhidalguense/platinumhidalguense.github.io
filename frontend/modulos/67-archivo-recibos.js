@@ -43,6 +43,7 @@
  function datosArchivo(f){
   const d=f.lectura.datos,neto=d.neto==null?null:cfdiTotalImportado(d.neto);
   f.datos={nombre:f.file.name,tamano:f.file.size,formato:f.file.name.split('.').pop().toUpperCase(),huella:f.huella,uuid:d.cfdi_uuid,
+   ciclo_inicio_documento:d.fecha_inicio_rel_laboral||null,numero_empleado_documento:d.numero_empleado_documento||null,numero_nomina_impreso:d.numero_nomina_impreso||null,folio_interno:d.folio_interno||null,
    emisor:d.rfc_emisor,rfc:d.rfc,curp:d.curp,nss:d.nss,desde:d.periodo_inicio,hasta:d.periodo_fin,pago:d.fecha_pago||null,
    neto:neto?.toFixed(2)??null,concepto:d.concepto?.estado||null};
  }

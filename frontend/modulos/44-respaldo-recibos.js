@@ -41,6 +41,7 @@
   const ps=all.filter(e=>local(e)==='Percepcion').map(e=>({sat:att(e,'TipoPercepcion'),concepto:att(e,'Concepto'),gravado:att(e,'ImporteGravado'),exento:att(e,'ImporteExento')}));
   const rfc=String(att(rec,'Rfc')||'').toUpperCase(),curp=String(att(nr,'Curp')||'').toUpperCase(),nss=att(nr,'NumSeguridadSocial'),rfc_emisor=String(att(emp,'Rfc')||'').toUpperCase();
   return {recibos:1,rfc,curp,nss,rfc_emisor,identificadores:[rfc,curp,nss,rfc_emisor].filter(Boolean),cfdi_uuid:uuid,neto,percepciones,deducciones,otros_pagos:otros,
+   fecha_inicio_rel_laboral:att(nr,'FechaInicioRelLaboral'),numero_empleado_documento:att(nr,'NumEmpleado'),folio_interno:[att(comp,'Serie'),att(comp,'Folio')].filter(Boolean).join(' '),
    periodo_inicio:att(nom,'FechaInicialPago'),periodo_fin:att(nom,'FechaFinalPago'),fecha_pago:att(nom,'FechaPago'),concepto:clasificarPercepciones(ps),evidencia_neto:'Total XML: '+neto.toFixed(2),evidencia_timbrado:'Folio fiscal: '+uuid+' | Sello Digital del SAT: '+sello};
  }
  function fecha(d,m,y){const mo=/^\d+$/.test(m)?Number(m):meses[m.slice(0,3).toUpperCase()];let yy=Number(y);if(yy<100)yy+=2000;const dt=new Date(Date.UTC(yy,mo-1,Number(d)));return dt.getUTCFullYear()===yy&&dt.getUTCMonth()===mo-1&&dt.getUTCDate()===Number(d)?dt.toISOString().slice(0,10):null;}

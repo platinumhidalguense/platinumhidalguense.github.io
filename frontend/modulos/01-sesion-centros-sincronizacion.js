@@ -302,6 +302,7 @@ async function selectObra(id){
   renderObraBar();
   $('nav-loading').classList.remove('hide');
   try{
+    if(window.PLATINUM_PERIODOS)await window.PLATINUM_PERIODOS.cargar(id,null,true);
     const loaded=await loadPadronRapido(id);
     if(loaded===false){OBRA=anterior;EMPRESA_ACTIVA=empresaAnterior;repintarInstantaneaObra();return;}
     if(!anterior||anterior.id!==id)resetWorkerFilters();
@@ -525,7 +526,7 @@ async function loadConfig(){
    contra el de la base de datos — que siempre está al día — y si no
    coinciden, muestra un aviso para recargar. No requiere que nadie refresque
    "porque sí": el aviso solo aparece cuando de verdad hay algo más nuevo. */
-const APP_VERSION='2026-11-20.1';
+const APP_VERSION='2026-11-20.2';
 window.__PLATINUM_REQUIERE_FLUJO=true;
 let _verIgnorada=null; // "Después" silencia esa versión durante la sesión
 function chequearVersion(){

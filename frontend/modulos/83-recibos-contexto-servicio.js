@@ -22,18 +22,20 @@
     if(f.lectura?.datos?.recibos!==1)errores.push('No se identificó un recibo individual');
     const d=f.lectura?.datos;
     if(d?.percepciones!=null&&d?.deducciones!=null&&Math.round((d.percepciones+(d.otros_pagos||0)-d.deducciones)*100)!==Math.round(d.neto*100))errores.push('La suma de conceptos no coincide con el neto');
-    const propuesta={...f.datos,transcripciones:f.transcripciones||[],...(errores.length?{neto:null,errores}:{})};
-    Object.assign(f,await rpc('LECTURA',{archivo_id:f.id,lectura:propuesta}));
+    const propuesta={...f.datos,transcripciones:f.transcripciones||[],evidencia_hibrida:f.lectura?.evidencia_hibrida||[],avisos_hibridos:f.lectura?.avisos_hibridos||[],...(errores.length?{neto:null,errores}:{})};
+    Object.assign(f,await rpc('LECTURA',{archivo_id:f.id,lectura:propuesta,...(f.contexto?{contexto:f.contexto}:{})}));
     if(errores.length)f.motivo=errores.join(' · ');
    emitir();return f;
   }
   async function leer(f,g){
-   try{await dep.leer(f);for(const x of f.transcripciones||[])dep.incorporar(f,x);return await lecturaGuardar(f,g);}
-   catch(e){f.estado='REVISAR';f.motivo=e.message;await rpc('LECTURA',{archivo_id:f.id,lectura:{error:e.message}});emitir();return f;}
+   try{await dep.leer(f);for(const x of f.transcripciones||[])dep.incorporar(f,x);
+    if(root.PLATINUM_LECTURA_HIBRIDA&&dep.vision){await root.PLATINUM_LECTURA_HIBRIDA.recuperar(f,{archivos:estado.archivos,vigente:()=>valido(g),vision:dep.vision,progreso:texto=>{f.asistencia={texto};emitir();}});dep.actualizar?.(f);}
+    return await lecturaGuardar(f,g);}
+   catch(e){if(!valido(g))return f;f.estado='REVISAR';f.motivo=e.message;await rpc('LECTURA',{archivo_id:f.id,lectura:{error:e.message},...(f.contexto?{contexto:f.contexto}:{})});emitir();return f;}
   }
   async function subir(files){return ejecutar(async()=>{
    const g=generacion;
-   for(const file of files){
+   for(const file of [...files].sort((a,b)=>(/\.xml$/i.test(a.name)?0:1)-(/\.xml$/i.test(b.name)?0:1))){
     if(!valido(g))break;
     const f={file,estado:'RECIBIENDO',datos:{}};estado.archivos.push(f);emitir();
     try{
@@ -54,14 +56,14 @@
   });}
   async function reanudar(id){return ejecutar(async()=>{
    const g=generacion,f=estado.archivos.find(x=>x.id===id);if(!f)throw Error('Selecciona un archivo del periodo.');
-   const a=await rpc('ABRIR',{archivo_id:id});if(!valido(g))return;
+   const a=await rpc('ABRIR',{archivo_id:id,...(f.contexto?{contexto:f.contexto}:{})});if(!valido(g))return;
    const {data,error}=await dep.storage.from('expedientes').download(a.ruta);if(error)throw Error(error.message);
-   if(!valido(g))return;f.file=dep.archivo(data,a.datos.nombre);f.id=a.id;f.transcripciones=a.datos?.transcripciones||[];
+   if(!valido(g))return;f.file=dep.archivo(data,a.datos.nombre);f.id=a.id;f.contexto=a.contexto;f.transcripciones=a.datos?.transcripciones||[];
    if(await dep.hash(new Uint8Array(await f.file.arrayBuffer()))!==a.huella)throw Error('La huella no corresponde al original.');
    if(!a.documento_id)await leer(f,g);else Object.assign(f,a,{estado:'ARCHIVADO'});
   });}
   // Registro documental de un original: misma llamada y validaciones de servidor para la confirmación individual y la global.
-  async function registrar(f){const r=await rpc('REGISTRAR',{archivo_id:f.id,confirmado:true});Object.assign(f,r);return r;}
+  async function registrar(f){const r=await rpc('REGISTRAR',{archivo_id:f.id,confirmado:true,...(f.contexto?{contexto:f.contexto}:{})});Object.assign(f,r);return r;}
   async function confirmar(id){return ejecutar(async()=>{
    const f=estado.archivos.find(x=>x.id===id);if(!f)throw Error('Archivo no disponible.');
    await registrar(f);
@@ -124,6 +126,12 @@
     else if(JSON.stringify(srv.contexto)!==JSON.stringify(estado.contexto))detener('El periodo del servidor cambió; vuelve a cargar el contexto.');
     if(l.detenido)return l;
     const remoto=new Map((srv.archivos||[]).map(a=>[a.id,a]));
+    const contextos=new Map(estado.archivos.filter(f=>f.contexto&&JSON.stringify(f.contexto)!==JSON.stringify(estado.contexto)).map(f=>[JSON.stringify(f.contexto),f.contexto]));
+    for(const contexto of contextos.values()){
+     const otro=await rpc('CONTEXTO',{contexto});if(!vigente())return l;
+     if(!otro.escritura){detener('No tienes permiso de escritura en uno de los periodos detectados.');return l;}
+     for(const a of otro.archivos||[])remoto.set(a.id,a);
+    }
     const grupos=(p?p.grupos:[ids]).map(gr=>gr.filter(id=>l.filas[id]?.estado==='PENDIENTE'));
     for(const gr of grupos)for(const id of [...gr]){
      const a=remoto.get(id),f=estado.archivos.find(x=>x.id===id),fila=l.filas[id];
@@ -145,7 +153,7 @@
      }catch(e){
       if(sinPermiso(e)){Object.assign(fila,{estado:'PENDIENTE',motivo:e.message});detener(e.message);return;}
       // Respuesta perdida: comprueba si el registro sí ocurrió antes de marcar fallo (REGISTRAR es idempotente).
-      let a=null;try{a=await rpc('ABRIR',{archivo_id:id});}catch{}
+      let a=null;try{a=await rpc('ABRIR',{archivo_id:id,...(f.contexto?{contexto:f.contexto}:{})});}catch{}
       if(a?.documento_id){Object.assign(f,{documento_id:a.documento_id,estado:'ARCHIVADO'});Object.assign(fila,{estado:'CONFIRMADO',motivo:'Respuesta recuperada del servidor'});}
       else{Object.assign(fila,{estado:'FALLIDO',motivo:e.message});return;}
      }
@@ -172,9 +180,9 @@
   // calendario del centro que sí las contiene (sin volver a subirlo y sólo si aún no está registrado).
   async function reubicar(id){return ejecutar(async()=>{
    if(!estado.archivos.some(x=>x.id===id))throw Error('Selecciona un archivo del periodo.');
-   return rpc('REUBICAR',{archivo_id:id});
+   const f=estado.archivos.find(x=>x.id===id);return rpc('REUBICAR',{archivo_id:id,...(f.contexto?{contexto:f.contexto}:{})});
   });}
-  async function vincular(id,cierre_id,confirmado=false){return ejecutar(async()=>rpc(confirmado?'VINCULAR':'PROPONER_VINCULOS',{archivo_id:id,cierre_id,confirmado}));}
+  async function vincular(id,cierre_id,confirmado=false){return ejecutar(async()=>{const f=estado.archivos.find(x=>x.id===id);return rpc(confirmado?'VINCULAR':'PROPONER_VINCULOS',{archivo_id:id,cierre_id,confirmado,...(f?.contexto?{contexto:f.contexto}:{})});});}
   async function completar(id,k,literal,ia=false){return ejecutar(async()=>{
    const g=generacion,f=estado.archivos.find(x=>x.id===id),region=f?.lectura?.pendientes?.[k]?.region;
    if(!region)throw Error('Relee el original para aislar el campo pendiente.');
@@ -183,7 +191,14 @@
    }
    if(!valido(g))return;const evidencia={region,literal};dep.incorporar(f,evidencia);(f.transcripciones??=[]).push(evidencia);await lecturaGuardar(f,g);
   });}
-  return Object.freeze({abrir,subir,reanudar,reubicar,confirmar,resumen,confirmarLote,reintentarFallidos,vincular,completar,verificar:id=>ejecutar(()=>verificar(estado.archivos.find(f=>f.id===id))),estado:()=>estado,ocupado:()=>ocupado,cerrar:()=>{cerrado=true;generacion++;}});
+  async function resolverVisual(id,datos=null){return ejecutar(async()=>{
+   const f=estado.archivos.find(f=>f.id===id);if(!f?.region_recuperacion_id||!f.lectura)throw Error('Relee el original para recuperar su región');
+   const {data,error}=await dep.rpc('control_region_recibo',{p_accion:datos?'TRANSCRIBIR':'CONFIRMAR',p_datos:{id:f.region_recuperacion_id,confirmado:true,...(datos?{datos}:{})}});
+   if(error)throw Error(error.message);
+   const r=root.PLATINUM_LECTURA_HIBRIDA.aplicarVisual(f.lectura,data.datos,{metodo:data.metodo,region_id:data.id,original_huella:f.huella,imagen_huella:data.imagen_sha,pagina:data.pagina,region:data.region,confirmado:true,resultado:'CONFIRMADO_POR_USUARIO'},root.PLATINUM_RESPALDO_RECIBO);
+   if(r.conflicto)throw Error(r.conflicto);dep.actualizar?.(f);return lecturaGuardar(f,generacion);
+  });}
+  return Object.freeze({abrir,subir,reanudar,reubicar,confirmar,resumen,confirmarLote,reintentarFallidos,vincular,completar,resolverVisual,verificar:id=>ejecutar(()=>verificar(estado.archivos.find(f=>f.id===id))),estado:()=>estado,ocupado:()=>ocupado,cerrar:()=>{cerrado=true;generacion++;for(const f of estado?.archivos||[])if(f.imagen_url)URL.revokeObjectURL(f.imagen_url);}});
  }
  root.PLATINUM_RECIBOS_CONTEXTO=Object.freeze({crear});
 })(window);

@@ -10,6 +10,8 @@ function contextoIncidenciaNomina(w,sem,periodo){
   return {...p,semana:sem,dias:Math.round((retFecha(p.hasta)-retFecha(p.desde))/86400000)+1,motor:'QUINCENAL_V1'};
 }
 function calendarioNominaDe(w,sem){
+  const o=(typeof OBRAS!=='undefined'?OBRAS:[]).find(o=>o.id===w.obra_id)||(typeof OBRA!=='undefined'?OBRA:null);
+  const central=typeof window!=='undefined'&&window.PLATINUM_PERIODOS?.de(o,{semana:parseInt(String(sem||'').replace(/\D/g,'')),periodicidad:periodoPago(w)});if(central){const p=central;return periodoPago(w)==='QUINCENAL'?calendarioNominaQuincenal(p.desde,p.hasta):calendarioNominaSemanal(p.desde,p.hasta);}
   const n=parseInt(String(sem||'').replace(/\D/g,''))||isoWeek(),rango=semRange(n);
   return periodoPago(w)==='QUINCENAL'?calendarioNominaQuincenal(...rango):calendarioNominaSemanal(...rango);
 }

@@ -260,6 +260,11 @@ function faltantesReciboDe(w,recSet){
     return [...new Set(cs.map(c=>Number(c.semana)).filter(Boolean))].sort((a,b)=>a-b)
       .filter(W=>!(recSet?recSet.has(w.id+'|'+String(W)):recibosDe(w.id,W).length));
   }
+  /* En JIRE sólo se exigen periodos documentados, nunca semanas fabricadas. */
+  if(typeof window!=='undefined'&&window.PLATINUM_PERIODOS?.estricto(OBRA)){
+    return window.PLATINUM_PERIODOS.lista(OBRA.id).filter(p=>p.clase==='ORDINARIO'&&p.periodicidad===(w.periodo_pago||'SEMANAL')&&p.hasta<today()&&p.hasta>=w.fecha_alta&&(!w.fecha_baja||p.desde<=w.fecha_baja)&&activoEn(w,p.desde))
+      .map(p=>p.semana).filter(W=>!(recSet?recSet.has(w.id+'|'+String(W)):recibosDe(w.id,W).length));
+  }
   /* Compatibilidad con obras que todavía no tienen cierres guardados. */
   if(String(w.periodo_pago||'SEMANAL')==='QUINCENAL')return [];
   const hoyW=isoWeekDe(OBRA,new Date());

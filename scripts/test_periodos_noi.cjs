@@ -1,0 +1,14 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const box={window:{},Date,Map,Set};vm.createContext(box);vm.runInContext(fs.readFileSync('frontend/modulos/98-periodos-noi.js','utf8'),box);
+(async()=>{let usuario='u',calls=0,hold,fail=false;const p={periodo_id:'p48',anio:2026,numero_noi:48,semana:48,periodicidad:'SEMANAL',clase:'ORDINARIO',desde:'2026-11-16',hasta:'2026-11-22'};
+ const api=box.window.PLATINUM_PERIODOS.crear({usuario:()=>usuario,rpc:async(n,{p_accion:a,p_datos:j})=>{calls++;if(j.obra_id==='lento')await new Promise(r=>hold=r);return fail?{error:{message:'Sin permiso'}}:{data:{obra_id:j.obra_id,periodos:[{...p,periodo_id:j.obra_id+'48',...(j.obra_id==='otro'?{numero_noi:9,semana:9}: {})}]}};}});
+ let checks=0;const ok=(x,m)=>{assert(x,m);checks++;};
+ await api.cargar('b');ok(api.resolver('b',{semana:48}).desde===p.desde,'48 documental');ok(api.resolver('b',{semana:17})===null,'sin fallback a inicio obra');
+ ok(api.resolver('b',{fecha:'2026-11-22'}).numero_noi===48,'último día incluido');ok(api.resolver('b',{fecha:'2026-11-23'})===null,'fuera del periodo');
+ ok(api.resolver('b',{semana:48,anio:2027})===null,'ejercicio separado');ok(api.resolver('b',{semana:48,periodicidad:'QUINCENAL'})===null,'periodicidad separada');
+ await api.cargar('b');ok(calls===1,'cache por centro y sesión');await api.cargar('otro');ok(api.resolver('otro',{semana:9}).numero_noi===9,'dos calendarios distintos');ok(api.resolver('b',{semana:9})===null,'sin datos heredados de centro');
+ const pending=api.cargar('lento');usuario='v';hold();await assert.rejects(pending,/otra sesión/);checks++;ok(api.lista('b').length===0,'no reutiliza datos de otra cuenta');
+ fail=true;await assert.rejects(api.cargar('b'),/permiso/);checks++;fail=false;await api.cargar('b');ok(api.lista('b').length===1,'error no contamina cache');
+ api.invalidar();ok(api.lista('b').length===0,'invalidación explícita');
+ console.log('PASS periodos NOI: '+checks+' comprobaciones, sin red ni datos reales de personal.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

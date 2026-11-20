@@ -48,6 +48,17 @@
    mes:per==='QUINCENAL'?Number(q('[data-bh-mes]').value):null,quincena:per==='QUINCENAL'&&q('[data-bh-quincena]').value?Number(q('[data-bh-quincena]').value):null,concepto:q('[data-bh-concepto]').value};}
   function periodos(){const quin=q('[data-bh-per]').value==='QUINCENAL';q('[data-bh-semana-label]').hidden=quin;q('[data-bh-mes-label]').hidden=!quin;q('[data-bh-quincena-label]').hidden=!quin;}
   periodos();
+  let secCalendario=0;
+  async function calendario(){
+   const api=window.PLATINUM_PERIODOS;if(!api)return;const g=++secCalendario,o=OBRAS.find(o=>o.id===q('[data-bh-obra]').value),an=Number(q('[data-bh-anio]').value),per=q('[data-bh-per]').value;
+   if(!api.estricto(o))return;
+   q('[data-bh-semana]').innerHTML='<option value="">Varios periodos · resolver por fechas</option>';
+   const d=await api.cargar(o.id);if(!actual(v)||g!==secCalendario)return;
+   const ps=d.periodos.filter(p=>p.anio===an&&p.periodicidad===per),current=ps.find(p=>o.id===obra.id&&p.semana===Number(opciones.semana))||ps.find(p=>p.desde<=today()&&p.hasta>=today());
+   q('[data-bh-semana]').innerHTML='<option value="">Varios periodos · resolver por fechas</option>'+ps.map(p=>`<option value="${p.semana}">${esc(api.etiqueta(o,p))}</option>`).join('');
+   q('[data-bh-semana]').value=String(current?.semana||'');
+   if(!ps.length)mensaje('No hay periodos NOI documentados para este centro, año y periodicidad. Incorpóralos en Recibos PDF y XML → Calendario NOI; puedes conservar aquí los originales bancarios con su fecha real.');
+  }
   async function cargar(){v.contextoSucio=false;mensaje('Validando permisos y contexto…');await v.servicio.abrir(contexto());
    mensaje('Contexto autorizado. Puedes cargar comprobantes; archivos, personas y fuentes se consultan por sección y no bloquean el archivo del original.');}
   const SECCIONES={archivos:'Archivos del periodo',personas:'Personas del centro',fuentes:'Fuentes de conciliación',anteriores:'Originales anteriores'};
@@ -141,8 +152,8 @@
     }catch(e){if(!box.isConnected)return;guardarBtn.disabled=false;msg.style.color='var(--red)';msg.textContent='No se guardó: '+e.message+' Corrige y vuelve a intentar.';}};
   }
   host.addEventListener('change',async e=>{if(!actual(v)||v.ocupado)return;try{
-   if(e.target.closest('[data-bh-contexto]')){v.contextoSucio=true;mensaje('Cambió el contexto. Pulsa Cargar contexto y archivos antes de continuar.');q('[data-bh="previa"]').disabled=true;q('[data-bh="confirmar"]').disabled=true;const fi=q('[data-bh-files]');if(fi)fi.disabled=true;}
-   if(e.target.matches('[data-bh-empresa]'))centros();if(e.target.matches('[data-bh-per]'))periodos();
+   if(e.target.closest('[data-bh-contexto]')){if(e.target.matches('[data-bh-empresa]'))centros();if(e.target.matches('[data-bh-per]'))periodos();v.contextoSucio=true;mensaje('Cambió el contexto. Pulsa Cargar contexto y archivos antes de continuar.');q('[data-bh="previa"]').disabled=true;q('[data-bh="confirmar"]').disabled=true;const fi=q('[data-bh-files]');if(fi)fi.disabled=true;
+    if(e.target.matches('[data-bh-empresa],[data-bh-obra],[data-bh-anio],[data-bh-per]'))await calendario();}
    if(e.target.matches('[data-bh-files]')){mensaje('Archivando y leyendo los originales…');const r=await v.servicio.subir([...e.target.files]);mensaje(r.some(x=>x.error)?'Hay archivos pendientes; revisa su detalle.':'Originales y lecturas guardados. Revisa cada operación antes de confirmar.');}
    if(e.target.matches('[data-bh-anterior]')&&e.target.value)await v.servicio.recuperar(e.target.value);
    if(e.target.matches('[data-bh-archivo]')&&e.target.value)await v.servicio.seleccionar(e.target.value);
@@ -175,7 +186,7 @@
     await v.servicio.confirmar(cs);mensaje('Resultado guardado. Los conflictos y parciales quedan visibles para retomarlos.');
    }
   }catch(err){mensaje(err.message);toast(err.message,'err');}});
-  try{await cargar();if(opciones.archivo_id)await v.servicio.seleccionar(opciones.archivo_id);if(opciones.original){await v.servicio.subir([opciones.original]);}}catch(e){mensaje(e.message);}
+  try{await calendario();await cargar();if(opciones.archivo_id)await v.servicio.seleccionar(opciones.archivo_id);if(opciones.original){await v.servicio.subir([opciones.original]);}}catch(e){mensaje(e.message);}
  }
  window.PLATINUM_IMPORTACION_BANCARIA=Object.freeze({abrir,estaCapturando:()=>!!vista?.servicio.ocupado(),desmontar:()=>{vista?.servicio.cerrar();vista=null;}});
 })();

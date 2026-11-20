@@ -614,6 +614,8 @@ function semanalNeto(sd,sdi){
 
 /* ---------- v18: TRANSFERENCIA DE TRABAJADORES ENTRE OBRAS ---------- */
 function isoWeekDe(obra,d=new Date()){
+  if(typeof window!=='undefined'&&window.PLATINUM_PERIODOS?.resolver(obra?.id,{fecha:window.PLATINUM_PERIODOS.fechaLocal(d)}))return window.PLATINUM_PERIODOS.resolver(obra.id,{fecha:window.PLATINUM_PERIODOS.fechaLocal(d)}).semana;
+  if(typeof window!=='undefined'&&window.PLATINUM_PERIODOS?.estricto(obra))return window.PLATINUM_PERIODOS.resolver(obra.id,{fecha:window.PLATINUM_PERIODOS.fechaLocal(d)})?.semana||0;
   const base=(obra&&obra.fecha_inicio)?String(obra.fecha_inicio).slice(0,10):SEMANA1;
   const a=new Date(base+'T12:00');const x=new Date(d);x.setHours(12,0,0,0);x.setDate(x.getDate()-((x.getDay()+6)%7));
   return Math.round((x-a)/604800000)+1;

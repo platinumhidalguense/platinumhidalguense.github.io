@@ -85,6 +85,7 @@
    `<button class="btn" onclick="closeModal()">Cerrar</button><button class="btn" onclick="agAbrirSimple()" title="Consulta rápida sin faltas, conciliación ni ISR">Cálculo simple</button><button class="btn dark" data-agc-acc="calcular">🧮 Calcular simulación</button>`];
  }
  function semRangeCentro(o,fecha){
+  const central=typeof window!=='undefined'&&window.PLATINUM_PERIODOS?.de(o,{fecha});if(central){const p=central;return[p.desde,p.hasta,p.semana];}
   const base=String(o&&o.fecha_inicio||SEMANA1).slice(0,10),n=isoWeekDe(o,new Date(fecha+'T12:00:00'));
   const d=retSumarDias(base,(n-1)*7);return [d,retSumarDias(d,6),n];
  }
@@ -250,6 +251,7 @@
   S.p=p;S.calculado=false;S.paso=1;S.lotes=new Map();pintar();aviso('Consultando personal y fuentes del ejercicio…');
   try{
    const lista=await universo(p);if(!activo(t))return;
+   if(typeof window!=='undefined'&&window.PLATINUM_PERIODOS)for(const oid of new Set(lista.map(w=>w.obra_id))){await window.PLATINUM_PERIODOS.cargar(oid);if(!activo(t))return;}
    if(!lista.length)throw Error('Ningún trabajador coincide con la razón social, centro y filtros elegidos.');
    const ctx=await contexto(lista.map(w=>w.id),p.ejercicio,t);if(!ctx||!activo(t))return;
    const porId=new Map(ctx.personas.map(x=>[x.trabajador_id,x])),identidades=new Map();

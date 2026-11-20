@@ -59,11 +59,15 @@
  }
  /* Periodo interno: semana n inicia fecha_inicio + 7(n−1); semanal paga el viernes (desde+4); quincenal paga al cierre de quincena. */
  function periodo(obra,n,periodicidad){
+  const centrales=(obra?.periodos_noi||[]).filter(p=>p.clase==='ORDINARIO'&&p.periodicidad===periodicidad&&(p.semana===Number(n)||(p.claves_compatibles||[]).includes(Number(n))));
+  if(centrales.length>1)throw Error('Periodo ambiguo: selecciona el ejercicio documentado');
+  if(centrales.length)return {...centrales[0],semana:n,fecha_pago:centrales[0].fecha_pago||(periodicidad==='QUINCENAL'?centrales[0].hasta:sumar(centrales[0].desde,4))};
+  if(obra?.empresa_codigo==='JIRE')throw Error('Periodo NOI no documentado para '+(obra.nombre||obra.id));
   const inicio=sumar(inicioObra(obra),(n-1)*7);
   if(periodicidad==='QUINCENAL'){const q=quincenaMotor(inicio);return {semana:n,periodicidad:'QUINCENAL',desde:q.desde,hasta:q.hasta,fecha_pago:q.hasta};}
   return {semana:n,periodicidad:'SEMANAL',desde:inicio,hasta:sumar(inicio,6),fecha_pago:sumar(inicio,4)};
  }
- const semanaInterna=(obra,fecha)=>Math.floor(difDias(inicioObra(obra),fecha)/7)+1;
+ const semanaInterna=(obra,fecha)=>{const p=(obra?.periodos_noi||[]).filter(p=>p.clase==='ORDINARIO'&&p.desde<=fecha&&p.hasta>=fecha);if(p.length===1)return p[0].semana;if(obra?.empresa_codigo==='JIRE')throw Error('Periodo NOI no documentado o ambiguo');return Math.floor(difDias(inicioObra(obra),fecha)/7)+1;};
  /* Rangos con nombre. `ahora` ISO; hoy = fecha de Ciudad de México. */
  function rango(tipo,ahora,p={}){
   const hoy=fechaLocal(ahora),x=dUTC(hoy),y=x.getUTCFullYear(),m=x.getUTCMonth()+1,mm=String(m).padStart(2,'0');
@@ -438,7 +442,7 @@
    const hEf=a.hasta<b.hoy?a.hasta:b.hoy;
    for(const per of persSel){
     const vistos=new Map();
-    for(let n=1;n<=53;n++){
+    for(const n of (obra.empresa_codigo==='JIRE'?[...new Set((obra.periodos_noi||[]).filter(p=>p.periodicidad===per&&p.clase==='ORDINARIO').flatMap(p=>p.claves_compatibles||[p.semana]))]:Array.from({length:53},(_,i)=>i+1))){
      if(a.periodos.length&&!a.periodos.includes(n))continue;
      const p=periodo(obra,n,per);if(p.fecha_pago<a.desde||p.fecha_pago>hEf)continue;
      const k=per+'|'+p.desde;if(!vistos.has(k))vistos.set(k,{periodicidad:per,desde:p.desde,hasta:p.hasta,fecha_pago:p.fecha_pago,semanas:[]});vistos.get(k).semanas.push(n);

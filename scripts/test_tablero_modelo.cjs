@@ -6,6 +6,8 @@ process.chdir(path.resolve(__dirname,'..'));
 const archivo='frontend/modulos/90-tablero-modelo.js',codigo=fs.readFileSync(archivo,'utf8');
 const M=require('../'+archivo);
 const datos=JSON.parse(fs.readFileSync('scripts/fixtures/tablero/casos.json','utf8'));
+// Los calendarios del caso ficticio se documentan expresamente, sin fallback JIRE en producción.
+for(const c of datos.casos)for(const o of c.fuentes.obras||[])if(o.empresa_codigo==='JIRE')o.periodos_noi=Array.from({length:53},(_,i)=>['SEMANAL','QUINCENAL'].map(per=>({...M.calendario.periodo({...o,empresa_codigo:'PLATINUM'},i+1,per),anio:2026,clase:'ORDINARIO'}))).flat();
 let n=0;const ok=(c,m)=>{assert.ok(c,m);n++;},eq=(a,b,m)=>{assert.deepStrictEqual(a,b,m);n++;};
 const AUSENTE='__AUSENTE__';
 

@@ -14,6 +14,8 @@ const espera=ms=>new Promise(r=>setTimeout(r,ms));
 /* ---------- Fuentes ficticias de volumen representativo ---------- */
 const obras=[{id:'O1',nombre:'CENTRO NORTE',fecha_inicio:'2026-03-30',empresa_codigo:'PLATINUM',activa:true},{id:'O2',nombre:'CENTRO SUR',fecha_inicio:'2026-04-08',empresa_codigo:'PLATINUM',activa:true},
  {id:'O3',nombre:'CENTRO JIRE',fecha_inicio:'2026-03-30',empresa_codigo:'JIRE',activa:true}];
+// Calendario documentado del centro ficticio; la producción no hereda fechas PLATINUM.
+for(const o of obras)if(o.empresa_codigo==='JIRE')o.periodos_noi=Array.from({length:53},(_,i)=>({...MOD.calendario.periodo({...o,empresa_codigo:'PLATINUM'},i+1,'SEMANAL'),anio:2026,clase:'ORDINARIO'}));
 const F={ahora:'2026-11-11T18:00:00Z',obras,trabajadores:[],cierres:[],versiones:[],obligaciones:[],pagos:[],evidencias:[],aplicaciones:[],cheques:[],historial:[],cuadrillas:[],flujo:[]};
 const POR=220,SEM={O1:[25,32],O2:[25,31],O3:[25,32]};let k=0;const id=p=>p+String(++k).padStart(6,'0');
 for(const o of obras){
