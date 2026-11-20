@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-19.4",
-  "entry": "assets/platinum-app.b650ce51358d6c5c.js",
-  "sha256": "b650ce51358d6c5cbe9d000db2597920ed123ad37d7c6d541c342a62df178f60",
-  "integrity": "sha384-pU1MfJ/BAky9tZeBjjyQLWbw7cf7ASoq9/yMVp58eFo3PvRKvI0p/ldj3eM+Lxat",
+  "version": "2026-11-20.1",
+  "entry": "assets/platinum-app.e2ca562bd782be2a.js",
+  "sha256": "e2ca562bd782be2ad0b728f37f8ea54b8c11a9b02b309dcfbd1c331f29215398",
+  "integrity": "sha384-NFlBrGHQr8iNPwCkQYSpw4KdQWwbxQzSxufkdlUYp+SiHfUwzVSpSD8S9lfNVEZs",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "e7e30accb7c3fce6d97d69e924343bb1bb6e7de3c610237c8f401043d2a3bac2"
+      "sha256": "3efb7ec4fa477cb465edce9849c99f8e9901704762565c6457275166f552ab15"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -26,7 +26,7 @@
     },
     {
       "path": "frontend/modulos/05-alta-edicion.js",
-      "sha256": "cd84c7ab83b7c63f9f84a971f6bf34985567a9b0a1c3157448bd37791a8bd3c1"
+      "sha256": "c4b4b13480b9e84e366b266a00bc5fd80ba079d5eb89dc531a1e61edfa38e95c"
     },
     {
       "path": "frontend/modulos/06-movimientos-historial.js",

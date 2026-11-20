@@ -127,6 +127,7 @@ suites.push('test_jornada_extra_core','test_jornada_extra_recorrido','test_asist
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_jornada_extra_descansos_laborados.sql')))suites.push('test_jornada_extra_pg');
 else console.log('ALCANCE PÚBLICO AGUINALDO: núcleo e interfaz se prueban; las comprobaciones PostgreSQL de faltas históricas y aplicación requieren la migración privada.');
 suites.push('test_puestos_prestaciones');
+suites.push('test_puesto_auxiliar_obra');
 suites.push('test_cancelacion_reposicion_ui','test_padron_lista_unica');
 if(fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_cancelacion_reposicion_atomica.sql'))&&fs.existsSync('../funciones_vivas.json'))suites.push('test_cancelacion_reposicion_pg');
 const tableroPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_tablero_indicadores.sql'));

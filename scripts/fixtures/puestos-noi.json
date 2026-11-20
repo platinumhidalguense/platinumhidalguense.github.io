@@ -99,6 +99,11 @@
       "clave": 20,
       "descripcion": "OFICIAL PINTOR",
       "activo": true
+    },
+    {
+      "clave": 21,
+      "descripcion": "AUXILIAR DE OBRA",
+      "activo": true
     }
   ],
   "equivalencias": [
@@ -245,6 +250,12 @@
       "variante": "AYUDANTE DE ALBANIL",
       "especialidad": "",
       "clave": 1
+    },
+    {
+      "empresa": "*",
+      "variante": "AUXILIAR DE OBRA",
+      "especialidad": "",
+      "clave": 21
     }
   ]
 }

@@ -71,5 +71,5 @@ const download=box.dl;
  preparar([{...good,nss:'123'}]);box.exportAltasSUATxt();assert.equal(box.texts.length,2);
  const many=Array.from({length:1205},(_,i)=>({...good,id:'n'+i,no_trab:i+1,nss:String(i+10000000000)}));
  preparar(many);const selected=box.noiPrepararAltas(true);assert.equal(selected.length,1205);assert.equal(box.noiLibroAltas(selected).Sheets['Trabajadores NUEVOS']['!ref'],'A1:BF1206');
- console.log('PASS altas NOI: 20 claves, 58 columnas, una hoja, constantes confirmadas, ceros iniciales, fechas, contexto, TXT CRLF, equivalencia central sin escrituras de trabajadores, errores/doble clic y 1205 altas.');
+ console.log('PASS altas NOI: 21 claves, 58 columnas, una hoja, constantes confirmadas, ceros iniciales, fechas, contexto, TXT CRLF, equivalencia central sin escrituras de trabajadores, errores/doble clic y 1205 altas.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

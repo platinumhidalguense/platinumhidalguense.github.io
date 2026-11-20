@@ -16,7 +16,7 @@ let checks=0;const eq=(a,b,m)=>{assert.equal(a,b,m);checks++;};
 // Reordenar la tabla no puede cambiar las claves externas.
 box.CFGEMP.puestos_central.catalogo.reverse();
 for(const [p,k]of[['YESERO',16],['OFICIAL PINTOR',20],['OPERADOR DE MAQUINARIA',19],['OPERADOR DE VIBROCOMPACTADOR',9]])eq(box.noiPuestoClave?box.noiPuestoClave(p):box.puestoResolver(p).clave,k,p);
-eq(box.puestoResolver('AYUDANTE YESERO').resuelto,false);eq(box.catalogoPuestos().length,20,'selector sin administrativos ni especialidades no autorizadas');
+eq(box.puestoResolver('AYUDANTE YESERO').resuelto,false);eq(box.catalogoPuestos().length,21,'selector sin administrativos ni especialidades no autorizadas (claves 1–21)');eq(box.catalogoPuestos()[20],'AUXILIAR DE OBRA','clave 21 al final, sin reordenar 1–20');
 const fuente={firma:'firma-fixture',trabajador_id:w.id,obra_id:w.obra_id,inicio_ciclo:w.fecha_alta,desde:w.fecha_alta,corte:'2026-11-11',dias_base:71,faltas:5,dias_aguinaldo:66,aguinaldo_acreditado:200,exento_ag_usado:200,etiqueta:'Cálculo con faltas registradas disponibles',referencias:[{id:'pago-anterior',importe:200}],reservas:[],informativos:[{id:'papel-no-aplicado'}],detalle:[],limitaciones:[]};
 P.registrar(w,fuente.corte,fuente);const antes=JSON.stringify({w,desc:box.DESC});
 box.calcPrestaciones(w.id);eq(box._PR_AUDIT.entradas.faltas_aguinaldo,5,'individual usa fuente histórica común');
@@ -46,5 +46,5 @@ for(const p of ['frontend/modulos/52-motor-nomina-semanal.js','frontend/modulos/
  const a=P.cargar(w,fuente.corte),b=P.cargar(w,fuente.corte);resolver({data:fuente});await Promise.all([a,b]);eq(llamadas,1,'una lectura compartida para llamadas concurrentes');
  P.invalidar(w,fuente.corte);box.sb.rpc=async()=>({error:{message:'Fallo sintético'}});await assert.rejects(P.cargar(w,fuente.corte),/Fallo sintético/);checks++;eq(P.obtener(w,fuente.corte),null,'fallo de lectura no equivale a cero');
  assert.throws(()=>P.registrar(w,'2026-11-12',fuente),/otra ficha, fecha o ciclo/);checks++;
- console.log('PASS '+checks+' comprobaciones: catálogo20 estable, cálculo individual/papel común, acreditaciones/reservas, sin mutaciones, dos motores intactos, concurrencia y error de lectura.');
+ console.log('PASS '+checks+' comprobaciones: catálogo de 21 claves estable, cálculo individual/papel común, acreditaciones/reservas, sin mutaciones, dos motores intactos, concurrencia y error de lectura.');
 })().catch(e=>{console.error(e.stack);process.exitCode=1;});

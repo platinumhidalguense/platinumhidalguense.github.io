@@ -315,13 +315,25 @@ function tabAssist(){
   const sd=tab[p];
   if(!sd){if($('h-puesto'))$('h-puesto').textContent='Al elegir un puesto del tabulador, el salario se llena solo.';return;}
   $('f-sd').value=sd;
-  const versionOriginal=$('worker-form-body')?.dataset?.workerId;
-  const actual=Number($('f-sdi').value),sdAnterior=Number(WORKERS.find(w=>w.id===versionOriginal)?.sd);
-  // Una sugerencia del tabulador no sustituye el SDI documentado al editar.
-  if(!versionOriginal||!actual||Number(sd)!==sdAnterior)$('f-sdi').value=sdiInicialSugerido(sd);
-  let nn;try{nn=sueldoNetoPeriodo(sd,$('f-sdi').value,trabajadorNominaFormulario());}catch(e){$('h-puesto').textContent=e.message;return;}
-  if(!$('f-sal_semanal').value)$('f-sal_semanal').value=nn.neto.toFixed(2);
-  $('h-puesto').innerHTML=`<b>Tabulador aplicado:</b> SD $${sd} · SDI $${esc($('f-sdi').value)} · <b>${nn.periodo.toLowerCase()} NETO estimado $${money(nn.neto)}</b> = bruto $${money(nn.bruto)} − ISR $${money(nn.isr)}${nn.sub?` (ya con subsidio $${money(nn.sub)})`:''} − IMSS $${money(nn.imss)}. El SDI nuevo es una estimación de primer año (15 días de aguinaldo, 12 de vacaciones y prima 25%); valida antigüedad, prestaciones y valor de NOI.`;
+  const versionOriginal=$('worker-form-body')?.dataset?.workerId,anterior=WORKERS.find(w=>w.id===versionOriginal);
+  const sdiEl=$('f-sdi'),semEl=$('f-sal_semanal'),actual=Number(sdiEl.value),sdAnterior=Number(anterior?.sd);
+  // Un campo «automático» está vacío o conserva la última sugerencia de esta captura; lo escrito a mano no se pisa.
+  const automatico=el=>!el.value||(el.dataset?.sugerido!=null&&el.value===el.dataset.sugerido);
+  const sugerir=(el,v)=>{el.value=String(v);(el.dataset||(el.dataset={})).sugerido=el.value;};
+  const vuelveAlDocumentado=!!versionOriginal&&Number(sd)===sdAnterior;
+  // Una sugerencia del tabulador no sustituye el SDI documentado al editar; volver al salario de la ficha lo restaura.
+  if(vuelveAlDocumentado&&automatico(sdiEl)&&Number(anterior?.sdi)>0)sdiEl.value=String(anterior.sdi);
+  else if(!versionOriginal||!actual||Number(sd)!==sdAnterior)sugerir(sdiEl,sdiInicialSugerido(sd));
+  let nn;try{nn=sueldoNetoPeriodo(sd,sdiEl.value,trabajadorNominaFormulario());}catch(e){$('h-puesto').textContent=e.message;return;}
+  // Salario del periodo: alta nueva o cambio de puesto con otro SD toman el neto del motor; el importe de la ficha
+  // se conserva si el SD no cambia y un importe escrito a mano nunca se sustituye (se avisa la diferencia).
+  const semDoc=anterior?.sal_semanal!=null&&anterior.sal_semanal!==''?Number(anterior.sal_semanal).toFixed(2):'',semPrevio=semEl.value;
+  let semAviso='';
+  if(vuelveAlDocumentado){if(automatico(semEl)&&semDoc)semEl.value=semDoc;}
+  else if(automatico(semEl)||(versionOriginal&&semDoc&&Number(semPrevio)===Number(semDoc)))sugerir(semEl,nn.neto.toFixed(2));
+  else if(Number(semPrevio)!==Number(nn.neto.toFixed(2)))semAviso=` <span style="color:var(--amber)">Se conservó el salario del periodo capturado ($${money(Number(semPrevio))}); el tabulador sugiere $${money(nn.neto)}.</span>`;
+  if(versionOriginal&&semDoc&&Number(semEl.value)!==Number(semDoc)&&!semAviso)semAviso=` Salario del periodo: $${money(Number(semDoc))} → $${money(Number(semEl.value))}.`;
+  $('h-puesto').innerHTML=`<b>Tabulador aplicado:</b> SD $${sd} · SDI $${esc($('f-sdi').value)} · <b>${nn.periodo.toLowerCase()} NETO estimado $${money(nn.neto)}</b> = bruto $${money(nn.bruto)} − ISR $${money(nn.isr)}${nn.sub?` (ya con subsidio $${money(nn.sub)})`:''} − IMSS $${money(nn.imss)}. El SDI nuevo es una estimación de primer año (15 días de aguinaldo, 12 de vacaciones y prima 25%); valida antigüedad, prestaciones y valor de NOI.${semAviso}`;
 }
 function cuentaModo(){
   const crear=$('f-cuenta-modo').value==='CREAR';
