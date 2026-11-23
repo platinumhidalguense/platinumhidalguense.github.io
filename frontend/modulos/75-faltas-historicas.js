@@ -16,9 +16,20 @@
   if(!A()||!F())throw Error('No cargaron las reglas de aguinaldo. Recarga la plataforma.');
   const {data,error}=await sb.rpc('control_aguinaldo',{p_accion:'CONTEXTO',p_datos:{ejercicio,trabajadores:[w.id]}});
   if(error){if(/control_aguinaldo|could not find the function|PGRST202/i.test(error.message+' '+(error.code||'')))throw Error('El servidor todavía no tiene la migración de faltas históricas.');throw Error(error.message);}
-  const x=(data.personas||[])[0];if(!x)throw Error('Este trabajador está fuera de tu alcance.');
+  let x=(data.personas||[])[0];if(!x)throw Error('Este trabajador está fuera de tu alcance.');
   const fin=`${ejercicio}-12-31`,c=corte&&corte<fin?corte:fin;
-  const {tramos,avisos}=A().tramosServicio(w,F().eventosDe(w,x.movimientos)),aus=F().ausenciasDe(x);
+  let {tramos,avisos}=A().tramosServicio(w,F().eventosDe(w,x.movimientos)),cobertura=null,continuidad=x.continuidad||null;
+  /* Continuidad reconocida entre razones sociales: el resumen usa el mismo contexto del ciclo que la corrida
+     (inicio reconocido, tramos e incidencias de toda la cadena, sin duplicar). */
+  if(!inicioCiclo&&continuidad?.estado==='VIGENTE'&&String(w.estatus||'').toUpperCase()==='ACTIVO'){
+   const ciclo=await sb.rpc('control_aguinaldo',{p_accion:'CONTEXTO',p_datos:{ejercicio,trabajadores:[w.id],alcance:'CICLO_VIGENTE_V1',corte:fin,fecha_destino:today()}});
+   const y=ciclo.error?null:(ciclo.data?.personas||[])[0];
+   if(y?.contrato_version==='AG_CICLO_V1'){
+    x=y;tramos=[{desde:y.ciclo.inicio,hasta:null}];avisos=window.PLATINUM_CONTINUIDAD?.avisos(y.ciclo)||[];continuidad=y.ciclo.continuidad;
+    cobertura=F().coberturaPersona?F().coberturaPersona(w,y,ciclo.data.coberturas):null;
+   }else avisos=[...avisos,{codigo:'CONTINUIDAD_SIN_CONTEXTO',bloquea:false,texto:'No se pudo leer el ciclo reconocido: el resumen muestra sólo esta ficha. '+(ciclo.error?.message||'')}];
+  }
+  const aus=F().ausenciasDe(x);
   const entrada={ejercicio,salario_base:Number(w.sd)>0?Number(w.sd):1,dias_pactados:15,corte:c,hoy:today(),tramos,
    ausencias:{digitales:aus.digitales,rangos:aus.rangos,historicas:aus.historicas}};
   const d=A().calcularDerecho(entrada);
@@ -38,7 +49,7 @@
    const derecho=A().calcularDerecho({...entrada,tramos:tramosCiclo});
    ciclo={desde:inicioCiclo,hasta:c,d:derecho,conc:A().conciliar(derecho.bruto,F().evidenciasDe(fuentes,tramosCiclo,ejercicio),null)};
   }
-  return {x,d,conc,ciclo,avisos:[...avisos,...aus.avisos],aus,cobertura:F().coberturaDe((data.coberturas||[]).find(o=>o.obra_id===w.obra_id)),sinSalario:!(Number(w.sd)>0)};
+  return {x,d,conc,ciclo,avisos:[...avisos,...aus.avisos],aus,continuidad,cobertura:cobertura||F().coberturaDe((data.coberturas||[]).find(o=>o.obra_id===w.obra_id)),sinSalario:!(Number(w.sd)>0)};
  }
  /* Faltas digitales que la regla de aguinaldo cuenta dentro de un rango. */
  function digitalesEnRango(aus,desde,hasta,politica){
@@ -54,11 +65,12 @@
    <p class="fhint">Complemento auditado de faltas anteriores al inicio de la captura digital. Alimenta el aguinaldo y los finiquitos. <b>No crea descuentos, movimientos IMSS ni ajustes de vacaciones.</b></p>
    <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:8px 0"><div><label for="fh-ej">Ejercicio</label><select id="fh-ej">${[ejActual,ejActual-1].map(y=>`<option value="${y}">${y}</option>`).join('')}</select></div>
     <div id="fh-acciones" style="display:flex;gap:8px;flex-wrap:wrap"></div></div>
-   <div id="fh-resumen" role="status" class="fhint">Consultando…</div><div id="fh-form"></div><div id="fh-registros"></div></section>`;
+   <div id="fh-continuidad"></div><div id="fh-resumen" role="status" class="fhint">Consultando…</div><div id="fh-form"></div><div id="fh-registros"></div></section>`;
   const $h=id=>host.querySelector('#'+id);
   async function cargar(){
    const t=est.turno=(est.turno||0)+1;
    $h('fh-resumen').innerHTML='<p class="fhint">Consultando faltas y pagos del ejercicio…</p>';
+   window.PLATINUM_CONTINUIDAD?.bloqueFicha?.($h('fh-continuidad'),w,()=>ok()&&t===est.turno).catch(()=>{});
    try{
     const [l,r]=await Promise.all([sb.rpc('control_faltas_historicas',{p_accion:'LEER',p_datos:{trabajador_id:w.id}}),resumen(w,est.ej,est.ej===ejActual?hoy:null)]);
     if(!ok()||t!==est.turno)return;
@@ -70,7 +82,8 @@
    const r=est.res,d=r.d,c=r.conc,p=est.leer.permisos||{};
    const disc=d.ausencias.discrepancias,pend=d.ausencias.pendientes,cob=r.cobertura;
    const huecos=cob?.desde?d.tramos.filter(t=>t.desde<cob.desde):[];
-   $h('fh-resumen').innerHTML=`<div class="stats" style="display:flex;gap:8px;flex-wrap:wrap">
+   const cont=r.continuidad?.estado==='VIGENTE'?r.continuidad:null;
+   $h('fh-resumen').innerHTML=`${cont?`<p style="font-size:12.5px"><b>Antigüedad reconocida desde ${fmtD(cont.inicio_reconocido)}</b> · incorporación a esta razón social ${fmtD(cont.incorporacion)} · origen ${esc(cont.origen_empresa)}, traspaso ${fmtD(cont.fecha_traspaso)}. Periodo de devengo ${est.ej}: desde ${fmtD(d.tramos[0]?.desde)}; faltas de ambas fichas sin duplicar.</p>`:''}<div class="stats" style="display:flex;gap:8px;flex-wrap:wrap">
      ${stat(d.dias_vinculo,`Días base del vínculo ${est.ej}${est.ej===ejActual?' al día de hoy':''}`)}${stat(d.faltas_digitales,'Faltas digitales (calendario e incidencias)')}
      ${stat(d.faltas_historicas,'Faltas históricas (complemento)','b')}${stat(d.faltas_afectan,'Faltas que afectan','a')}${stat(d.dias_computables,'Días computables','g')}
      ${stat('$'+money(c.acreditado),`Aguinaldo acreditado${c.reservado?` · $${money(c.reservado)} en borrador`:''}`,'g')}</div>

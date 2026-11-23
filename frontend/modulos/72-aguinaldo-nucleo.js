@@ -180,10 +180,13 @@
   const inicios=ts.map(t=>t.desde);
   const vinculo=ts.some(t=>t.desde<=f.hasta&&(!t.hasta||t.hasta>=f.desde));
   const altaEnRango=inicios.some(d=>d>=f.desde&&d<=f.hasta);
-  const porRango=f.modo==='FECHA_ALTA'?altaEnRango:vinculo;
+  // FECHA_ALTA filtra por el ingreso reconocido (antigüedad, incluida la continuidad entre razones sociales);
+  // INCORPORACION, por la fecha de ingreso a la razón social actual (ficha vigente).
+  const incorporacion=f.incorporacion||inicios[inicios.length-1];
+  const porRango=f.modo==='FECHA_ALTA'?altaEnRango:f.modo==='INCORPORACION'?!!incorporacion&&incorporacion>=f.desde&&incorporacion<=f.hasta:vinculo;
   const fe=f.fecha_estatus||f.hasta,activo=activoEnFecha(ts,fe);
   const programado=inicios.some(d=>d>fe)&&!activo;
-  if(!porRango)return {incluido:false,motivo:'EXCLUIDO_POR_FILTRO',detalle:f.modo==='FECHA_ALTA'?`Sin alta o reingreso entre ${f.desde} y ${f.hasta}.`:`Sin vínculo entre ${f.desde} y ${f.hasta}.`,activo,programado};
+  if(!porRango)return {incluido:false,motivo:'EXCLUIDO_POR_FILTRO',detalle:f.modo==='FECHA_ALTA'?`Sin ingreso reconocido entre ${f.desde} y ${f.hasta}.`:f.modo==='INCORPORACION'?`Sin incorporación a esta razón social entre ${f.desde} y ${f.hasta}.`:`Sin vínculo entre ${f.desde} y ${f.hasta}.`,activo,programado};
   if(f.estatus==='BAJAS_CON_SALDO'){
    return activo?{incluido:false,motivo:'EXCLUIDO_POR_FILTRO',detalle:`Sigue activo al ${fe}.`,activo,programado}:{incluido:true,motivo:'BAJA_CON_SALDO',activo,programado};
   }

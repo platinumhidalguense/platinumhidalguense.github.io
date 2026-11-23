@@ -5,7 +5,9 @@
    validaciones de alcance, permisos, fuentes, periodo, saldo y exención. */
 (function(){
  'use strict';
- const A=()=>window.PLATINUM_AGUINALDO;
+ // Sin el módulo de continuidad (87) la corrida se comporta como antes: nada se reconoce.
+ const SIN_CONTINUIDAD=Object.freeze({resumen:c=>({aplica:false,inicio:c?.inicio||null,incorporacion:c?.incorporacion||c?.inicio||null}),avisos:()=>[],cobertura:()=>undefined,eslabones:()=>[],abrirLote:()=>{throw Error('No cargó el módulo de continuidad laboral. Recarga la plataforma.');}});
+ const A=()=>window.PLATINUM_AGUINALDO,C=()=>window.PLATINUM_CONTINUIDAD||SIN_CONTINUIDAD;
  const r2=v=>redondearCentavos(v);
  const PASOS=['Parámetros','Personal y cálculo','Conciliación','Aplicación e historial'];
  const PROTEGIDOS=['AUTORIZADO','TIMBRADO','PAGADO'];
@@ -61,7 +63,7 @@
    <div class="sect" style="margin-top:12px">Ejercicio y selección</div>
    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
     ${campo('ejercicio','Ejercicio',`<input id="agc-ejercicio" type="number" min="2020" max="2100" value="${p.ejercicio}">`)}
-    ${campo('modo','Seleccionar por',sel('modo',[['VINCULO','Vínculo dentro del rango'],['FECHA_ALTA','Fecha de alta o reingreso dentro del rango']],p.modo))}
+    ${campo('modo','Seleccionar por',sel('modo',[['VINCULO','Vínculo dentro del rango'],['FECHA_ALTA','Ingreso reconocido (antigüedad) dentro del rango'],['INCORPORACION','Incorporación a esta razón social dentro del rango']],p.modo),'Un traspaso administrativo reconocido no cambia el ingreso reconocido; la incorporación es la fecha de la ficha actual.')}
     ${campo('desde','Rango: del',`<input id="agc-desde" type="date" value="${p.desde}">`)}
     ${campo('hasta','al',`<input id="agc-hasta" type="date" value="${p.hasta}">`,'Límites inclusivos.')}
     ${campo('estatus','Estatus',sel('estatus',[['ACTIVOS_HOY','Activos hoy · ciclo vigente']], 'ACTIVOS_HOY'))}
@@ -82,7 +84,7 @@
     ${campo('fecha_destino','Nómina destino: fecha dentro del periodo',`<input id="agc-fecha_destino" type="date" value="${p.fecha_destino}">`,destino?`En ${esc(OBRA.nombre)}: semanal ${fmtD(destino[0].desde)}–${fmtD(destino[0].hasta)} (pago ${fmtD(destino[0].fecha_pago)}); quincenal ${fmtD(destino[1].desde)}–${fmtD(destino[1].hasta)}. Cada centro usa su propio calendario.`:'')}
     ${campo('metodo_isr','Retención de ISR',sel('metodo_isr',[['ART96','Art. 96 LISR: ISR incremental del periodo'],['ART174','Art. 174 RLISR: procedimiento opcional']],p.metodo_isr),'La segunda quincena con ajuste mensual exige el art. 174 o la primera quincena.')}
    </div>`,
-   `<button class="btn" onclick="closeModal()">Cerrar</button><button class="btn" onclick="agAbrirSimple()" title="Consulta rápida sin faltas, conciliación ni ISR">Cálculo simple</button><button class="btn dark" data-agc-acc="calcular">🧮 Calcular simulación</button>`];
+   `<button class="btn" onclick="closeModal()">Cerrar</button><button class="btn" data-agc-acc="continuidad" title="Traspasos administrativos JIRE ↔ PLATINUM sin terminación ni finiquito">Continuidad entre razones sociales</button><button class="btn" onclick="agAbrirSimple()" title="Consulta rápida sin faltas, conciliación ni ISR">Cálculo simple</button><button class="btn dark" data-agc-acc="calcular">🧮 Calcular simulación</button>`];
  }
  function semRangeCentro(o,fecha){
   const central=typeof window!=='undefined'&&window.PLATINUM_PERIODOS?.de(o,{fecha});if(central){const p=central;return[p.desde,p.hasta,p.semana];}
@@ -168,6 +170,7 @@
   if((x.calendario||[]).some(e=>e.reservado))avisos.push({codigo:'SALUD_RESERVADA',bloquea:false,texto:'Hay incapacidades reservadas: sólo un usuario con permiso de salud puede clasificarlas y completar el cálculo.'});
   const rangos=[];
   for(const d of x.faltas_semana||[]){
+   if(d.conflicto_continuidad){avisos.push({codigo:'FALTAS_CONTINUIDAD_DISTINTAS',bloquea:true,texto:`La semana ${d.periodo?.desde||''} a ${d.periodo?.hasta||''} tiene faltas distintas en las fichas de JIRE y PLATINUM de la misma continuidad: corrige la que no corresponda.`});continue;}
    const q=cantidadFaltas(d),p=d.periodo||{};
    if(!/^\d{4}-\d\d-\d\d$/.test(p.desde||'')||!/^\d{4}-\d\d-\d\d$/.test(p.hasta||''))continue;
    if(!q){avisos.push({codigo:'FALTA_SIN_CANTIDAD',bloquea:true,texto:`Falta de S${d.semana} sin desglose de días: no se infiere de la nota. Corrige la incidencia o registra el total acreditado al corte.`});continue;}
@@ -175,6 +178,11 @@
    if(q.incapacidad>0)rangos.push({id:d.id+':imss',desde:p.desde,hasta:p.hasta,cantidad:q.incapacidad,naturaleza:'SIN_CLASIFICAR',fuente:'DESCUENTO_IMSS'});
   }
   return {digitales,rangos,historicas:x.historicas||[],avisos};
+ }
+ /* Con continuidad reconocida cada tramo de la cadena usa la cobertura de captura de su propio centro. */
+ function coberturaPersona(w,x,coberturas){
+  const de=id=>coberturaDe((coberturas||[]).find(c=>c.obra_id===id)),cadena=C().cobertura(x?.ciclo,de,w.obra_id);
+  return cadena===undefined?de(w.obra_id):cadena;
  }
  function coberturaDe(cob){
   if(!cob)return null;
@@ -208,13 +216,14 @@
  }
  function calcularPersona(w,x,p,extra){
   const o=extra||{};let eventos,tramos,avisos;
-  try{if(x.contrato_version==='AG_CICLO_V1'){eventos=[];tramos=[{desde:x.ciclo.inicio,hasta:null}];avisos=x.ciclo.activo?[]:[{codigo:x.ciclo.motivo||'CICLO_NO_ACTIVO',texto:'El ingreso efectivo no corresponde a un ciclo activo hoy.',bloquea:true}];}else{eventos=eventosDe(w,x.movimientos);({tramos,avisos}=A().tramosServicio(w,eventos));}}
+  try{if(x.contrato_version==='AG_CICLO_V1'){eventos=[];tramos=[{desde:x.ciclo.inicio,hasta:null}];
+   avisos=[...(x.ciclo.activo||x.ciclo.motivo==='CONTINUIDAD_INVALIDA'?[]:[{codigo:x.ciclo.motivo||'CICLO_NO_ACTIVO',texto:'El ingreso efectivo no corresponde a un ciclo activo hoy.',bloquea:true}]),...C().avisos(x.ciclo)];}else{eventos=eventosDe(w,x.movimientos);({tramos,avisos}=A().tramosServicio(w,eventos));}}
   catch(error){
    return clasificar({w,x,sel:{incluido:true,detalle:'Fechas del vínculo por verificar'},dest:destinoDe(w,p.fecha_destino),
     fila:{estado:'BLOQUEADA',observaciones:[{codigo:'FECHAS_POR_VERIFICAR',bloquea:true,texto:'Revisa las fechas de alta, baja y reingreso. '+error.message}]},
     motivo:null,aplicadas:[],eventos:[],identidad:x.identidad,huella:x.huella_fuentes});
   }
-  const sel=A().seleccionar(tramos,{modo:p.modo,desde:p.desde,hasta:p.hasta,estatus:p.estatus,fecha_estatus:p.fecha_estatus});
+  const sel=A().seleccionar(tramos,{modo:p.modo,desde:p.desde,hasta:p.hasta,estatus:p.estatus,fecha_estatus:p.fecha_estatus,incorporacion:x.ciclo?.incorporacion||x.ciclo?.inicio});
   const aus=ausenciasDe(x),dest=destinoDe(w,p.fecha_destino),av=[...avisos,...aus.avisos,...(o.avisos||[])];
   if(x.aplicaciones_pendientes?.length)av.push({codigo:'ALCANCE_APLICACION_PENDIENTE',bloquea:true,texto:'Aplicaciones anteriores sin ciclo identificado: '+x.aplicaciones_pendientes.map(a=>a.id).join(', ')});
   if(!(dest.semana>=1&&dest.semana<=53))av.push({codigo:'DESTINO_INVALIDO',bloquea:true,texto:'La fecha de la nómina destino no cae en una semana válida de su centro.'});
@@ -261,7 +270,7 @@
     const x=porId.get(w.id);
     if(!x){filas.push(clasificar({w,x:{},sel:{incluido:true},dest:destinoDe(w,p.fecha_destino),fila:{estado:'BLOQUEADA',observaciones:[{codigo:'FUENTE_AUSENTE',bloquea:true,texto:'Lectura pendiente: '+(ctx.pendientes?.find(e=>e.id===w.id)?.motivo||'fuente ausente')}]},aplicadas:[]}));continue;}
     const av=x.identidad_duplicada||identidades.get(x.identidad)>1?[{codigo:'IDENTIDAD_DUPLICADA',bloquea:true,texto:'La misma CURP tiene otro expediente en esta razón social: verifica sus tramos y aplica sobre un solo expediente (art. 41 LFT, sin duplicar el derecho).'}]:[];
-    filas.push(calcularPersona(w,x,p,{avisos:av,cobertura:coberturaDe(ctx.coberturas.find(c=>c.obra_id===w.obra_id))}));
+    filas.push(calcularPersona(w,x,p,{avisos:av,cobertura:coberturaPersona(w,x,ctx.coberturas)}));
    }
    filas.sort((a,b)=>(Number(a.w.no_trab)||9e9)-(Number(b.w.no_trab)||9e9));
    S.filas=filas.filter(f=>f.sel.incluido);
@@ -293,7 +302,7 @@
    if(!x)throw Error(ctx.pendientes?.find(e=>e.id===id)?.motivo||'Información ausente: el servidor no devolvió el contexto de esta persona.');
    const duplicada=S.filas.concat(S.fuera).some(f=>f.w.id!==id&&f.identidad&&f.identidad===x.identidad);
    const avisos=x.identidad_duplicada||duplicada?[{codigo:'IDENTIDAD_DUPLICADA',bloquea:true,texto:'La identidad coincide con otra ficha de la corrida. Revisa sus ciclos antes de aplicar.'}]:[];
-   const nueva=calcularPersona(ws[0],x,S.p,{avisos,cobertura:coberturaDe(ctx.coberturas.find(c=>c.obra_id===ws[0].obra_id))});
+   const nueva=calcularPersona(ws[0],x,S.p,{avisos,cobertura:coberturaPersona(ws[0],x,ctx.coberturas)});
    for(const f of [previa,nueva]){const k=[f.dest.obra_id,f.dest.periodicidad,f.dest.desde,f.dest.hasta].join('|');S.lotes.delete(k);S.lotes.delete(k+':op');}
    S.filas=S.filas.filter(f=>f.w.id!==id);S.fuera=S.fuera.filter(f=>f.w.id!==id);
    if(nueva.sel.incluido){S.filas.splice(Math.min(i,S.filas.length),0,nueva);S.filas.sort((a,b)=>(Number(a.w.no_trab)||9e9)-(Number(b.w.no_trab)||9e9));}
@@ -321,8 +330,8 @@
   return {n:fs.length,causado:sumar(fs,f=>f.fila.bruto_causado),acreditado:sumar(fs,f=>f.fila.conciliacion?f.fila.conciliacion.acreditado+f.fila.conciliacion.reservado:0),
    pagar:sumar(fs,f=>f.fila.bruto_a_pagar),exento:sumar(fs,f=>f.fila.fiscal?.exento),gravado:sumar(fs,f=>f.fila.fiscal?.gravado),isr:sumar(fs,f=>f.fila.fiscal?.isr),neto:sumar(fs,f=>f.fila.fiscal?.neto)};
  }
- function antiguedad(w){
-  const ini=String(w.fecha_reingreso&&(!w.fecha_baja||w.fecha_reingreso>w.fecha_baja)?w.fecha_reingreso:w.fecha_alta||'').slice(0,10);
+ function antiguedad(w,ciclo){
+  const ini=String(C().resumen(ciclo).aplica?C().resumen(ciclo).inicio:w.fecha_reingreso&&(!w.fecha_baja||w.fecha_reingreso>w.fecha_baja)?w.fecha_reingreso:w.fecha_alta||'').slice(0,10);
   if(!ini)return '—';
   try{const d=A().util.dias(ini,today())-1;return d<0?'programado':d>=365?(d/365).toFixed(1)+' años':d+' días';}
   catch{return 'Por verificar';}
@@ -356,7 +365,7 @@
    return `<tr class="${bloq.length?'agc-bloqueada':''}">
     <td><input type="checkbox" style="width:auto" data-agc-sel="${esc(f.w.id)}" ${S.sel.has(f.w.id)?'checked':''} ${f.puede_revisar?'':'disabled'} aria-label="Seleccionar para revisión #${esc(f.w.no_trab)}"></td>
     <td>#${esc(f.w.no_trab??'—')} <b>${esc(fullName(f.w))}</b><div class="fhint">${esc(periodoPago(f.w))}${f.sel.programado?' · programado':''}</div></td>
-    <td>${esc(obra(f.w.obra_id))}</td><td>${fmtD(inicio)}${d.tramos?.length>1?`<div class="fhint">${d.tramos.length} tramos</div>`:''}</td><td>${antiguedad(f.w)}</td>
+    <td>${esc(obra(f.w.obra_id))}</td><td>${fmtD(inicio)}${d.tramos?.length>1?`<div class="fhint">${d.tramos.length} tramos</div>`:''}${C().resumen(f.x?.ciclo).aplica?`<div class="fhint">Reconocida desde ${fmtD(C().resumen(f.x.ciclo).inicio)} · incorporación ${fmtD(C().resumen(f.x.ciclo).incorporacion)} · origen ${esc(C().resumen(f.x.ciclo).origen_empresa)}, traspaso ${fmtD(C().resumen(f.x.ciclo).fecha_traspaso)}</div>`:''}</td><td>${antiguedad(f.w,f.x?.ciclo)}</td>
     <td>${d.dias_vinculo??'—'}${d.dias_proyectados?`<div class="fhint">${d.dias_proyectados} proyectados</div>`:''}</td><td>${d.faltas_afectan??'—'}</td><td>${d.dias_computables??'—'}</td>
     <td>$${money(f.w.sd)}</td><td>${S.p.dias_pactados}</td><td>${d.bruto!=null?'$'+money(d.bruto):'Por calcular'}</td><td>${c.pendiente?.length?'Por confirmar':'$'+money(r2((c.acreditado||0)+(c.reservado||0)))}</td><td><b>${f.fila.bruto_a_pagar!=null?'$'+money(f.fila.bruto_a_pagar):'Por calcular'}</b></td>
     <td>${importeFila(f,x.exento)}</td><td>${importeFila(f,x.gravado)}</td><td>${importeFila(f,x.isr)}</td><td><b>${importeFila(f,x.neto)}</b></td>
@@ -389,6 +398,7 @@
   const d=f.fila.derecho,c=f.fila.conciliacion,x=f.fila.fiscal,lst=(xs,fn)=>xs&&xs.length?`<ul style="margin:4px 0 8px 18px">${xs.map(fn).join('')}</ul>`:'<p class="fhint">Ninguno.</p>';
   const isr=x?.isr_detalle,dx=x?A().desgloseExencion(f.fila,f.x?.fiscal_anual,f.x?.aplicaciones):null;
   modal2(`<div class="m-head"><h2>Desglose · #${esc(f.w.no_trab??'—')} ${esc(fullName(f.w))}</h2><button class="x" onclick="closeModal2()">×</button></div><div class="m-body" style="font-size:12.5px;line-height:1.6">
+   ${C().resumen(f.x?.ciclo).aplica?vistaContinuidad(f):''}
    ${d?`<div class="sect">Derecho (art. 87 LFT)</div>
    <p><b>Bruto = salario base × días pactados × días computables ÷ días del ejercicio</b><br>$${money(d.salario_base)} × ${d.dias_pactados} × ${d.dias_computables} ÷ ${d.denominador} = <b>$${money(d.bruto)}</b>
    ${d.dias_proyectados?`<br>Confirmados al día de hoy: ${d.dias_confirmados} · proyectados hasta el corte: ${d.dias_proyectados}`:''}<br>Al cierre del ejercicio (si no hay más faltas): $${money(d.bruto_cierre_proyectado)}</p>
@@ -412,6 +422,17 @@
   overlays[overlays.length-1].addEventListener('click',e=>{if(e.target.closest('[data-agc-acc]'))clic(e).catch(x=>toast(x.message,'err'));});
  }
 
+ /* Continuidad reconocida entre razones sociales: origen, fechas reales y periodo de devengo. */
+ function vistaContinuidad(f){
+  const r=C().resumen(f.x.ciclo),d=f.fila.derecho,emp=f.x.empresa_codigo||S?.empresa||'';
+  const ausOrigen=[...(f.x.faltas_semana||[]).filter(a=>a.trabajador_origen).map(a=>`${fmtD(a.periodo?.desde)} a ${fmtD(a.periodo?.hasta)}`),...(f.x.calendario||[]).filter(a=>a.trabajador_origen).map(a=>fmtD(a.fecha))];
+  return `<div class="sect">Continuidad laboral reconocida</div>
+   <p>Antigüedad reconocida desde <b>${fmtD(r.inicio)}</b> · incorporación a ${esc(emp)} <b>${fmtD(r.incorporacion)}</b> · origen <b>${esc(r.origen_empresa)}</b>${r.origen_obra?' ('+esc(r.origen_obra)+')':''}, traspaso ${fmtD(r.fecha_traspaso)}.<br>
+   Cadena: ${C().eslabones(r.cadena).map(esc).join(' · ')}.<br>
+   Periodo de devengo considerado: ${d?.tramos?.length?fmtD(d.tramos[0].desde)+' a '+fmtD(d.tramos[d.tramos.length-1].hasta):'—'} (la fecha posterior entre el 1 de enero y el ingreso reconocido). Cada día se cuenta una vez; una semana reflejada en ambas fichas se toma una vez.
+   ${ausOrigen.length?`<br>Incidencias recuperadas de ${esc(r.origen_empresa)}: ${ausOrigen.join(', ')}.`:''}</p>
+   <p class="fhint">Una sola línea de aguinaldo en ${esc(emp)}; lo ya aplicado o timbrado en ${esc(r.origen_empresa)} por esos días se acredita y no consume la exención de este RFC. Las fichas, altas y movimientos IMSS no cambian. Reconocimiento ${esc(r.version)} rev. ${r.revision} · referencia ${esc(r.referencia)}.</p>`;
+ }
  /* Exención explicada (LISR 93-XIV): tope, consumido con referencias, reservado, disponible, exento, gravado e ISR atribuible. */
  function vistaExencion(dx,x){
   if(!dx)return '';
@@ -564,7 +585,7 @@
   const fs=seleccionadas();if(!fs.length)throw Error('Selecciona personas para revisar y exportar el análisis.');
   const p=S.p,rows=[[`ANÁLISIS DE AGUINALDO ${p.ejercicio} · CORTE ${fmtD(p.corte)}`],
    [razonSocialEmpresa()+' · '+fmtD(today())],
-   ['NO.','TRABAJADOR','CENTRO','ESTADO','MOTIVO / DATO PENDIENTE','INGRESO / REINGRESO','TRAMOS DEL EJERCICIO','DÍAS COMPUTABLES','SALARIO BASE','BRUTO CALCULABLE','ACREDITADO','RESERVADO','SALDO CONFIRMADO','EXENTO','GRAVADO','ISR','NETO CONFIRMADO','REFERENCIAS','EJERCICIO','CORTE','DÍAS VÍNCULO','FALTAS QUE AFECTAN','DÍAS PROYECTADOS','HUELLA DE FUENTES','EXENCIÓN CONSUMIDA EN EL AÑO','EXENCIÓN RESERVADA','EXENCIÓN DISPONIBLE','ISR POR TARIFA','SUBSIDIO QUE DEJA DE APLICAR','REFERENCIAS FISCALES']];
+   ['NO.','TRABAJADOR','CENTRO','ESTADO','MOTIVO / DATO PENDIENTE','INGRESO / REINGRESO','TRAMOS DEL EJERCICIO','DÍAS COMPUTABLES','SALARIO BASE','BRUTO CALCULABLE','ACREDITADO','RESERVADO','SALDO CONFIRMADO','EXENTO','GRAVADO','ISR','NETO CONFIRMADO','REFERENCIAS','EJERCICIO','CORTE','DÍAS VÍNCULO','FALTAS QUE AFECTAN','DÍAS PROYECTADOS','HUELLA DE FUENTES','EXENCIÓN CONSUMIDA EN EL AÑO','EXENCIÓN RESERVADA','EXENCIÓN DISPONIBLE','ISR POR TARIFA','SUBSIDIO QUE DEJA DE APLICAR','REFERENCIAS FISCALES','ANTIGÜEDAD RECONOCIDA DESDE','INCORPORACIÓN A LA RAZÓN SOCIAL','ORIGEN Y TRASPASO']];
   const styles=[ST.title,ST.sub,ST.head],dinero=[8,9,10,11,12,13,14,15,16,24,25,26,27,28];
   for(const f of fs){
    const d=f.fila.derecho,c=f.fila.conciliacion,x=f.fila.fiscal,confirmado=['LISTA','SIN_SALDO'].includes(f.fila.estado),dx=confirmado&&x?A().desgloseExencion(f.fila,f.x?.fiscal_anual,f.x?.aplicaciones):null;
@@ -573,12 +594,13 @@
     d?.dias_computables??'',Number(f.w.sd)||'',d?.bruto??'',c?.acreditado??'',c?.reservado??'',
     confirmado?c?.saldo??'':'',confirmado?x?.exento??'':'',confirmado?x?.gravado??'':'',confirmado?x?.isr??'':'',confirmado?x?.neto??'':'',
     (c?.detalle||[]).map(e=>[e.id,e.origen,e.fecha_pago,e.clase].filter(Boolean).join(' · ')).join(' | '),p.ejercicio,p.corte,d?.dias_vinculo??'',d?.faltas_afectan??'',d?.dias_proyectados??'',f.huella||'',
-    dx?dx.consumido:'',dx?dx.reservado:'',dx?dx.disponible:'',dx?.isr_tarifa??'',dx?dx.efecto_subsidio:'',dx?dx.referencias.map(r=>(r.uuid||r.documento_id)+' exento '+r.exento.toFixed(2)).join(' | '):'']);
-   styles.push(rows[2].map((_,i)=>dinero.includes(i)?ST.money:i===1||i===4||i===6||i===17||i===29?ST.cell:ST.cellC));
+    dx?dx.consumido:'',dx?dx.reservado:'',dx?dx.disponible:'',dx?.isr_tarifa??'',dx?dx.efecto_subsidio:'',dx?dx.referencias.map(r=>(r.uuid||r.documento_id)+' exento '+r.exento.toFixed(2)).join(' | '):'',
+    ...(rc=>rc.aplica?[rc.inicio,rc.incorporacion,`${rc.origen_empresa}${rc.origen_obra?' '+rc.origen_obra:''} · traspaso ${rc.fecha_traspaso} · ${C().eslabones(rc.cadena).join(' | ')}`]:[f.x.ciclo?.inicio||'',f.x.ciclo?.incorporacion||f.x.ciclo?.inicio||'',''])(C().resumen(f.x?.ciclo))]);
+   styles.push(rows[2].map((_,i)=>dinero.includes(i)?ST.money:i===1||i===4||i===6||i===17||i===29||i===32?ST.cell:ST.cellC));
   }
   rows.push(['Los campos de saldo, ISR o neto pendientes de confirmación se muestran vacíos. Consulta el motivo y resuelve sus fuentes antes de aplicar.']);styles.push(ST.sub);
-  const ws=buildSheet(rows,styles,[7,32,22,25,60,16,48,12,14,16,15,15,18,15,15,13,18,60,10,16,12,12,12,36,16,15,15,13,16,60],
-   [{s:{r:0,c:0},e:{r:0,c:29}},{s:{r:1,c:0},e:{r:1,c:29}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:29}}],
+  const ws=buildSheet(rows,styles,[7,32,22,25,60,16,48,12,14,16,15,15,18,15,15,13,18,60,10,16,12,12,12,36,16,15,15,13,16,60,16,16,48],
+   [{s:{r:0,c:0},e:{r:0,c:32}},{s:{r:1,c:0},e:{r:1,c:32}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:32}}],
    [{hpt:28},{hpt:20},{hpt:38},...fs.map(()=>({hpt:46})),{hpt:32}]);
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'ANÁLISIS');
   wb.__empresaPorHoja={'ANÁLISIS':S.empresa};
@@ -597,6 +619,7 @@
   if(acc==='sel-ninguno'){S.sel=new Set();return pintar();}
   if(acc==='pagina'){S.pagina=Math.max(0,Number(b.dataset.pagina)||0);return pintar();}
   if(acc==='desglose')return desglose(Number(b.dataset.i));
+  if(acc==='continuidad')return C().abrirLote(S.empresa);
   if(acc==='evidencia')return revisarEvidencia(Number(b.dataset.i));
   if(acc==='recalcular-fila')return recalcularTrabajador(S.filas[Number(b.dataset.i)]?.w.id);
   if(acc==='ficha'){
@@ -623,5 +646,5 @@
  }
  // Lectura común de fuentes: la ficha (faltas históricas) y el finiquito usan las mismas reglas.
  function antesCerrar(overlay){if(!S||overlay&&!overlay.querySelector('#agc'))return true;if(S.aplicando)return false;S.abortLectura?.abort();S.turno=++SECUENCIA;return true;}
- window.PLATINUM_AGUINALDO_UI=Object.freeze({abrir,antesCerrar,recalcularTrabajador,fuentes:Object.freeze({eventosDe,ausenciasDe,evidenciasDe,coberturaDe,cantidadFaltas}),_pruebas:{calcularPersona,vistaExencion,evidenciasDe,ausenciasDe,cantidadFaltas,destinoDe,coberturaDe,lotesDe,lineaDe,seleccionadas,listasSeleccionadas,clasificar,estado:()=>S}});
+ window.PLATINUM_AGUINALDO_UI=Object.freeze({abrir,antesCerrar,recalcularTrabajador,fuentes:Object.freeze({eventosDe,ausenciasDe,evidenciasDe,coberturaDe,coberturaPersona,cantidadFaltas}),_pruebas:{calcularPersona,vistaContinuidad,coberturaPersona,excelAnalisis,vistaExencion,evidenciasDe,ausenciasDe,cantidadFaltas,destinoDe,coberturaDe,lotesDe,lineaDe,seleccionadas,listasSeleccionadas,clasificar,estado:()=>S}});
 })();

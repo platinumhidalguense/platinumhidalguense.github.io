@@ -1,0 +1,143 @@
+{
+ "contexto": {
+  "ciclo": {
+   "clave": "PLATINUM:ZZZZ990101HDFAAA01:2026-02-10",
+   "corte": "2026-12-31",
+   "desde": "2026-02-10",
+   "activo": true,
+   "inicio": "2026-02-10",
+   "motivo": null,
+   "ejercicio": 2026,
+   "continuidad": {
+    "id": "d260fabc-00fb-4f88-b7f4-bb0dc8fe7511",
+    "cadena": [
+     {
+      "desde": "2026-11-23",
+      "hasta": null,
+      "empresa": "PLATINUM",
+      "no_trab": 834,
+      "obra_id": "O-PLAT",
+      "trabajador_id": "c3d28aa7-64bb-47fd-bb7f-e2629dce4745"
+     },
+     {
+      "desde": "2026-02-10",
+      "hasta": "2026-11-24",
+      "solape": 2,
+      "empresa": "JIRE",
+      "no_trab": 41,
+      "obra_id": "O-JIRE",
+      "identidad": "FUERTE",
+      "trabajador_id": "986e2af2-881b-486b-8884-18d72529a621"
+     }
+    ],
+    "estado": "VIGENTE",
+    "motivo": "Traspaso administrativo JIRE a PLATINUM",
+    "version": "CONTINUIDAD_V1",
+    "revision": 1,
+    "referencia": "PRUEBA-E2E-A",
+    "actor_email": "prueba@e2e.invalid",
+    "origen_obra": "OBRA FICTICIA JIRE",
+    "incorporacion": "2026-11-23",
+    "reconocido_en": "2026-11-23T18:43:09.586739+00:00",
+    "fecha_traspaso": "2026-11-24",
+    "origen_empresa": "JIRE",
+    "inicio_reconocido": "2026-02-10",
+    "origen_trabajador_id": "986e2af2-881b-486b-8884-18d72529a621"
+   },
+   "incorporacion": "2026-11-23"
+  },
+  "obra_id": "O-PLAT",
+  "identidad": "ZZZZ990101HDFAAA01",
+  "calendario": [],
+  "fecha_pago": "2026-11-27",
+  "historicas": [],
+  "aplicaciones": [],
+  "ficha_fuente": {
+   "sd": 376,
+   "sdi": 394.5425,
+   "alta": "2026-11-23",
+   "baja": null,
+   "estatus": "ACTIVO",
+   "periodo": "SEMANAL",
+   "eliminado": false,
+   "reingreso": null
+  },
+  "fiscal_anual": {
+   "anio": 2026,
+   "fuentes": [],
+   "pendientes": [],
+   "exento_usado": 0
+  },
+  "faltas_semana": [
+   {
+    "id": "0e7f02ed-c08e-4582-b25e-20fbb5581ecd",
+    "tipo": "FALTA",
+    "monto": 0,
+    "motivo": "PRUEBA PLAT S49",
+    "semana": 49,
+    "calculo": {
+     "modo": "AUTOMATICO",
+     "faltas": 2,
+     "incapacidad_imss": 0
+    },
+    "periodo": {
+     "desde": "2026-11-30",
+     "hasta": "2026-12-06"
+    },
+    "recalculo_auto": true
+   },
+   {
+    "id": "136d32c3-46ff-4c82-9517-a413b36ef3b6",
+    "tipo": "FALTA",
+    "monto": 0,
+    "motivo": "PRUEBA PLAT S48 REFLEJADA",
+    "semana": 48,
+    "calculo": {
+     "modo": "AUTOMATICO",
+     "faltas": 1,
+     "incapacidad_imss": 0
+    },
+    "periodo": {
+     "desde": "2026-11-23",
+     "hasta": "2026-11-29"
+    },
+    "recalculo_auto": true
+   },
+   {
+    "id": "7eed3690-10f2-4cf5-add4-d19c8fcdf36f",
+    "tipo": "FALTA",
+    "monto": 0,
+    "motivo": "PRUEBA JIRE S20",
+    "semana": 20,
+    "calculo": {
+     "modo": "AUTOMATICO",
+     "faltas": 1,
+     "incapacidad_imss": 0
+    },
+    "periodo": {
+     "desde": "2026-05-11",
+     "hasta": "2026-05-17"
+    },
+    "recalculo_auto": true,
+    "trabajador_origen": "986e2af2-881b-486b-8884-18d72529a621"
+   }
+  ],
+  "trabajador_id": "c3d28aa7-64bb-47fd-bb7f-e2629dce4745",
+  "empresa_codigo": "PLATINUM",
+  "contrato_version": "AG_CICLO_V1",
+  "evidencias_ciclo": [],
+  "identidad_duplicada": false,
+  "aplicaciones_pendientes": [],
+  "huella_fuentes": "H-CONTINUIDAD"
+ },
+ "derecho_servidor": {
+  "pendientes": 0,
+  "dias_vinculo": 325,
+  "discrepancias": 0,
+  "faltas_afectan": 4,
+  "dias_computables": 321,
+  "faltas_digitales": 4,
+  "faltas_historicas": 0
+ },
+ "nota": "Contexto real de control_aguinaldo CONTEXTO (CICLO_VIGENTE_V1) para fichas ficticias en una transacción revertida el 2026-11-23; ids de centro anonimizados."
+}

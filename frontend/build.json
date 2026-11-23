@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-20.2",
-  "entry": "assets/platinum-app.704b9fb1c3f047cd.js",
-  "sha256": "704b9fb1c3f047cd021179a622f4be5e5151026e7c0440477717fde8a2fc3b47",
-  "integrity": "sha384-pPRUoY3dzTQ1l3OOLDXpJ4YtyJ1lcA/pcisBe9DbH0a+UY9YUqKT2ZExlfyoUf7N",
+  "version": "2026-11-23.1",
+  "entry": "assets/platinum-app.5de6e9ce096cc45a.js",
+  "sha256": "5de6e9ce096cc45a5c09b54feac28e836d6c1a5ac25ccb86b17c5c6bcd3ef088",
+  "integrity": "sha384-1qW2TB+Z2Kq3sz/2mGiPNCcZ8zBYWV7F7RFokbS64jFZ4tsR+tFh8OJaeteQ3lhX",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "3230985acaf041f2efbaaaec28cf4674fd37721fb1ecef6d7d635fb8fdd66ba0"
+      "sha256": "704bcb580dc4c34eea1082300ea5ea7f0e6afb0ce5206ef9cdf71d68482c7f43"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -294,7 +294,7 @@
     },
     {
       "path": "frontend/modulos/72-aguinaldo-nucleo.js",
-      "sha256": "cefddf7752db0b708b2ec2e758bea6af458d8c0bb7ff2495ffea9b981443b2c7"
+      "sha256": "e0436c3bf48123589f08b83e799e18e9b651e448ffe80c1fb592cf69f4c8cf98"
     },
     {
       "path": "frontend/modulos/73-aguinaldo-integracion.js",
@@ -302,11 +302,11 @@
     },
     {
       "path": "frontend/modulos/74-aguinaldo-corrida.js",
-      "sha256": "034cb2b12de9fbba129780bde5505ae24ad36ccd3f491142648d57c9ad7a8daa"
+      "sha256": "612deb4aa8958e3d8eb81446ea187600aee9741ef9b2e77c70b9933ba38b9b9a"
     },
     {
       "path": "frontend/modulos/75-faltas-historicas.js",
-      "sha256": "713e544af12c5fbd016b6168fa322c664c00300efc56e03a43aa43e0d7a4ebd0"
+      "sha256": "dfd780d3a2bdda1fe9d5d93ca9778ee8f2227a92866f1912fd4a15d91247fa8a"
     },
     {
       "path": "frontend/modulos/76-baja-finiquito.js",
@@ -315,6 +315,10 @@
     {
       "path": "frontend/modulos/77-aguinaldo-evidencias.js",
       "sha256": "3365d66e45c06fef1b634a6fa4e2e2d93430a99106dac0c7c6ca9a23f699f68b"
+    },
+    {
+      "path": "frontend/modulos/87-continuidad-laboral.js",
+      "sha256": "fd57279ffd42670b46b67b403b8a2bb442b9dfafd26813bf0387fa4d88035e55"
     },
     {
       "path": "frontend/modulos/78-banco-historico-servicio.js",

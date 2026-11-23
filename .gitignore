@@ -78,3 +78,6 @@ supabase/migrations/*_banco_identidad_cuenta_completa.sql
 
 # Puesto NOI 21 (SQL operativo privado).
 supabase/migrations/*_puesto_noi_21_auxiliar_obra.sql
+
+# Aguinaldo: continuidad laboral entre razones sociales (SQL operativo privado).
+supabase/migrations/*_aguinaldo_continuidad_traspaso.sql

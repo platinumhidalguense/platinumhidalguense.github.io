@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "version": "2026-11-20.2",
+  "version": "2026-11-23.1",
   "modules": [
     "frontend/modulos/00-configuracion-utilidades.js",
     "frontend/modulos/01-sesion-centros-sincronizacion.js",
@@ -80,6 +80,7 @@
     "frontend/modulos/75-faltas-historicas.js",
     "frontend/modulos/76-baja-finiquito.js",
     "frontend/modulos/77-aguinaldo-evidencias.js",
+    "frontend/modulos/87-continuidad-laboral.js",
     "frontend/modulos/78-banco-historico-servicio.js",
     "frontend/modulos/79-importacion-bancaria-interfaz.js",
     "frontend/modulos/80-puestos-central.js",
