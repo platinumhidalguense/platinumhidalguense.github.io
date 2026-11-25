@@ -54,20 +54,61 @@
     emitir();
    }
   });}
-  async function reanudar(id){return ejecutar(async()=>{
-   const g=generacion,f=estado.archivos.find(x=>x.id===id);if(!f)throw Error('Selecciona un archivo del periodo.');
+  async function reanudar(id){return ejecutar(()=>releer(id,generacion));}
+  async function releer(id,g){
+   const f=estado.archivos.find(x=>x.id===id);if(!f)throw Error('Selecciona un archivo del periodo.');
    const a=await rpc('ABRIR',{archivo_id:id,...(f.contexto?{contexto:f.contexto}:{})});if(!valido(g))return;
    const {data,error}=await dep.storage.from('expedientes').download(a.ruta);if(error)throw Error(error.message);
    if(!valido(g))return;f.file=dep.archivo(data,a.datos.nombre);f.id=a.id;f.contexto=a.contexto;f.transcripciones=a.datos?.transcripciones||[];
    if(await dep.hash(new Uint8Array(await f.file.arrayBuffer()))!==a.huella)throw Error('La huella no corresponde al original.');
    if(!a.documento_id)await leer(f,g);else Object.assign(f,a,{estado:'ARCHIVADO'});
-  });}
+  }
+  // Recuperación automática del periodo (una vez por archivo y sesión):
+  // 1) XML ya registrados cuya evidencia fiscal nunca se verificó (p. ej. lector del servidor caído): se verifican;
+  //    sin esa evidencia, el PDF del mismo UUID queda en «evidencia pendiente» y no puede registrarse.
+  // 2) XML sin timbre leídos antes de aceptar el neto 0 de NOI: se releen del original archivado.
+  // 3) Originales sin registrar cuyo resultado dependía de esa evidencia: se revalidan con su lectura guardada.
+  const evidenciaPendiente=r=>r?.estado==='CONFLICTO'&&(r.fiscal_pendiente||/evidencia (?:aún|fiscal)/i.test(r.motivo||''));
+  const sinTimbrePrevio=f=>!f.documento_id&&f.id&&(f.formato||f.datos?.formato)==='XML'&&!f.datos?.uuid&&!f.datos?.sin_timbre&&/sin timbre|Neto pendiente/i.test(f.datos?.resultado?.motivo||f.motivo||'');
+  function pendientesRecuperacion(){
+   const a=estado?.archivos||[];
+   return{fiscal:a.filter(f=>f.fiscal_pendiente&&f.documento_id&&!f.recuperado),relectura:a.filter(f=>sinTimbrePrevio(f)&&!f.recuperado),revalidar:a.filter(f=>!f.documento_id&&f.id&&evidenciaPendiente(f.datos?.resultado)&&!f.recuperado)};
+  }
+  async function recuperar(g){
+   const p=pendientesRecuperacion(),total=p.fiscal.length+p.relectura.length+p.revalidar.length;
+   if(!total||!estado.escritura)return estado.recuperacion||null;
+   const r=estado.recuperacion={total,procesados:0,verificados:0,releidos:0,revalidados:0,pendientes:[],en_curso:true};emitir();
+   const anotar=(f,m)=>{r.pendientes.push({id:f.id,nombre:nombreDe(f),motivo:m});};
+   try{
+    const cola=[...p.fiscal];
+    const trabajador=async()=>{for(let f;(f=cola.shift());){
+     if(!valido(g))return;f.recuperado=true;
+     try{await verificar(f);if(f.estado==='VERIFICADO'){f.fiscal_pendiente=false;r.verificados++;}else anotar(f,f.motivo||'Evidencia fiscal sin verificar ('+(f.estado||'sin estado')+')');}
+     catch(e){anotar(f,e.message);}
+     r.procesados++;emitir();
+    }};
+    await Promise.all(Array.from({length:Math.min(CONCURRENCIA,cola.length)},trabajador));
+    for(const f of p.relectura){if(!valido(g))break;f.recuperado=true;try{await releer(f.id,g);if(f.estado==='VALIDO')r.releidos++;else anotar(f,f.motivo||'Relectura pendiente de revisión');}catch(e){anotar(f,e.message);}r.procesados++;emitir();}
+    for(const f of p.revalidar){
+     if(!valido(g))break;f.recuperado=true;
+     try{
+      const {resultado,...lectura}=f.datos||{};
+      const v=await rpc('LECTURA',{archivo_id:f.id,lectura,...(f.contexto?{contexto:f.contexto}:{})});
+      f.datos={...f.datos,resultado:v};if(v?.trabajador_id)f.trabajador_id=v.trabajador_id;
+      if(v?.estado==='VALIDO')r.revalidados++;else anotar(f,v?.motivo||'Revisión pendiente');
+     }catch(e){anotar(f,e.message);}
+     r.procesados++;emitir();
+    }
+   }finally{r.en_curso=false;emitir();}
+   return r;
+  }
   // Registro documental de un original: misma llamada y validaciones de servidor para la confirmación individual y la global.
   async function registrar(f){const r=await rpc('REGISTRAR',{archivo_id:f.id,confirmado:true,...(f.contexto?{contexto:f.contexto}:{})});Object.assign(f,r);return r;}
   async function confirmar(id){return ejecutar(async()=>{
    const f=estado.archivos.find(x=>x.id===id);if(!f)throw Error('Archivo no disponible.');
    await registrar(f);
-   if(f.documento_id)await verificar(f);emitir();return f;
+   // XML sin timbre con neto 0: constancia sin efecto fiscal; no hay timbre que verificar.
+   if(f.documento_id&&!f.datos?.sin_timbre)await verificar(f);emitir();return f;
   });}
   // Confirmación global: sólo registros listos; PDF y XML del mismo UUID forman un grupo (XML primero → una sola representación del CFDI).
   const CONCURRENCIA=3,txt=x=>String(x??'').trim(),uuidDe=f=>txt(f.datos?.uuid||f.uuid_fiscal).toUpperCase()||null;
@@ -111,6 +152,7 @@
   function lote(plan,soloFallidos){return ejecutar(async()=>{
    const g=generacion,usuario=dep.usuario?.()??null;
    if(soloFallidos&&!estado.lote)throw Error('No hay un lote previo para reintentar.');
+   if(!soloFallidos){await recuperar(g);if(!valido(g))throw Error('La sesión o el periodo cambió; vuelve a cargar el contexto.');}
    const l=soloFallidos?estado.lote:(estado.lote={id:'L'+(++secuenciaLote),filas:{},excluidos:null,detenido:null});
    const ids=soloFallidos?Object.keys(l.filas).filter(id=>l.filas[id].estado==='FALLIDO'):null;
    const p=soloFallidos?null:plan();
@@ -157,7 +199,7 @@
       if(a?.documento_id){Object.assign(f,{documento_id:a.documento_id,estado:'ARCHIVADO'});Object.assign(fila,{estado:'CONFIRMADO',motivo:'Respuesta recuperada del servidor'});}
       else{Object.assign(fila,{estado:'FALLIDO',motivo:e.message});return;}
      }
-     if(f.documento_id&&valido(g))try{await verificar(f);}catch(e){fila.aviso='Evidencia fiscal pendiente: '+e.message;}
+     if(f.documento_id&&!f.datos?.sin_timbre&&valido(g))try{await verificar(f);}catch(e){fila.aviso='Evidencia fiscal pendiente: '+e.message;}
     };
     const trabajador=async()=>{for(let gr;(gr=cola.shift());)for(const id of gr){if(!vigente()){for(const x of gr)if(l.filas[x].estado==='PENDIENTE')l.filas[x].motivo=l.detenido;break;}await procesar(id);l.totales=totales(l);emitir();}};
     await Promise.all(Array.from({length:Math.min(CONCURRENCIA,cola.length)},trabajador));
@@ -198,7 +240,7 @@
    const r=root.PLATINUM_LECTURA_HIBRIDA.aplicarVisual(f.lectura,data.datos,{metodo:data.metodo,region_id:data.id,original_huella:f.huella,imagen_huella:data.imagen_sha,pagina:data.pagina,region:data.region,confirmado:true,resultado:'CONFIRMADO_POR_USUARIO'},root.PLATINUM_RESPALDO_RECIBO);
    if(r.conflicto)throw Error(r.conflicto);dep.actualizar?.(f);return lecturaGuardar(f,generacion);
   });}
-  return Object.freeze({abrir,subir,reanudar,reubicar,confirmar,resumen,confirmarLote,reintentarFallidos,vincular,completar,resolverVisual,verificar:id=>ejecutar(()=>verificar(estado.archivos.find(f=>f.id===id))),estado:()=>estado,ocupado:()=>ocupado,cerrar:()=>{cerrado=true;generacion++;for(const f of estado?.archivos||[])if(f.imagen_url)URL.revokeObjectURL(f.imagen_url);}});
+  return Object.freeze({abrir,subir,reanudar,recuperar:()=>ejecutar(()=>recuperar(generacion)),pendientesRecuperacion:()=>{const p=pendientesRecuperacion();return p.fiscal.length+p.relectura.length+p.revalidar.length;},reubicar,confirmar,resumen,confirmarLote,reintentarFallidos,vincular,completar,resolverVisual,verificar:id=>ejecutar(()=>verificar(estado.archivos.find(f=>f.id===id))),estado:()=>estado,ocupado:()=>ocupado,cerrar:()=>{cerrado=true;generacion++;for(const f of estado?.archivos||[])if(f.imagen_url)URL.revokeObjectURL(f.imagen_url);}});
  }
  root.PLATINUM_RECIBOS_CONTEXTO=Object.freeze({crear});
 })(window);

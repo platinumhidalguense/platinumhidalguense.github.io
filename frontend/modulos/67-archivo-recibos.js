@@ -23,7 +23,8 @@
   if(error)throw Error(aviso(error));
   return data;
  }
- async function leer(f){
+ // opciones.sinTimbreNetoCero: sólo el archivo independiente por periodo acepta el XML de NOI sin timbre con neto 0.
+ async function leer(f,opciones={}){
   const file=f.file;
   const formato=file.name.split('.').pop()?.toUpperCase();
   if(!mime[formato]||file.size<1||file.size>maximo)throw Error('Se requiere un PDF o XML individual de hasta 25 MB.');
@@ -31,7 +32,7 @@
   f.huella=await sha256Hex(bytes);
   if(f.original?.hash&&f.original.hash!==f.huella)throw Error('La huella del original archivado cambió.');
   if(formato==='XML'){
-   f.lectura={datos:lector.extraerXML(new TextDecoder().decode(bytes),DOMParser),errores:[],pendientes:[],pruebas:{}};
+   f.lectura={datos:lector.extraerXML(new TextDecoder().decode(bytes),DOMParser,{sinTimbreNetoCero:!!opciones.sinTimbreNetoCero}),errores:[],pendientes:[],pruebas:{}};
   }else{
    if(new TextDecoder().decode(bytes.subarray(0,5))!=='%PDF-')throw Error('El contenido no tiene una cabecera PDF válida.');
    const pdf=await pdfjsLib.getDocument({data:bytes.slice()}).promise;
@@ -45,7 +46,7 @@
   f.datos={nombre:f.file.name,tamano:f.file.size,formato:f.file.name.split('.').pop().toUpperCase(),huella:f.huella,uuid:d.cfdi_uuid,
    ciclo_inicio_documento:d.fecha_inicio_rel_laboral||null,numero_empleado_documento:d.numero_empleado_documento||null,numero_nomina_impreso:d.numero_nomina_impreso||null,folio_interno:d.folio_interno||null,
    emisor:d.rfc_emisor,rfc:d.rfc,curp:d.curp,nss:d.nss,desde:d.periodo_inicio,hasta:d.periodo_fin,pago:d.fecha_pago||null,
-   neto:neto?.toFixed(2)??null,concepto:d.concepto?.estado||null};
+   neto:neto?.toFixed(2)??null,concepto:d.concepto?.estado||null,...(d.sin_timbre?{sin_timbre:true}:{})};
  }
  function candidata(f){
   if(!f.lectura)return false;

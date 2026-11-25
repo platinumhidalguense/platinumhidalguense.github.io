@@ -81,3 +81,6 @@ supabase/migrations/*_puesto_noi_21_auxiliar_obra.sql
 
 # Aguinaldo: continuidad laboral entre razones sociales (SQL operativo privado).
 supabase/migrations/*_aguinaldo_continuidad_traspaso.sql
+
+# S34 recibos: corrección privada
+supabase/migrations/*_recibos_evidencia_alias.sql

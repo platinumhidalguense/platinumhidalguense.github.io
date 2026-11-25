@@ -22,7 +22,9 @@
   const sueldo=columnas||/\b(?:SUELDO|SALARIO)\s+(?:ORDINARIO|NORMAL)\b/.test(t)||/\bP?0*1\s+(?:SUELDO|SUELDOS|SALARIO)\b/.test(t);
   return {tipo:fin&&!sueldo?'FINIQUITO':sueldo&&!fin?'NOMINA':null,estado:fin&&sueldo?'MIXTO':fin?'FINIQUITO':sueldo?'NOMINA':'POR_CLASIFICAR',version:'CONCEPTOS_v1'};
  }
- function extraerXML(text,Parser){
+ // opciones.sinTimbreNetoCero: NOI no timbra ni genera PDF cuando el neto es 0; ese XML se acepta sólo como
+ // constancia de periodo sin pago (sin UUID, sin verificación fiscal, sin efecto en pagos ni exenciones).
+ function extraerXML(text,Parser,opciones={}){
   if(/<!DOCTYPE|<!ENTITY/i.test(text)||!text.includes('http://www.sat.gob.mx/nomina12'))throw Error('XML de nómina no válido o con entidades no permitidas');
   const doc=new Parser().parseFromString(text,'application/xml'),all=[];
   function walk(e){if(e.nodeType===1)all.push(e);for(const c of Array.from(e.childNodes||[]))walk(c);}walk(doc);
@@ -31,18 +33,24 @@
   const comp=doc.documentElement,nom=one('Nomina'),stamp=one('TimbreFiscalDigital');
   if(local(comp)!=='Comprobante'||att(comp,'TipoDeComprobante')!=='N'||!nom)throw Error('No es un CFDI de nómina timbrado');
   // Sellado por el emisor pero sin TimbreFiscalDigital: prenómina no timbrada. No acredita pagos ni exenciones.
-  if(!stamp)throw Error('XML de nómina sin timbre fiscal del SAT (sin UUID ni sello SAT): no es un recibo timbrado y no acredita pagos ni exenciones. Si ese periodo no tuvo pago, no se requiere recibo.');
+  const sinTimbre=Error('XML de nómina sin timbre fiscal del SAT (sin UUID ni sello SAT): no es un recibo timbrado y no acredita pagos ni exenciones. Si ese periodo no tuvo pago, no se requiere recibo.');
+  if(!stamp&&!opciones.sinTimbreNetoCero)throw sinTimbre;
   const rec=Array.from(comp.childNodes||[]).find(e=>e.nodeType===1&&local(e)==='Receptor'),emp=Array.from(comp.childNodes||[]).find(e=>e.nodeType===1&&local(e)==='Emisor'),nr=Array.from(nom.childNodes||[]).find(e=>e.nodeType===1&&local(e)==='Receptor');
   const amount=(e,k)=>{const raw=att(e,k)||'0';if(!/^\d+(?:\.\d{1,6})?$/.test(raw))throw Error('Importe XML inválido');return Number(raw);};
   const neto=amount(comp,'Total'),percepciones=amount(nom,'TotalPercepciones'),deducciones=amount(nom,'TotalDeducciones'),otros=amount(nom,'TotalOtrosPagos');
   if(!att(comp,'Total')||Math.round((percepciones+otros-deducciones)*100)!==Math.round(neto*100)||neto!==Math.round(neto*100)/100)throw Error('El desglose XML no cuadra con el neto');
-  const uuid=String(att(stamp,'UUID')||'').toUpperCase(),sello=att(stamp,'SelloSAT');
-  if(!/^[A-F0-9]{8}(?:-[A-F0-9]{4}){3}-[A-F0-9]{12}$/.test(uuid)||!sello||sello.length<40)throw Error('Faltan UUID o sello SAT del XML');
+  if(!stamp&&neto!==0)throw Error('XML de nómina sin timbre fiscal del SAT (sin UUID ni sello SAT): no acredita pagos ni exenciones. Sin timbre sólo se acepta cuando el neto es 0 (Total XML: '+neto.toFixed(2)+').');
+  const uuid=stamp?String(att(stamp,'UUID')||'').toUpperCase():null,sello=stamp?att(stamp,'SelloSAT'):null;
+  if(stamp&&(!/^[A-F0-9]{8}(?:-[A-F0-9]{4}){3}-[A-F0-9]{12}$/.test(uuid)||!sello||sello.length<40))throw Error('Faltan UUID o sello SAT del XML');
   const ps=all.filter(e=>local(e)==='Percepcion').map(e=>({sat:att(e,'TipoPercepcion'),concepto:att(e,'Concepto'),gravado:att(e,'ImporteGravado'),exento:att(e,'ImporteExento')}));
   const rfc=String(att(rec,'Rfc')||'').toUpperCase(),curp=String(att(nr,'Curp')||'').toUpperCase(),nss=att(nr,'NumSeguridadSocial'),rfc_emisor=String(att(emp,'Rfc')||'').toUpperCase();
+  let concepto=clasificarPercepciones(ps);
+  // Neto 0 sin importes de percepción: el tipo de nómina ordinaria del propio XML define el concepto.
+  if(!stamp&&concepto.estado==='POR_CLASIFICAR'&&att(nom,'TipoNomina')==='O')concepto={...concepto,tipo:'NOMINA',estado:'NOMINA',fundamento:'TipoNomina O (ordinaria) con neto 0'};
   return {recibos:1,rfc,curp,nss,rfc_emisor,identificadores:[rfc,curp,nss,rfc_emisor].filter(Boolean),cfdi_uuid:uuid,neto,percepciones,deducciones,otros_pagos:otros,
    fecha_inicio_rel_laboral:att(nr,'FechaInicioRelLaboral'),numero_empleado_documento:att(nr,'NumEmpleado'),folio_interno:[att(comp,'Serie'),att(comp,'Folio')].filter(Boolean).join(' '),
-   periodo_inicio:att(nom,'FechaInicialPago'),periodo_fin:att(nom,'FechaFinalPago'),fecha_pago:att(nom,'FechaPago'),concepto:clasificarPercepciones(ps),evidencia_neto:'Total XML: '+neto.toFixed(2),evidencia_timbrado:'Folio fiscal: '+uuid+' | Sello Digital del SAT: '+sello};
+   periodo_inicio:att(nom,'FechaInicialPago'),periodo_fin:att(nom,'FechaFinalPago'),fecha_pago:att(nom,'FechaPago'),concepto,evidencia_neto:'Total XML: '+neto.toFixed(2),
+   ...(stamp?{evidencia_timbrado:'Folio fiscal: '+uuid+' | Sello Digital del SAT: '+sello}:{sin_timbre:true,evidencia_sin_timbre:'XML sin TimbreFiscalDigital · Total 0.00: constancia de periodo sin pago; no acredita pagos ni exenciones'})};
  }
  function fecha(d,m,y){const mo=/^\d+$/.test(m)?Number(m):meses[m.slice(0,3).toUpperCase()];let yy=Number(y);if(yy<100)yy+=2000;const dt=new Date(Date.UTC(yy,mo-1,Number(d)));return dt.getUTCFullYear()===yy&&dt.getUTCMonth()===mo-1&&dt.getUTCDate()===Number(d)?dt.toISOString().slice(0,10):null;}
  function parsear(text){

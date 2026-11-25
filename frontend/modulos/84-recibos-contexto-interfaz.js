@@ -1,6 +1,7 @@
 /* Superficie única del archivo fiscal: el cierre es un vínculo posterior opcional. */
 (function(root){
  'use strict';let vista=null,secuencia=0;
+ const recuperacionTexto=r=>`Evidencia fiscal del periodo: ${r.procesados} de ${r.total}${r.en_curso?' en curso':''} · ${r.verificados} XML verificados · ${r.revalidados} originales revalidados · ${r.releidos} XML sin timbre (neto 0) releídos${r.pendientes.length?' · '+r.pendientes.length+' sin resolver':''}`;
  const CATEGORIAS={LECTURA:'Pendientes de lectura',DISCREPANCIA:'Con discrepancias',ERROR:'Con error',DUPLICADO:'Duplicados'},
   RESULTADO={CONFIRMADO:'Confirmado',YA_EXISTENTE:'Ya existente',FALLIDO:'Fallido',PENDIENTE:'Pendiente',PROCESANDO:'Procesando'};
  const totalesTexto=t=>`Confirmados ${t.CONFIRMADO} · ya existentes ${t.YA_EXISTENTE} · fallidos ${t.FALLIDO} · pendientes ${t.PENDIENTE}`;
@@ -69,7 +70,7 @@
   function periodos(){const quin=q('[data-rl-per]').value==='QUINCENAL';q('[data-rl-semana-label]').hidden=quin;q('[data-rl-mes-label]').hidden=!quin;q('[data-rl-quin-label]').hidden=!quin;}
   centros(inicial.id);periodos();
   v.servicio=root.PLATINUM_RECIBOS_CONTEXTO.crear({vigente:actual,rpc:(...a)=>sb.rpc(...a),get storage(){return sb.storage;},hash:sha256Hex,
-   leer:root.PLATINUM_ARCHIVO_RECIBOS.leerArchivo,actualizar:root.PLATINUM_ARCHIVO_RECIBOS.actualizarDatos,archivo:(b,n)=>new File([b],n,{type:b.type}),
+   leer:f=>root.PLATINUM_ARCHIVO_RECIBOS.leerArchivo(f,{sinTimbreNetoCero:true}),actualizar:root.PLATINUM_ARCHIVO_RECIBOS.actualizarDatos,archivo:(b,n)=>new File([b],n,{type:b.type}),
    vision:body=>sb.functions.invoke('gemini-extract',{body}),
    verificar:body=>sb.functions.invoke('lectura-documental',{body}),fragmento:(body,signal)=>sb.functions.invoke('gemini-extract',{body,signal}),usuario:()=>uid,
    incorporar:(f,x)=>{root.PLATINUM_CAMPOS_RECIBO.incorporar(f.lectura,x,root.PLATINUM_RESPALDO_RECIBO);root.PLATINUM_ARCHIVO_RECIBOS.actualizarDatos(f);},
@@ -91,12 +92,17 @@
       ${lote.detenido?`<p class="fhint" data-rl-detenido><b>Lote detenido:</b> ${esc(lote.detenido)}</p>`:''}
       ${lote.totales.FALLIDO&&!lote.en_curso?`<button class="btn" data-rl="reintentar-fallidos">Reintentar solo fallidos (${lote.totales.FALLIDO})</button>`:''}</div>`:''}
     </div>`:'';
-   q('[data-rl-lista]').innerHTML=panel+`<div class="cg-table" style="overflow:auto;max-height:48vh"><table><thead><tr><th>Original</th><th>Trabajador / periodo leído</th><th>Neto / UUID</th><th>Resultado y acciones</th></tr></thead><tbody>${files.slice(v.pagina*50,v.pagina*50+50).map(f=>{
+   const rec=s?.recuperacion,porRecuperar=s?.escritura&&v.servicio?.pendientesRecuperacion?v.servicio.pendientesRecuperacion():0;
+   const recuperacion=rec||porRecuperar?`<div data-rl-recuperacion class="card" role="status" aria-live="polite" style="margin:8px 0;padding:8px">
+     ${rec?`<progress max="${rec.total||1}" value="${rec.procesados}"></progress> ${esc(recuperacionTexto(rec))}
+      ${rec.pendientes.length?`<details><summary>Sin resolver: ${rec.pendientes.length}</summary><ul>${rec.pendientes.map(x=>`<li>${esc(x.nombre)} · ${esc(x.motivo)}</li>`).join('')}</ul></details>`:''}`:''}
+     ${porRecuperar&&!rec?.en_curso?`<button class="btn" data-rl="recuperar">Verificar evidencia fiscal pendiente (${porRecuperar})</button>`:''}</div>`:'';
+   q('[data-rl-lista]').innerHTML=recuperacion+panel+`<div class="cg-table" style="overflow:auto;max-height:48vh"><table><thead><tr><th>Original</th><th>Trabajador / periodo leído</th><th>Neto / UUID</th><th>Resultado y acciones</th></tr></thead><tbody>${files.slice(v.pagina*50,v.pagina*50+50).map(f=>{
     const d=f.datos||{},r=d.resultado||f,trab=r.trabajador||'Identidad por revisar';
     const fuera=!f.documento_id&&f.id&&/^\d{4}-\d{2}-\d{2}$/.test(d.desde||'')&&/^\d{4}-\d{2}-\d{2}$/.test(d.hasta||'')&&s.contexto?.desde&&(d.desde<s.contexto.desde||d.hasta>s.contexto.hasta);
     const sug=(f.contexto_sugerido||r.contexto_sugerido);
     return `<tr><td>${esc(d.nombre||f.file?.name||'Original')}<br><button class="btn" data-rl="original" data-id="${esc(f.id||'')}" ${!f.id?'disabled':''}>Ver original</button></td>
-     <td>${esc(trab)}<br>${esc(d.desde||'—')} al ${esc(d.hasta||'—')} · ${esc(d.concepto||'concepto pendiente')}</td><td>${d.neto==null?'—':'$'+esc(d.neto)}<br><small>${esc(d.uuid||'')}</small></td>
+     <td>${esc(trab)}<br>${esc(d.desde||'—')} al ${esc(d.hasta||'—')} · ${esc(d.concepto||'concepto pendiente')}</td><td>${d.neto==null?'—':'$'+esc(d.neto)}<br><small>${esc(d.uuid||'')}</small>${d.sin_timbre?'<br><small data-rl-sin-timbre>XML sin timbre · neto 0: constancia de periodo sin pago, sin efecto fiscal</small>':''}</td>
      <td><p role="status" aria-live="polite">${esc(f.asistencia?.texto||'')}</p><b>${esc(etiquetas[f.estado]||f.estado)}</b>
       ${elegibles.has(f.id)?`<label class="fhint"><input type="checkbox" data-rl-incluir="${esc(f.id)}" ${v.excluir.has(f.id)?'':'checked'} ${v.ocupado?'disabled':''}> Incluir en confirmación global</label>`:''}
       ${(f.lectura?.avisos_hibridos||d.avisos_hibridos||[]).map(x=>`<p class="fhint">${esc(x)}</p>`).join('')}
@@ -104,7 +110,7 @@
       ${(f.lectura?.evidencia_hibrida||d.evidencia_hibrida||[]).length?`<details><summary>Fuentes complementarias por campo</summary>${(f.lectura?.evidencia_hibrida||d.evidencia_hibrida).map(x=>`<p>${esc(x.campo)} · ${esc(x.metodo)} · ${esc(x.valor_normalizado)} · página ${esc(x.pagina||'XML')} · ${esc(x.resultado||'Cotejo pendiente')}</p>`).join('')}</details>`:''}
       ${lote?.filas?.[f.id]?`<p class="fhint" data-rl-resultado="${esc(f.id)}">Lote: ${esc(RESULTADO[lote.filas[f.id].estado]||lote.filas[f.id].estado)}${lote.filas[f.id].motivo?' · '+esc(lote.filas[f.id].motivo):''}${lote.filas[f.id].aviso?' · '+esc(lote.filas[f.id].aviso):''}</p>`:''}<p class="fhint">${esc(f.motivo||d.resultado?.motivo||d.motivo||'')}</p>
       ${s.escritura?`<button class="btn" data-rl="releer" data-id="${esc(f.id||'')}" ${!f.id?'disabled':''}>Releer original</button>
-       ${f.documento_id?`<button class="btn" data-rl="verificar" data-id="${esc(f.id)}">Verificar timbrado</button>`:r.estado==='VALIDO'||f.estado==='VALIDO'?`<button class="btn dark" data-rl="confirmar" data-id="${esc(f.id)}">Confirmar registro</button>`:''}
+       ${f.documento_id&&!d.sin_timbre?`<button class="btn" data-rl="verificar" data-id="${esc(f.id)}">Verificar timbrado</button>`:r.estado==='VALIDO'||f.estado==='VALIDO'?`<button class="btn dark" data-rl="confirmar" data-id="${esc(f.id)}">Confirmar registro</button>`:''}
        ${fuera?`<p class="fhint" data-rl-fuera="${esc(f.id)}">Las fechas del comprobante (${esc(d.desde)} al ${esc(d.hasta)}) no están en este periodo${sug?.desde?'; corresponden a '+(sug.periodicidad==='SEMANAL'?'S'+esc(sug.semana):esc(sug.mes)+'/Q'+esc(sug.quincena))+' ('+esc(sug.desde)+' al '+esc(sug.hasta)+')':''}. El número de nómina impreso no define la semana.</p><button class="btn dark" data-rl="reubicar" data-id="${esc(f.id)}">Mover al periodo de sus fechas</button>`:''}
        ${f.documento_id&&s.cierres.length?`<button class="btn" data-rl="vincular" data-id="${esc(f.id)}">Revisar vínculo con fotografía</button>`:''}`:''}
       ${(f.lectura?.pendientes||[]).map((p,k)=>p.region?`<details><summary>${esc(p.campo)} · ${esc(p.causa)}</summary><code>${esc(p.region.texto)}</code><input data-rl-literal="${esc(f.id)}-${k}" aria-label="Transcripción literal"><button class="btn" data-rl="literal" data-id="${esc(f.id)}" data-k="${k}">Usar transcripción</button><button class="btn" data-rl="gemini" data-id="${esc(f.id)}" data-k="${k}">Completar sólo este campo con Gemini</button></details>`:`<details><summary>${esc(p.campo)} · seleccionar región del original</summary><p>Abre el original, verifica la página y confirma el valor. No se inventarán caracteres.</p><select data-rl-region="${esc(f.id)}-${k}">${root.PLATINUM_CAMPOS_RECIBO.regiones(f.lectura,p.campo).map((r,j)=>`<option value="${j}">Página ${r.pagina} · ${esc(r.texto_original)}</option>`).join('')}</select><button class="btn" data-rl="region" data-id="${esc(f.id)}" data-k="${k}">Usar región seleccionada</button><p>Si no aparece una región legible, conserva el pendiente y revisa el PDF original o su XML.</p></details>`).join('')}
@@ -112,7 +118,9 @@
     ${total>1?`<button class="btn" data-rl="pagina" data-page="${v.pagina-1}" ${v.pagina===0?'disabled':''}>Anterior</button> ${v.pagina+1} de ${total} <button class="btn" data-rl="pagina" data-page="${v.pagina+1}" ${v.pagina+1===total?'disabled':''}>Siguiente</button>`:''}`;
    if(v.ocupado)for(const b of host.querySelectorAll('button'))b.disabled=true;
   }
-  async function cargar(){v.sucio=false;v.pagina=0;v.excluir.clear();await v.servicio.abrir(q('[data-rl-obra]').value,ctx());mensaje('Originales disponibles. Confirma los datos leídos antes de incorporarlos a la ficha.');}
+  async function cargar(recuperar=true){v.sucio=false;v.pagina=0;v.excluir.clear();await v.servicio.abrir(q('[data-rl-obra]').value,ctx());mensaje('Originales disponibles. Confirma los datos leídos antes de incorporarlos a la ficha.');
+   // Evidencia fiscal pendiente de XML ya archivados (o XML sin timbre leídos antes): se recupera al abrir el periodo.
+   if(recuperar&&v.servicio.pendientesRecuperacion()){mensaje('Recuperando evidencia fiscal pendiente del periodo…');const r=await v.servicio.recuperar();if(r)mensaje(recuperacionTexto(r));}}
   host.onchange=async e=>{if(!actual()||v.ocupado)return;try{
    if(e.target.closest('[data-rl-contexto]')){v.sucio=true;if(e.target.matches('[data-rl-empresa]'))centros();periodos();pintar(v.servicio.estado());mensaje('Cambió el contexto. Carga el periodo antes de continuar.');
     if(e.target.matches('[data-rl-cal]'))seleccionarPeriodo(root.PLATINUM_PERIODOS.lista(q('[data-rl-obra]').value).find(p=>p.periodo_id===e.target.value));
@@ -148,12 +156,13 @@
     const r=await v.servicio.reubicar(archivo),c=r.contexto;
     q('[data-rl-anio]').value=c.anio;if(q('[data-rl-per]').value!==c.periodicidad)q('[data-rl-per]').value=c.periodicidad;
     if(c.periodicidad==='SEMANAL')q('[data-rl-semana]').value=c.semana;else{q('[data-rl-mes]').value=c.mes;q('[data-rl-quin]').value=c.quincena;}
-    periodos();await cargar();
+    periodos();await cargar(false);
     const f=v.servicio.estado().archivos.find(x=>x.id===archivo);if(f)await v.servicio.reanudar(archivo);
     mensaje('Original movido a '+c.desde+' al '+c.hasta+' y releído en ese periodo.');
    }
    if(a==='confirmar'&&confirm('¿Confirmas la identidad, el concepto y las fechas leídas del original? No se registrará un pago ni se modificará el cierre.'))await v.servicio.confirmar(archivo);
    if(a==='verificar')await v.servicio.verificar(archivo);
+   if(a==='recuperar'){const r=await v.servicio.recuperar();mensaje(r?recuperacionTexto(r):'No hay evidencia fiscal pendiente.');}
    if(a==='lote'){
     const r=v.servicio.resumen([...v.excluir]);if(!r.listos.length)throw Error('No hay registros listos para confirmar.');
     if(!confirm(resumenTexto(r)))return;
