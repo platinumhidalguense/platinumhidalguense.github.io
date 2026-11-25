@@ -163,11 +163,11 @@ function coalesceInicio(id){const w=bdd.trabajadores.find(w=>w.id===id);return w
  bdd.trabajadores.push(rev);ctx.rev=persona(rev,{movimientos:[
   {id:'alta',accion:'ALTA',fecha_alta:'2026-04-20',fecha:'2026-04-20T12:00:00Z'},
   {id:'baja',accion:'BAJA',fecha_baja:'2026-05-25',fecha:'2026-05-25T12:00:00Z'},
-  {id:'reing',accion:'REACTIVACION',fecha_reingreso:'2026-08-31',fecha:'2026-09-01T12:00:00Z'}],fiscal_anual:{exento_usado:0,pendientes:[{motivo:'BAJA_ANTERIOR_SIN_FUENTE_FISCAL_VERIFICADA',fecha_baja:'2026-05-25'}]}});
+  {id:'reing',accion:'REACTIVACION',fecha_reingreso:'2026-08-31',fecha:'2026-09-01T12:00:00Z'}],fiscal_anual:{exento_usado:0,pendientes:[{motivo:'BAJA_ANTERIOR_SIN_FUENTE_FISCAL_VERIFICADA',fecha_baja:'2026-05-25'},{motivo:'CFDI_UUID_IMPORTES_CONTRADICTORIOS',documento_id:'DOC-CONTRADICTORIO'}]}});
  UI.abrir();valor('agc-texto','77');valor('agc-fecha_destino','2026-12-09');
  click(document.querySelector('[data-agc-acc="calcular"]'));await tick(20);
  const revision=UI._pruebas.estado(),rv=revision.filas[0];
- eq([rv.estado_revision,rv.puede_revisar,rv.puede_aplicar],['FISCAL_PENDIENTE',true,false],'bruto del ciclo disponible; acumulado fiscal pendiente impide aplicar neto');
+ eq([rv.estado_revision,rv.puede_revisar,rv.puede_aplicar],['FISCAL_PENDIENTE',true,false],'bruto del ciclo disponible; acumulado fiscal contradictorio impide aplicar neto');
  const casilla=document.querySelector('[data-agc-sel="rev"]');
  ok(casilla&&!casilla.disabled,'casilla del pendiente disponible');
  casilla.checked=true;casilla.dispatchEvent(new window.Event('change',{bubbles:true}));
@@ -184,12 +184,24 @@ function coalesceInicio(id){const w=bdd.trabajadores.find(w=>w.id===id);return w
  ok(document.querySelector('[data-agc-acc="aplicar"]').disabled&&$('agc-cuerpo').textContent.includes('1 pendiente'),'aplicación explica la fila pendiente');
  click(document.querySelector('[data-agc-paso="1"]'));
  ok(!document.querySelector('[data-agc-acc="evidencia"]'),'la corrida normal no exige vincular el finiquito del ciclo anterior');
- ctx.rev.fiscal_anual={exento_usado:0,pendientes:[]};
+ // Resuelta la contradicción, la baja anterior sin fuente fiscal queda como dato desconocido: exención usada $0, no bloquea.
+ ctx.rev.fiscal_anual={exento_usado:0,pendientes:[{motivo:'BAJA_ANTERIOR_SIN_FUENTE_FISCAL_VERIFICADA',fecha_baja:'2026-05-25'}]};
  ctx.rev.huella_fuentes='H-rev-2';
  const parametrosAntes=JSON.stringify(revision.p),lecturasAntes=llamadas.length;
  await UI.recalcularTrabajador('rev');await tick();
  ok(revision.sel.has('rev')&&JSON.stringify(revision.p)===parametrosAntes,'resolver conserva selección y filtros');
- ok(revision.filas[0].puede_aplicar,'el acumulado fiscal verificado resuelve la fila sin cambiar el derecho');
+ ok(revision.filas[0].puede_aplicar,'el dato fiscal desconocido se toma como $0 y la fila queda aplicable sin cambiar el derecho');
+ {const r0=revision.filas[0];eq([r0.estado_revision,r0.fila.fiscal.exento_usado,r0.fila.conciliacion.exento_sin_dato],['LISTA',0,1],'exención usada desconocida = $0');
+  ok(r0.fila.observaciones.some(o=>o.codigo==='EXENTO_SIN_DATO_CERO'&&!o.bloquea&&o.texto.includes('2026-05-25')),'aviso con el motivo concreto, sin bloqueo');
+  eq(UI._pruebas.lineaDe(r0).exento_usado,0,'la línea a aplicar declara $0 de exención usada');
+  const antes=descargas.length;click(document.querySelector('#agc-pie [data-agc-acc="excel"]'));await tick();
+  eq(descargas.length,antes+1,'ahora sí pasa al Excel para firmas');
+  const xr=descargas.at(-1).wb.Sheets['AGUINALDO 2026']._rows,fila=xr.find(x=>x[0]===77);
+  ok(fila,'la persona aparece en el Excel para firmas');
+  eq([fila[10],fila[11],fila[12],fila[13],fila[14]],[r0.fila.bruto_a_pagar,r0.fila.fiscal.exento,r0.fila.fiscal.gravado,r0.fila.fiscal.isr,r0.fila.fiscal.neto],'Excel para firmas = cálculo (bruto, exento, gravado, ISR, neto)');
+  click(document.querySelector('[data-agc-paso="2"]'));ok($('agc-cuerpo').textContent.includes('Sin dato verificado: tomado como $0')&&!$('agc-cuerpo').textContent.includes('Desconocido'),'conciliación: $0 con leyenda, ya no «Desconocido»');
+  click(document.querySelector('[data-agc-paso="3"]'));ok(!document.querySelector('[data-agc-acc="aplicar"]').disabled,'aplicación habilitada');
+  click(document.querySelector('[data-agc-paso="1"]'));}
  click(document.querySelector('[data-agc-acc="analisis"]'));await tick();
  {const fx=revision.filas[0].fila.fiscal,dx=A.desgloseExencion(revision.filas[0].fila,revision.filas[0].x.fiscal_anual,revision.filas[0].x.aplicaciones),row=descargas.at(-1).wb.Sheets['ANÁLISIS']._rows[3];
   eq([row[13],row[14],row[15],row[24],row[25],row[26],row[27],row[28]],[fx.exento,fx.gravado,fx.isr,dx.consumido,dx.reservado,dx.disponible,dx.isr_tarifa,dx.efecto_subsidio],'Excel de análisis = pantalla (exento, gravado, ISR, consumido, reservado, disponible, tarifa y subsidio)');}
@@ -342,8 +354,10 @@ function coalesceInicio(id){const w=bdd.trabajadores.find(w=>w.id===id);return w
  const rNormal=mg.filas[0],externa=UI._pruebas.calcularPersona(rNormal.w,{...rNormal.x,evidencias_ciclo:[{id:'fiscal-previo',operacion:'CFDI:UNO',origen:'CFDI_DESGLOSADO',estado:'APLICADO',desglosado:true,importe_bruto:50,exento:50,fecha_pago:'2026-10-09'}],fiscal_anual:{exento_usado:550.12,pendientes:[]}},mg.p);
  eq([externa.fila.derecho.dias_computables,externa.fila.conciliacion.acreditado,externa.fila.fiscal.exento_usado],[123,50,550.12],'pago actual resta saldo; acumulado anual independiente');
  eq(UI._pruebas.lineaDe(externa).acreditado_externo,50,'contrato aplica el importe externo exacto');
- const pendienteFiscal=UI._pruebas.calcularPersona(rNormal.w,{...rNormal.x,fiscal_anual:{exento_usado:550.12,pendientes:[{motivo:'CFDI_SAT_002_INCOMPLETO'}]}},mg.p);
- eq([pendienteFiscal.puede_revisar,pendienteFiscal.puede_aplicar,pendienteFiscal.fila.derecho.dias_computables,pendienteFiscal.fila.fiscal],[true,false,123,null],'fiscal pendiente no elimina bruto ni posibilidad de selección');
+ const sinDato=UI._pruebas.calcularPersona(rNormal.w,{...rNormal.x,fiscal_anual:{exento_usado:550.12,pendientes:[{motivo:'CFDI_SAT_002_INCOMPLETO'}]}},mg.p);
+ eq([sinDato.puede_aplicar,sinDato.fila.fiscal.exento_usado,sinDato.fila.fiscal.disponible],[true,550.12,2969.18],'SAT 002 incompleto: la parte desconocida vale $0; se descuenta lo verificado');
+ const pendienteFiscal=UI._pruebas.calcularPersona(rNormal.w,{...rNormal.x,fiscal_anual:{exento_usado:550.12,pendientes:[{motivo:'CFDI_UUID_IMPORTES_CONTRADICTORIOS'}]}},mg.p);
+ eq([pendienteFiscal.puede_revisar,pendienteFiscal.puede_aplicar,pendienteFiscal.fila.derecho.dias_computables,pendienteFiscal.fila.fiscal],[true,false,123,null],'fiscal contradictorio no elimina bruto ni posibilidad de selección');
  // Exención explicada: reingresado con aguinaldo exento consumido por un CFDI de finiquito (caso tipo Salvador).
  const salv=UI._pruebas.calcularPersona(rNormal.w,{...rNormal.x,fiscal_anual:{anio:2026,exento_usado:1772.37,pendientes:[],fuentes:[{id:'D1',uuid:'UUID-FINIQUITO',bruto:1772.37,exento:1772.37},{id:'D0',uuid:'UUID-NOMINA',bruto:0,exento:0}]}},mg.p);
  const sx=salv.fila.fiscal,sd=A.desgloseExencion(salv.fila,salv.x.fiscal_anual,salv.x.aplicaciones),sl=UI._pruebas.lineaDe(salv);

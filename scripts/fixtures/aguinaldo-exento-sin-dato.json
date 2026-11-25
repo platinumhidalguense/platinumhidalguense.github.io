@@ -1,0 +1,121 @@
+{
+ "nota": "Contexto REAL devuelto por control_aguinaldo CONTEXTO (CICLO_VIGENTE_V1) para fichas ficticias creadas en una transacción revertida el 2026-11-25: alta 02/02, baja 25/05 sin fuente fiscal verificada, reingreso 31/08. Sin datos de personas reales.",
+ "casos": [
+  {
+   "empresa": "PLATINUM",
+   "obra": {
+    "id": "O-PLAT-FICTICIA",
+    "nombre": "CENTRO FICTICIO PLATINUM",
+    "fecha_inicio": "2026-06-15",
+    "empresa_codigo": "PLATINUM"
+   },
+   "fecha_destino": "2026-11-25",
+   "no_trab": 9901,
+   "curp": "ZZZZ990101HDFAAA02",
+   "contexto": {
+    "ciclo": {
+     "clave": "PLATINUM:ZZZZ990101HDFAAA02:2026-08-31",
+     "corte": "2026-12-31",
+     "desde": "2026-08-31",
+     "activo": true,
+     "inicio": "2026-08-31",
+     "motivo": null,
+     "ejercicio": 2026
+    },
+    "obra_id": "O-PLAT-FICTICIA",
+    "identidad": "ZZZZ990101HDFAAA02",
+    "calendario": [],
+    "fecha_pago": "2026-11-27",
+    "historicas": [],
+    "aplicaciones": [],
+    "ficha_fuente": {
+     "sd": 376,
+     "sdi": 394.5425,
+     "alta": "2026-02-02",
+     "baja": "2026-05-25",
+     "estatus": "ACTIVO",
+     "periodo": "SEMANAL",
+     "eliminado": false,
+     "reingreso": "2026-08-31"
+    },
+    "fiscal_anual": {
+     "anio": 2026,
+     "fuentes": [],
+     "pendientes": [
+      {
+       "motivo": "BAJA_ANTERIOR_SIN_FUENTE_FISCAL_VERIFICADA",
+       "fecha_baja": "2026-05-25"
+      }
+     ],
+     "exento_usado": 0
+    },
+    "faltas_semana": [],
+    "trabajador_id": "a9e0a9e0-0000-4000-8000-000000000001",
+    "empresa_codigo": "PLATINUM",
+    "huella_fuentes": "05a55a36ae8348748856a8071011eea9e3e1fd02bee4f61c0e2b6579babfd344",
+    "contrato_version": "AG_CICLO_V1",
+    "evidencias_ciclo": [],
+    "identidad_duplicada": false,
+    "aplicaciones_pendientes": []
+   }
+  },
+  {
+   "empresa": "JIRE",
+   "obra": {
+    "id": "O-JIRE-FICTICIA",
+    "nombre": "CENTRO FICTICIO JIRE",
+    "fecha_inicio": "2026-07-27",
+    "empresa_codigo": "JIRE"
+   },
+   "fecha_destino": "2026-11-18",
+   "no_trab": 9902,
+   "curp": "ZZZZ990102HDFAAA03",
+   "contexto": {
+    "ciclo": {
+     "clave": "JIRE:ZZZZ990102HDFAAA03:2026-08-31",
+     "corte": "2026-12-31",
+     "desde": "2026-08-31",
+     "activo": true,
+     "inicio": "2026-08-31",
+     "motivo": null,
+     "ejercicio": 2026
+    },
+    "obra_id": "O-JIRE-FICTICIA",
+    "identidad": "ZZZZ990102HDFAAA03",
+    "calendario": [],
+    "fecha_pago": "2026-11-20",
+    "historicas": [],
+    "aplicaciones": [],
+    "ficha_fuente": {
+     "sd": 376,
+     "sdi": 394.5425,
+     "alta": "2026-02-02",
+     "baja": "2026-05-25",
+     "estatus": "ACTIVO",
+     "periodo": "SEMANAL",
+     "eliminado": false,
+     "reingreso": "2026-08-31"
+    },
+    "fiscal_anual": {
+     "anio": 2026,
+     "fuentes": [],
+     "pendientes": [
+      {
+       "motivo": "BAJA_ANTERIOR_SIN_FUENTE_FISCAL_VERIFICADA",
+       "fecha_baja": "2026-05-25"
+      }
+     ],
+     "exento_usado": 0
+    },
+    "faltas_semana": [],
+    "trabajador_id": "a9e0a9e0-0000-4000-8000-000000000002",
+    "empresa_codigo": "JIRE",
+    "huella_fuentes": "bb4ad4579c52200411e7570975428ee54f57d960532bc9f40f10de666333b405",
+    "contrato_version": "AG_CICLO_V1",
+    "evidencias_ciclo": [],
+    "identidad_duplicada": false,
+    "aplicaciones_pendientes": []
+   }
+  }
+ ]
+}

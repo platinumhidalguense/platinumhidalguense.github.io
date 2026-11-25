@@ -297,6 +297,8 @@
     Reservado: aplicación en un borrador. Pendiente: total global de
     finiquito, documento sin desglose o borrador ajeno. */
  const ESTADOS_ACREDITADOS=['AUTORIZADO','TIMBRADO','PAGADO'];
+ /* Motivos fiscales anuales que significan «dato desconocido» (no contradicción): su exención usada se toma como $0. */
+ const EXENTO_SIN_DATO=Object.freeze(['CFDI_SIN_DESGLOSE_SAT_002','CFDI_SAT_002_INCOMPLETO','CFDI_FECHA_PAGO_PENDIENTE','CFDI_UUID_PENDIENTE','BAJA_ANTERIOR_SIN_FUENTE_FISCAL_VERIFICADA']);
  function conciliar(causado,evidencias,anioPago){
   const vistos=new Map(),res={causado:r2(causado),acreditado:0,reservado:0,pendiente:[],ignorado:[],detalle:[],exento_usado:0,exento_desconocido:false};
   for(const e of evidencias||[]){
@@ -321,7 +323,8 @@
    res.detalle.push({...e,clase,importe_bruto:imp});
    if(clase==='PENDIENTE'){res.pendiente.push(e);continue;}
    if(clase==='ACREDITADO')res.acreditado=r2(res.acreditado+imp);else res.reservado=r2(res.reservado+imp);
-   if(mismoAnio){if(e.exento==null)res.exento_desconocido=true;else res.exento_usado=r2(res.exento_usado+Number(e.exento));}
+   // Parte exenta no informada: se toma como $0 (sólo cuenta lo conocido) y queda como aviso.
+   if(mismoAnio){if(e.exento==null)res.exento_sin_dato=(res.exento_sin_dato||0)+1;else res.exento_usado=r2(res.exento_usado+Number(e.exento));}
   }
   res.saldo=r2(Math.max(0,res.causado-res.acreditado-res.reservado));
   res.excedente=r2(Math.max(0,res.acreditado+res.reservado-res.causado));
@@ -409,10 +412,18 @@
   }
   const anioPago=e.fecha_pago?e.fecha_pago.slice(0,4):null;
   const c=conciliar(d.bruto,e.evidencias,anioPago);
-  if(e.fiscal_anual){c.exento_usado=r2(e.fiscal_anual.exento_usado||0);c.exento_desconocido=!!e.fiscal_anual.pendientes?.length;if(c.exento_desconocido)add('FISCAL_ANUAL_PENDIENTE','Falta desglose fiscal anual verificado: '+e.fiscal_anual.pendientes.map(p=>p.motivo+(p.fecha_baja?' '+p.fecha_baja:'')).join('; ')+'. El bruto del ciclo vigente sí está calculado.',true);}
+  if(e.fiscal_anual){
+   // Exención usada en el año sin dato verificado (desconocida): se toma como $0 y el acumulado es sólo lo verificado.
+   // Sólo bloquean las fuentes contradictorias (mismo UUID con importes distintos o aplicación distinta de su CFDI).
+   const pend=e.fiscal_anual.pendientes||[],sinDato=pend.filter(p=>EXENTO_SIN_DATO.includes(p.motivo)),contra=pend.filter(p=>!EXENTO_SIN_DATO.includes(p.motivo));
+   const txt=l=>l.map(p=>p.motivo+(p.fecha_baja?' '+p.fecha_baja:'')).join('; ');
+   c.exento_usado=r2(e.fiscal_anual.exento_usado||0);c.exento_desconocido=!!contra.length;c.exento_sin_dato=sinDato.length;
+   if(sinDato.length)add('EXENTO_SIN_DATO_CERO','Exención usada en el año sin fuente verificada ('+txt(sinDato)+'): se toma como $0; se descuenta sólo lo verificado ($'+c.exento_usado.toFixed(2)+').',false);
+   if(contra.length)add('FISCAL_ANUAL_PENDIENTE','Información fiscal anual contradictoria: '+txt(contra)+'. El bruto del ciclo vigente sí está calculado.',true);
+  }
   if(c.pendiente.length)add('EVIDENCIA_PENDIENTE',`${c.pendiente.length} pago(s) anterior(es) sin desglose del aguinaldo: no se puede saber el saldo.`,true);
   if(c.excedente>0)add('PAGADO_DE_MAS',`Lo acreditado excede lo causado por $${c.excedente.toFixed(2)}.`,false);
-  if(c.exento_desconocido&&!e.fiscal_anual)add('EXENCION_DESCONOCIDA','Un pago del mismo año no informa su parte exenta: no se puede determinar la exención disponible.',true);
+  if(c.exento_sin_dato&&!e.fiscal_anual)add('EXENTO_SIN_DATO_CERO','Un pago del mismo año no informa su parte exenta: se toma como $0.',false);
   const fila={version:VERSION,derecho:d,conciliacion:c,observaciones:obs,saldo:c.saldo,bruto_causado:d.bruto};
   const aPagar=e.importe_a_pagar==null?c.saldo:r2(Math.min(e.importe_a_pagar,c.saldo));
   fila.bruto_a_pagar=aPagar;
@@ -467,7 +478,7 @@
   return JSON.stringify(v===undefined?null:v);
  }
 
- return Object.freeze({VERSION,NATURALEZAS,UMA,naturalezaCatalogo,computaNaturaleza,eventosCorregidos,tramosServicio,recortar,activoEnFecha,seleccionar,
+ return Object.freeze({VERSION,NATURALEZAS,EXENTO_SIN_DATO,UMA,naturalezaCatalogo,computaNaturaleza,eventosCorregidos,tramosServicio,recortar,activoEnFecha,seleccionar,
   ausenciasAplicables,calcularDerecho,conciliar,umaVigente,exencion,isrSemanalMotor,isrArt96Semanal,isrArt96Quincenal,
   isrMensualTarifa,isrArt174,calcularFila,desgloseExencion,canonico,util:Object.freeze({fecha,iso,sumar,dias,diasAnio,r2})});
 });

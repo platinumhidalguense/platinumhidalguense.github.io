@@ -84,3 +84,6 @@ supabase/migrations/*_aguinaldo_continuidad_traspaso.sql
 
 # S34 recibos: corrección privada
 supabase/migrations/*_recibos_evidencia_alias.sql
+
+# Aguinaldo: exento sin dato verificado = 0 (SQL operativo privado).
+supabase/migrations/*_aguinaldo_exento_sin_dato_cero.sql

@@ -456,7 +456,7 @@
   const fs=seleccionadas().filter(f=>f.fila.conciliacion);
   const filas=fs.map(f=>{const c=f.fila.conciliacion;return `<tr><td>#${esc(f.w.no_trab??'—')} ${esc(fullName(f.w))}</td><td>$${money(c.causado)}</td><td>$${money(c.acreditado)}</td><td>$${money(c.reservado)}</td>
    <td>${c.pendiente.length?`<span style="color:var(--red)">${c.pendiente.length} sin desglose</span>`:'—'}</td><td><b>${c.pendiente.length?'Por confirmar':'$'+money(c.saldo)}</b>${!c.pendiente.length&&c.excedente?`<div style="color:var(--amber);font-size:11px">Pagado de más $${money(c.excedente)}</div>`:''}</td>
-   <td>${c.exento_desconocido?'<span style="color:var(--red)">Desconocido</span>':'$'+money(c.exento_usado)}</td>
+   <td>${c.exento_desconocido?'<span style="color:var(--red)">Contradictorio</span>':'$'+money(c.exento_usado)+(c.exento_sin_dato?'<div style="color:var(--amber);font-size:11px" data-agc-sin-dato>Sin dato verificado: tomado como $0</div>':'')}</td>
    <td style="font-size:11px">${c.detalle.map(e=>`${esc(e.origen.replace(/_/g,' ').toLowerCase())} · ${esc(String(e.estado||'').toLowerCase())} · $${money(e.importe_bruto)} → ${esc(e.clase.toLowerCase())}`).join('<br>')||'Sin pagos anteriores'}${accionEvidencia(f,S.filas.indexOf(f))}</td></tr>`;});
   return [`<p class="fhint">Las evidencias vinculadas a una operación aplicada o a un pago respaldan lo acreditado. Las aplicaciones en borrador se muestran como reservado. El papel de consulta aporta datos que deben vincularse a su operación. Revisa el desglose, la fecha y las referencias de cada baja anterior.</p>
    ${ctrlTabla(['Trabajador','Causado','Acreditado','Reservado','Evidencia pendiente','Saldo','Exento usado en el año','Evidencias'],filas,'Sin personas en la corrida.')}`,
