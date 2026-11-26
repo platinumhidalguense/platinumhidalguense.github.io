@@ -1,5 +1,11 @@
 /* ---------- CALCULADORA DE PRESTACIONES (LFT) ---------- */
 function diasVacaciones(anios){if(anios<1)return 0;if(anios<=5)return 12+2*(anios-1);return 22+2*Math.floor((anios-6)/5);}
+/* Días que reducen el aguinaldo: faltas tipo 2 e incapacidades por enfermedad general (LFT 42-II), según la fuente común. */
+function desgloseAusencias(fuente,total){
+  const eg=Number(fuente?.incapacidades_eg)||0;if(!eg)return 'incidencias activas del periodo laborado';
+  const t2=Number(fuente?.faltas_tipo2);
+  return `${Number.isFinite(t2)?t2:Math.max(0,total-eg)} falta(s) y ${eg} día(s) de incapacidad por enfermedad general`;
+}
 /* Días de falta injustificada que no devengaron aguinaldo en el año del
    finiquito. Solo cuenta incidencias FALTA activas, no recurrentes y ocurridas
    entre el inicio de antigüedad (o 1 de enero) y la fecha de cálculo. La semana
@@ -318,9 +324,9 @@ function calcPrestaciones(id){
     ['Antigüedad',`${anios} año(s) y ${diasAnio} día(s)`],
     ['Salarios pendientes',`$${money(salarioPend)} (${diasPend} días × $${money(sd)})`],
     ...(aguinaldoAcreditado?[["Aguinaldo acreditado del ciclo",`−$${money(aguinaldoAcreditado)} · ${esc(fuente.referencias.map(r=>r.id).join(', '))}`]]:[]),
-    ...(faltasAg?[['Faltas que reducen aguinaldo',`−${faltasAg} día(s) (incidencias activas del periodo laborado)`]]:[]),
+    ...(faltasAg?[[Number(fuente.incapacidades_eg)?'Faltas e incapacidades que reducen aguinaldo':'Faltas que reducen aguinaldo',`−${faltasAg} día(s) (${desgloseAusencias(fuente,faltasAg)})`]]:[]),
     ...(usaDiasNoi?[['Días de aguinaldo confirmados',`${diasAgAnio} días · ${esc(validacionNoi.motivo||'Validación NOI')} · cálculo automático ${diasAgAutomaticos} días; no crea ni altera incidencias`]]:[]),
-    ['Aguinaldo proporcional',`$${money(aguinaldo)} (15 días × ${diasAgAnio}/365 · ${usaDiasNoi?'días validados con NOI':`sin día de baja${faltasAg?` ni ${faltasAg} falta(s)`:''}`})`],
+    ['Aguinaldo proporcional',`$${money(aguinaldo)} (15 días × ${diasAgAnio}/365 · ${usaDiasNoi?'días validados con NOI':`sin día de baja${faltasAg?` ni ${faltasAg} día(s) de ${Number(fuente.incapacidades_eg)?'faltas e incapacidades':'falta'}`:''}`})`],
     ['Vacaciones proporcionales',`$${money(vacProp)} (${diasVacAct} días del año en curso, proporcional)`],
     ['Prima vacacional 25%',`$${money(primaVac)}`]
   ];
