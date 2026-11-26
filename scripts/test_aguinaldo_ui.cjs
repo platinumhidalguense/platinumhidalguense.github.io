@@ -27,7 +27,7 @@ const box={ES_VIP:false,APP_USER:{rol:'CONSULTA'},window:null,document,console,A
  ST:Object.fromEntries(['title','sub','head','cell','cellC','money','fin','finMoney','total','totalMoney','sect'].map(k=>[k,{}])),
  crypto:{randomUUID:(()=>{let i=0;return()=>'00000000-0000-4000-8000-'+String(++i).padStart(12,'0');})()},
  confirm:()=>true,prompt:()=>'Motivo de prueba suficiente',scrollTo:()=>{},
- XLSX:{utils:{encode_col:i=>String.fromCharCode(65+i),book_new:()=>({SheetNames:[],Sheets:{}}),book_append_sheet:(wb,ws,name)=>{wb.SheetNames.push(name);wb.Sheets[name]=ws;}}}};
+ XLSX:{utils:{encode_col:i=>{let s='';for(i++;i;i=Math.floor((i-1)/26))s=String.fromCharCode(65+(i-1)%26)+s;return s;},book_new:()=>({SheetNames:[],Sheets:{}}),book_append_sheet:(wb,ws,name)=>{wb.SheetNames.push(name);wb.Sheets[name]=ws;}}}};
 box.window=box;box.globalThis=box;vm.createContext(box);
 vm.runInContext(`const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -39,7 +39,7 @@ const dmyAiso=v=>{const m=String(v||'').trim().match(/^(\\d{1,2})\\/(\\d{1,2})\\
 `+code.join('\n'),box);
 for(const m of ['72-aguinaldo-nucleo','74-aguinaldo-corrida','75-faltas-historicas','77-aguinaldo-evidencias'])vm.runInContext(fs.readFileSync('frontend/modulos/'+m+'.js','utf8'),box);
 Object.assign(box,{toast:(s,t)=>toasts.push({s,t}),puedeEditarTrabajador:()=>editar,razonSocialEmpresa:()=>'RAZÓN FICTICIA',dl:async(wb,name)=>{descargas.push({wb,name});},
- buildSheet:(rows,styles,widths,merges)=>{const ws={_rows:rows,_widths:widths,_merges:merges};rows.forEach((row,r)=>row.forEach((v,c)=>ws[String.fromCharCode(65+c)+(r+1)]={t:typeof v==='number'?'n':'s',v}));return ws;}});
+ buildSheet:(rows,styles,widths,merges)=>{const ws={_rows:rows,_widths:widths,_merges:merges};rows.forEach((row,r)=>row.forEach((v,c)=>ws[box.XLSX.utils.encode_col(c)+(r+1)]={t:typeof v==='number'?'n':'s',v}));return ws;}});
 const A=box.PLATINUM_AGUINALDO,UI=box.PLATINUM_AGUINALDO_UI,FH=box.PLATINUM_FALTAS_HIST,$=id=>document.getElementById(id);
 const click=el=>{assert(el,'elemento inexistente');el.dispatchEvent(new window.Event('click',{bubbles:true}));};
 const valor=(id,v)=>{const el=$(id);assert(el,id);el.value=v;el.setAttribute?.('value',v);};
@@ -405,6 +405,16 @@ function coalesceInicio(id){const w=bdd.trabajadores.find(w=>w.id===id);return w
  ok(document.querySelector('[data-agc-acc="base-diferencial"]'),'fuente accesible desde la misma fila');
  click(document.querySelector('[data-agc-acc="desglose"]'));await tick();ok(document.body.textContent.includes('Aguinaldo diferencial')&&document.body.textContent.includes('Aguinaldo registrado'),'desglose presenta ambos');box.closeModal2();
  click(document.querySelector('[data-agc-acc="analisis"]'));await tick();ok(descargas.at(-1).wb.Sheets.COMPONENTES,'Excel incluye desglose separado');
+
+ ok(descargas.at(-1).wb.Sheets['REFERENCIA FISCAL'],'análisis conserva todas las columnas y referencias fiscales anteriores');
+ const axAnalisis=descargas.at(-1).wb.Sheets['ANÁLISIS']._rows;
+ eq(axAnalisis[2][26],'DIFERENCIAL: ENTREGA ÍNTEGRA','análisis principal identifica el complemento en columnas');eq(axAnalisis[3][26],1071.43,'análisis no descuenta ISR del diferencial entregable');
+ const antesExportar=llamadas.filter(c=>c.args.p_accion==='APLICAR').length;
+ click(document.querySelector('#agc-pie [data-agc-acc="excel"]'));await tick();
+ const axPrincipal=descargas.at(-1).wb.Sheets['AGUINALDO 2026']._rows;
+ eq(axPrincipal[2][10],'REGISTRADO: AGUINALDO CAUSADO','botón para firmas también exporta separado');eq(axPrincipal[3][21],1071.43,'desglose bruto diferencial');eq(axPrincipal[3][27],Math.round((df.fila.componentes.REGISTRADO.fiscal.neto+1071.43)*100)/100,'total de entrega incluye ambos una vez');
+ eq(llamadas.filter(c=>c.args.p_accion==='APLICAR').length,antesExportar,'exportar no aplica ni ajusta la nómina');
+
  click(document.querySelector('[data-agc-paso="3"]'));await tick();click(document.querySelector('[data-agc-acc="aplicar"]'));await tick(30);
  eq(dualPayload?.lineas.map(l=>l.componente),['REGISTRADO','DIFERENCIAL'],'aplicación conjunta envía sólo dos componentes');
  eq(dualPayload.lineas[1].fuente_salarial.huella,'FUENTE','fuente verificada acompaña complemento');

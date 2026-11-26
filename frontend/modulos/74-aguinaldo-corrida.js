@@ -576,6 +576,7 @@
   if(!S.calculado)throw Error('Completa las lecturas pendientes antes de exportar para firmas.');
   if(S.parametrosCambiaron)throw Error('Recalcula con los parámetros actuales antes de exportar para firmas.');
   const fs=listasSeleccionadas();if(!fs.length)throw Error('Selecciona personas listas para exportar.');
+  if(S.p.componentes&&S.p.componentes!=='REGISTRADO')return exportarComponentesColumnas(fs,false);
   const p=S.p,rows=[[`AGUINALDO ${p.ejercicio} — ART. 87 LFT — ${p.dias_pactados} DÍAS — CORTE ${fmtD(p.corte)} — PAGO ANTES DEL 20 DE DICIEMBRE`],[`${razonSocialEmpresa()} · ${p.centro?OBRAS.find(o=>o.id===p.centro)?.nombre:'Todos los centros'} · simulación ${fmtD(today())}`],
    ['NO.','TRABAJADOR','NSS','CENTRO','SALARIO BASE','DÍAS VÍNCULO','FALTAS QUE AFECTAN','DÍAS COMPUTABLES','BRUTO CAUSADO','ACREDITADO','BRUTO A PAGAR','EXENTO','GRAVADO','ISR','NETO','FIRMA DE RECIBIDO']];
   const styles=[ST.title,ST.sub,ST.head],m=[4,8,9,10,11,12,13,14];
@@ -614,9 +615,11 @@
   const ws=buildSheet(rows,styles,[7,32,22,25,60,16,48,12,14,16,15,15,18,15,15,13,18,60,10,16,12,12,12,36,16,15,15,13,16,60,16,16,48],
    [{s:{r:0,c:0},e:{r:0,c:32}},{s:{r:1,c:0},e:{r:1,c:32}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:32}}],
    [{hpt:28},{hpt:20},{hpt:38},...fs.map(()=>({hpt:46})),{hpt:32}]);
-  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'ANÁLISIS');
+  const wb=XLSX.utils.book_new();
+  if(p.componentes&&p.componentes!=='REGISTRADO'){XLSX.utils.book_append_sheet(wb,hojaComponentesColumnas(fs,p,true),'ANÁLISIS');XLSX.utils.book_append_sheet(wb,ws,'REFERENCIA FISCAL');}
+  else XLSX.utils.book_append_sheet(wb,ws,'ANÁLISIS');
   if(S.p.componentes&&S.p.componentes!=='REGISTRADO')anexarComponentesExcel(wb,fs);
-  wb.__empresaPorHoja={'ANÁLISIS':S.empresa,COMPONENTES:S.empresa};
+  wb.__empresaPorHoja={'ANÁLISIS':S.empresa,'REFERENCIA FISCAL':S.empresa,COMPONENTES:S.empresa};
   return dl(wb,`AGUINALDO_ANALISIS_${p.ejercicio}_${S.empresa}_${today()}.xlsx`);
  }
 
@@ -628,8 +631,56 @@
    return '<tr><td>Aguinaldo '+(k==='REGISTRADO'?'registrado':'diferencial')+'</td><td>'+imp(k==='REGISTRADO'?f.w.sd:c.fuente_salarial?.monto/c.fuente_salarial?.divisor)+'</td><td>'+imp(c.bruto_causado)+'</td><td>'+imp(c.bruto_a_pagar)+'</td><td>'+imp(x?.exento)+'</td><td>'+imp(x?.gravado)+'</td><td>'+imp(x?.isr)+'</td><td>'+imp(x?.neto)+'</td></tr>';
   }))+'<p class="fhint">La separación administrativa no crea otra exención. Aplicar no acredita el pago.</p>'+(f.x.fuente_diferencial?'<p>Fuente diferencial: '+esc(f.x.fuente_diferencial.fuente||f.x.fuente_diferencial.motivo||'Diferencial no determinado')+' · '+esc(f.x.fuente_diferencial.criterio||'')+' · vigencia '+esc(f.x.fuente_diferencial.vigente_desde||'por confirmar')+'–'+esc(f.x.fuente_diferencial.vigente_hasta||'vigente al corte')+'</p>':'')+'</section>';
  }
+
+ /* Documento de entrega por componente. La entrega íntegra del diferencial es un
+    importe separado: no se convierte en exento fiscal ni modifica la aplicación guardada.
+    Los importes proceden de la misma simulación; el desfase con su neto vigente es visible. */
+ function hojaComponentesColumnas(fs,p,analisis){
+  const incluido=p.componentes==='AMBOS',ok=c=>c&&['LISTA','SIN_SALDO'].includes(c.estado),n=v=>v==null||v===''||!Number.isFinite(Number(v))?'':Number(v);
+  const encabezados=['NO.','TRABAJADOR','NSS','CENTRO','PERIODICIDAD','DÍAS VÍNCULO','FALTAS QUE AFECTAN','DÍAS COMPUTABLES','DÍAS PACTADOS',
+   'REGISTRADO: BASE DIARIA','REGISTRADO: AGUINALDO CAUSADO','REGISTRADO: ACREDITADO','REGISTRADO: RESERVADO','REGISTRADO: BRUTO PENDIENTE','REGISTRADO: EXENTO','REGISTRADO: GRAVADO','REGISTRADO: ISR','REGISTRADO: NETO'+(incluido?'':' (REFERENCIA)'),
+   'DIFERENCIAL DEL PERIODO','DIFERENCIAL: DIVISOR','DIFERENCIAL: BASE DIARIA','DIFERENCIAL: AGUINALDO CAUSADO','DIFERENCIAL: ACREDITADO','DIFERENCIAL: RESERVADO','DIFERENCIAL: BRUTO PENDIENTE','DIFERENCIAL: RETENCIÓN EN ESTA ENTREGA','DIFERENCIAL: ENTREGA ÍNTEGRA',
+   'TOTAL DE ENTREGA (PAGOS SEPARADOS)','NETO DEL MODELO ACTUAL','DIFERENCIA ENTRE ENTREGA Y MODELO', 'ESTADO',analisis?'MOTIVO / DATO PENDIENTE':'FIRMA DE RECIBIDO'];
+  const rows=[[ (analisis?'ANÁLISIS':'AGUINALDO')+' '+p.ejercicio+' · REGISTRADO Y DIFERENCIAL POR COLUMNAS'],
+   [razonSocialEmpresa()+' · corte '+fmtD(p.corte)+' · '+(incluido?'Ambos componentes':'Sólo diferencial; registrado como referencia')],encabezados];
+  const styles=[ST.title,ST.sub,encabezados.map((_,i)=>({...ST.head,fill:{fgColor:{rgb:i>=27&&i<=29?'704B00':i>=18&&i<=26?'176B5B':'203B60'}}}))],moneda=new Set([9,10,11,12,13,14,15,16,17,18,20,21,22,23,24,25,26,27,28,29]),sumables=[10,11,12,13,14,15,16,...(incluido?[17]:[]),21,22,23,24,25,26,27,28,29],formulas=[];
+  const val=(c,k)=>n(c?.[k]),fiscal=(c,k)=>ok(c)?n(c.fiscal?.[k]):'',saldo=c=>ok(c)?n(c.bruto_a_pagar):'';
+  for(const f of fs){
+   const cs=f.fila.componentes||{},r=cs.REGISTRADO,d=cs.DIFERENCIAL,dr=r?.derecho,dd=d?.derecho,fu=d?.fuente_salarial||f.x?.fuente_diferencial;
+   const netR=fiscal(r,'neto'),entD=saldo(d),netM=['LISTA','SIN_SALDO'].includes(f.fila.estado)?n(f.fila.fiscal?.neto):'';
+   const entrega=entD!==''&&(!incluido||netR!=='')?r2((incluido?netR:0)+entD):'',diferencia=entrega!==''&&netM!==''?r2(entrega-netM):'';
+   rows.push([f.w.no_trab??'',fullName(f.w),f.w.nss||'',OBRAS.find(o=>o.id===f.w.obra_id)?.nombre||'',periodoPago(f.w),dr?.dias_vinculo??'',dr?.faltas_afectan??'',dr?.dias_computables??'',p.dias_pactados,
+    dr?.salario_base??'',val(r,'bruto_causado'),val(r?.conciliacion,'acreditado'),val(r?.conciliacion,'reservado'),saldo(r),fiscal(r,'exento'),fiscal(r,'gravado'),fiscal(r,'isr'),netR,
+    fu?.estado==='DETERMINADO'?n(fu.monto):'',fu?.estado==='DETERMINADO'?n(fu.divisor):'',fu?.estado==='DETERMINADO'?n(Number(fu.monto)/Number(fu.divisor)):'',val(d,'bruto_causado'),val(d?.conciliacion,'acreditado'),val(d?.conciliacion,'reservado'),entD,entD===''?'':0,entD,entrega,netM,diferencia,REVISION[f.estado_revision]||f.estado_revision||'',analisis?motivosDe(f).join(' '):'']);
+   styles.push(encabezados.map((_,i)=>moneda.has(i)?ST.money:i===1||i===3||i===30||i===31?ST.cell:ST.cellC));
+   const at=rows.length,cell=i=>XLSX.utils.encode_col(i)+at;
+   if(netR!=='')formulas.push([cell(17),cell(13)+'-'+cell(16)]);
+   if(entD!=='')formulas.push([cell(26),cell(24)]);
+   if(entrega!=='')formulas.push([cell(27),incluido?cell(17)+'+'+cell(26):cell(26)]);
+   if(diferencia!=='')formulas.push([cell(29),cell(27)+'-'+cell(28)]);
+  }
+  const ultima=rows.length,total=Array(encabezados.length).fill('');total[1]='TOTAL';
+  for(const c of sumables){const ns=rows.slice(3).map(r=>r[c]).filter(v=>typeof v==='number');total[c]=ns.length===fs.length&&ns.length?r2(ns.reduce((a,b)=>a+b,0)):'';}
+  rows.push(total);const tr=rows.length;styles.push(encabezados.map((_,i)=>moneda.has(i)?ST.totalMoney:ST.total));
+  for(const c of sumables)if(total[c]!=='')formulas.push([XLSX.utils.encode_col(c)+tr,'SUM('+XLSX.utils.encode_col(c)+'4:'+XLSX.utils.encode_col(c)+ultima+')']);
+  rows.push(['El diferencial se presenta íntegro como entrega separada, sin retención al trabajador en este documento. Esto no lo clasifica como exento fiscal. El neto del modelo actual y su diferencia se conservan como referencia: exportar no aplica ajustes ni registra pagos. El registrado conserva su cálculo fiscal vigente.']);styles.push(ST.sub);
+  rows.push(['Bruto causado = base diaria de cada componente × días pactados × días computables ÷ días del ejercicio. Acreditado y reservado son importes ya contemplados; entrega íntegra usa sólo el diferencial pendiente. Los campos por confirmar se dejan vacíos y el estado identifica el pendiente.']);styles.push(ST.sub);
+  const widths=[7,32,14,23,14,11,12,12,12,14,16,16,16,16,15,15,15,16,17,13,16,16,16,16,16,17,18,20,18,20,22,32];
+  const fin=encabezados.length-1,merges=[{s:{r:0,c:0},e:{r:0,c:fin}},{s:{r:1,c:0},e:{r:1,c:fin}},{s:{r:rows.length-2,c:0},e:{r:rows.length-2,c:fin}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:fin}}];
+  const ws=buildSheet(rows,styles,widths,merges,[{hpt:30},{hpt:28},{hpt:60},...fs.map(()=>({hpt:38})),{hpt:25},{hpt:42},{hpt:42}]);
+  for(const[a,formula]of formulas)if(ws[a]){ws[a].t='n';ws[a].f=formula;}
+  ws['!autofilter']={ref:'A3:'+XLSX.utils.encode_col(fin)+ultima};
+  return ws;
+ }
+ function exportarComponentesColumnas(fs,analisis){
+  const p=S.p,wb=XLSX.utils.book_new(),hoja=analisis?'ANÁLISIS':('AGUINALDO '+p.ejercicio);
+  XLSX.utils.book_append_sheet(wb,hojaComponentesColumnas(fs,p,analisis),hoja);
+  anexarComponentesExcel(wb,fs);wb.__empresaPorHoja={[hoja]:S.empresa,COMPONENTES:S.empresa};
+  return dl(wb,'AGUINALDO_'+(analisis?'ANALISIS_':'')+p.ejercicio+'_'+S.empresa+'_'+today()+'.xlsx');
+ }
+
  function anexarComponentesExcel(wb,fs){
-  const rows=[['AGUINALDO · COMPONENTES'],['NO.','TRABAJADOR','COMPONENTE','FUENTE','PERIODICIDAD','BASE PERIODO','DIVISOR','BASE DIARIA','DÍAS COMPUTABLES','DÍAS PACTADOS','CAUSADO','PENDIENTE BRUTO','EXENTO','GRAVADO','ISR ATRIBUIBLE','NETO','ESTADO']];
+  const rows=[['REFERENCIA DEL CÁLCULO ACTUAL · COMPONENTES'],['NO.','TRABAJADOR','COMPONENTE','FUENTE','PERIODICIDAD','BASE PERIODO','DIVISOR','BASE DIARIA','DÍAS COMPUTABLES','DÍAS PACTADOS','CAUSADO','PENDIENTE BRUTO','EXENTO','GRAVADO','ISR DEL MODELO','NETO DEL MODELO','ESTADO']];
   for(const f of fs)for(const[k,c]of Object.entries(f.fila.componentes||{REGISTRADO:f.fila})){const s=c.fuente_salarial,x=c.fiscal;rows.push([f.w.no_trab,fullName(f.w),k==='REGISTRADO'?'Aguinaldo registrado':'Aguinaldo diferencial',s?.fuente||(k==='REGISTRADO'?'Ficha salarial':'Diferencial no determinado'),s?.periodicidad||periodoPago(f.w),s?.monto??'',s?.divisor??'',c.derecho?.salario_base??'',c.derecho?.dias_computables??'',S.p.dias_pactados,c.bruto_causado??'',c.bruto_a_pagar??'',x?.exento??'',x?.gravado??'',x?.isr??'',x?.neto??'',c.estado]);}
   XLSX.utils.book_append_sheet(wb,buildSheet(rows,[ST.title,ST.head,...rows.slice(2).map(()=>ST.cell)],[8,32,24,28,16,16,12,16,14,14,16,16,16,16,16,16,20],[{s:{r:0,c:0},e:{r:0,c:16}}]),'COMPONENTES');
  }
@@ -690,5 +741,5 @@
  }
  // Lectura común de fuentes: la ficha (faltas históricas) y el finiquito usan las mismas reglas.
  function antesCerrar(overlay){if(!S||overlay&&!overlay.querySelector('#agc'))return true;if(S.aplicando)return false;S.abortLectura?.abort();S.turno=++SECUENCIA;return true;}
- window.PLATINUM_AGUINALDO_UI=Object.freeze({abrir,antesCerrar,recalcularTrabajador,fuentes:Object.freeze({eventosDe,ausenciasDe,evidenciasDe,coberturaDe,coberturaPersona,cantidadFaltas}),_pruebas:{calcularPersona,vistaContinuidad,coberturaPersona,excelAnalisis,vistaExencion,evidenciasDe,ausenciasDe,cantidadFaltas,destinoDe,coberturaDe,lotesDe,lineaDe,seleccionadas,listasSeleccionadas,clasificar,estado:()=>S}});
+ window.PLATINUM_AGUINALDO_UI=Object.freeze({abrir,antesCerrar,recalcularTrabajador,fuentes:Object.freeze({eventosDe,ausenciasDe,evidenciasDe,coberturaDe,coberturaPersona,cantidadFaltas}),_pruebas:{hojaComponentesColumnas,calcularPersona,vistaContinuidad,coberturaPersona,excelAnalisis,vistaExencion,evidenciasDe,ausenciasDe,cantidadFaltas,destinoDe,coberturaDe,lotesDe,lineaDe,seleccionadas,listasSeleccionadas,clasificar,estado:()=>S}});
 })();
