@@ -127,6 +127,26 @@ function bajaDocumento(motivo,escenario){
     dibujarCalculo(s);
   }finally{boton.disabled=false;}
  }
+ async function refrescarFuente(s){
+  if(s.paso!==2||s.servicio==='SI')return;
+  guardarCampos(s);
+  mensaje(s,'Actualizando faltas, aguinaldo y exención con el CFDI verificado…');
+  const c=await rpc('CONTEXTO',identidad(s));
+  if(!vigente(s)||s.paso!==2)return;
+  if(c.trabajador.id!==s.w.id||c.obra_id!==s.obra||c.fecha!==s.fecha)throw Error('La respuesta no corresponde a esta baja.');
+  s.c=c;s.w=c.trabajador;s.papelEntrada=null;
+  window.PLATINUM_PRESTACIONES_FUENTES.registrar(s.w,s.fecha,c.prestaciones_fuente);
+  dibujarCalculo(s);
+  mensaje(s,c.prestaciones_fuente.exento_acreditado_pendiente?'La exención del pago anterior sigue pendiente. Revisa el panel de faltas y aguinaldo.':
+   'Exención del aguinaldo anterior verificada ($'+money(c.prestaciones_fuente.exento_ag_usado||0)+'). Revisa el cálculo y continúa a revisión.');
+ }
+ // Fecha sin periodo NOI documentado en el centro: explica y lleva al calendario del centro (su razón social).
+ function sinCalendario(s,error){
+  const r=el(s,'bf-periodo');if(!r)return;
+  r.innerHTML=`<p role="alert">${esc(error.message)}. La fecha de baja debe caer en un periodo NOI documentado de ${esc(OBRA.nombre)}.</p>
+   <p class="fhint">Incorpora el periodo NOI de esa semana (número y fechas del reporte NOI) o usa una fecha de un periodo documentado.</p>
+   <button type="button" class="btn" data-bf="calendario">Abrir calendario NOI del centro</button>`;
+ }
  function dibujarServicio(s){
   etapa(s,1);
   el(s,'bf-panel').innerHTML=`<h3>Servicio efectivo del ciclo</h3><p>El alta o reingreso y la baja corresponden a la misma semana. ¿Confirmas que el trabajador no prestó servicios en este ciclo?</p><dl class="bf-resumen"><dt>Alta / reingreso</dt><dd>${esc(s.c.inicio_ciclo)}</dd><dt>Baja efectiva real</dt><dd>${esc(s.fecha)}</dd><dt>Semana del centro</dt><dd>S${esc(s.c.semana_fecha)} · ${esc(s.c.semana_inicio)}</dd></dl><p class="fhint">La coincidencia de fechas sólo activa esta pregunta. Los derechos y pagos de ciclos anteriores se conservan.</p>`;
@@ -386,7 +406,12 @@ function bajaDocumento(motivo,escenario){
     if(!accion||s.enviando||!vigente(s))return;
     try{
       if(accion==='cerrar')return cerrar();
-      if(accion==='calcular')return await cargarCalculo(s);
+      if(accion==='calcular'){try{return await cargarCalculo(s);}catch(error){if(/calendario validado|periodo NOI/i.test(error.message))sinCalendario(s,error);throw error;}}
+      if(accion==='calendario'){
+        if(!antesCerrar())return;
+        return window.PLATINUM_ARCHIVO_LIBRE?.abrir({obra_id:s.obra,fecha:s.fecha,calendario:true,volver:'baja',trabajador_id:s.w.id,fecha_baja:s.fecha,
+          aviso:'Incorpora en «Calendario NOI» el periodo que contiene '+s.fecha+' con su número y fechas del reporte NOI. Después pulsa «Volver».'});
+      }
       if(['sin-servicio','con-servicio','servicio-pendiente'].includes(accion)){
        s.servicio=accion==='sin-servicio'?'SI':accion==='con-servicio'?'NO':'PENDIENTE';
        if(s.servicio!=='SI'&&s.c.aguinaldo_periodo)throw Error('Hay una aplicación de aguinaldo en este periodo; revisa su cobertura.');
@@ -417,6 +442,12 @@ function bajaDocumento(motivo,escenario){
       }
     }catch(error){if(vigente(s))mensaje(s,error.message);}
   };
+  const alVerificar=e=>{
+    if(BAJA_FLUJO!==s||!s.host?.isConnected){document.removeEventListener('platinum:fuente-prestaciones',alVerificar);return;}
+    if(e.detail?.trabajador_id!==s.w.id||s.resultado||ver)return;
+    refrescarFuente(s).catch(error=>{if(vigente(s))mensaje(s,error.message);});
+  };
+  document.addEventListener('platinum:fuente-prestaciones',alVerificar);
   if(!ver){dibujarDatos(s);return;}
   mensaje(s,'Consultando el registro de la baja…');
   try{

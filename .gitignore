@@ -87,3 +87,6 @@ supabase/migrations/*_recibos_evidencia_alias.sql
 
 # Aguinaldo: exento sin dato verificado = 0 (SQL operativo privado).
 supabase/migrations/*_aguinaldo_exento_sin_dato_cero.sql
+
+# Baja: CFDI archivado por verificar (SQL operativo privado).
+supabase/migrations/*_baja_cfdi_por_verificar.sql

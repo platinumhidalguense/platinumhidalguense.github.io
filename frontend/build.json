@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-25.2",
-  "entry": "assets/platinum-app.91875d345ecbafd9.js",
-  "sha256": "91875d345ecbafd961cf013cb59d3483c156358af78ae0b4cf988877cdc92c53",
-  "integrity": "sha384-uISDWjBuBm2jHtEweUvUDOA1mbqYiafJmzqq854dBjjHGVrm2jxexrJge5v3PpXi",
+  "version": "2026-11-26.1",
+  "entry": "assets/platinum-app.92c5c1a0caefdab3.js",
+  "sha256": "92c5c1a0caefdab37140621a8c0d580519e4762da8ab0987aac141dea89eb7b7",
+  "integrity": "sha384-K+TKUFsdayQkDB1081An2YU86VFGVDk4IzM9Zpmjt6UWRBwollf47vCPiThPJkof",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "157baf56c07f80753931f94b807cd0efaf9f5cc1b5e49b8db2cd2e9871c34844"
+      "sha256": "ffcc7dd0d7201924805ab33f121162d689c5ba7f578948d54c932c42647a1bc3"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -310,7 +310,7 @@
     },
     {
       "path": "frontend/modulos/76-baja-finiquito.js",
-      "sha256": "3df2e3c92e07c4087137ec3a69480866c5a81040862a3de920f20098a2e3b226"
+      "sha256": "38c27312108bf81ae6c9310ce61ce3a34c5eb03c46870f0dcfcfd8529d0f7b11"
     },
     {
       "path": "frontend/modulos/77-aguinaldo-evidencias.js",
@@ -334,7 +334,7 @@
     },
     {
       "path": "frontend/modulos/81-prestaciones-fuentes.js",
-      "sha256": "2d37c505b4708d881b8981fa64b9981187168d5d1221fba82564180ed15d3b20"
+      "sha256": "af222805a4bd07c3886b4a18dcdb03bd16b233302814297a5c9f7702c46f06d6"
     },
     {
       "path": "frontend/modulos/82-reversion-bajas.js",
@@ -346,7 +346,7 @@
     },
     {
       "path": "frontend/modulos/84-recibos-contexto-interfaz.js",
-      "sha256": "3d6249d861ae8808374bf3d809c0df2ae847541dbd672e5d32eee0aea8fef22f"
+      "sha256": "fbd05b762ae51d21cebdb41b7557eb59ace9278abdac59cf63529b9c35a3f514"
     },
     {
       "path": "frontend/modulos/85-lectura-asistida.js",

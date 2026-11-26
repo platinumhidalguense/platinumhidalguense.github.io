@@ -26,19 +26,22 @@
   if(!USER||!OBRA)return;vista?.servicio.cerrar();
   const inicial=OBRAS.find(o=>o.id===opciones.obra_id)||OBRA,uid=USER.id,id='recibo-libre-'+(++secuencia);
   const empresa=o=>String(o.empresa_codigo||empresaDeObra(o)||'');
+  // Desde la baja: abre el centro de la ficha (su razón social) en el periodo que contiene la fecha del pago anterior.
+  const fechaInicial=/^\d{4}-\d{2}-\d{2}$/.test(opciones.fecha||'')?opciones.fecha:null;
+  const semanaFecha=()=>{try{const n=isoWeekDe(inicial,new Date(fechaInicial+'T12:00'));return n>0?n:null;}catch(e){return null;}};
   modal(`<section id="${id}" style="display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden">
    <div class="m-head"><h2>Recibos PDF y XML · archivo por periodo</h2><button class="x" data-rl="cerrar" aria-label="Cerrar">×</button></div>
-   <div class="m-body" style="min-height:0;overflow:auto"><p>Archiva y revisa recibos actuales o históricos, incluso sin fotografía. Este proceso no autoriza nómina ni registra pagos.</p>
+   <div class="m-body" style="min-height:0;overflow:auto">${opciones.volver==='baja'?`<p class="fhint" data-rl-desde-baja role="note"><b>Desde la baja:</b> ${esc(opciones.aviso||'Archiva y verifica el XML timbrado del pago anterior; después pulsa «Volver» para recalcular la baja.')}</p>`:''}<p>Archiva y revisa recibos actuales o históricos, incluso sin fotografía. Este proceso no autoriza nómina ni registra pagos.</p>
     <div class="grid" data-rl-contexto style="grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px">
      <label>Empresa<select data-rl-empresa>${[...new Set(OBRAS.map(empresa))].map(e=>`<option value="${esc(e)}" ${e===empresa(inicial)?'selected':''}>${esc(EMPRESAS[e]?.corto||e)}</option>`).join('')}</select></label>
-     <label>Centro<select data-rl-obra></select></label><label>Año<input type="number" min="2020" max="2100" data-rl-anio value="${Number(opciones.anio)||new Date().getFullYear()}"></label>
+     <label>Centro<select data-rl-obra></select></label><label>Año<input type="number" min="2020" max="2100" data-rl-anio value="${Number(opciones.anio)||(fechaInicial?Number(fechaInicial.slice(0,4)):new Date().getFullYear())}"></label>
      <label>Periodicidad<select data-rl-per><option value="SEMANAL" ${opciones.periodicidad!=='QUINCENAL'?'selected':''}>Semanal</option><option value="QUINCENAL" ${opciones.periodicidad==='QUINCENAL'?'selected':''}>Quincenal</option></select></label>
-     <label data-rl-semana-label>Semana<input data-rl-semana type="number" min="1" max="53" value="${Number(opciones.semana)||semObra()}"></label>
+     <label data-rl-semana-label>Semana<input data-rl-semana type="number" min="1" max="53" value="${Number(opciones.semana)||(fechaInicial&&semanaFecha())||semObra()}"></label>
      <label data-rl-mes-label hidden>Mes<input data-rl-mes type="number" min="1" max="12" value="${Number(opciones.mes)||new Date().getMonth()+1}"></label>
      <label data-rl-quin-label hidden>Quincena<select data-rl-quin><option value="1" ${Number(opciones.quincena)!==2?'selected':''}>Primera</option><option value="2" ${Number(opciones.quincena)===2?'selected':''}>Segunda</option></select></label>
      <label data-rl-cal-label hidden>Calendario NOI<select data-rl-cal></select></label>
     </div><button class="btn" data-rl="contexto" style="margin:10px 0">Cargar periodo y archivos</button>
-    <details data-rl-cal-nuevo><summary>Calendario NOI · incorporar un periodo documentado</summary>
+    <details data-rl-cal-nuevo ${opciones.calendario?'open':''}><summary>Calendario NOI · incorporar un periodo documentado</summary>
      <p>Conserva el número y las fechas del reporte NOI. No uses el folio fiscal ni la fecha de timbrado como número de periodo.</p>
      <div class="grid"><label>Número NOI<input data-rl-noi type="number" min="1" max="999"></label><label>Desde<input data-rl-desde type="date"></label><label>Hasta<input data-rl-hasta type="date"></label>
      <label>Clave operativa compatible (1–53)<input data-rl-clave type="number" min="1" max="53"></label><label>Reporte o confirmación que acredita las fechas<input data-rl-fuente maxlength="240"></label></div>
@@ -61,7 +64,7 @@
    q('[data-rl-cal]').innerHTML='';q('[data-rl-cal-label]').hidden=!api.estricto(o);
    const d=await api.cargar(o.id);if(!actual()||g!==secCalendario)return;
    const disponibles=[...new Set(d.periodos.filter(p=>p.anio===anio).map(p=>p.periodicidad))];if(api.estricto(o)&&!disponibles.includes(per)&&disponibles.length===1){per=disponibles[0];q('[data-rl-per]').value=per;periodos();}
-   const ps=d.periodos.filter(p=>p.anio===anio&&p.periodicidad===per),p=ps.find(p=>p.periodo_id===preferido)||ps.find(p=>o.id===inicial.id&&p.semana===Number(opciones.semana))||ps.find(p=>o.id===inicial.id&&p.numero_noi===Number(opciones.semana))||ps.find(p=>p.desde<=today()&&p.hasta>=today());
+   const ps=d.periodos.filter(p=>p.anio===anio&&p.periodicidad===per),p=ps.find(p=>p.periodo_id===preferido)||ps.find(p=>o.id===inicial.id&&fechaInicial&&p.desde<=fechaInicial&&p.hasta>=fechaInicial)||ps.find(p=>o.id===inicial.id&&p.semana===Number(opciones.semana))||ps.find(p=>o.id===inicial.id&&p.numero_noi===Number(opciones.semana))||ps.find(p=>p.desde<=today()&&p.hasta>=today());
    q('[data-rl-cal]').innerHTML='<option value="">Selecciona un periodo documentado</option>'+ps.map(p=>`<option value="${esc(p.periodo_id)}">${esc(api.etiqueta(o,p))}</option>`).join('');
    q('[data-rl-cal]').value=p?.periodo_id||'';if(api.estricto(o)){seleccionarPeriodo(p);if(!p)q('[data-rl-semana]').value='';}
    q('[data-rl-semana]').disabled=api.estricto(o);q('[data-rl-mes]').disabled=api.estricto(o);q('[data-rl-quin]').disabled=api.estricto(o);
@@ -130,7 +133,8 @@
    if(e.target.matches('[data-rl-files]')){mensaje('Conservando originales y leyendo…');await v.servicio.subir([...e.target.files]);mensaje('Revisa el resultado de cada original. Los pendientes quedan conservados.');}
   }catch(e){mensaje(e.message);}};
   host.onclick=async e=>{const b=e.target.closest('[data-rl]');if(!b||!actual()||v.ocupado)return;const a=b.dataset.rl,archivo=b.dataset.id;try{
-   if(a==='cerrar'){v.servicio.cerrar();vista=null;closeModal();if(opciones.volver==='conciliador')return root.PLATINUM_CONCILIADOR_SEMANAL?.abrir(null,opciones.semana,opciones.cierre||null);return;}
+   if(a==='cerrar'){v.servicio.cerrar();vista=null;closeModal();if(opciones.volver==='conciliador')return root.PLATINUM_CONCILIADOR_SEMANAL?.abrir(null,opciones.semana,opciones.cierre||null);
+    if(opciones.volver==='baja'&&opciones.trabajador_id)return root.PLATINUM_BAJA?.abrir(opciones.trabajador_id,{fecha:opciones.fecha_baja});return;}
    if(a==='contexto')return await cargar();
    if(a==='incorporar-periodo'){
     const j={...ctx(),numero_noi:Number(q('[data-rl-noi]').value),...(q('[data-rl-clave]').value?{clave_operativa:Number(q('[data-rl-clave]').value)}:{}),desde:q('[data-rl-desde]').value,hasta:q('[data-rl-hasta]').value,procedencia:{tipo:'CAPTURA_DOCUMENTADA',referencia:q('[data-rl-fuente]').value.trim()}};
