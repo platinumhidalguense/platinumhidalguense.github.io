@@ -485,7 +485,7 @@ function openCalendarioRet(){
     <div class="m-body">
       <p style="color:var(--mut);margin-bottom:12px">Registro semanal de <b>cuánto se le retiene a cada trabajador y por qué</b>. Sale de los mismos descuentos fijos e incidencias que usa la proyección: lo que ves aquí es lo que la proyección de esa semana va a descontar. Los fijos muestran su estado de la semana: <b>NORMAL</b>, <b>⏸ PAUSADO</b> (no se retiene) o <b>×2 DOBLE</b> (se compensa una semana pausada).</p>
       <div class="grid" style="grid-template-columns:120px 1fr 1fr auto auto;align-items:end;gap:10px">
-        <div><label>Semana</label><input id="cr-sem" type="number" value="${isoWeek()}" oninput="semSincroniza('cr-sem','cr-d1','cr-d2',renderCalRet)"></div>
+        ${window.PLATINUM_PERIODOS?.estricto(OBRA)?window.PLATINUM_PERIODOS.campo('cr',{obra:OBRA,cb:'renderCalRet'}):`<div><label>Semana</label><input id="cr-sem" type="number" value="${isoWeek()}" oninput="semSincroniza('cr-sem','cr-d1','cr-d2',renderCalRet)"></div>`}
         <div><label>Del día</label><input id="cr-d1" type="date" value="${d1}" disabled></div>
         <div><label>Al día</label><input id="cr-d2" type="date" value="${d2}" disabled></div>
         <button class="btn" onclick="crNav(-1)" title="Semana anterior">‹</button>
@@ -499,16 +499,37 @@ function openCalendarioRet(){
       <button class="btn" onclick="closeModal()">Cerrar</button>
       <button class="btn dark" onclick="exportCalendarioRet()">⬇ Exportar registro de la semana (Excel)</button>
     </div>`,'lg');
+  if(window.PLATINUM_PERIODOS?.estricto(OBRA))window.PLATINUM_PERIODOS.montar('cr',{obra:OBRA,cb:'renderCalRet'}).catch(e=>{if($('cr-body'))$('cr-body').textContent=e.message;});
   renderCalRet();
   // si todavía no se había consultado, se pinta cuando llegue
   if(RECALCINF===undefined)cargarRecalcInfonavit().then(()=>{const e=$('cr-recalc');if(e)e.innerHTML=recalcBadge();});
 }
 function crNav(delta){
+  // Calendario documental: periodo NOI anterior o siguiente del mismo centro (no aritmética de claves).
+  if(window.PLATINUM_PERIODOS?.estricto(OBRA)){const lst=window.PLATINUM_PERIODOS.opciones(OBRA).slice().reverse(),i=lst.findIndex(p=>String(p.semana)===String($('cr-sem').value)),p=lst[i+delta];
+    if(p){window.PLATINUM_PERIODOS.aplicar('cr',window.PLATINUM_PERIODOS.contrato(p,OBRA.id));renderCalRet();}return;}
   $('cr-sem').value=(parseInt($('cr-sem').value)||isoWeek())+delta;
   semSincroniza('cr-sem','cr-d1','cr-d2',renderCalRet);
 }
+/* Calendario documental: ir a un periodo NOI por su identificador. */
+function crIr(periodoId){
+  const p=window.PLATINUM_PERIODOS?.resolver(OBRA.id,{periodo_id:periodoId});
+  if(p){window.PLATINUM_PERIODOS.aplicar('cr',p);renderCalRet();}
+}
 function renderCalRet(){
+  const doc=!!window.PLATINUM_PERIODOS?.estricto(OBRA);
+  if(doc&&!$('cr-sem').value){$('cr-strip').innerHTML='';$('cr-body').innerHTML=`<div style="color:var(--mut);padding:30px;text-align:center">${esc($('cr-per-estado')?.textContent||'Selecciona un periodo NOI documentado.')}</div>`;return;}
   const semN=parseInt($('cr-sem').value)||isoWeek(), sem='S'+semN;
+  // Centros con calendario documental: tira de los últimos 12 periodos NOI (por identificador), no de claves aritméticas.
+  if(doc){
+    const lst=window.PLATINUM_PERIODOS.opciones(OBRA).slice().reverse(),i=lst.findIndex(p=>String(p.semana)===String(semN)),tramo=lst.slice(Math.max(0,i-11),i+1);
+    const tot=tramo.map(p=>retFilasDe('S'+p.semana).filter(f=>f.w.estatus==='ACTIVO').reduce((s,f)=>s+f.monto,0)),maxT=Math.max(...tot,1);
+    $('cr-strip').innerHTML=`<div style="display:flex;gap:4px;align-items:flex-end;height:64px">${tramo.map((p,k)=>{const cur=String(p.semana)===String(semN),r=window.PLATINUM_PERIODOS.rotulo(p);
+      return `<div onclick="crIr('${esc(p.periodo_id)}')" title="${esc(r)} · ${esc(p.desde)} al ${esc(p.hasta)}: $${money(tot[k])}" style="flex:1;cursor:pointer;text-align:center">
+      <div style="background:${cur?'var(--gold)':'var(--navy)'};opacity:${cur?1:.55};border-radius:4px 4px 0 0;height:${Math.max(4,Math.round(tot[k]/maxT*44))}px"></div>
+      <div style="font-size:10px;color:${cur?'var(--navy)':'var(--mut)'};font-weight:${cur?800:400}">${esc(r)}</div></div>`;}).join('')}</div>`;
+    return renderCalRetCuerpo(semN,sem);
+  }
   // tira de 12 semanas: total retenido por semana, clic para saltar
   const semanas=[];for(let i=11;i>=0;i--)semanas.push(semN-i);
   const tot=semanas.map(n=>retFilasDe('S'+n).filter(f=>f.w.estatus==='ACTIVO').reduce((s,f)=>s+f.monto,0));
@@ -519,6 +540,9 @@ function renderCalRet(){
       <div style="font-size:10px;color:${n===semN?'var(--navy)':'var(--mut)'};font-weight:${n===semN?800:400}">S${n}</div>
     </div>`).join('')}
   </div>`;
+  renderCalRetCuerpo(semN,sem);
+}
+function renderCalRetCuerpo(semN,sem){
   const filas=retFilasDe(sem);
   if(!filas.length){$('cr-body').innerHTML=`<div style="color:var(--mut);padding:30px;text-align:center">Sin retenciones registradas para la semana ${semN}.</div>`;return;}
   const act=filas.filter(f=>f.w.estatus==='ACTIVO');

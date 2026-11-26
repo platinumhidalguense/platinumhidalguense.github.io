@@ -60,7 +60,7 @@ function openAsistencia(){
     <div class="m-body">
       <p style="color:var(--mut);margin-bottom:14px">Genera el Excel con hojas ajustadas a cada cuadrilla (hasta 11 trabajadores), más las hojas de <b>NUEVO INGRESO</b> en blanco que pidas, y el <b>directorio alfabético para vigilancia</b>. Incluye solo a quienes tuvieron vigencia en la semana elegida, incluso pendientes que ya ingresaron; excluye altas y reingresos de semanas futuras y casos confirmados sin servicio. Cada hoja va <b>ordenada por número de trabajador</b> dentro de su cuadrilla.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
-        <div><label>No. de semana</label><input id="as-sem" type="number" value="${semObra()}" oninput="semSincroniza('as-sem','as-d1','as-d2');asUpdateStat()"></div>
+        ${window.PLATINUM_PERIODOS?.estricto(OBRA)?window.PLATINUM_PERIODOS.campo('as',{obra:OBRA,cb:'asUpdateStat'}):`<div><label>No. de semana</label><input id="as-sem" type="number" value="${semObra()}" oninput="semSincroniza('as-sem','as-d1','as-d2');asUpdateStat()"></div>`}
         <div><label>Del (lunes)</label><input id="as-d1" type="date" value="${d1}" onchange="asUpdateStat()"></div>
         <div><label>Al (domingo)</label><input id="as-d2" type="date" value="${d2}" onchange="asUpdateStat()"></div>
         <div><label>Hojas NUEVO INGRESO</label><input id="as-extra" type="number" min="0" value="3"></div>

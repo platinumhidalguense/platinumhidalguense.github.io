@@ -253,5 +253,12 @@
   "semRange": "20/11/2026: usa periodos documentados por centro antes del calendario legado; JIRE no hereda el inicio de obra. Conserva claves históricas y fecha local México. Pruebas de proveedor, adaptación semanal/quincenal, calendario histórico y regresión; sin cambiar fórmulas de motores.",
   "isoWeekDe": "20/11/2026: usa periodos documentados por centro antes del calendario legado; JIRE no hereda el inicio de obra. Conserva claves históricas y fecha local México. Pruebas de proveedor, adaptación semanal/quincenal, calendario histórico y regresión; sin cambiar fórmulas de motores.",
   "domingoDeSemana": "20/11/2026: usa periodos documentados por centro antes del calendario legado; JIRE no hereda el inicio de obra. Conserva claves históricas y fecha local México. Pruebas de proveedor, adaptación semanal/quincenal, calendario histórico y regresión; sin cambiar fórmulas de motores.",
-  "faltantesReciboDe": "20/11: JIRE exige sólo periodos documentados y preserva fotografías existentes; evita fabricar faltantes desde inicio de obra. Regresión de legajos y calendario."
+  "faltantesReciboDe": "20/11: JIRE exige sólo periodos documentados y preserva fotografías existentes; evita fabricar faltantes desde inicio de obra. Regresión de legajos y calendario.",
+  "openRequisicion": "26/11: periodo NOI documentado en lugar de «No. de semana» en centros JIRE (98 campo/montar); clave operativa oculta, NOI visible. Regresión: test_periodos_noi_selector y PLATINUM sin cambios.",
+  "openCalendarioRet": "26/11: periodo NOI documentado en lugar de «No. de semana» en centros JIRE (98 campo/montar); clave operativa oculta, NOI visible. Regresión: test_periodos_noi_selector y PLATINUM sin cambios.",
+  "renderCalRet": "26/11: periodo NOI documentado en lugar de «No. de semana» en centros JIRE (98 campo/montar); clave operativa oculta, NOI visible. Regresión: test_periodos_noi_selector y PLATINUM sin cambios.",
+  "openProyContratista": "26/11: periodo NOI documentado en lugar de «No. de semana» en centros JIRE (98 campo/montar); clave operativa oculta, NOI visible. Regresión: test_periodos_noi_selector y PLATINUM sin cambios.",
+  "openAsistencia": "26/11: periodo NOI documentado en lugar de «No. de semana» en centros JIRE (98 campo/montar); clave operativa oculta, NOI visible. Regresión: test_periodos_noi_selector y PLATINUM sin cambios.",
+  "crNav": "26/11: en centros JIRE navega entre periodos NOI documentados del calendario (no aritmética de claves); PLATINUM conserva ±1. Prueba: test_periodos_noi_selector.",
+  "openDiferenciales": "26/11: toma la clave operativa del periodo NOI resuelto (pySemanaSel) en centros JIRE; sin periodo resuelto no usa otra semana. Prueba: test_periodos_noi_selector."
 }

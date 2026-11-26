@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-26.4",
-  "entry": "assets/platinum-app.a61f77de58ed4446.js",
-  "sha256": "a61f77de58ed444669c1ff0ea5ad26c02ba186915c5397e5a59c6f4410332ce5",
-  "integrity": "sha384-zWXsJrY73uIwPPlHovby/X3+HdqzbFhCRZcJBwxPzOSK2MgkE/dsVHuCurVTl4iI",
+  "version": "2026-11-26.5",
+  "entry": "assets/platinum-app.1617ede2429b0607.js",
+  "sha256": "1617ede2429b0607cb55a86fc7376074552c79e77283c9d3c0ea063a7907766e",
+  "integrity": "sha384-cyY0xP6m5MPngxGtoOHGmngC50W8pq4rro4zdeN/4gxbEo8SiHrzwVezM+ghe5sW",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "b80253f940e14ff82ea88eafb2b1763b4078e07dd9b78d54af19f60fbaefcacd"
+      "sha256": "7971789e3920abdfa9952bdd380c754f216e26de2794e8ce0bd43dd7c8dd7b58"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -34,11 +34,11 @@
     },
     {
       "path": "frontend/modulos/07-exportacion-corporativa.js",
-      "sha256": "7650df4b8c77e398f762af9547cc19575fd81c5713a970a473f9484970b88481"
+      "sha256": "9653123ea0ea7fd749ba222a7bdc5c8fda3e6d5591b322ac852ead84935c7ccb"
     },
     {
       "path": "frontend/modulos/08-retenciones-incidencias.js",
-      "sha256": "cc9869bf173b23990dcd522a56e566133415c3a421feb79ebaf44bb7750189b8"
+      "sha256": "45706473cdbf924536bac3cdc6978c128cc4dc6554c23036c1fa5a121289e025"
     },
     {
       "path": "frontend/modulos/09-documentacion-reportes.js",
@@ -46,7 +46,7 @@
     },
     {
       "path": "frontend/modulos/10-proyeccion-nomina.js",
-      "sha256": "61b327fb7f3c7bf197d5590a6d80154b97dbaf79cf504230f89d02d9844f9ece"
+      "sha256": "a20ec09d58d9d6bd7fb58410764c76420084cb3702542b8e077bd27f50ad2511"
     },
     {
       "path": "frontend/modulos/11-expedientes-excel.js",
@@ -58,7 +58,7 @@
     },
     {
       "path": "frontend/modulos/13-control-salarial-diferenciales.js",
-      "sha256": "2539a7848848f194e39a7f9f97900dfc5ee47d7d30cb51e5a97fb2c468c47e5d"
+      "sha256": "c29c833d938cd6a67cba9555ddcd2765690a2c2bb71ababca6bb2433ca26963a"
     },
     {
       "path": "frontend/modulos/14-importacion-documental.js",
@@ -94,7 +94,7 @@
     },
     {
       "path": "frontend/modulos/22-asistencia-directorio.js",
-      "sha256": "58aaab1922c77c6b115093fb96318df087885f3bce128aeb9d3d77fc9e27abba"
+      "sha256": "101f6e70a47f6dd75afb9fbd34cb38403cd68c354e2070f43abec761f20a3517"
     },
     {
       "path": "frontend/modulos/23-vacaciones.js",
@@ -390,7 +390,7 @@
     },
     {
       "path": "frontend/modulos/98-periodos-noi.js",
-      "sha256": "f95d1737874e83eb991a95e0fab147620fd27728957ecf89b1f3cbff08fc9f47"
+      "sha256": "01f20c290ecaad2888759ba8fef8f36c313ddcb7ce45f30e1499bc57d248845a"
     },
     {
       "path": "frontend/modulos/99-recibos-lectura-hibrida.js",

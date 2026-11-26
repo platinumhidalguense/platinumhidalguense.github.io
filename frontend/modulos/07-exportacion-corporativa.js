@@ -202,7 +202,7 @@ function openRequisicion(){
     <div class="m-body">
       <p style="color:var(--mut);margin-bottom:14px">Obra: <b>${esc(OBRA.nombre)}</b>. Incluye dos apartados: <b>NUEVAS TARJETAS</b> (activos con cuenta CREAR) y <b>VERIFICAR</b> (ingresos de la semana que ya traen cuenta propia).</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
-        <div><label>No. de semana</label><input id="rq-sem" type="number" value="${semObra()}" oninput="semSincroniza('rq-sem','rq-d1','rq-d2',reqPreview)"></div>
+        ${window.PLATINUM_PERIODOS?.estricto(OBRA)?window.PLATINUM_PERIODOS.campo('rq',{obra:OBRA,cb:'reqPreview'}):`<div><label>No. de semana</label><input id="rq-sem" type="number" value="${semObra()}" oninput="semSincroniza('rq-sem','rq-d1','rq-d2',reqPreview)"></div>`}
         <div><label>Semana del</label><input id="rq-d1" type="date" value="${d1}" oninput="reqPreview()"></div>
         <div><label>Al</label><input id="rq-d2" type="date" value="${d2}" oninput="reqPreview()"></div>
       </div>

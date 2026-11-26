@@ -125,7 +125,7 @@ function openProyeccion(contexto=null){
     <div class="m-body">
       <p style="color:var(--mut);margin-bottom:14px">Obra: <b>${esc(OBRA.nombre)}</b>. Incluye activos y bajas de la semana. Los finiquitos son por cheque salvo excepción de transferencia autorizada por el administrador. En dispersión, la nómina sin cuenta ni CLABE aparece al final con método POR DEFINIR. La proyección para contratistas conserva únicamente el total general. Los totales del Excel llevan fórmulas.</p>
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
-        <div><label>No. de semana</label><input id="py-sem" type="number" value="${seleccion?semana:semObra()}" oninput="semSincroniza('py-sem','py-d1','py-d2',pyPreview)"></div>
+        ${window.PLATINUM_PERIODOS?window.PLATINUM_PERIODOS.campo('py',{obra:OBRA,clave:seleccion?semana:null,fecha:seleccion?contexto?.desde:null,periodo_id:contexto?.periodo_id||null,cb:'pyPreview',valorNumero:seleccion?semana:semObra()}):`<div><label>No. de semana</label><input id="py-sem" type="number" value="${seleccion?semana:semObra()}" oninput="semSincroniza('py-sem','py-d1','py-d2',pyPreview)"></div>`}
         <div><label>Del día</label><input id="py-d1" type="date" value="${d1}" oninput="pyPreview()"></div>
         <div><label>Al día</label><input id="py-d2" type="date" value="${d2}" oninput="pyPreview()"></div>
         <div><label>Periodo</label><select id="py-periodo" onchange="pyPreview()">
@@ -142,6 +142,8 @@ function openProyeccion(contexto=null){
       <button class="btn dark" id="py-btn" onclick="exportProyeccion()" disabled>⬇ Generar Excel</button>
       <button class="btn" id="py-ambas" onclick="exportProyeccion('AMBAS')" disabled>Generar ambas</button>
     </div>`,'md');
+  // Centro con calendario documental: se resuelve el periodo (id, fechas, periodicidad y clave operativa) antes de calcular.
+  if(window.PLATINUM_PERIODOS?.estricto(OBRA))window.PLATINUM_PERIODOS.montar('py',{obra:OBRA,clave:seleccion?semana:null,fecha:seleccion?contexto?.desde:null,periodo_id:contexto?.periodo_id||null,cb:'pyPreview'}).catch(e=>{if($('py-prev'))$('py-prev').innerHTML=`<div class="fhint" style="color:var(--red)">${esc(e.message)}</div>`;});
   pyDatosFrescos();
 }
 async function pyPreview(){
@@ -149,7 +151,8 @@ async function pyPreview(){
   if(!$('py-prev'))return;
   for(const id of ['py-btn','py-ambas'])if($(id))$(id).disabled=true;
   if(globalThis._PY_FRESCOS===false)return;
-  const sem='S'+($('py-sem').value||semObra()),destino=$('py-destino')?.value||'DISPERSION';
+  const destino=$('py-destino')?.value||'DISPERSION';
+  let sem;try{sem='S'+pySemanaSel('py');}catch(e){$('py-prev').innerHTML=`<div class="fhint" style="color:var(--red)">${esc(e.message)}</div>`;return;}
   let {act,fins}=pyCandidatos($('py-d1').value,$('py-d2').value,$('py-periodo').value);
   try{
     const versiones=window.PLATINUM_FLOWS?await window.PLATINUM_FLOWS.obtenerVersiones([OBRA.id],sem):null;
@@ -194,6 +197,17 @@ function proySelector(id){
       <option value="DISPERSION" selected>Para dispersión de nómina</option>
     </select>
     <div class="fhint">Cuando hay previsión social, ambas presentaciones muestran registrado menos retenciones, previsión y neto total a pagar. En las demás nóminas se conserva el formato por destino. La hoja RETENCIONES mantiene el desglose completo; no se descuentan impuestos ni créditos dos veces.</div>`;
+}
+/* Clave operativa del periodo de un selector. En centros con calendario documental exige un periodo NOI resuelto
+   (identificador, fechas y clave del mismo intervalo); en los demás conserva «No. de semana». */
+function pySemanaSel(x='py'){
+  const p=window.PLATINUM_PERIODOS?.seleccionado(x);
+  return p?String(p.semana):String($(x+'-sem')?.value||semObra());
+}
+/* Rótulo visible del periodo (NOI n en centros documentados; SEMANA n en los demás). */
+function pyRotuloSel(x='py'){
+  const p=window.PLATINUM_PERIODOS?.seleccionado(x);
+  return p?window.PLATINUM_PERIODOS.rotulo(p)+(p.periodicidad==='QUINCENAL'?' QUINCENAL':''):'SEMANA '+String($(x+'-sem')?.value||semObra());
 }
 function proyRetenciones(w,sem){
   const P=perDe(w), d=retencionesDePeriodo(w,sem);
@@ -479,7 +493,7 @@ function buildProyDestinoWS({titulo,sub,pie,colB,modelo,destino}){
   throw Error('Selecciona el destino de la proyección antes de exportar.');
 }
 function buildProyRetencionesWS(modelo,colB,destino){
-  const rows=[[`DETALLE DE RETENCIONES · ${modelo.sem}`],['NO.','NOMBRE COMPLETO',colB==='OBRA'?'OBRA':'CONTRATISTA','TIPO','CONCEPTO','ESTADO','MONTO RETENIDO','MOTIVO']],styles=[ST.title,ST.head];
+  const rows=[[`DETALLE DE RETENCIONES · ${modelo.rotulo||modelo.sem}`],['NO.','NOMBRE COMPLETO',colB==='OBRA'?'OBRA':'CONTRATISTA','TIPO','CONCEPTO','ESTADO','MONTO RETENIDO','MOTIVO']],styles=[ST.title,ST.head];
   const items=modelo.items.slice().sort((a,b)=>(Number(a.w.no_trab)||0)-(Number(b.w.no_trab)||0)||String(a.tipo).localeCompare(String(b.tipo)));
   for(const x of items){rows.push([x.w.no_trab??'',fullName(x.w),colB==='OBRA'?(OBRAS.find(o=>o.id===x.w.obra_id)?.nombre||''):x.w.contratista||'',x.tipo,x.origen,x.estado,x.monto,x.motivo]);styles.push([ST.cellC,ST.cell,ST.cell,ST.cell,ST.cell,ST.cellC,ST.money,ST.cell].map((st,i)=>({...st,alignment:{...st.alignment,...([1,2,4,7].includes(i)?{wrapText:true}:{})},fill:{patternType:'solid',fgColor:{rgb:'FFFFFF'}}})));}
   if(!items.length){rows.push(['Sin retenciones registradas en el personal seleccionado.']);styles.push(ST.sub);}
@@ -495,7 +509,7 @@ function buildProyRetencionesWS(modelo,colB,destino){
 function proyLibro(modelo,destino,meta){
   const wb=XLSX.utils.book_new(),label=destino==='CONTRATISTA'?'PARA CONTRATISTA':'PARA DISPERSIÓN';
   wb.__retencionesContratista=destino==='CONTRATISTA';
-  XLSX.utils.book_append_sheet(wb,buildProyDestinoWS({...meta,modelo,destino,titulo:meta.titulo+' · '+label}),`SEMANA ${String(modelo.sem).replace('S','')}`);
+  XLSX.utils.book_append_sheet(wb,buildProyDestinoWS({...meta,modelo,destino,titulo:meta.titulo+' · '+label}),modelo.rotulo||`SEMANA ${String(modelo.sem).replace('S','')}`);
   XLSX.utils.book_append_sheet(wb,buildProyRetencionesWS(modelo,meta.colB,destino),'RETENCIONES');
   if(modelo.filas.some(f=>f.isr_mensual))XLSX.utils.book_append_sheet(wb,isrQHoja(modelo),'ISR MENSUAL');
   if(modelo.filas.some(f=>f.aguinaldo))XLSX.utils.book_append_sheet(wb,aguinaldoHojaProyeccion(modelo,meta.colB),'AGUINALDO');

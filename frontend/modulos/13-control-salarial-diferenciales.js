@@ -73,7 +73,7 @@ function difSugerido(w){
   return Math.round(dif*100)/100;
 }
 function openDiferenciales(){
-  const sem=normSem($('py-sem')?$('py-sem').value:semObra())||String(semObra());
+  const sem=normSem($('py-sem')?pySemanaSel('py'):semObra())||String(semObra());
   const d1=$('py-d1')?$('py-d1').value:'', d2=$('py-d2')?$('py-d2').value:'';
   const per=$('py-periodo')?$('py-periodo').value:'TODOS';
   const {act,fins}=pyCandidatos(d1,d2,per);
@@ -227,7 +227,8 @@ async function dfGuardar(){
 async function exportProyeccion(eleccion){
   if(window._PROY_EXPORTANDO)return;
   window._PROY_EXPORTANDO=true;
-  const semN=$('py-sem').value||semObra(),sem='S'+semN,d1=$('py-d1').value,d2=$('py-d2').value,periodo=$('py-periodo').value;
+  let semN,rot;try{semN=pySemanaSel('py');rot=pyRotuloSel('py');}catch(e){window._PROY_EXPORTANDO=false;toast(e.message,'err');return;}
+  const sem='S'+semN,d1=$('py-d1').value,d2=$('py-d2').value,periodo=$('py-periodo').value;
   const destino=eleccion==='AMBAS'?'AMBAS':$('py-destino')?.value||'DISPERSION',obra=OBRA;
   for(const id of ['py-btn','py-ambas'])if($(id))$(id).disabled=true;
   try{
@@ -249,17 +250,19 @@ async function exportProyeccion(eleccion){
     if(window.PLATINUM_FLOWS)m=await window.PLATINUM_FLOWS.versionarModelo(m,{obras:[obra.id],sem,periodo,desde:d1,hasta:d2,versiones});
     aguinaldoExigirCompleto(m,globalThis._PY_AGUINALDOS,{periodo});jornadaExigirCompleto(m,globalThis._PY_JORNADAS,{periodo});
     if(!m.filas.length)throw Error('No hay trabajadores en el periodo seleccionado.');
+    if(window.PLATINUM_PERIODOS?.estricto(obra))m.rotulo=rot.replace(/ QUINCENAL$/,'');
     const codigo=empresaDeObra(obra);
     const emp=CFGEMP['empresa_'+codigo]||{razon:EMPRESAS[codigo].nombre,rfc:''};
     const destinos=destino==='AMBAS'?['CONTRATISTA','DISPERSION']:[destino];
     const meta={codigo,colB:'CONTRATISTA',
-      titulo:`PROYECCIÓN DE NÓMINA · SEMANA ${semN} · ${rangoTexto(d1,d2)}${periodo==='QUINCENAL'?' (QUINCENAL)':''}`,
+      titulo:`PROYECCIÓN DE NÓMINA · ${rot.replace(/ QUINCENAL$/,'')} · ${rangoTexto(d1,d2)}${periodo==='QUINCENAL'?' (QUINCENAL)':''}`,
       sub:`${emp.razon||''}${emp.rfc?' · RFC: '+emp.rfc:''} · ${obra.nombre}`,
-      pie:`Semana ${semN} · ${fmtD(d1)} – ${fmtD(d2)} · ${new Date().toLocaleDateString('es-MX')}`};
+      pie:`${rot.replace(/ QUINCENAL$/,'').replace(/^SEMANA/,'Semana')} · ${fmtD(d1)} – ${fmtD(d2)} · ${new Date().toLocaleDateString('es-MX')}`};
     const libros=destinos.map(d=>({destino:d,wb:proyLibro(m,d,meta)}));
     await registrarBitacoraNomina(proyAuditoria(m,destinos),{silencioso:false});
-    for(const x of libros)await dl(x.wb,`PROYECCION_${x.destino}_${codigo}_SEMANA${semN}${periodo==='QUINCENAL'?'_QUINCENAL':''}.xlsx`);
-    closeModal();toast(`${libros.length} archivo(s) de S${semN} generado(s), con detalle de retenciones.`,'ok');
+    const archivoRot=rot.replace(/ QUINCENAL$/,'').replace(/\s+/g,'');
+    for(const x of libros)await dl(x.wb,`PROYECCION_${x.destino}_${codigo}_${archivoRot}${periodo==='QUINCENAL'?'_QUINCENAL':''}.xlsx`);
+    closeModal();toast(`${libros.length} archivo(s) de ${rot.replace(/ QUINCENAL$/,'')} generado(s), con detalle de retenciones.`,'ok');
   }catch(e){toast('No se generó la proyección: '+e.message,'err');}
   finally{window._PROY_EXPORTANDO=false;if($('py-prev')&&globalThis._PY_FRESCOS!==false)pyPreview();}
 }
@@ -292,12 +295,12 @@ async function openProyContratista(){
       <div class="m-body">
         <p class="fhint">Un libro por contratista y por destino seleccionado. Nunca mezcla razones sociales.</p>
         <div class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
-          <div><label>No. de semana</label><input id="pc-sem" type="number" value="${isoWeek()}" oninput="semSincroniza('pc-sem','pc-d1','pc-d2')"></div>
+          ${window.PLATINUM_PERIODOS?window.PLATINUM_PERIODOS.campo('pc',{obra:OBRA,valorNumero:isoWeek()}):`<div><label>No. de semana</label><input id="pc-sem" type="number" value="${isoWeek()}" oninput="semSincroniza('pc-sem','pc-d1','pc-d2')"></div>`}
           <div><label>Del día</label><input id="pc-d1" type="date" value="${d1}"></div>
           <div><label>Al día</label><input id="pc-d2" type="date" value="${d2}"></div>
           <div><label>Periodo</label><select id="pc-periodo"><option value="SEMANAL">Solo semanales</option><option value="QUINCENAL">Solo quincenales</option><option value="TODOS">Todos</option></select></div>
         </div>
-        <div style="margin-top:12px"><label>Centro de trabajo</label><select id="pc-obra">
+        <div style="margin-top:12px"><label>Centro de trabajo</label><select id="pc-obra" onchange="if(window.PLATINUM_PERIODOS?.estricto(OBRAS.find(o=>o.id===(this.value||OBRA?.id))))window.PLATINUM_PERIODOS.montar('pc',{}).catch(e=>toast(e.message,'err'))">
           <option value="">Todos los centros de esta empresa</option>
           ${obrasEmpresa(codigo).map(o=>`<option value="${o.id}" ${OBRA?.id===o.id?'selected':''}>${esc(o.nombre)}</option>`).join('')}
         </select></div>
@@ -310,6 +313,7 @@ async function openProyContratista(){
         <button class="btn dark" id="pc-btn" onclick="exportProyContratista()">Generar seleccionada</button>
         <button class="btn" id="pc-ambas" onclick="exportProyContratista('AMBAS')">Generar ambas</button>
       </div>`,'lg');
+    if(window.PLATINUM_PERIODOS?.estricto(OBRA))window.PLATINUM_PERIODOS.montar('pc',{obra:OBRA}).catch(e=>toast(e.message,'err'));
   }catch(e){toast(e.message,'err');}
 }
 async function exportProyContratista(eleccion){
@@ -318,7 +322,8 @@ async function exportProyContratista(eleccion){
   if(!cts.length){toast('Selecciona al menos un contratista.','err');return;}
   const codigo=window._PCEMP;
   if(!codigo||codigo!==EMPRESA_ACTIVA){toast('Abre nuevamente la proyección de esta empresa.','err');return;}
-  const semN=$('pc-sem').value||isoWeek(),sem='S'+semN,d1=$('pc-d1').value,d2=$('pc-d2').value,periodo=$('pc-periodo').value,oid=$('pc-obra').value;
+  let semN,rot;try{const p=window.PLATINUM_PERIODOS?.seleccionado('pc');semN=p?String(p.semana):($('pc-sem').value||isoWeek());rot=p?window.PLATINUM_PERIODOS.rotulo(p):'SEMANA '+semN;}catch(e){toast(e.message,'err');return;}
+  const sem='S'+semN,d1=$('pc-d1').value,d2=$('pc-d2').value,periodo=$('pc-periodo').value,oid=$('pc-obra').value;
   const destino=eleccion==='AMBAS'?'AMBAS':$('pc-destino').value;
   const destinos=destino==='AMBAS'?['CONTRATISTA','DISPERSION']:[destino];let previo=null;
   window._PROY_EXPORTANDO=true;for(const id of ['pc-btn','pc-ambas'])if($(id))$(id).disabled=true;
@@ -350,10 +355,11 @@ async function exportProyContratista(eleccion){
       if(window.PLATINUM_FLOWS)m=await window.PLATINUM_FLOWS.versionarModelo(m,{obras:oid?[oid]:obrasEmpresa(codigo).map(o=>o.id),sem,periodo,contratista:c.ct,desde:d1,hasta:d2,versiones});
       aguinaldoExigirCompleto(m,datos.aguinaldos,{periodo,trabajadores:c.ids});jornadaExigirCompleto(m,datos.jornadas,{periodo,trabajadores:c.ids});
       if(!m.filas.length)continue;
-      const meta={codigo,colB:'OBRA',titulo:`PROYECCIÓN DE NÓMINA · ${c.ct} · SEMANA ${semN} · ${rangoTexto(d1,d2)}`,
+      if(rot.startsWith('NOI'))m.rotulo=rot;
+      const meta={codigo,colB:'OBRA',titulo:`PROYECCIÓN DE NÓMINA · ${c.ct} · ${rot} · ${rangoTexto(d1,d2)}`,
         sub:`${emp.razon||''}${emp.rfc?' · RFC: '+emp.rfc:''} · ${oid?(OBRAS.find(o=>o.id===oid)?.nombre||''):'TODOS LOS CENTROS'} · ${c.ct}`,
-        pie:`Semana ${semN} · ${fmtD(d1)} – ${fmtD(d2)} · ${c.ct} · ${new Date().toLocaleDateString('es-MX')}`};
-      for(const d of destinos)libros.push({wb:proyLibro(m,d,meta),nombre:`PROYECCION_${d}_${codigo}_${c.ct.replace(/[^A-ZÑ0-9]+/gi,'_')}_SEMANA${semN}${periodo==='QUINCENAL'?'_QUINCENAL':''}.xlsx`});
+        pie:`${rot.replace(/^SEMANA/,'Semana')} · ${fmtD(d1)} – ${fmtD(d2)} · ${c.ct} · ${new Date().toLocaleDateString('es-MX')}`};
+      for(const d of destinos)libros.push({wb:proyLibro(m,d,meta),nombre:`PROYECCION_${d}_${codigo}_${c.ct.replace(/[^A-ZÑ0-9]+/gi,'_')}_${rot.replace(/\s+/g,'')}${periodo==='QUINCENAL'?'_QUINCENAL':''}.xlsx`});
       registros.push(...proyAuditoria(m,destinos));
     }
     if(!libros.length)throw Error('No hay personal para esos contratistas y fechas.');
