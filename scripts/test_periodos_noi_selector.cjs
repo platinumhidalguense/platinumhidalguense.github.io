@@ -143,5 +143,23 @@ const PER=box.window.PLATINUM_PERIODOS;
  box.OBRA=obras[2];box.EMPRESA_ACTIVA='PLATINUM';vm.runInContext("closeModal();openProyeccion()",box);await tick(40);
  ok(document.querySelector('input#py-sem[type="number"]')&&!$('py-per'),'PLATINUM: captura numérica sin cambios');
  eq(vm.runInContext("pySemanaSel('py')",box),$('py-sem').value,'PLATINUM: clave = número capturado');
+ // 9) Siguiente nómina propuesta (numeración consecutiva desde el inicio del centro): sólo prellenado, nunca se incorpora sola.
+ const prop=(periodos,o='x')=>{const api=PER.crear({usuario:()=>'u',rpc:async()=>({data:{obra_id:o,empresa_codigo:'JIRE',periodos}})});return api.cargar(o).then(()=>api.propuesta(o,{}));};
+ const sem49=[P('a',42,11,'2026-10-05','2026-10-11'),P('b',48,17,'2026-11-16','2026-11-22'),P('c',49,18,'2026-11-23','2026-11-29'),P('h',null,13,'2026-10-19','2026-10-25')];
+ let s=await prop(sem49);
+ eq([s.numero_noi,s.desde,s.hasta,s.clave_operativa,s.anterior.numero_noi],[50,'2026-11-30','2026-12-06',19,49],'semanal: NOI 50 del 30 nov al 6 dic, clave 19');
+ s=await prop([P('q',23,34,'2026-11-16','2026-11-30','QUINCENAL',[34])]);
+ eq([s.numero_noi,s.desde,s.hasta,s.clave_operativa],[24,'2026-12-01','2026-12-15',35],'quincenal: NOI 24 del 1 al 15 dic');
+ s=await prop([P('q',3,3,'2028-02-01','2028-02-15','QUINCENAL',[3])]);
+ eq([s.desde,s.hasta,s.hasta.slice(8)],['2028-02-16','2028-02-29','29'],'febrero bisiesto: segunda quincena de 14 días');
+ s=await prop([P('q',3,3,'2027-02-01','2027-02-15','QUINCENAL',[3])]);
+ eq(s.hasta,'2027-02-28','febrero no bisiesto: 13 días');
+ s=await prop([P('q',24,48,'2026-12-16','2026-12-31','QUINCENAL',[48])]);
+ eq([s.numero_noi,s.desde,s.hasta,s.cambio_ejercicio],[null,'2027-01-01','2027-01-15',true],'cambio de ejercicio: no se propone número');
+ s=await prop([P('a',49,18,'2026-11-23','2026-11-29'),P('z',null,19,'2026-08-10','2026-08-16')]);
+ eq(s.clave_operativa,null,'clave siguiente ocupada: se deja a la asignación del servidor');
+ // En el archivo de recibos (84) se prellenan los campos vacíos del calendario NOI.
+ const src84=fs.readFileSync('frontend/modulos/84-recibos-contexto-interfaz.js','utf8');
+ ok(/api\.propuesta\(o\.id,\{periodicidad:per,anio\}\)/.test(src84)&&/data-rl-cal-sugerencia/.test(src84),'84 usa la propuesta del servicio común');
  console.log('PASS selector de periodos NOI: '+n+' comprobaciones (NOI 23/clave 34 quincenal, NOI 43/12 y 48/17 semanal, claves sin NOI, edición de fechas, estados, orden de respuestas, exportación, retenciones y PLATINUM).');
 })().catch(e=>{console.error(e);process.exit(1);});

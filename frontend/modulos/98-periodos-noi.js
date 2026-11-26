@@ -51,8 +51,26 @@
    const f=lista(o).filter(p=>p.clase==='ORDINARIO'&&p.desde===desde&&p.hasta===hasta&&(!periodicidad||periodicidad==='TODOS'||p.periodicidad===periodicidad));
    return f.length===1?contrato(f[0],o):null;
   }
+  /* Propuesta del siguiente periodo ordinario a partir del último documentado del mismo centro, ejercicio y periodicidad.
+     Cada centro numera sus nóminas NOI de forma consecutiva desde su inicio de operaciones (semanal: +1 cada semana;
+     quincenal: +1 cada quincena). Al cambiar de ejercicio no se propone número. Sólo prellena; INCORPORAR exige referencia y
+     confirmación, y el servidor valida traslapes y claves. */
+  function propuesta(o,{periodicidad,anio}={}){
+   const f=lista(o).filter(p=>p.clase==='ORDINARIO'&&p.numero_noi!=null&&(!periodicidad||p.periodicidad===periodicidad)&&(!anio||p.anio===Number(anio)))
+    .sort((a,b)=>a.hasta.localeCompare(b.hasta));
+   const u=f[f.length-1];if(!u)return null;
+   const dia=(x,n)=>{const d=new Date(x+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);};
+   const desde=dia(u.hasta,1);let hasta;
+   if(u.periodicidad==='SEMANAL')hasta=dia(desde,6);
+   else if(u.periodicidad==='QUINCENAL'){const [y,m,d]=desde.split('-').map(Number);hasta=d<=15?`${y}-${String(m).padStart(2,'0')}-15`:new Date(Date.UTC(y,m,0,12)).toISOString().slice(0,10);}
+   else return null;
+   const ocupadas=new Set(lista(o).flatMap(p=>[Number(p.semana),...(p.claves_compatibles||[]).map(Number)]));
+   const clave=Number(u.semana)+1<=53&&!ocupadas.has(Number(u.semana)+1)?Number(u.semana)+1:null;
+   const mismoEjercicio=desde.slice(0,4)===String(u.anio);
+   return {numero_noi:mismoEjercicio?Number(u.numero_noi)+1:null,desde,hasta,clave_operativa:clave,periodicidad:u.periodicidad,anterior:contrato(u,o),cambio_ejercicio:!mismoEjercicio};
+  }
   async function incorporar(o,datos){const r=await dep.rpc('control_periodos_nomina',{p_accion:'INCORPORAR',p_datos:{obra_id:o,...datos}});if(r.error)throw Error(r.error.message);memorias.delete(key(o,null));await cargar(o,null,true);return r.data;}
-  return Object.freeze({cargar,lista,estado,candidatos,resolver,porRango,incorporar,invalidar:()=>{generacion++;memorias.clear();pendientes.clear();estados.clear();}});
+  return Object.freeze({cargar,lista,estado,candidatos,resolver,porRango,propuesta,incorporar,invalidar:()=>{generacion++;memorias.clear();pendientes.clear();estados.clear();}});
  }
  const MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
  const rango=(d,h)=>{const [a,m,x]=String(d).split('-').map(Number),[b,n,y]=String(h).split('-').map(Number);

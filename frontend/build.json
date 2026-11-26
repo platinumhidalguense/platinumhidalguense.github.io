@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-26.5",
-  "entry": "assets/platinum-app.1617ede2429b0607.js",
-  "sha256": "1617ede2429b0607cb55a86fc7376074552c79e77283c9d3c0ea063a7907766e",
-  "integrity": "sha384-cyY0xP6m5MPngxGtoOHGmngC50W8pq4rro4zdeN/4gxbEo8SiHrzwVezM+ghe5sW",
+  "version": "2026-11-26.6",
+  "entry": "assets/platinum-app.f56703cb3cdb451f.js",
+  "sha256": "f56703cb3cdb451fc6452ef2d55f037ad50e66af783957c4afb9b66de9bce9d0",
+  "integrity": "sha384-lcB3/TSUjLEIrY4LS7cNWm3Lv3heIMh671KJTENCgLHRXjfARVDoYKMADQ91ATOF",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "7971789e3920abdfa9952bdd380c754f216e26de2794e8ce0bd43dd7c8dd7b58"
+      "sha256": "216de0bb08df85184d574e22dd77fbaa6ee75e0808b7bf62b2a26931568d8e7d"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -346,7 +346,7 @@
     },
     {
       "path": "frontend/modulos/84-recibos-contexto-interfaz.js",
-      "sha256": "fbd05b762ae51d21cebdb41b7557eb59ace9278abdac59cf63529b9c35a3f514"
+      "sha256": "773e61298f6dd7341b8d96f28d30dacfb1d669d25967e117c7dde41ef8394f9b"
     },
     {
       "path": "frontend/modulos/85-lectura-asistida.js",
@@ -390,7 +390,7 @@
     },
     {
       "path": "frontend/modulos/98-periodos-noi.js",
-      "sha256": "01f20c290ecaad2888759ba8fef8f36c313ddcb7ce45f30e1499bc57d248845a"
+      "sha256": "7b52fe6ff7d9cb8d520b3a102a59e4b7aff0bbf562be87679e4e0f84559925bf"
     },
     {
       "path": "frontend/modulos/99-recibos-lectura-hibrida.js",

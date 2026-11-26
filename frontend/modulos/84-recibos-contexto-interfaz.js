@@ -46,6 +46,7 @@
      <div class="grid"><label>Número NOI<input data-rl-noi type="number" min="1" max="999"></label><label>Desde<input data-rl-desde type="date"></label><label>Hasta<input data-rl-hasta type="date"></label>
      <label>Clave operativa compatible (1–53)<input data-rl-clave type="number" min="1" max="53"></label><label>Reporte o confirmación que acredita las fechas<input data-rl-fuente maxlength="240"></label></div>
      <p class="fhint">Si ya existe una fotografía, conserva su clave operativa. La incorporación no renumera pagos ni cambia fotografías. Los periodos extraordinarios se documentan aparte.</p>
+     <p class="fhint" data-rl-cal-sugerencia aria-live="polite"></p>
      <button class="btn" data-rl="incorporar-periodo">Revisar e incorporar periodo</button>
     </details>
     <p data-rl-fechas class="fhint"></p><p data-rl-mensaje role="status" aria-live="polite">Preparando contexto…</p>
@@ -68,6 +69,13 @@
    q('[data-rl-cal]').innerHTML='<option value="">Selecciona un periodo documentado</option>'+ps.map(p=>`<option value="${esc(p.periodo_id)}">${esc(api.etiqueta(o,p))}</option>`).join('');
    q('[data-rl-cal]').value=p?.periodo_id||'';if(api.estricto(o)){seleccionarPeriodo(p);if(!p)q('[data-rl-semana]').value='';}
    q('[data-rl-semana]').disabled=api.estricto(o);q('[data-rl-mes]').disabled=api.estricto(o);q('[data-rl-quin]').disabled=api.estricto(o);
+   // Siguiente nómina del centro (numeración consecutiva desde su inicio): sólo prellena campos vacíos; la referencia y la
+   // confirmación siguen siendo del operador.
+   const sig=api.estricto(o)&&api.propuesta?api.propuesta(o.id,{periodicidad:per,anio}):null,vacio=s=>q(s)&&!q(s).value;
+   if(sig&&vacio('[data-rl-noi]')&&vacio('[data-rl-desde]')&&vacio('[data-rl-hasta]')){
+    if(sig.numero_noi)q('[data-rl-noi]').value=sig.numero_noi;q('[data-rl-desde]').value=sig.desde;q('[data-rl-hasta]').value=sig.hasta;if(sig.clave_operativa&&vacio('[data-rl-clave]'))q('[data-rl-clave]').value=sig.clave_operativa;
+    const h=q('[data-rl-cal-sugerencia]');if(h)h.textContent=`Siguiente nómina propuesta: ${sig.numero_noi?'NOI '+sig.numero_noi:'número NOI por confirmar (cambio de ejercicio)'} · ${sig.desde} al ${sig.hasta}, consecutiva a ${api.rotulo(sig.anterior)} (${sig.anterior.desde} al ${sig.anterior.hasta}). Verifica con el reporte NOI antes de incorporar.`;
+   }
   }
   function centros(preferido){q('[data-rl-obra]').innerHTML=OBRAS.filter(o=>empresa(o)===q('[data-rl-empresa]').value).map(o=>`<option value="${esc(o.id)}" ${o.id===preferido?'selected':''}>${esc(o.nombre)}</option>`).join('');}
   function periodos(){const quin=q('[data-rl-per]').value==='QUINCENAL';q('[data-rl-semana-label]').hidden=quin;q('[data-rl-mes-label]').hidden=!quin;q('[data-rl-quin-label]').hidden=!quin;}
@@ -139,7 +147,7 @@
    if(a==='incorporar-periodo'){
     const j={...ctx(),numero_noi:Number(q('[data-rl-noi]').value),...(q('[data-rl-clave]').value?{clave_operativa:Number(q('[data-rl-clave]').value)}:{}),desde:q('[data-rl-desde]').value,hasta:q('[data-rl-hasta]').value,procedencia:{tipo:'CAPTURA_DOCUMENTADA',referencia:q('[data-rl-fuente]').value.trim()}};
     if(!confirm(`¿Incorporar periodo NOI ${j.numero_noi}, ${j.desde} al ${j.hasta}, ${j.clave_operativa?'con clave histórica '+j.clave_operativa:'con correspondencia histórica automática'}? Se conservará la fuente y tu usuario. No se modifican nóminas, pagos ni cierres.`))return;
-    const p=await root.PLATINUM_PERIODOS.incorporar(q('[data-rl-obra]').value,{...j,confirmado:true});await catalogo(p.periodo_id);await cargar();return;
+    const p=await root.PLATINUM_PERIODOS.incorporar(q('[data-rl-obra]').value,{...j,confirmado:true});for(const c of ['[data-rl-noi]','[data-rl-desde]','[data-rl-hasta]','[data-rl-clave]','[data-rl-fuente]'])if(q(c))q(c).value='';await catalogo(p.periodo_id);await cargar();return;
    }
    if(a==='bancos'){v.servicio.cerrar();return root.PLATINUM_IMPORTACION_BANCARIA.abrir({obra_id:q('[data-rl-obra]').value,...ctx()});}
    if(a==='fotografia'){v.servicio.cerrar();return root.PLATINUM_ARCHIVO_RECIBOS.abrirPorCierre(opciones);}
