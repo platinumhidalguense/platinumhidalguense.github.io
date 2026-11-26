@@ -92,3 +92,4 @@ supabase/migrations/*_aguinaldo_exento_sin_dato_cero.sql
 supabase/migrations/*_baja_cfdi_por_verificar.sql
 supabase/migrations/*_finiquito_incapacidad_eg_historica.sql
 supabase/migrations/*_periodos_noi_contrato_resolver.sql
+supabase/migrations/*_recibo_ciclo_correcciones_historial.sql
