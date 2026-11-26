@@ -177,7 +177,7 @@ async function pyPreview(){
       <div class="stat b" style="flex:1"><div class="n">$${money(tienePrevision?m.neto:destino==='CONTRATISTA'?m.costo:m.neto)}</div><div class="l">${tienePrevision?'Neto total a pagar':destino==='CONTRATISTA'?'Total para contratista · sin previsión social':'Total para dispersión · incluye previsión social aparte'}</div></div>
       ${ag.length?`<div class="stat g" style="flex:1"><div class="n">$${money(agBruto)}</div><div class="l">Aguinaldo bruto · ${ag.length} trabajador(es) · ISR $${money(agIsr)} · ${destino==='CONTRATISTA'?'columna aparte, no suma al costo':'neto incluido en el total'}</div></div>`:''}
       ${jo.length?`<div class="stat g" style="flex:1" data-py-jornada><div class="n">$${money(joBruto)}</div><div class="l">Horas extra y descansos laborados · ${jo.length} trabajador(es) · exento $${money(joExento)} · ISR $${money(joIsr)} · ${destino==='CONTRATISTA'?'columna aparte, no suma al costo':'neto incluido en el total'}</div></div>`:''}
-    </div>${proyVistaTresImportes(m)}${agFaltan.length?`<div class="fhint" style="color:var(--red);margin-top:8px">${agFaltan.length} aplicación(es) de aguinaldo, horas extra o descansos laborados de este periodo no tienen fila de nómina. Retíralas o corrígelas (Prestaciones → Aguinaldo o el calendario de la ficha) antes de exportar.</div>`:''}`;
+    </div>${proyVistaTresImportes(m)}${aguinaldoVistaComponentes(m)}${agFaltan.length?`<div class="fhint" style="color:var(--red);margin-top:8px">${agFaltan.length} aplicación(es) de aguinaldo, horas extra o descansos laborados de este periodo no tienen fila de nómina. Retíralas o corrígelas (Prestaciones → Aguinaldo o el calendario de la ficha) antes de exportar.</div>`:''}`;
     for(const id of ['py-btn','py-ambas'])if($(id))$(id).disabled=window._PROY_EXPORTANDO||!m.filas.length||agFaltan.length>0;
   }catch(e){
     if(version!==window._PY_PREVIEW_VERSION||!$('py-prev'))return;
@@ -507,7 +507,7 @@ function proyAuditoria(modelo,destinos){
   return modelo.filas.map(x=>({obra_id:x.w.obra_id,empresa_codigo:empresaDeTrabajador(x.w),trabajador_id:x.w.id,trabajador_numero:x.w.no_trab,trabajador_nombre:fullName(x.w),
     tipo_calculo:x.fin?'FINIQUITO_EN_PROYECCION':'PROYECCION_NOMINA',periodo:modelo.sem,
     entradas:{destinos,sueldo_registrado:x.sueldo,incidencias:x.incidencias,creditos:x.creditos,otras:x.otras,prevision_social:x.prevision,fuente_finiquito:x.fuente||null,
-      ...(x.aguinaldo?{aguinaldo:{lineas:x.aguinaldo.lineas,bruto:x.aguinaldo.bruto,exento:x.aguinaldo.exento,gravado:x.aguinaldo.gravado,isr:x.aguinaldo.isr,neto:x.aguinaldo.neto,metodo_isr:x.aguinaldo.metodo_isr}}:{}),
+      ...(x.aguinaldo?{aguinaldo:{lineas:x.aguinaldo.lineas,bruto:x.aguinaldo.bruto,exento:x.aguinaldo.exento,gravado:x.aguinaldo.gravado,isr:x.aguinaldo.isr,neto:x.aguinaldo.neto,metodo_isr:x.aguinaldo.metodo_isr,...(x.aguinaldo.componentes?{componentes:x.aguinaldo.componentes}:{})}}:{}),
       ...(x.jornada?{jornada:{eventos:x.jornada.eventos,bruto:x.jornada.bruto,exento:x.jornada.exento,gravado:x.jornada.gravado,isr:x.jornada.isr,neto:x.jornada.neto,sbc_variable:x.jornada.sbc_variable,isr_detalle:x.jornada.isr_detalle}}:{})},
     resultado:{importe_contratista:x.costo,neto:x.neto,forma_pago:x.pago,isr_mensual:x.isr_mensual||null},monto_modelo:x.neto,monto_aplicado:x.neto,ajuste_noi:0}));
 }

@@ -19,7 +19,7 @@
   const hoy=today(),ej=Number(hoy.slice(0,4));
   return {ejercicio:ej,centro:OBRA?.id||'',periodicidad:'TODOS',contratista:'',cuadrilla:'',rp:'',texto:'',
    modo:'VINCULO',desde:`${ej}-01-01`,hasta:hoy,estatus:'ACTIVOS_HOY',fecha_estatus:hoy,corte:`${ej}-12-31`,
-   dias_pactados:15,respaldo_pactado:'',eg_computa:false,baja_inclusiva:true,exigir_cobertura:false,fecha_destino:hoy,metodo_isr:'ART96'};
+   dias_pactados:15,respaldo_pactado:'',eg_computa:false,baja_inclusiva:true,exigir_cobertura:false,fecha_destino:hoy,metodo_isr:'ART96',componentes:'REGISTRADO'};
  }
  function abrir(){
   if(S?.aplicando){toast('Espera a que termine la aplicación del lote.','err');return;}
@@ -82,6 +82,7 @@
    <div class="sect" style="margin-top:12px">Pago</div>
    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
     ${campo('fecha_destino','Nómina destino: fecha dentro del periodo',`<input id="agc-fecha_destino" type="date" value="${p.fecha_destino}">`,destino?`En ${esc(OBRA.nombre)}: semanal ${fmtD(destino[0].desde)}–${fmtD(destino[0].hasta)} (pago ${fmtD(destino[0].fecha_pago)}); quincenal ${fmtD(destino[1].desde)}–${fmtD(destino[1].hasta)}. Cada centro usa su propio calendario.`:'')}
+    ${campo('componentes','Componentes',sel('componentes',[['REGISTRADO','Aguinaldo registrado'],...(typeof esVip==='function'&&esVip()?[['DIFERENCIAL','Aguinaldo diferencial'],['AMBOS','Registrado y diferencial']]:[])],p.componentes||'REGISTRADO'),'El diferencial usa una base salarial habitual documentada. Comparte exención e ISR con el registrado.')}
     ${campo('metodo_isr','Retención de ISR',sel('metodo_isr',[['ART96','Art. 96 LISR: ISR incremental del periodo'],['ART174','Art. 174 RLISR: procedimiento opcional']],p.metodo_isr),'La segunda quincena con ajuste mensual exige el art. 174 o la primera quincena.')}
    </div>`,
    `<button class="btn" onclick="closeModal()">Cerrar</button><button class="btn" data-agc-acc="continuidad" title="Traspasos administrativos JIRE ↔ PLATINUM sin terminación ni finiquito">Continuidad entre razones sociales</button><button class="btn" onclick="agAbrirSimple()" title="Consulta rápida sin faltas, conciliación ni ISR">Cálculo simple</button><button class="btn dark" data-agc-acc="calcular">🧮 Calcular simulación</button>`];
@@ -96,7 +97,7 @@
   return {ejercicio:Number(v('ejercicio')),centro:v('centro'),periodicidad:v('periodicidad'),contratista:v('contratista').trim(),cuadrilla:v('cuadrilla'),rp:v('rp').trim(),texto:v('texto').trim(),
    modo:v('modo'),desde:v('desde'),hasta:v('hasta'),estatus:'ACTIVOS_HOY',fecha_estatus:today(),corte:v('corte'),
    dias_pactados:Number(v('dias_pactados')),respaldo_pactado:v('respaldo_pactado').trim(),eg_computa:c('eg_computa'),baja_inclusiva:c('baja_inclusiva'),exigir_cobertura:c('exigir_cobertura'),
-   fecha_destino:v('fecha_destino'),metodo_isr:v('metodo_isr')};
+   fecha_destino:v('fecha_destino'),metodo_isr:v('metodo_isr'),componentes:v('componentes')||'REGISTRADO'};
  }
  function leerParametros(origen){
   const p={...(origen||leerCrudo())},iso=/^\d{4}-\d\d-\d\d$/;
@@ -106,6 +107,8 @@
   if(p.corte.slice(0,4)!==String(p.ejercicio))throw Error('El corte de devengo debe pertenecer al ejercicio.');
   if(!(Number.isInteger(p.dias_pactados)&&p.dias_pactados>=15))throw Error('Los días pactados no pueden ser menores a 15 (art. 87 LFT).');
   if(p.dias_pactados>15&&p.respaldo_pactado.length<5)throw Error('Registra el contrato, convenio o política que respalda más de 15 días.');
+  if(!['REGISTRADO','DIFERENCIAL','AMBOS'].includes(p.componentes||'REGISTRADO'))throw Error('Selecciona los componentes.');
+  if(p.componentes&&p.componentes!=='REGISTRADO'&&!(typeof esVip==='function'&&esVip()))throw Error('Control salarial reservado a usuarios VIP.');
   if(p.centro&&!obrasEmpresa(S.empresa).some(o=>o.id===p.centro))throw Error('El centro no pertenece a esta razón social.');
   return p;
  }
@@ -137,6 +140,11 @@
     r.metricas.push({trabajadores:lote.length,ms:Date.now()-inicio,error:error?.code||null});
     if(error)throw error;
     if(data?.contrato_version!=='AG_CICLO_V1'||!Array.isArray(data.personas)||data.personas.some(x=>x.contrato_version!=='AG_CICLO_V1'))throw Error('El servidor no confirmó el cálculo por ciclo vigente. Actualiza la plataforma o solicita completar su actualización.');
+    if(p.componentes&&p.componentes!=='REGISTRADO'){
+     const z=await sb.rpc('control_aguinaldo',{p_accion:'DIFERENCIALES',p_datos:{ejercicio:ej,corte:p.corte,trabajadores:lote}});
+     if(z.error)throw z.error;if(!vivo())return;
+     for(const x of data.personas){const f=z.data?.personas?.find(a=>a.trabajador_id===x.trabajador_id);x.fuente_diferencial=f?.fuente;x.opciones_diferencial=f?.opciones||[];}
+    }
     for(const x of data.personas)if(lote.includes(x.trabajador_id))r.personas.set(x.trabajador_id,x);
     for(const c of data.coberturas||[])r.coberturas.set(c.obra_id,c);r.salud=!!data.salud;
     for(const id of lote)if(!r.personas.has(id))pendientes.push({id,motivo:'El servidor no devolvió esta persona.'});
@@ -230,11 +238,12 @@
   const baja=!A().activoEnFecha(tramos,dest.hasta)||String(w.estatus||'').toUpperCase()!=='ACTIVO';
   if(baja)av.push({codigo:'BAJA_FINIQUITO',bloquea:true,texto:'No está activo en la nómina destino: su saldo se paga y concilia en el finiquito (flujo de bajas), no en la nómina ordinaria.'});
   else if((w.fecha_reingreso||w.fecha_alta||'')>dest.hasta)av.push({codigo:'INGRESO_PROGRAMADO',bloquea:true,texto:'Ingreso programado posterior a la nómina destino.'});
-  const fila=A().calcularFila({ejercicio:p.ejercicio,salario_base:Number(w.sd),dias_pactados:p.dias_pactados,respaldo_pactado:p.respaldo_pactado,
+  const evidencias=evidenciasDe({...x,aplicaciones:(x.aplicaciones||[]).filter(a=>(a.componente||'REGISTRADO')==='REGISTRADO')},tramos,p.ejercicio);
+  const fila=A().calcularComponentes({ejercicio:p.ejercicio,salario_base:Number(w.sd),dias_pactados:p.dias_pactados,respaldo_pactado:p.respaldo_pactado,
    corte:p.corte,hoy:o.hoy||today(),tramos,avisos:av,opciones:{bajaInclusiva:p.baja_inclusiva},politica:{computa:{ENFERMEDAD_GENERAL:p.eg_computa}},
    ausencias:{digitales:aus.digitales,rangos:aus.rangos,historicas:aus.historicas},cobertura:o.cobertura||null,exigir_cobertura:p.exigir_cobertura,
-   fiscal_anual:x.contrato_version==='AG_CICLO_V1'?x.fiscal_anual:null,evidencias:evidenciasDe(x,tramos,p.ejercicio),fecha_pago:dest.fecha_pago,
-   metodo_isr:p.metodo_isr,ingreso_mensual_ordinario:r2(Number(w.sd)*30.4),tarifa_mensual:ISR_M,calcularIsr96:isr96De(w,dest)});
+   fiscal_anual:x.contrato_version==='AG_CICLO_V1'?x.fiscal_anual:null,evidencias,fecha_pago:dest.fecha_pago,
+   metodo_isr:p.metodo_isr,ingreso_mensual_ordinario:r2(Number(w.sd)*30.4),tarifa_mensual:ISR_M,calcularIsr96:isr96De(w,dest)},x.fuente_diferencial,p.componentes||'REGISTRADO',x.aplicaciones);
   const aplicadas=(x.aplicaciones||[]).filter(a=>a.estado==='APLICADO');
   let motivo=null;
   const bloqueos=fila.observaciones.filter(o=>o.bloquea),soloBaja=bloqueos.length>0&&bloqueos.every(o=>o.codigo==='BAJA_FINIQUITO');
@@ -367,10 +376,10 @@
     <td>#${esc(f.w.no_trab??'—')} <b>${esc(fullName(f.w))}</b><div class="fhint">${esc(periodoPago(f.w))}${f.sel.programado?' · programado':''}</div></td>
     <td>${esc(obra(f.w.obra_id))}</td><td>${fmtD(inicio)}${d.tramos?.length>1?`<div class="fhint">${d.tramos.length} tramos</div>`:''}${C().resumen(f.x?.ciclo).aplica?`<div class="fhint">Reconocida desde ${fmtD(C().resumen(f.x.ciclo).inicio)} · incorporación ${fmtD(C().resumen(f.x.ciclo).incorporacion)} · origen ${esc(C().resumen(f.x.ciclo).origen_empresa)}, traspaso ${fmtD(C().resumen(f.x.ciclo).fecha_traspaso)}</div>`:''}</td><td>${antiguedad(f.w,f.x?.ciclo)}</td>
     <td>${d.dias_vinculo??'—'}${d.dias_proyectados?`<div class="fhint">${d.dias_proyectados} proyectados</div>`:''}</td><td>${d.faltas_afectan??'—'}</td><td>${d.dias_computables??'—'}</td>
-    <td>$${money(f.w.sd)}</td><td>${S.p.dias_pactados}</td><td>${d.bruto!=null?'$'+money(d.bruto):'Por calcular'}</td><td>${c.pendiente?.length?'Por confirmar':'$'+money(r2((c.acreditado||0)+(c.reservado||0)))}</td><td><b>${f.fila.bruto_a_pagar!=null?'$'+money(f.fila.bruto_a_pagar):'Por calcular'}</b></td>
+    <td>$${money(f.w.sd)} / día${f.fila.componentes?.DIFERENCIAL?'<div class="fhint">Diferencial: '+(f.x.fuente_diferencial?.estado==='DETERMINADO'?'$'+money(f.x.fuente_diferencial.monto)+' '+esc(f.x.fuente_diferencial.periodicidad)+' ÷ '+f.x.fuente_diferencial.divisor:'Diferencial no determinado')+'</div>':''}</td><td>${S.p.dias_pactados}</td><td>${f.fila.bruto_causado!=null?'$'+money(f.fila.bruto_causado):'Por calcular'}</td><td>${c.pendiente?.length?'Por confirmar':'$'+money(r2((c.acreditado||0)+(c.reservado||0)))}</td><td><b>${f.fila.bruto_a_pagar!=null?'$'+money(f.fila.bruto_a_pagar):'Por calcular'}</b></td>
     <td>${importeFila(f,x.exento)}</td><td>${importeFila(f,x.gravado)}</td><td>${importeFila(f,x.isr)}</td><td><b>${importeFila(f,x.neto)}</b></td>
     <td><strong>${esc(REVISION[f.estado_revision])}</strong>${motivosDe(f).map(txt=>`<div style="color:var(--red);font-size:11px">${esc(txt)}</div>`).join('')}${av.map(o=>`<div style="color:var(--amber);font-size:11px">⚠ ${esc(o.texto)}</div>`).join('')}</td>
-    <td><button type="button" class="btn" data-agc-acc="desglose" data-i="${i}">Desglose</button>${accionEvidencia(f,i)}
+    <td>${f.fila.componentes?.DIFERENCIAL?`<button type="button" class="btn" data-agc-acc="base-diferencial" data-i="${i}">Fuente diferencial</button>`:''}<button type="button" class="btn" data-agc-acc="desglose" data-i="${i}">Desglose</button>${accionEvidencia(f,i)}
       ${f.estado_revision==='DATOS_PENDIENTES'&&f.w.obra_id===OBRA?.id?'<button type="button" class="btn" data-agc-acc="ficha" data-i="'+i+'">Revisar ficha</button>':''}
       <button type="button" class="btn" data-agc-acc="recalcular-fila" data-i="${i}">Recalcular persona</button></td></tr>`;
   });
@@ -399,6 +408,7 @@
   const isr=x?.isr_detalle,dx=x?A().desgloseExencion(f.fila,f.x?.fiscal_anual,f.x?.aplicaciones):null;
   modal2(`<div class="m-head"><h2>Desglose · #${esc(f.w.no_trab??'—')} ${esc(fullName(f.w))}</h2><button class="x" onclick="closeModal2()">×</button></div><div class="m-body" style="font-size:12.5px;line-height:1.6">
    ${C().resumen(f.x?.ciclo).aplica?vistaContinuidad(f):''}
+   ${vistaComponentes(f)}
    ${d?`<div class="sect">Derecho (art. 87 LFT)</div>
    <p><b>Bruto = salario base × días pactados × días computables ÷ días del ejercicio</b><br>$${money(d.salario_base)} × ${d.dias_pactados} × ${d.dias_computables} ÷ ${d.denominador} = <b>$${money(d.bruto)}</b>
    ${d.dias_proyectados?`<br>Confirmados al día de hoy: ${d.dias_confirmados} · proyectados hasta el corte: ${d.dias_proyectados}`:''}<br>Al cierre del ejercicio (si no hay más faltas): $${money(d.bruto_cierre_proyectado)}</p>
@@ -477,7 +487,7 @@
   const h=S.historial;
   const hist=(h||[]).map(l=>{const w=S.filas.concat(S.fuera).find(f=>f.w.id===l.trabajador_id)?.w||WORKERS.find(x=>x.id===l.trabajador_id);
    const retirable=puede&&l.estado==='APLICADO'&&!PROTEGIDOS.includes(l.estado_destino);
-   return `<tr><td>${fmtD(String(l.created_at||'').slice(0,10))}</td><td>${w?'#'+esc(w.no_trab??'—')+' '+esc(fullName(w)):esc(String(l.trabajador_id).slice(0,8))}</td><td>${esc(l.periodicidad)} · ${fmtD(l.periodo_desde)}–${fmtD(l.periodo_hasta)}</td>
+   return `<tr><td>${fmtD(String(l.created_at||'').slice(0,10))}</td><td>${w?'#'+esc(w.no_trab??'—')+' '+esc(fullName(w)):esc(String(l.trabajador_id).slice(0,8))}</td><td>${l.componente==='DIFERENCIAL'?'Aguinaldo diferencial':'Aguinaldo registrado'}<br>${esc(l.periodicidad)} · ${fmtD(l.periodo_desde)}–${fmtD(l.periodo_hasta)}</td>
     <td>$${money(l.bruto)}</td><td>$${money(l.isr)}</td><td>$${money(l.neto)}</td><td>${esc(l.estado==='APLICADO'?'Aplicado a '+String(l.estado_destino||'').toLowerCase().replace('sin_cierre','borrador sin cierre'):'Retirado')}</td>
     <td>${retirable?`<button type="button" class="btn" data-agc-acc="retirar" data-id="${esc(l.id)}" data-version="${esc(l.version)}">Retirar</button>`:l.estado==='APLICADO'&&PROTEGIDOS.includes(l.estado_destino)?'<span class="fhint">Corrección por ajuste autorizado</span>':''}</td></tr>`;});
   return [`<p><b>${listas.length} persona(s) listas para aplicar</b> de ${revisadas.length} seleccionadas para revisión · ${porResolver.length} pendiente(s) · ${sinAplicar.length-porResolver.length} sin saldo por aplicar.</p>
@@ -494,7 +504,8 @@
   if(!activo(t))return;if(error)throw Error(error.message);
   S.historial=data.lineas||[];pintar();
  }
- function lineaDe(f){
+ function lineaDe(f,componente){
+  if(componente){const v=f.fila.componentes[componente];return {...lineaDe({...f,fila:v,aplicadas:f.aplicadas.filter(a=>(a.componente||'REGISTRADO')===componente)}),componente,...(componente==='DIFERENCIAL'?{fuente_salarial:f.x.fuente_diferencial}:{})};}
   if(!f.puede_aplicar||f.fila.estado!=='LISTA')throw Error('Esta persona tiene información pendiente y requiere revisión antes de aplicar.');
   const d=f.fila.derecho,c=f.fila.conciliacion,x=f.fila.fiscal,aplicado=r2(f.aplicadas.reduce((s,a)=>s+Number(a.bruto),0));
   return {trabajador_id:f.w.id,ciclo:f.x.ciclo,huella_fuentes:f.huella,semana:f.dest.semana,periodicidad:f.dest.periodicidad,periodo_desde:f.dest.desde,periodo_hasta:f.dest.hasta,fecha_pago:f.dest.fecha_pago,
@@ -531,7 +542,7 @@
   try{
    for(const l of lotes){
     if(!activo(t))return;
-    const lineas=l.filas.map(lineaDe),firma=A().canonico(lineas);
+    const lineas=l.filas.flatMap(f=>Object.entries(f.fila.componentes||{REGISTRADO:f.fila}).filter(([k,c])=>(S.p.componentes==='AMBOS'||k===(S.p.componentes||'REGISTRADO'))&&c.estado==='LISTA'&&c.bruto_a_pagar>0).map(([k])=>lineaDe(f,k))),firma=A().canonico(lineas);
     // Reintento con el mismo identificador sólo si las líneas no cambiaron.
     const previa=S.lotes.get(l.clave+':op');const operacion_id=previa&&previa.firma===firma?previa.id:crypto.randomUUID();
     S.lotes.set(l.clave+':op',{id:operacion_id,firma});
@@ -569,7 +580,7 @@
    ['NO.','TRABAJADOR','NSS','CENTRO','SALARIO BASE','DÍAS VÍNCULO','FALTAS QUE AFECTAN','DÍAS COMPUTABLES','BRUTO CAUSADO','ACREDITADO','BRUTO A PAGAR','EXENTO','GRAVADO','ISR','NETO','FIRMA DE RECIBIDO']];
   const styles=[ST.title,ST.sub,ST.head],m=[4,8,9,10,11,12,13,14];
   for(const f of fs){const d=f.fila.derecho,c=f.fila.conciliacion,x=f.fila.fiscal;
-   rows.push([f.w.no_trab??'',fullName(f.w),f.w.nss||'',OBRAS.find(o=>o.id===f.w.obra_id)?.nombre||'',Number(f.w.sd)||0,d.dias_vinculo,d.faltas_afectan,d.dias_computables,d.bruto,r2(c.acreditado+c.reservado),f.fila.bruto_a_pagar,x.exento,x.gravado,x.isr,x.neto,'']);
+   rows.push([f.w.no_trab??'',fullName(f.w),f.w.nss||'',OBRAS.find(o=>o.id===f.w.obra_id)?.nombre||'',Number(f.w.sd)||0,d.dias_vinculo,d.faltas_afectan,d.dias_computables,f.fila.bruto_causado,r2(c.acreditado+c.reservado),f.fila.bruto_a_pagar,x.exento,x.gravado,x.isr,x.neto,'']);
    styles.push(rows[2].map((_,i)=>m.includes(i)?ST.money:i===1||i===3||i===15?ST.cell:ST.cellC));}
   const t=rows.length+1,u=rows.length;
   rows.push(['','TOTAL','','','','','','',...[8,9,10,11,12,13,14].map(i=>r2(fs.reduce((s,_,j)=>s+Number(rows[3+j][i]),0))),'']);
@@ -578,7 +589,8 @@
   const ws=buildSheet(rows,styles,[6,32,13,20,11,9,9,10,13,13,13,12,12,11,13,24],[{s:{r:0,c:0},e:{r:0,c:15}},{s:{r:1,c:0},e:{r:1,c:15}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:15}}],[{hpt:28},{hpt:20},{hpt:34},...fs.map(()=>({hpt:28})),{hpt:22},{hpt:30}]);
   for(const c of ['I','J','K','L','M','N','O'])if(ws[c+t]){ws[c+t].t='n';ws[c+t].f=`SUM(${c}4:${c}${u})`;}
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,`AGUINALDO ${p.ejercicio}`);
-  wb.__empresaPorHoja={[`AGUINALDO ${p.ejercicio}`]:S.empresa};
+  if(p.componentes&&p.componentes!=='REGISTRADO')anexarComponentesExcel(wb,fs);
+  wb.__empresaPorHoja={[`AGUINALDO ${p.ejercicio}`]:S.empresa,COMPONENTES:S.empresa};
   return dl(wb,`AGUINALDO_${p.ejercicio}_${S.empresa}_${today()}.xlsx`);
  }
  function excelAnalisis(){
@@ -603,8 +615,39 @@
    [{s:{r:0,c:0},e:{r:0,c:32}},{s:{r:1,c:0},e:{r:1,c:32}},{s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:32}}],
    [{hpt:28},{hpt:20},{hpt:38},...fs.map(()=>({hpt:46})),{hpt:32}]);
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'ANÁLISIS');
-  wb.__empresaPorHoja={'ANÁLISIS':S.empresa};
+  if(S.p.componentes&&S.p.componentes!=='REGISTRADO')anexarComponentesExcel(wb,fs);
+  wb.__empresaPorHoja={'ANÁLISIS':S.empresa,COMPONENTES:S.empresa};
   return dl(wb,`AGUINALDO_ANALISIS_${p.ejercicio}_${S.empresa}_${today()}.xlsx`);
+ }
+
+
+ function vistaComponentes(f){
+  const cs=f.fila.componentes;if(!cs)return '';
+  return '<section class="bf-papel"><h3>Aguinaldo por componente</h3>'+ctrlTabla(['Componente','Base diaria','Bruto causado','Pendiente bruto','Exento','Gravado','ISR atribuible','Neto'],Object.entries(cs).map(([k,c])=>{
+   const x=c.fiscal,imp=v=>v==null||!Number.isFinite(Number(v))?'Por determinar':'$'+money(v);
+   return '<tr><td>Aguinaldo '+(k==='REGISTRADO'?'registrado':'diferencial')+'</td><td>'+imp(k==='REGISTRADO'?f.w.sd:c.fuente_salarial?.monto/c.fuente_salarial?.divisor)+'</td><td>'+imp(c.bruto_causado)+'</td><td>'+imp(c.bruto_a_pagar)+'</td><td>'+imp(x?.exento)+'</td><td>'+imp(x?.gravado)+'</td><td>'+imp(x?.isr)+'</td><td>'+imp(x?.neto)+'</td></tr>';
+  }))+'<p class="fhint">La separación administrativa no crea otra exención. Aplicar no acredita el pago.</p>'+(f.x.fuente_diferencial?'<p>Fuente diferencial: '+esc(f.x.fuente_diferencial.fuente||f.x.fuente_diferencial.motivo||'Diferencial no determinado')+' · '+esc(f.x.fuente_diferencial.criterio||'')+' · vigencia '+esc(f.x.fuente_diferencial.vigente_desde||'por confirmar')+'–'+esc(f.x.fuente_diferencial.vigente_hasta||'vigente al corte')+'</p>':'')+'</section>';
+ }
+ function anexarComponentesExcel(wb,fs){
+  const rows=[['AGUINALDO · COMPONENTES'],['NO.','TRABAJADOR','COMPONENTE','FUENTE','PERIODICIDAD','BASE PERIODO','DIVISOR','BASE DIARIA','DÍAS COMPUTABLES','DÍAS PACTADOS','CAUSADO','PENDIENTE BRUTO','EXENTO','GRAVADO','ISR ATRIBUIBLE','NETO','ESTADO']];
+  for(const f of fs)for(const[k,c]of Object.entries(f.fila.componentes||{REGISTRADO:f.fila})){const s=c.fuente_salarial,x=c.fiscal;rows.push([f.w.no_trab,fullName(f.w),k==='REGISTRADO'?'Aguinaldo registrado':'Aguinaldo diferencial',s?.fuente||(k==='REGISTRADO'?'Ficha salarial':'Diferencial no determinado'),s?.periodicidad||periodoPago(f.w),s?.monto??'',s?.divisor??'',c.derecho?.salario_base??'',c.derecho?.dias_computables??'',S.p.dias_pactados,c.bruto_causado??'',c.bruto_a_pagar??'',x?.exento??'',x?.gravado??'',x?.isr??'',x?.neto??'',c.estado]);}
+  XLSX.utils.book_append_sheet(wb,buildSheet(rows,[ST.title,ST.head,...rows.slice(2).map(()=>ST.cell)],[8,32,24,28,16,16,12,16,14,14,16,16,16,16,16,16,20],[{s:{r:0,c:0},e:{r:0,c:16}}]),'COMPONENTES');
+ }
+ async function fuenteDiferencial(i){
+  const f=S.filas[i];if(!f||!(typeof esVip==='function'&&esVip()))throw Error('Control salarial reservado.');
+  const opciones=f.x.opciones_diferencial||[];
+  if(!opciones.length)throw Error('No hay control salarial ni diferencial capturado. Registra primero la fuente salarial.');
+  modal2('<div class="m-head"><h2>Base habitual del diferencial · #'+esc(f.w.no_trab)+'</h2><button class="x" onclick="closeModal2()">×</button></div><div class="m-body"><p>Confirma únicamente salario habitual, sin bonos extraordinarios ni retenciones. No se infiere un promedio.</p><label>Fuente<select id="agd-fuente">'+opciones.map((o,i)=>'<option value="'+i+'">'+esc(o.fuente)+(o.semana?' S'+o.semana:'')+' · $'+money(o.monto)+'</option>').join('')+'</select></label><label>Días que representa el importe<input id="agd-divisor" type="number" min="1" max="31" step=".000001" value="'+(f.x.fuente_diferencial?.divisor||'')+'"></label><label>Vigente desde<input id="agd-desde" type="date" value="'+S.p.corte+'"></label><label>Vigente hasta<input id="agd-hasta" type="date" value="'+S.p.ejercicio+'-12-31"></label><label>Referencia del criterio o soporte<input id="agd-ref" placeholder="Contrato, política o captura salarial validada"></label></div><div class="m-foot"><button class="btn" onclick="closeModal2()">Volver</button><button class="btn dark" id="agd-confirmar">Confirmar base salarial</button></div>','lg');
+  const turno=S.turno,boton=$('agd-confirmar'),operacion_id=crypto.randomUUID();
+  boton.addEventListener('click',async()=>{
+   if(boton.disabled)return;const o=opciones[Number($('agd-fuente').value)];
+   const j={operacion_id,trabajador_id:f.w.id,ejercicio:S.p.ejercicio,corte:S.p.corte,fuente:o.fuente,fuente_id:o.fuente_id,fuente_huella:o.huella,divisor:Number($('agd-divisor').value),vigente_desde:$('agd-desde').value,vigente_hasta:$('agd-hasta').value,referencia:$('agd-ref').value.trim(),confirmar_habitual:true};
+   if(!(j.divisor>0&&j.divisor<=31)||j.referencia.length<5||!j.vigente_desde||!j.vigente_hasta||j.vigente_desde>S.p.corte||j.vigente_hasta<S.p.corte){toast('Revisa divisor, vigencia que cubra el corte y referencia.','err');return;}
+   if(!confirm('¿Confirmas que este importe corresponde exclusivamente al diferencial salarial habitual y su unidad documentada?'))return;
+   boton.disabled=true;
+   try{const r=await sb.rpc('control_aguinaldo',{p_accion:'FUENTE_DIFERENCIAL',p_datos:j});if(r.error)throw r.error;if(!activo(turno))return;closeModal2();S.reanudacion=null;await recalcularTrabajador(f.w.id);toast('Fuente salarial guardada y cálculo actualizado.','ok');}
+   catch(e){toast(e.message,'err');if(boton.isConnected)boton.disabled=false;}
+  });
  }
 
  /* ---------- Eventos ---------- */
@@ -618,6 +661,7 @@
   if(acc==='sel-todo'){S.sel=new Set(S.filas.filter(f=>f.puede_revisar).map(f=>f.w.id));return pintar();}
   if(acc==='sel-ninguno'){S.sel=new Set();return pintar();}
   if(acc==='pagina'){S.pagina=Math.max(0,Number(b.dataset.pagina)||0);return pintar();}
+  if(acc==='base-diferencial')return fuenteDiferencial(Number(b.dataset.i));
   if(acc==='desglose')return desglose(Number(b.dataset.i));
   if(acc==='continuidad')return C().abrirLote(S.empresa);
   if(acc==='evidencia')return revisarEvidencia(Number(b.dataset.i));

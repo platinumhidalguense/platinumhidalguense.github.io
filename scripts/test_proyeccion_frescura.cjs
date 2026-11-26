@@ -34,7 +34,7 @@ const box = {
   buildSheet: rows => { box.exportedRows = rows; return {}; },
   $: id => elements[id], pyPreview: () => { refreshed++;
     elements['py-btn'].disabled = false; }, toast: () => {},
-  sb: { from: table => ({ table, select() { return this; }, eq() { return this; }, order() { return this; } }) },
+  sb: { rpc:async()=>({data:{lineas:[]},error:null}), from: table => ({ table, in(){return this;}, select() { return this; }, eq() { return this; }, order() { return this; } }) },
   fetchAllRows: async query => {
     const { table } = query();
     return { data: table === 'trabajadores' ? [worker] :
@@ -44,6 +44,8 @@ const box = {
 box.ALTAS_CORTAS=[];box.FINTRANS=[];vm.createContext(box);
 vm.runInContext([...['descuentoCorrespondePeriodo','adaptarRetencionPeriodo','retencionesDePeriodo'].map(n=>fn('function '+n+'(')),fn('function descuentosDe('),fn('async function proyLeerFiniquitos('),fn('async function proyCargarHistoricos('),fn('async function proyLeerBajasHistoricas('), fn('async function pyDatosFrescos('),
   fn('function buildProyWS(')].join('\n'), box);
+vm.runInContext(fs.readFileSync('frontend/modulos/73-aguinaldo-integracion.js','utf8'),box);
+vm.runInContext(fn('function jornadaSinEsquema(')+'\n'+fn('async function jornadaLeerEventos('),box);
 (async () => {
   const before = +(worker.sal_semanal - box.descuentosDe(worker, 'S26').total).toFixed(2);
   if (before !== 700) throw new Error(`Wrong stale baseline: ${before}`);
@@ -66,7 +68,7 @@ vm.runInContext([...['descuentoCorrespondePeriodo','adaptarRetencionPeriodo','re
     throw new Error('Export was not blocked on refresh failure');
   console.log('OK falla de actualización bloquea Excel obsoleto');
   const reentry={...worker,estatus:'ACTIVO',fecha_baja:'2026-10-05',fecha_reingreso:'2026-10-12'};
-  box.fetchAllRows=async build=>({data:build().table==='trabajadores'?[reentry]:[],error:build().table==='historial'?{message:'historial inaccesible'}:null});
+  box.fetchAllRows=async build=>({data:build().table==='trabajadores'?[reentry]:[],error:['historial','historial_laboral_efectivo'].includes(build().table)?{message:'historial inaccesible'}:null});
   if(await box.pyDatosFrescos()||!elements['py-btn'].disabled||box._PY_FRESCOS!==false)
     throw Error('Falla de historial omitió un finiquito sin bloquear la exportación');
   console.log('OK historial inaccesible bloquea exportación en vez de omitir finiquitos');

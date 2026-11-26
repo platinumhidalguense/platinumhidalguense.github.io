@@ -1,8 +1,8 @@
 {
-  "version": "2026-11-26.2",
-  "entry": "assets/platinum-app.6003088c0720fd1c.js",
-  "sha256": "6003088c0720fd1c99b8d453f8d126efc45d01ba05fad3d5fc1ae37fe726e56d",
-  "integrity": "sha384-5Wwg1VHZZzU97ZKa7UoIMqXoU6xkEsycmktr6dinOOVNFY3bnp5vQN7E7ITKnedg",
+  "version": "2026-11-26.3",
+  "entry": "assets/platinum-app.9f5972e786f62c46.js",
+  "sha256": "9f5972e786f62c46ecc97ab71cd519f6d5232715d32e8e895dd78bf7acafba72",
+  "integrity": "sha384-VTLpGyHZisH7YKORBma+njO/gUFPbJQj/dEuUQEUWizbcXFTjoZUGVWT1WJzrEx4",
   "modules": [
     {
       "path": "frontend/modulos/00-configuracion-utilidades.js",
@@ -10,7 +10,7 @@
     },
     {
       "path": "frontend/modulos/01-sesion-centros-sincronizacion.js",
-      "sha256": "384f3cfb56489431e9dbae8b92bd500fdec9839fe08af13322c9413ffd6b7dd5"
+      "sha256": "d3189a365b09adaf52f27311aa0b8b0ba5d48b8928b7c18bf880bc0025238224"
     },
     {
       "path": "frontend/modulos/02-asistente-extractores.js",
@@ -46,7 +46,7 @@
     },
     {
       "path": "frontend/modulos/10-proyeccion-nomina.js",
-      "sha256": "d4483b83a884933db50c4770cc4201259fc259f6f734c81c8d176e03bb6b2c5e"
+      "sha256": "61b327fb7f3c7bf197d5590a6d80154b97dbaf79cf504230f89d02d9844f9ece"
     },
     {
       "path": "frontend/modulos/11-expedientes-excel.js",
@@ -294,15 +294,15 @@
     },
     {
       "path": "frontend/modulos/72-aguinaldo-nucleo.js",
-      "sha256": "3ef943a2186741d85b9177c0b80342a4f502f1ab1c21f5b76b91e026d9b05ac3"
+      "sha256": "135f5fb4201f650203493ff5f5f067c89b8fc1fbe7cc27a5684732b60a410150"
     },
     {
       "path": "frontend/modulos/73-aguinaldo-integracion.js",
-      "sha256": "2c1e6a91a736494cfe75b2ccfd27874f4bbd536bc1a8032ad8ad58f70ca18e46"
+      "sha256": "f3cf82db579667fc616a34dc1962261c8ee48a6feff4436ced5a417d4eeb12e5"
     },
     {
       "path": "frontend/modulos/74-aguinaldo-corrida.js",
-      "sha256": "105d67195808d845afffebdb7b9f5749e78811625723f747efb7550b55b02d20"
+      "sha256": "625ac9ae1f8ed3d03af1b7697d4e489c830169ee0068d405ce2952b368ab8133"
     },
     {
       "path": "frontend/modulos/75-faltas-historicas.js",

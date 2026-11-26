@@ -33,6 +33,7 @@ eq(new Set(montos).size,1);eq(JSON.stringify(modelo),original,'no muta el modelo
 const vista=caja.proyVistaTresImportes(modelo);for(const a of esperado)for(const v of a)assert(vista.includes('$'+v.toFixed(2)));assert(vista.includes(modelo.neto.toFixed(2)));n++;
 const e={'py-prev':{innerHTML:''},'py-btn':{},'py-ambas':{},'py-sem':{value:'33'},'py-destino':{value:'CONTRATISTA'},'py-d1':{value:'2026-11-09'},'py-d2':{value:'2026-11-15'},'py-periodo':{value:'SEMANAL'}};
 Object.assign(caja,{$:id=>e[id],semObra:()=>33,OBRA:{id:'o'},pyCandidatos:()=>({act:[],fins:[]}),proyLeerFiniquitos:async()=>[],proyModelo:()=>modelo,aguinaldoAplicarModelo:m=>m,aguinaldoSinFila:()=>[],jornadaAplicarModelo:m=>m,jornadaSinFila:()=>[]});
+vm.runInContext(fs.readFileSync('frontend/modulos/73-aguinaldo-integracion.js','utf8'),caja);
 (async()=>{await caja.pyPreview();assert(e['py-prev'].innerHTML.includes(vista));assert(e['py-prev'].innerHTML.includes('Neto total a pagar'));eq(e['py-btn'].disabled,false);
  e['py-destino'].value='DISPERSION';await caja.pyPreview();assert(e['py-prev'].innerHTML.includes(vista));eq(modelo.neto,35975);
  const sin={...modelo,filas:modelo.filas.map(x=>({...x,prevision:0}))};eq(caja.proyTienePrevision(sin),false);eq(caja.proyVistaTresImportes(sin),'');

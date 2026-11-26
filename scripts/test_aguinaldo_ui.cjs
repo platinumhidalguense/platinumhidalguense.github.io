@@ -21,7 +21,7 @@ const sb={from(tabla){const cond=[];const q={select(){return q;},eq(k,v){cond.pu
   range(a,b){return Promise.resolve({data:(bdd[tabla]||[]).filter(r=>cond.every(f=>f(r))).slice(a,b+1),error:null});}};return q;},
  rpc:async(fn,args)=>{llamadas.push({fn,args:JSON.parse(JSON.stringify(args))});return rpc(fn,args);},
  storage:{from:()=>({upload:async()=>({error:null}),createSignedUrl:async()=>({data:{signedUrl:'about:blank'}})})}};
-const box={window:null,document,console,AbortController,Date,Math,JSON,Number,String,Array,Object,Set,Map,Promise,Error,RegExp,Symbol,Intl,setImmediate,
+const box={ES_VIP:false,APP_USER:{rol:'CONSULTA'},window:null,document,console,AbortController,Date,Math,JSON,Number,String,Array,Object,Set,Map,Promise,Error,RegExp,Symbol,Intl,setImmediate,
  OBRA:obras[0],OBRAS:obras,WORKERS:[w1,w2,w3,w4,w5],EMPRESA_ACTIVA:'PLATINUM',EMPRESAS:{PLATINUM:{nombre:'PLATINUM',corto:'PLATINUM'},JIRE:{nombre:'JIRE',corto:'JIRE'}},
  CFGEMP:{fiscal:{anio:2026,sm:315.04,uma:117.31,umi:100.81}},CUADS:[],CONTRATISTAS:[],DESC:[],DIFS:[],FINTRANS:[],USER:{id:'u',email:'u@x'},sb,
  ST:Object.fromEntries(['title','sub','head','cell','cellC','money','fin','finMoney','total','totalMoney','sect'].map(k=>[k,{}])),
@@ -390,5 +390,25 @@ function coalesceInicio(id){const w=bdd.trabajadores.find(w=>w.id===id);return w
  // Cambiar parámetros invalida la caché parcial y vuelve a leer el alcance completo.
  eq(llamadas.filter(c=>c.args.p_accion==='CONTEXTO').at(-1).args.p_datos.alcance,'CICLO_VIGENTE_V1','RPC explícita de ciclo vigente');
  console.log(`MG sintético:275 personas,6 solicitudes,concurrencia2,${Date.now()-tMG}ms incluidas pruebas de reintento; no es medición de Supabase.`);
+
+ // Componentes en la interfaz real (DOM sintético), desde fuente a aplicación y Excel.
+ box.closeModal();box.esVip=()=>true;editar=true;box.PLATINUM_FLOWS={obtenerVersiones:async()=>({cierres:[]})};
+ const wc=W('dual',991,{fecha_alta:'2026-01-01'});bdd.trabajadores=[wc];box.WORKERS=[wc];ctx={dual:persona(wc)};
+ const sf={estado:'DETERMINADO',fuente:'SUELDO_INTERNO',fuente_id:'dual',monto:500,divisor:7,periodicidad:'SEMANAL',huella:'FUENTE',vigente_desde:'2026-01-01'};
+ let dualPayload=null;
+ rpc=(fn,a)=>a.p_accion==='DIFERENCIALES'?{data:{personas:[{trabajador_id:'dual',fuente:sf,opciones:[{fuente:'SUELDO_INTERNO',fuente_id:'dual',monto:500,huella:'FUENTE'}]}]}}:servidor(fn,a);
+ aplicar=d=>{dualPayload=d;return{data:{lote_id:'dual-lote',lineas:d.lineas.length}};};
+ UI.abrir();valor('agc-centro','O');valor('agc-componentes','AMBOS');valor('agc-fecha_destino','2026-12-09');valor('agc-hasta','2026-12-31');
+ click(document.querySelector('[data-agc-acc="calcular"]'));await tick(30);
+ const ds=UI._pruebas.estado(),df=ds.filas[0];eq(df.fila.componentes.DIFERENCIAL.bruto_causado,1071.43,'pantalla usa base sólo diferencial');
+ eq(df.fila.componentes.REGISTRADO.bruto_causado,7500,'pantalla conserva registrado');
+ ok(document.querySelector('[data-agc-acc="base-diferencial"]'),'fuente accesible desde la misma fila');
+ click(document.querySelector('[data-agc-acc="desglose"]'));await tick();ok(document.body.textContent.includes('Aguinaldo diferencial')&&document.body.textContent.includes('Aguinaldo registrado'),'desglose presenta ambos');box.closeModal2();
+ click(document.querySelector('[data-agc-acc="analisis"]'));await tick();ok(descargas.at(-1).wb.Sheets.COMPONENTES,'Excel incluye desglose separado');
+ click(document.querySelector('[data-agc-paso="3"]'));await tick();click(document.querySelector('[data-agc-acc="aplicar"]'));await tick(30);
+ eq(dualPayload?.lineas.map(l=>l.componente),['REGISTRADO','DIFERENCIAL'],'aplicación conjunta envía sólo dos componentes');
+ eq(dualPayload.lineas[1].fuente_salarial.huella,'FUENTE','fuente verificada acompaña complemento');
+ eq(dualPayload.lineas[1].exento_usado,dualPayload.lineas[0].exento,'exención compartida en la solicitud real');
+ box.closeModal();box.esVip=()=>false;UI.abrir();ok(![...document.querySelectorAll('#agc-componentes option')].some(o=>o.value==='AMBOS'),'consulta sin VIP no ofrece bases internas');
  console.log(`PASS aguinaldo UI: ${n} comprobaciones; filtros, ciclo vigente, fiscal anual, volumen, reintento y cancelación; regresión de ficha, finiquito y proyecciones.`);
 })().catch(e=>{console.error(e);process.exit(1);});

@@ -13,11 +13,11 @@ function aguinaldoSinEsquema(error){
 async function aguinaldoLeerLineas(obraIds){
   const ids=[...new Set((obraIds||[]).filter(Boolean))];
   if(!ids.length)return [];
-  const {data,error}=await fetchAllRows(()=>sb.from('control_aguinaldo_lineas')
-    .select('id,lote_id,obra_id,empresa_codigo,trabajador_id,ejercicio,periodicidad,semana,periodo_desde,periodo_hasta,fecha_pago,bruto,exento,gravado,isr,neto,metodo_isr,estado,version')
-    .in('obra_id',ids).eq('estado','APLICADO'));
-  if(error){if(aguinaldoSinEsquema(error))return [];throw Error('No se pudieron consultar los aguinaldos aplicados: '+error.message);}
-  return data||[];
+
+  const r=await sb.rpc('control_aguinaldo',{p_accion:'PROYECCION',p_datos:{obras:ids}});
+  if(r.error){if(aguinaldoSinEsquema(r.error))return [];throw Error('No se pudieron consultar los aguinaldos aplicados: '+r.error.message);}
+  if(!Array.isArray(r.data?.lineas))throw Error('El servidor no confirmó las aplicaciones de aguinaldo.');
+  return r.data.lineas;
 }
 function aguinaldoLineaValida(l){
   const n=k=>Number(l[k]),r=redondearCentavos;
@@ -36,7 +36,7 @@ function aguinaldoEnPeriodo(l,w,sem){
   return p.desde===l.periodo_desde&&p.hasta===l.periodo_hasta&&periodoPago(w)===String(l.periodicidad||'').toUpperCase();
 }
 function aguinaldoAplicarModelo(m,lineas){
-  const xs=(lineas||[]).filter(l=>l&&l.estado==='APLICADO').map(aguinaldoLineaValida);
+  const xs=[...new Map((lineas||[]).filter(l=>l&&l.estado==='APLICADO').map(l=>[l.id,l])).values()].map(aguinaldoLineaValida);
   if(!xs.length||!m?.filas?.length)return m;
   for(const f of m.filas.filter(f=>f.fin))
     if(xs.some(l=>aguinaldoEnPeriodo(l,f.w,m.sem)))throw Error(`#${f.w.no_trab} (${fullName(f.w)}) tiene aguinaldo aplicado en este periodo y ahora es finiquito: retira la aplicación en Prestaciones → Aguinaldo y concilia el aguinaldo dentro del finiquito.`);
@@ -48,6 +48,7 @@ function aguinaldoAplicarModelo(m,lineas){
     toca=true;
     const ag={lineas:ls.map(l=>l.id).sort(),ejercicio:ls[0].ejercicio,fecha_pago:ls[0].fecha_pago,periodo_desde:ls[0].periodo_desde,periodo_hasta:ls[0].periodo_hasta,
       metodo_isr:[...new Set(ls.map(l=>l.metodo_isr))].join('+'),bruto:s(ls,'bruto'),exento:s(ls,'exento'),gravado:s(ls,'gravado'),isr:s(ls,'isr'),neto:s(ls,'neto')};
+    if(ls.some(l=>l.componente==='DIFERENCIAL'))ag.componentes=Object.fromEntries(['REGISTRADO','DIFERENCIAL'].map(k=>{const cs=ls.filter(l=>(l.componente||'REGISTRADO')===k);return [k,{lineas:cs.map(l=>l.id).sort(),bruto:s(cs,'bruto'),exento:s(cs,'exento'),gravado:s(cs,'gravado'),isr:s(cs,'isr'),neto:s(cs,'neto')}];}));
     return {...f,aguinaldo:ag,neto:r(f.neto+ag.neto)};
   });
   if(!toca)return m;
@@ -94,13 +95,13 @@ function proyColumnaConcepto(tabla,filas,totales,pos,titulo,valor){
 }
 /* Hoja de desglose fiscal: bruto, exento (LISR 93-XIV), gravado, ISR y neto. */
 function aguinaldoHojaProyeccion(modelo,colB){
-  const filas=modelo.filas.filter(f=>f.aguinaldo).sort((a,b)=>(Number(a.w.no_trab)||0)-(Number(b.w.no_trab)||0));
+  const filas=modelo.filas.filter(f=>f.aguinaldo).flatMap(f=>f.aguinaldo.componentes?Object.entries(f.aguinaldo.componentes).filter(([,c])=>c.bruto>0).map(([k,c])=>({...f,ag_componente:k,aguinaldo:{...f.aguinaldo,...c}})):[f]).sort((a,b)=>(Number(a.w.no_trab)||0)-(Number(b.w.no_trab)||0));
   const rows=[[`AGUINALDO APLICADO · ${modelo.sem} · ART. 87 LFT · LISR 93-XIV Y 96 / RLISR 174`],
     ['NO.','NOMBRE COMPLETO',colB==='OBRA'?'OBRA':'CONTRATISTA','EJERCICIO','PERIODO','FECHA DE PAGO','AGUINALDO BRUTO','EXENTO','GRAVADO','ISR AGUINALDO','MÉTODO ISR','AGUINALDO NETO']];
   const styles=[ST.title,ST.head],money=[6,7,8,9,11];
   for(const f of filas){
     const a=f.aguinaldo;
-    rows.push([f.w.no_trab??'',fullName(f.w),colB==='OBRA'?(OBRAS.find(o=>o.id===f.w.obra_id)?.nombre||''):f.w.contratista||'',a.ejercicio,
+    rows.push([f.w.no_trab??'',fullName(f.w)+(f.ag_componente?' · Aguinaldo '+(f.ag_componente==='REGISTRADO'?'registrado':'diferencial'):''),colB==='OBRA'?(OBRAS.find(o=>o.id===f.w.obra_id)?.nombre||''):f.w.contratista||'',a.ejercicio,
       `${fmtD(a.periodo_desde)} – ${fmtD(a.periodo_hasta)}`,fmtD(a.fecha_pago),a.bruto,a.exento,a.gravado,a.isr,a.metodo_isr==='ART174'?'RLISR 174':'LISR 96',a.neto]);
     styles.push(rows[1].map((_,i)=>money.includes(i)?ST.money:i===1||i===2?ST.cell:ST.cellC));
   }
@@ -118,10 +119,19 @@ function aguinaldoHojaProyeccion(modelo,colB){
    que las fotografías sin aguinaldo conserven exactamente su huella. */
 function aguinaldoCamposItem(f){
   const a=f&&f.aguinaldo;if(!a)return {};
-  return {aguinaldo_bruto:a.bruto,aguinaldo_exento:a.exento,aguinaldo_gravado:a.gravado,aguinaldo_isr:a.isr,aguinaldo_neto:a.neto,aguinaldo_lineas:a.lineas};
+  return {aguinaldo_bruto:a.bruto,aguinaldo_exento:a.exento,aguinaldo_gravado:a.gravado,aguinaldo_isr:a.isr,aguinaldo_neto:a.neto,aguinaldo_lineas:a.lineas,...(a.componentes?{aguinaldo_componentes:a.componentes}:{})};
 }
 function aguinaldoCamposSnapshot(filas){
   const xs=(filas||[]).filter(f=>f.aguinaldo);if(!xs.length)return {};
   const s=k=>redondearCentavos(xs.reduce((a,f)=>a+Number(f.aguinaldo[k]),0));
   return {total_aguinaldo_bruto:s('bruto'),total_aguinaldo_isr:s('isr'),total_aguinaldo_neto:s('neto')};
+}
+
+/* Desglose aplicado en la vista previa: importes operativos, sin revelar las bases del control interno. */
+function aguinaldoVistaComponentes(modelo){
+  const fs=(modelo?.filas||[]).filter(f=>f.aguinaldo);if(!fs.length)return '';
+  const total={registrado:0,diferencial:0,neto:0};
+  const rows=fs.map(f=>{const a=f.aguinaldo,c=a.componentes,r=Number(c?.REGISTRADO.neto??a.neto),d=Number(c?.DIFERENCIAL.neto??0);total.registrado+=r;total.diferencial+=d;total.neto+=a.neto;
+   return '<tr><td>'+esc(f.w.no_trab??'')+'</td><td>'+esc(fullName(f.w))+'</td><td>$'+money(r)+'</td><td>$'+money(d)+'</td><td>$'+money(a.neto)+'</td></tr>';});
+  return '<section style="overflow:auto;max-height:30vh;margin-top:12px"><h3>Aguinaldo aplicado · neto incluido en el total de nómina</h3><table><thead><tr><th>No.</th><th>Trabajador</th><th>Aguinaldo registrado</th><th>Aguinaldo diferencial</th><th>Total aguinaldo neto</th></tr></thead><tbody>'+rows.join('')+'</tbody><tfoot><tr><th colspan="2">TOTAL</th><th>$'+money(redondearCentavos(total.registrado))+'</th><th>$'+money(redondearCentavos(total.diferencial))+'</th><th>$'+money(redondearCentavos(total.neto))+'</th></tr></tfoot></table><p class="fhint">El detalle bruto, exento, gravado e ISR está en la hoja AGUINALDO del Excel. Estos importes ya están incluidos una sola vez en el neto a pagar.</p></section>';
 }

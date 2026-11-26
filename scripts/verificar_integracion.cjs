@@ -116,6 +116,7 @@ else console.log('ALCANCE PÚBLICO RENDIMIENTO: se verifica la UI en dos sesione
 // Aguinaldo y faltas históricas: núcleo e interfaz siempre; PostgreSQL con la migración privada.
 const aguinaldoPrivate=fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_aguinaldo_faltas_historicas.sql'));
 suites.push('test_aguinaldo_nucleo','test_aguinaldo_ui','test_aguinaldo_revision_core','test_aguinaldo_evidencias_ui','test_aguinaldo_exencion');
+suites.push('test_aguinaldo_diferencial');
 suites.push('test_aguinaldo_continuidad','test_aguinaldo_exento_sin_dato');
 if(fs.existsSync('../revision/esquema_ag_actual.json')&&fs.readdirSync('supabase/migrations').some(n=>n.endsWith('_aguinaldo_revision_reingresos.sql')))suites.push('test_aguinaldo_revision_pg');
 suites.push('test_baja_finiquito_ui','test_reversion_baja_ui','test_baja_exento_pendiente','test_baja_incapacidad_eg');

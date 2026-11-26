@@ -10,7 +10,7 @@ for(const p of mods){const s=fs.readFileSync(p,'utf8');
  for(const node of acorn.parse(s,{ecmaVersion:'latest'}).body)if(node.type==='FunctionDeclaration'||node.type==='VariableDeclaration'&&node.declarations.every(x=>x.init&&['ISR_M','F_SEM','PERIODOS','ISR_TABLA','MOTOR_NOMINA_VERSION','SEMANA1'].includes(x.id.name)))code.push(s.slice(node.start,node.end));}
 const obras=[{id:'O-PLAT',nombre:'OBRA FICTICIA PLATINUM',fecha_inicio:'2026-03-30',empresa_codigo:'PLATINUM',activa:true},{id:'O-JIRE',nombre:'OBRA FICTICIA JIRE',fecha_inicio:'2026-07-27',empresa_codigo:'JIRE',activa:true},
  {id:'O-Q',nombre:'QUINCENAL FICTICIA',fecha_inicio:'2026-03-30',empresa_codigo:'PLATINUM',activa:true}];
-const box={window:null,document,console,Date,Math,JSON,Number,String,Array,Object,Set,Map,Promise,Error,RegExp,Symbol,Intl,
+const box={ES_VIP:false,APP_USER:{rol:'CONSULTA'},window:null,document,console,Date,Math,JSON,Number,String,Array,Object,Set,Map,Promise,Error,RegExp,Symbol,Intl,
  OBRA:obras[0],OBRAS:obras,WORKERS:[],EMPRESA_ACTIVA:'PLATINUM',EMPRESAS:{PLATINUM:{nombre:'PLATINUM',corto:'PLATINUM'},JIRE:{nombre:'JIRE',corto:'JIRE'}},
  CFGEMP:{fiscal:{anio:2026,sm:315.04,uma:117.31,umi:100.81,subsidio_pct:15.02,subsidio_tope_mensual:11492.66,subsidio_semanal_metodo:'cuota_diaria_truncada'},
   motores_nomina:{QUINCENAL:{por_obra:{'O-Q':{codigo:'FICTICIO',dias_fiscales:15.21,divisor_isr:365/12,factor_falta:7/6,criterio_limite_inferior:'NOI_SUPERIOR_ANTERIOR'}}}}},

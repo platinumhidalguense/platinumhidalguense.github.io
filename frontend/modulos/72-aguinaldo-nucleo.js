@@ -478,7 +478,54 @@
   return JSON.stringify(v===undefined?null:v);
  }
 
- return Object.freeze({VERSION,NATURALEZAS,EXENTO_SIN_DATO,UMA,naturalezaCatalogo,computaNaturaleza,eventosCorregidos,tramosServicio,recortar,activoEnFecha,seleccionar,
+
+ /* Componentes de una misma gratificación: días comunes; fuentes y saldos separados.
+    El impuesto se evalúa sobre el total y se resta lo previamente retenido.
+    Una diferencia fiscal negativa requiere revisión, nunca se borra un impuesto anterior. */
+ function calcularComponentes(e,fuente,modo,aplicaciones){
+  const apps=(aplicaciones||[]).filter(a=>a.estado==='APLICADO'),tipo=a=>a.componente||'REGISTRADO';
+  const reg=calcularFila(e);reg.componente='REGISTRADO';
+  if((modo==='REGISTRADO'||!modo)&&!apps.some(a=>tipo(a)==='DIFERENCIAL'))return {...reg,componentes:{REGISTRADO:reg}};
+  const faltante=texto=>({componente:'DIFERENCIAL',estado:'BLOQUEADA',derecho:reg.derecho,
+   bruto_a_pagar:null,bruto_causado:null,observaciones:[{codigo:'DIFERENCIAL_NO_DETERMINADO',texto,bloquea:true}]});
+  let dif;
+  if(!fuente||fuente.estado!=='DETERMINADO'||!(Number(fuente.divisor)>0)||fuente.monto==null)dif=faltante(fuente?.motivo||'Diferencial no determinado');
+  else {
+   const di=Number(fuente.monto)/Number(fuente.divisor);
+   if(!Number.isFinite(di)||di<0)dif=faltante('Base del diferencial inválida.');
+   else {
+    const ad=apps.filter(a=>tipo(a)==='DIFERENCIAL');
+    dif=di===0?{componente:'DIFERENCIAL',estado:ad.length?'BLOQUEADA':'SIN_SALDO',derecho:{...reg.derecho,salario_base:0,bruto:0},conciliacion:conciliar(0,[],e.fecha_pago?.slice(0,4)),bruto_causado:0,bruto_a_pagar:0,saldo:0,fiscal:{...exencion(0,e.fecha_pago,Number(e.fiscal_anual?.exento_usado||0)),isr:0,neto:0},observaciones:ad.length?[{codigo:'DIFERENCIAL_REDUCIDO',texto:'Hay aplicaciones anteriores sobre una base mayor. Requiere revisión; no se retiran automáticamente.',bloquea:true}]:[]}:calcularFila({...e,salario_base:di,evidencias:ad.map(a=>({id:a.id,operacion:'APL:'+a.id,origen:'APLICACION',estado:a.estado_destino||'APLICADO',importe_bruto:Number(a.bruto),exento:Number(a.exento),fecha_pago:a.fecha_pago,aplicado:true}))});
+    dif.componente='DIFERENCIAL';dif.fuente_salarial=fuente;
+   }
+  }
+  const cs={REGISTRADO:reg,...(modo==='REGISTRADO'||!modo?{}:{DIFERENCIAL:dif})},seleccion=modo==='DIFERENCIAL'?[dif]:modo==='REGISTRADO'||!modo?[reg]:[reg,dif];
+
+  const prev=apps.filter(a=>String(a.fecha_pago||'').slice(0,4)===String(e.fecha_pago).slice(0,4));
+  let usado=Number(e.fiscal_anual?.exento_usado??reg.conciliacion?.exento_usado??0),gravadoPrev=r2(prev.reduce((s,a)=>s+Number(a.gravado),0)),isrPrev=r2(prev.reduce((s,a)=>s+Number(a.isr),0));
+  for(const c of seleccion.filter(c=>c.estado==='LISTA'&&c.bruto_a_pagar>0)){
+   try{
+    if(prev.some(a=>a.metodo_isr!==e.metodo_isr))throw Error('Las aplicaciones anteriores usan otro método ISR. Requiere conciliación fiscal.');
+    if((e.evidencias||[]).some(v=>v.origen!=='APLICACION'&&Number(v.importe_bruto)>0))throw Error('Hay aguinaldo externo del ciclo sin ISR atribuible por componente. Vincula el desglose fiscal antes de aplicar el diferencial.');
+    const x=exencion(c.bruto_a_pagar,e.fecha_pago,usado),totalG=r2(gravadoPrev+x.gravado);
+    const total=e.metodo_isr==='ART174'?isrArt174({gravado:totalG,ingreso_mensual_ordinario:e.ingreso_mensual_ordinario},e.tarifa_mensual):e.calcularIsr96(totalG);
+    const incremental=r2(total.isr-isrPrev);
+    if(!Number.isFinite(incremental)||incremental<0||incremental>x.gravado)throw Error('El ISR incremental requiere un ajuste fiscal conciliado; no se cambia la retención anterior.');
+    c.fiscal={...x,isr:incremental,neto:r2(c.bruto_a_pagar-incremental),isr_detalle:{...total,isr:incremental,isr_total:total.isr,isr_previo:isrPrev,gravado_previo:gravadoPrev,incremental_componentes:true}};
+    usado=r2(usado+x.exento);gravadoPrev=totalG;isrPrev=r2(isrPrev+incremental);
+   }catch(error){c.estado='BLOQUEADA';c.fiscal=null;c.observaciones.push({codigo:'FISCAL_INCOMPLETO',texto:error.message,bloquea:true});}
+  }
+  const obs=seleccion.flatMap(c=>c.observaciones||[]),sum=k=>r2(seleccion.reduce((s,c)=>s+Number(c[k]||0),0));
+  const completos=seleccion.every(c=>['LISTA','SIN_SALDO'].includes(c.estado));
+  const fiscal=completos?Object.fromEntries(['bruto','exento','gravado','isr','neto'].map(k=>[k,r2(seleccion.reduce((s,c)=>s+Number(k==='bruto'?c.bruto_a_pagar:c.fiscal?.[k]||0),0))])):null;
+  if(fiscal)Object.assign(fiscal,{uma:seleccion.find(c=>c.fiscal)?.fiscal?.uma,tope:seleccion.find(c=>c.fiscal)?.fiscal?.tope,exento_usado:Number(e.fiscal_anual?.exento_usado??reg.conciliacion?.exento_usado??0)});
+  if(fiscal)fiscal.isr_detalle={metodo:e.metodo_isr,isr:fiscal.isr};
+  return {...reg,componentes:cs,estado:completos?(sum('bruto_a_pagar')>0?'LISTA':'SIN_SALDO'):'BLOQUEADA',observaciones:obs,
+   derecho:reg.derecho,conciliacion:{...reg.conciliacion,causado:sum('bruto_causado'),acreditado:r2(seleccion.reduce((s,c)=>s+Number(c.conciliacion?.acreditado||0),0)),reservado:r2(seleccion.reduce((s,c)=>s+Number(c.conciliacion?.reservado||0),0))},
+   bruto_causado:sum('bruto_causado'),bruto_a_pagar:completos?sum('bruto_a_pagar'):null,saldo:completos?sum('saldo'):null,fiscal};
+ }
+
+ return Object.freeze({calcularComponentes,VERSION,NATURALEZAS,EXENTO_SIN_DATO,UMA,naturalezaCatalogo,computaNaturaleza,eventosCorregidos,tramosServicio,recortar,activoEnFecha,seleccionar,
   ausenciasAplicables,calcularDerecho,conciliar,umaVigente,exencion,isrSemanalMotor,isrArt96Semanal,isrArt96Quincenal,
   isrMensualTarifa,isrArt174,calcularFila,desgloseExencion,canonico,util:Object.freeze({fecha,iso,sumar,dias,diasAnio,r2})});
 });
